@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from booking.models import (
-    Allocation, BookingPeriod, BookingPolicy, BookingWindow, EquivalenceClass,
+    Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
     Member, NightTransfer, Quarter, SeasonRule, Wish,
 )
 from booking.services import (
@@ -28,6 +28,20 @@ YEAR = date.today().year
 def make_member(name, **kwargs):
     u = User.objects.create_user(username=name, password="x" * 12)
     return Member.objects.create(user=u, display_name=name, **kwargs)
+
+
+def release_period(name, start, end, applies_to_all=True, active=True,
+                   quarters=None):
+    """Legt eine Periode an, die den Zeitraum zur freien Buchung freigibt
+    (Status „Freie Bebuchbarkeit“; bei active=False „Unterbrochen“ = gesperrt)."""
+    p = BookingPeriod.objects.create(
+        name=name, target_year=start.year, start=start, end=end,
+        applies_to_all=applies_to_all,
+        status=BookingPeriod.FREE_BOOKING if active else BookingPeriod.SUSPENDED,
+    )
+    if quarters:
+        p.quarters.set(quarters)
+    return p
 
 
 class BaseData(TestCase):
@@ -53,9 +67,7 @@ class BookingWindowTests(BaseData):
         self.assertIn("freigeschaltet", err)
 
     def test_buchung_im_globalen_zeitraum(self):
-        BookingWindow.objects.create(
-            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
-            applies_to_all=True, active=True)
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1))
         start = date(YEAR, 6, 1)
         alloc, err = book_spontaneous(self.alice, self.q1, start,
                                       start + timedelta(days=3))
@@ -65,13 +77,9 @@ class BookingWindowTests(BaseData):
     def test_teilmengen_einschraenkung(self):
         """Global Jan–Dez, aber Q1 nur im Juni. Buchung von Q1 im Mai scheitert,
         im Juni klappt sie; Q2 (nicht eingeschränkt) klappt auch im Mai."""
-        BookingWindow.objects.create(
-            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
-            applies_to_all=True, active=True)
-        spec = BookingWindow.objects.create(
-            name="q1-nur-juni", start=date(YEAR, 6, 1), end=date(YEAR, 7, 1),
-            applies_to_all=False, active=True)
-        spec.quarters.set([self.q1])
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1))
+        release_period("q1-nur-juni", date(YEAR, 6, 1), date(YEAR, 7, 1),
+                       applies_to_all=False, quarters=[self.q1])
 
         # Q1 im Mai: gesperrt
         may = date(YEAR, 5, 10)
@@ -91,18 +99,15 @@ class BookingWindowTests(BaseData):
         self.assertIsNotNone(alloc2, err2)
 
     def test_gesperrtes_fenster_blockt(self):
-        BookingWindow.objects.create(
-            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
-            applies_to_all=True, active=False)  # gesperrt
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1),
+                       active=False)  # gesperrt (Status „Unterbrochen“)
         start = date(YEAR, 6, 1)
         alloc, err = book_spontaneous(self.alice, self.q1, start,
                                       start + timedelta(days=3))
         self.assertIsNone(alloc)
 
     def test_doppelbuchung_wird_verhindert(self):
-        BookingWindow.objects.create(
-            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
-            applies_to_all=True, active=True)
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1))
         start = date(YEAR, 6, 1)
         a1, _ = book_spontaneous(self.alice, self.q1, start,
                                  start + timedelta(days=3))
@@ -117,9 +122,7 @@ class BookingWindowTests(BaseData):
 class NightTransferTests(BaseData):
     def setUp(self):
         super().setUp()
-        BookingWindow.objects.create(
-            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
-            applies_to_all=True, active=True)
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1))
 
     def test_uebertragung_aendert_budgets(self):
         self.assertEqual(self.alice.nights_remaining_in_year(YEAR), 50)
@@ -168,8 +171,9 @@ class LotteryWindowIndependenceTests(BaseData):
         next_year = YEAR + 1
         period = BookingPeriod.objects.create(
             name="Losung", target_year=next_year,
+            start=date(next_year, 1, 1), end=date(next_year + 1, 1, 1),
             wishlist_open=date.today(), wishlist_close=date.today(),
-            status="open")
+            status=BookingPeriod.WISHES_OPEN)
         s = date(next_year, 5, 24)
         Wish.objects.create(period=period, member=self.alice, priority=1,
                             quarter=self.q1, start=s, end=s + timedelta(days=5),
@@ -177,8 +181,10 @@ class LotteryWindowIndependenceTests(BaseData):
         Wish.objects.create(period=period, member=self.bob, priority=1,
                             quarter=self.q1, start=s, end=s + timedelta(days=5),
                             submitted=True)
-        # KEIN BookingWindow fürs Folgejahr
-        self.assertEqual(BookingWindow.objects.count(), 0)
+        # KEINE freigeschaltete Periode fürs Folgejahr (nur Wunsch-Phase)
+        self.assertEqual(
+            BookingPeriod.objects.filter(
+                status=BookingPeriod.FREE_BOOKING).count(), 0)
 
         run = run_period_lottery(period, seed=1)
         allocs = Allocation.objects.filter(period=period, source="lottery")
@@ -194,9 +200,7 @@ class SeasonRuleTests(BaseData):
     def setUp(self):
         super().setUp()
         # Ganzjährig freigeschaltet, damit nur die Saison-Regeln greifen
-        BookingWindow.objects.create(
-            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
-            applies_to_all=True, active=True)
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1))
         # Standard-Mindestnächte 3
         p = BookingPolicy.get_solo()
         p.default_min_nights = 3
@@ -274,13 +278,12 @@ class CalendarAndWishlistTests(BaseData):
 
     def setUp(self):
         super().setUp()
-        BookingWindow.objects.create(
-            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 2, 1, 1),
-            applies_to_all=True, active=True)
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 2, 1, 1))
         self.period = BookingPeriod.objects.create(
             name="Losung", target_year=YEAR + 1,
+            start=date(YEAR + 1, 1, 1), end=date(YEAR + 2, 1, 1),
             wishlist_open=date.today(), wishlist_close=date.today(),
-            status="open")
+            status=BookingPeriod.WISHES_OPEN)
 
     def test_stornierung_entfernt_zukuenftige_buchung(self):
         start = date(YEAR + 1, 3, 1)  # in der Zukunft

@@ -92,22 +92,50 @@ class Member(models.Model):
 
 
 class BookingPeriod(models.Model):
-    """Eine Jahres-Losung: Anmeldefenster + Ergebnis."""
+    """Buchungsperiode = zusammengeführter Jahres-Zeitraum.
+
+    Eine Periode durchläuft den gesamten Lebenszyklus eines Buchungsjahres:
+    Wunsch-Einreichung → Auslosung → freie Bebuchbarkeit innerhalb des
+    Zeitraums → Ende. Der `status` steuert, was gerade möglich ist; der
+    Zeitraum [start, end) ist der buchbare Bereich (früher: BookingWindow).
+
+    `applies_to_all` = True: der Zeitraum gilt für alle aktiven Quartiere.
+    Sonst gilt er nur für die unter `quarters` gewählten – so lässt sich die
+    freie Bebuchbarkeit auf einzelne Quartiere einschränken.
+    """
+    DRAFT = "draft"
+    WISHES_OPEN = "wishes_open"
+    LOTTERY_READY = "lottery_ready"
+    LOTTERY_DONE = "lottery_done"
+    FREE_BOOKING = "free_booking"
+    ENDED = "ended"
+    SUSPENDED = "suspended"
     STATUS = [
-        ("open", "Anmeldung offen"),
-        ("drawn", "Ausgelost"),
-        ("closed", "Abgeschlossen"),
+        (DRAFT, "Entwurf"),
+        (WISHES_OPEN, "Für Wunsch-Einträge freigegeben"),
+        (LOTTERY_READY, "Zur Auslosung freigegeben"),
+        (LOTTERY_DONE, "Auslosung beendet"),
+        (FREE_BOOKING, "Freie Bebuchbarkeit innerhalb Zeitraum"),
+        (ENDED, "Beendet"),
+        (SUSPENDED, "Unterbrochen"),
     ]
     name = models.CharField("Bezeichnung", max_length=120)
     target_year = models.PositiveIntegerField("Buchungsjahr")
-    wishlist_open = models.DateField("Anmeldung ab")
-    wishlist_close = models.DateField("Anmeldung bis")
-    status = models.CharField("Status", max_length=10, choices=STATUS, default="open")
+    start = models.DateField("Zeitraum buchbar ab")
+    end = models.DateField("Zeitraum buchbar bis (exkl.)")
+    wishlist_open = models.DateField("Anmeldung ab", null=True, blank=True)
+    wishlist_close = models.DateField("Anmeldung bis", null=True, blank=True)
+    status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
+    applies_to_all = models.BooleanField("Gilt für alle Quartiere", default=True)
+    quarters = models.ManyToManyField(
+        Quarter, blank=True, related_name="booking_periods",
+        verbose_name="Nur diese Quartiere (wenn nicht global)",
+    )
     seed = models.BigIntegerField("Zufalls-Seed", null=True, blank=True)
 
     class Meta:
-        verbose_name = "Buchungsperiode"
-        verbose_name_plural = "Buchungsperioden"
+        verbose_name = "Buchungsperiode (Zeitraum)"
+        verbose_name_plural = "Buchungsperioden (Zeiträume)"
         ordering = ["-target_year"]
 
     def __str__(self) -> str:
@@ -207,35 +235,6 @@ class LotteryRun(models.Model):
         return f"Losung {self.period} @ {self.executed_at:%Y-%m-%d %H:%M}"
 
 
-class BookingWindow(models.Model):
-    """Ein vom Admin freigeschalteter Buchungszeitraum.
-
-    `applies_to_all` = True: globales Fenster (alle Quartiere).
-    Sonst gilt das Fenster nur für die unter `quarters` gewählten Quartiere –
-    so lässt sich die globale Freigabe für einen Teil der Quartiere weiter
-    einschränken. Über `active` wird freigeschaltet bzw. gesperrt.
-    """
-    name = models.CharField("Bezeichnung", max_length=120)
-    start = models.DateField("Buchbar ab")
-    end = models.DateField("Buchbar bis (exkl.)")
-    applies_to_all = models.BooleanField("Gilt für alle Quartiere", default=True)
-    quarters = models.ManyToManyField(
-        Quarter, blank=True, related_name="booking_windows",
-        verbose_name="Nur diese Quartiere (wenn nicht global)",
-    )
-    active = models.BooleanField("Freigeschaltet", default=True)
-
-    class Meta:
-        verbose_name = "Buchungszeitraum"
-        verbose_name_plural = "Buchungszeiträume"
-        ordering = ["-start"]
-
-    def __str__(self) -> str:
-        scope = "alle Quartiere" if self.applies_to_all else "Teilmenge"
-        flag = "" if self.active else " [gesperrt]"
-        return f"{self.name}: {self.start}–{self.end} ({scope}){flag}"
-
-
 class NightTransfer(models.Model):
     """Übertragung von Tagen an ein anderes Mitglied innerhalb eines Jahres.
     (Ein Übertrag ins Folgejahr ist bewusst NICHT vorgesehen.)"""
@@ -271,11 +270,11 @@ class BookingPolicy(models.Model):
     )
 
     class Meta:
-        verbose_name = "Buchungsregel (global)"
-        verbose_name_plural = "Buchungsregeln (global)"
+        verbose_name = "Buchungsregeln"
+        verbose_name_plural = "Buchungsregeln"
 
     def __str__(self) -> str:
-        return f"Standard-Mindestnächte: {self.default_min_nights}"
+        return "Buchungsregeln"
 
     @classmethod
     def get_solo(cls) -> "BookingPolicy":
@@ -291,6 +290,10 @@ class SeasonRule(models.Model):
     Felder leer lassen = Regel greift nicht. So lassen sich Mindestnächte,
     Parallel-Limit und Aufenthaltsdeckel je Zeitraum frei kombinieren.
     """
+    policy = models.ForeignKey(
+        BookingPolicy, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="season_rules", verbose_name="Regelwerk",
+    )
     name = models.CharField("Bezeichnung", max_length=140)
     start = models.DateField("Von")
     end = models.DateField("Bis (exkl.)")
@@ -329,6 +332,10 @@ class SeasonRule(models.Model):
 class SchoolHoliday(models.Model):
     """Schulferien zur Anzeige im Kalender (z.B. Berlin). Rein informativ –
     beeinflusst die Buchungsregeln nicht (die liegen in SeasonRule)."""
+    policy = models.ForeignKey(
+        BookingPolicy, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="school_holidays", verbose_name="Regelwerk",
+    )
     name = models.CharField("Bezeichnung", max_length=140)
     start = models.DateField("Von")
     end = models.DateField("Bis (exkl.)")

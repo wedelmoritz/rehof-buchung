@@ -9,8 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import SpontaneousBookingForm, TransferForm, WishForm
 from .models import (
-    Allocation, BookingPeriod, BookingWindow, Member, NightTransfer, Quarter,
-    Wish,
+    Allocation, BookingPeriod, Member, NightTransfer, Quarter, Wish,
 )
 from . import services as svc
 
@@ -34,9 +33,10 @@ def dashboard(request):
             member.allocations.select_related("quarter").order_by("start")
             if member else []
         ),
-        "open_period": BookingPeriod.objects.filter(status="open").first(),
-        "released_windows": BookingWindow.objects.filter(
-            active=True, end__gte=date.today(),
+        "open_period": BookingPeriod.objects.filter(
+            status=BookingPeriod.WISHES_OPEN).first(),
+        "released_windows": BookingPeriod.objects.filter(
+            status=BookingPeriod.FREE_BOOKING, end__gte=date.today(),
         ).order_by("start")[:5],
     }
     return render(request, "booking/dashboard.html", context)
@@ -68,7 +68,8 @@ def calendar(request):
     except (TypeError, ValueError):
         year, month = today.year, today.month
 
-    period = BookingPeriod.objects.filter(status="open").first()
+    period = BookingPeriod.objects.filter(
+        status=BookingPeriod.WISHES_OPEN).first()
 
     if request.method == "POST" and member:
         action = request.POST.get("action", "")
@@ -174,8 +175,8 @@ def calendar(request):
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "period": period,
-        "released_windows": BookingWindow.objects.filter(
-            active=True, end__gte=today).order_by("start"),
+        "released_windows": BookingPeriod.objects.filter(
+            status=BookingPeriod.FREE_BOOKING, end__gte=today).order_by("start"),
     })
 
 

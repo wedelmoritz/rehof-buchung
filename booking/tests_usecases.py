@@ -15,7 +15,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from booking.models import (
-    Allocation, BookingPeriod, BookingPolicy, BookingWindow, EquivalenceClass,
+    Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
     Member, Quarter, SeasonRule, Wish,
 )
 from booking import services as svc
@@ -55,10 +55,12 @@ class UseCaseBase(TestCase):
         self.carla = make_member("carla")
 
     def open_full_year_window(self, year):
-        """Globale Freigabe fürs ganze Jahr (für normale Buchung)."""
-        return BookingWindow.objects.create(
-            name=f"global {year}", start=date(year, 1, 1),
-            end=date(year + 1, 1, 1), applies_to_all=True, active=True)
+        """Globale Freigabe fürs ganze Jahr (Periode im Status „Freie
+        Bebuchbarkeit“, für die normale Buchung)."""
+        return BookingPeriod.objects.create(
+            name=f"global {year}", target_year=year, start=date(year, 1, 1),
+            end=date(year + 1, 1, 1), applies_to_all=True,
+            status=BookingPeriod.FREE_BOOKING)
 
 
 # --------------------------------------------------------------------------- #
@@ -182,10 +184,11 @@ class JahreswechselTests(UseCaseBase):
     def test_parallel_limit_gilt_ueber_die_jahresgrenze(self):
         """Eine Buchung über Silvester und das Parallel-Limit im
         Weihnachts-Zeitraum müssen über die Jahresgrenze hinweg korrekt greifen."""
-        # Fenster Dez–Mitte Januar
-        BookingWindow.objects.create(
-            name="Jahreswechsel", start=date(NEXT_YEAR, 12, 1),
-            end=date(NEXT_YEAR + 1, 1, 15), applies_to_all=True, active=True)
+        # Freie Bebuchbarkeit Dez–Mitte Januar
+        BookingPeriod.objects.create(
+            name="Jahreswechsel", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 12, 1), end=date(NEXT_YEAR + 1, 1, 15),
+            applies_to_all=True, status=BookingPeriod.FREE_BOOKING)
         BookingPolicy.get_solo()
         SeasonRule.objects.create(
             name="Weihnachten/Silvester", start=date(NEXT_YEAR, 12, 23),
@@ -213,7 +216,9 @@ class LosungPrioritaetTests(UseCaseBase):
         Bobs Erstwunsch schlägt Alices Zweitwunsch (Runden-Prinzip)."""
         period = BookingPeriod.objects.create(
             name="Losung", target_year=NEXT_YEAR,
-            wishlist_open=date.today(), wishlist_close=date.today(), status="open")
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
         s = date(NEXT_YEAR, 5, 24)
         e = s + timedelta(days=5)
         svc.add_wish(self.alice, period, self.qa, s, e)   # Prio 1
@@ -242,7 +247,9 @@ class LosungEinreichungUndIdempotenzTests(UseCaseBase):
     def test_entwuerfe_nehmen_nicht_teil_und_rerun_ist_idempotent(self):
         period = BookingPeriod.objects.create(
             name="Losung", target_year=NEXT_YEAR,
-            wishlist_open=date.today(), wishlist_close=date.today(), status="open")
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
         s = date(NEXT_YEAR, 6, 7)
         e = s + timedelta(days=4)
         # Alice reicht ein, Bob bleibt Entwurf
@@ -283,8 +290,9 @@ class KarmaPersistenzTests(UseCaseBase):
         def run_year(year, seed):
             period = BookingPeriod.objects.create(
                 name=f"Losung {year}", target_year=year,
+                start=date(year, 1, 1), end=date(year + 1, 1, 1),
                 wishlist_open=date.today(), wishlist_close=date.today(),
-                status="open")
+                status=BookingPeriod.WISHES_OPEN)
             s = date(year, 5, 24)
             e = s + timedelta(days=5)
             for m in members:

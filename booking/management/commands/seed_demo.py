@@ -18,16 +18,16 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from booking.models import (
-    Allocation, BookingPeriod, BookingPolicy, BookingWindow, EquivalenceClass,
+    Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
     Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
 )
 
-# Die 10 echten Quartiere. Die Äquivalenzklasse ist ein VORSCHLAG und in der
-# Genossenschaft abzustimmen (Größe/Belegung als grobe Orientierung gruppiert).
+# Die 10 echten Quartiere mit der von der Genossenschaft bestätigten
+# Äquivalenzklassen-Einteilung.
 QUARTERS = [
-    # name, m², min, max, vorgeschlagene Klasse
+    # name, m², min, max, Klasse
     ("Scheunen Studio",      52, 2, 5, "Mittel"),
-    ("Stallgebäude Nord",    65, 2, 5, "Groß-Stall"),
+    ("Stallgebäude Nord",    65, 2, 5, "Mittel"),
     ("Stallgebäude Süd",     44, 2, 4, "Klein-Stall"),
     ("Stallgebäude West",    40, 2, 3, "Klein-Stall"),
     ("Gartenhaus Salix",     46, 2, 3, "Gartenhaus"),
@@ -68,7 +68,6 @@ class Command(BaseCommand):
             Allocation.objects.all().delete()
             NightTransfer.objects.all().delete()
             Wish.objects.all().delete()
-            BookingWindow.objects.all().delete()
             SeasonRule.objects.all().delete()
             SchoolHoliday.objects.all().delete()
             BookingPolicy.objects.all().delete()
@@ -126,15 +125,17 @@ class Command(BaseCommand):
             members.append(m)
         self.stdout.write(self.style.SUCCESS(f"{len(members)} Mitglieder angelegt."))
 
-        # Offene Buchungsperiode fürs nächste Jahr
+        # Buchungsperiode fürs nächste Jahr – Wunsch-Einträge freigegeben.
         next_year = date.today().year + 1
         period, _ = BookingPeriod.objects.get_or_create(
             name=f"Jahres-Losung {next_year}",
             target_year=next_year,
             defaults=dict(
+                start=date(next_year, 1, 1),
+                end=date(next_year + 1, 1, 1),
                 wishlist_open=date.today() - timedelta(days=3),
                 wishlist_close=date.today() + timedelta(days=14),
-                status="open",
+                status=BookingPeriod.WISHES_OPEN,
             ),
         )
 
@@ -169,35 +170,39 @@ class Command(BaseCommand):
             f"{wish_count} Wünsche in Periode '{period}' angelegt (im Lostopf)."
         ))
 
-        # Freigeschaltete Buchungszeiträume: das LAUFENDE Jahr ist freigegeben
-        # (für die normale Buchung). Das nächste Jahr (Los-Ziel) bewusst NICHT –
-        # so wird die Zeitlogik sichtbar: Losung im Sommer fürs Folgejahr,
+        # Freie Bebuchbarkeit: das LAUFENDE Jahr ist als Periode freigegeben
+        # (Status „Freie Bebuchbarkeit“). Das nächste Jahr (Los-Ziel) bewusst
+        # NICHT – so wird die Zeitlogik sichtbar: Losung im Sommer fürs Folgejahr,
         # normale Buchung nur im bereits freigeschalteten laufenden Jahr.
         this_year = date.today().year
-        global_win, _ = BookingWindow.objects.get_or_create(
+        global_period, _ = BookingPeriod.objects.get_or_create(
             name=f"Normalbuchung {this_year}",
+            target_year=this_year,
             defaults=dict(
                 start=date(this_year, 1, 1),
                 end=date(this_year + 1, 1, 1),
-                applies_to_all=True, active=True,
+                applies_to_all=True,
+                status=BookingPeriod.FREE_BOOKING,
             ),
         )
-        # Enger eingeschränktes Fenster für eine Teilmenge: die Pfarrhäuser sind
+        # Enger eingeschränkte Periode für eine Teilmenge: die Pfarrhäuser sind
         # nur in der wärmeren Jahreshälfte buchbar (Beispiel-Einschränkung).
-        pfarr_win, _ = BookingWindow.objects.get_or_create(
+        pfarr_period, _ = BookingPeriod.objects.get_or_create(
             name=f"Pfarrhäuser nur Sommerhalbjahr {this_year}",
+            target_year=this_year,
             defaults=dict(
                 start=date(this_year, 5, 1),
                 end=date(this_year, 10, 1),
-                applies_to_all=False, active=True,
+                applies_to_all=False,
+                status=BookingPeriod.FREE_BOOKING,
             ),
         )
-        pfarr_win.quarters.set(
+        pfarr_period.quarters.set(
             Quarter.objects.filter(name__startswith="Pfarrhaus")
         )
         self.stdout.write(self.style.SUCCESS(
-            f"Buchungszeiträume angelegt: global {this_year} (alle Quartiere) "
-            f"+ Pfarrhäuser nur Mai–Sept."
+            f"Freie-Bebuchbarkeit-Perioden angelegt: global {this_year} (alle "
+            f"Quartiere) + Pfarrhäuser nur Mai–Sept."
         ))
 
         # Beispielhafte Tage-Übertragungen zwischen Mitgliedern (laufendes Jahr)
@@ -245,6 +250,7 @@ class Command(BaseCommand):
             SeasonRule.objects.get_or_create(
                 name=name,
                 defaults=dict(
+                    policy=policy,
                     start=s_from, end=s_to, min_nights=mn,
                     max_parallel_units=mp, max_stay_nights=ms, active=True,
                 ),
@@ -276,17 +282,19 @@ class Command(BaseCommand):
         for name, h_from, h_to in holidays:
             SchoolHoliday.objects.get_or_create(
                 name=f"{name} {h_from.year}", start=h_from, end=h_to,
-                defaults=dict(region="Berlin", active=True),
+                defaults=dict(policy=policy, region="Berlin", active=True),
             )
         self.stdout.write(self.style.SUCCESS(
             f"{len(holidays)} Berliner Schulferien-Zeiträume (2026/2027) angelegt."
         ))
 
         self.stdout.write(self.style.WARNING(
-            "\nHinweis: Die Äquivalenzklassen sind ein VORSCHLAG und in der "
-            "Genossenschaft zu bestätigen.\n"
-            "Login-Demodaten: Benutzername wie 'anna0', Passwort 'demo12345'.\n"
-            "Losung starten: im Admin unter Buchungsperioden -> Aktion "
-            "'Losung durchführen'.\n"
-            "Buchungszeiträume verwalten: im Admin unter 'Buchungszeiträume'."
+            "\nLogin-Demodaten: Benutzername wie 'anna0', Passwort 'demo12345'.\n"
+            "Losung starten: im Admin unter „Buchungsperioden (Zeiträume)“ -> "
+            "Aktion 'Losung durchführen'.\n"
+            "Zeiträume & Status verwalten: im Admin unter „Buchungsperioden "
+            "(Zeiträume)“ (Status „Freie Bebuchbarkeit“ schaltet die normale "
+            "Buchung frei).\n"
+            "Buchungsregeln (global + Saison + Schulferien): im Admin unter "
+            "„Buchungsregeln“."
         ))

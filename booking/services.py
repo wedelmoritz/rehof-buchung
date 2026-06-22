@@ -15,7 +15,7 @@ from . import availability as A
 from . import lottery as L
 from . import rules as R
 from .models import (
-    Allocation, BookingPeriod, BookingPolicy, BookingWindow, LotteryRun,
+    Allocation, BookingPeriod, BookingPolicy, LotteryRun,
     Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
 )
 
@@ -90,7 +90,7 @@ def run_period_lottery(
             m.factor = new_f
             m.save(update_fields=["factor"])
 
-    period.status = "drawn"
+    period.status = BookingPeriod.LOTTERY_DONE
     period.seed = seed
     period.save(update_fields=["status", "seed"])
 
@@ -207,16 +207,21 @@ def check_booking_rules(
 
 
 # --------------------------------------------------------------------------- #
-# Freigeschaltete Buchungszeiträume
+# Freigeschaltete Buchungszeiträume (Perioden im Status "Freie Bebuchbarkeit")
 # --------------------------------------------------------------------------- #
 
 def _active_windows() -> list[A.Window]:
-    """Lädt die aktiven Buchungszeiträume als reine Window-Objekte."""
+    """Lädt die zur freien Buchung freigegebenen Perioden als reine Window-
+    Objekte. Buchbar ist ein Tag nur innerhalb einer Periode im Status
+    „Freie Bebuchbarkeit innerhalb Zeitraum“."""
     out: list[A.Window] = []
-    for w in BookingWindow.objects.filter(active=True).prefetch_related("quarters"):
-        qids = frozenset(str(q.id) for q in w.quarters.all())
+    periods = BookingPeriod.objects.filter(
+        status=BookingPeriod.FREE_BOOKING
+    ).prefetch_related("quarters")
+    for p in periods:
+        qids = frozenset(str(q.id) for q in p.quarters.all())
         out.append(A.Window(
-            start=w.start, end=w.end, applies_to_all=w.applies_to_all,
+            start=p.start, end=p.end, applies_to_all=p.applies_to_all,
             quarter_ids=qids, active=True,
         ))
     return out

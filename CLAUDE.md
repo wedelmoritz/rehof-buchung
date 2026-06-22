@@ -47,7 +47,7 @@ booking/
   rules.py              # reine Logik: Mindestnächte/Parallel/Deckel
   services.py           # Brücke DB <-> Logik (gesamte Geschäftslogik)
   models.py             # alle Datenmodelle (siehe unten)
-  admin.py              # Admin: Mitglieder, Regeln, Fenster, Losung-Aktion
+  admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
   views.py / urls.py / forms.py
   templates/booking/    # base, dashboard, calendar, result, transfer
   templates/registration/login.html
@@ -59,9 +59,11 @@ tests/                  # reine pytest-Suite (ohne Django/DB)
 ```
 
 Modelle in `models.py`: `EquivalenceClass`, `Quarter`, `Member`,
-`BookingPeriod`, `Wish` (mit `submitted`/`submitted_at`), `Allocation`,
-`LotteryRun`, `BookingWindow`, `NightTransfer`, `BookingPolicy`, `SeasonRule`,
-`SchoolHoliday`.
+`BookingPeriod` (zusammengeführt: Jahres-Losung **und** buchbarer Zeitraum,
+gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`,
+`LotteryRun`, `NightTransfer`, `BookingPolicy` (Regelwerk-Singleton mit
+`SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`, `SchoolHoliday`.
+(`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 
 ---
 
@@ -74,11 +76,18 @@ Modelle in `models.py`: `EquivalenceClass`, `Quarter`, `Member`,
   eingereichte Wünsche (`submitted=True`) nehmen teil.** Die Strategiesicherheit
   ist deterministisch getestet (`test_strategieproof_ueber_alle_reihenfolgen`) —
   bei Änderungen am Algorithmus muss dieser Test grün bleiben.
-- **Buchungszeiträume (`BookingWindow`):** Schnittmengen-Semantik. Buchbar ist
-  ein Tag nur, wenn ein aktives **globales** Fenster ihn abdeckt UND (falls für
-  das Quartier ein **spezifisches** Fenster existiert) auch dieses. Spezifische
-  Fenster können nur weiter einschränken. **Die Losung ist bewusst NICHT durch
-  Fenster begrenzt** (sie vergibt das Folgejahr im Voraus).
+- **Buchungsperiode/Zeitraum (`BookingPeriod`):** Eine Periode durchläuft den
+  Lebenszyklus über ihren `status`: `draft` (Entwurf) → `wishes_open` (Wunsch-
+  Einträge freigegeben) → `lottery_ready` (zur Auslosung freigegeben) →
+  `lottery_done` (Auslosung beendet) → `free_booking` (freie Bebuchbarkeit im
+  Zeitraum) → `ended` (beendet); `suspended` (unterbrochen) sperrt vorläufig.
+  Die **normale Buchung** ist nur in Perioden mit Status `free_booking` möglich
+  und gilt für den Zeitraum `[start, end)`. Schnittmengen-Semantik bleibt: ein
+  Tag ist buchbar, wenn eine globale `free_booking`-Periode (`applies_to_all`)
+  ihn abdeckt UND (falls für das Quartier eine spezifische Periode existiert)
+  auch diese. Spezifische Perioden können nur weiter einschränken. **Die Losung
+  ist bewusst NICHT durch den Zeitraum begrenzt** (sie vergibt das Folgejahr im
+  Voraus, bevor dessen Zeitraum auf `free_booking` steht).
 - **Tage:** 50/Jahr je Mitglied, davon max. 25 über die Wunschliste. **Kein
   Übertrag ins Folgejahr** (Kontingent gilt je Kalenderjahr frisch). Tage sind
   **an andere Mitglieder übertragbar** (`NightTransfer`).
