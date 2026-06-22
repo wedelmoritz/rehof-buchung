@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Re:Hof">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cf8c66"/>
+      <stop offset="1" stop-color="#b06a48"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#g)"/>
+  <g fill="#fffdfa">
+    <polygon points="32,15 51,31 13,31"/>
+    <rect x="18" y="31" width="28" height="18" rx="1.5"/>
+  </g>
+  <circle cx="32" cy="25.5" r="3" fill="#b06a48"/>
+  <rect x="28.5" y="38" width="7" height="11" rx="3.5" fill="#b06a48"/>
+  <circle cx="47" cy="16" r="5" fill="#8aa97f"/>
+</svg>

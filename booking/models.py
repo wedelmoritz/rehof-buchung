@@ -333,6 +333,10 @@ class Wish(models.Model):
         verbose_name = "Wunsch"
         verbose_name_plural = "Wünsche"
         ordering = ["member", "priority"]
+        indexes = [
+            models.Index(fields=["period", "submitted"]),
+            models.Index(fields=["member", "period"]),
+        ]
 
     @property
     def nights(self) -> int:
@@ -374,6 +378,13 @@ class Allocation(models.Model):
         verbose_name = "Zuteilung"
         verbose_name_plural = "Zuteilungen"
         ordering = ["start"]
+        indexes = [
+            # Überlappungs-/Belegungsprüfung je Quartier (quarter_is_free) und
+            # Kalenderaufbau – die mit Abstand häufigsten Abfragen.
+            models.Index(fields=["quarter", "start", "end"]),
+            models.Index(fields=["start", "end"]),
+            models.Index(fields=["member", "start"]),
+        ]
 
     @property
     def nights(self) -> int:
@@ -464,6 +475,9 @@ class WaitlistEntry(models.Model):
         verbose_name = "Wartelisten-Eintrag"
         verbose_name_plural = "Warteliste (Spontanbuchung)"
         ordering = ["start"]
+        indexes = [
+            models.Index(fields=["quarter", "fulfilled"]),
+        ]
 
     @property
     def nights(self) -> int:
@@ -490,6 +504,10 @@ class Notification(models.Model):
         verbose_name = "Benachrichtigung"
         verbose_name_plural = "Benachrichtigungen"
         ordering = ["-created_at"]
+        indexes = [
+            # unread_notifications (member + read) auf jeder Seite.
+            models.Index(fields=["member", "read"]),
+        ]
 
     def __str__(self) -> str:
         return f"{self.member}: {self.message}"

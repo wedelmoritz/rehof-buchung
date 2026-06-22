@@ -90,6 +90,16 @@ Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
 ausgeblendet (nur Autocomplete). Tage-Anteile werden am `Membership` zugeordnet.
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
+**PWA / Mobil:** Die Web-App ist installierbar (iOS „Zum Home-Bildschirm“,
+Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),
+Re:Hof-Logo/Icons (`booking/static/booking/icons/`), Service Worker (`/sw.js`,
+Template `booking/sw.js`, Root-Scope) mit network-first + Offline-Fallback
+(`/offline/`). Registrierung am Ende von `base.html`. Das Layout ist responsiv
+(Media-Query in `base.html`, Nav als Scroll-Leiste, Eingaben volle Breite,
+breite Datentabellen in `.table-wrap` → horizontal scrollbar statt überstehend,
+iOS-Safe-Area). `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen
+(das Manifest liegt unter `/static/` und ist damit ohnehin frei).
+
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
 `kind="dienstleistung"` + `needs_date`), Einkauf mit **Preis-Snapshot**
@@ -168,8 +178,18 @@ durch einen Test abgedeckt, `python manage.py makemigrations --check` zeigt kein
 fehlende Migration.
 
 **CI:** `.github/workflows/tests.yml` läuft bei jedem Push/PR — Job 1 die reinen
-Tests (ohne DB), Job 2 die Integrationstests gegen echtes PostgreSQL. Vor dem
-Pull auf die VPS am grünen Häkchen erkennbar, ob alles passt.
+Tests (ohne DB), Job 2 die Integrationstests gegen echtes PostgreSQL, Job 3
+**Migrations-Resilienz**: migriert eine **befüllte Alt-DB** (Booking auf 0015
+zurück, Duplikate + Cascade-Wunsch erzeugen) vorwärts — fängt DB-spezifische
+Migrationsfehler (Unique auf Duplikaten, „pending trigger events"), die ein
+frischer Testlauf NICHT sieht. Vor dem Pull auf die VPS am grünen Häkchen
+erkennbar, ob alles passt.
+
+**Betrieb:** `docker-compose.yml` hat einen **Healthcheck** am `web`-Container
+(scheitert, wenn Gunicorn nicht antwortet, z.B. nach Migrations-Abbruch →
+`docker compose ps` zeigt „unhealthy" statt nur 502 bei Caddy). **Optionales
+Redis** (Cache/Sessions/Axes-Lockout) ist über `REDIS_URL` + Profil `cache`
+zuschaltbar (`docker compose --profile cache up -d`); Standard bleibt DB-Sessions.
 
 ---
 

@@ -3,8 +3,19 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}Re:Hof Quartiere{% endblock %}</title>
+
+  <!-- PWA: installierbar (iOS „Zum Home-Bildschirm“) + Offline -->
+  <link rel="manifest" href="{% static 'booking/manifest.webmanifest' %}">
+  <meta name="theme-color" content="#efe2d2">
+  <link rel="icon" type="image/svg+xml" href="{% static 'booking/icons/logo.svg' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'booking/icons/favicon-32.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'booking/icons/apple-touch-icon.png' %}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Re:Hof">
   <style>
     :root {
       /* Warme Pastell-Palette */
@@ -39,10 +50,7 @@
       font-weight: 800; letter-spacing: .01em; color: var(--ink);
       font-size: 1.08rem; display: inline-flex; align-items: center; gap: .5rem;
     }
-    header .brand .dot {
-      width: 11px; height: 11px; border-radius: 50%;
-      background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft);
-    }
+    header .brand img { width: 26px; height: 26px; display: block; border-radius: 7px; }
     header nav { display: flex; gap: .35rem; flex-wrap: wrap; }
     header nav a {
       color: var(--muted); text-decoration: none; font-weight: 600;
@@ -151,12 +159,54 @@
     details.explain { margin: .5rem 0; }
     details.explain > summary { cursor: pointer; color: var(--accent-deep); font-weight: 600; font-size: .92rem; }
     details.explain p { margin: .4rem 0 0; }
+
+    /* Breite Datentabellen in .table-wrap scrollen horizontal statt überzustehen.
+       Der Ampel-Kalender (table.cal, width:100%) passt ohnehin. */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* iOS-Standalone: Inhalt nicht unter Notch/Home-Indikator schieben. */
+    header { padding-top: calc(.7rem + env(safe-area-inset-top));
+             padding-left: calc(1.4rem + env(safe-area-inset-left));
+             padding-right: calc(1.4rem + env(safe-area-inset-right)); }
+    main { padding-bottom: env(safe-area-inset-bottom); }
+
+    /* -------- Mobil (Smartphone) -------- */
+    @media (max-width: 680px) {
+      header { gap: .5rem .8rem; row-gap: .55rem;
+               padding-left: calc(.9rem + env(safe-area-inset-left));
+               padding-right: calc(.9rem + env(safe-area-inset-right)); }
+      header .brand { order: 1; font-size: 1rem; }
+      header .who { order: 2; margin-left: auto; }
+      header form.inline { order: 3; }
+      header .spacer { display: none; }
+      header nav { order: 5; width: 100%; flex-wrap: nowrap; overflow-x: auto;
+                   -webkit-overflow-scrolling: touch; gap: .3rem;
+                   padding-bottom: 2px; scrollbar-width: none; }
+      header nav::-webkit-scrollbar { display: none; }
+      header nav a { white-space: nowrap; }
+
+      main { margin: 1rem auto; padding: 0 .8rem env(safe-area-inset-bottom); }
+      h1 { font-size: 1.3rem; margin-bottom: .8rem; }
+      .card { padding: 1rem .9rem; }
+      input, select { min-width: 0; width: 100%; max-width: 100%; }
+      .form-row { gap: .7rem; }
+      .form-row > * { flex: 1 1 100%; }
+      .stat .num { font-size: 1.5rem; }
+      .btn { padding: .6rem 1rem; }      /* angenehmere Touch-Fläche */
+
+      table.cal td { height: 60px; }
+      table.cal td .d-book { font-size: .58rem; }
+
+      /* Datentabellen: einzeilig halten und bei Bedarf horizontal scrollen,
+         statt die Spalten unleserlich zu quetschen. */
+      .table-wrap > table { width: auto; min-width: 100%; white-space: nowrap; }
+    }
   </style>
   {% block extrahead %}{% endblock %}
 </head>
 <body>
 <header>
-  <span class="brand"><span class="dot"></span>Re:Hof Quartiere</span>
+  <span class="brand"><img src="{% static 'booking/icons/logo.svg' %}" alt="" width="26" height="26">Re:Hof Quartiere</span>
   {% if user.is_authenticated %}
   {% with url_name=request.resolver_match.url_name %}
   <nav>
@@ -184,5 +234,13 @@
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+<script>
+  // Service Worker registrieren (PWA/Offline). Läuft nur über HTTPS bzw. localhost.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js").catch(function () { /* still ok */ });
+    });
+  }
+</script>
 </body>
 </html>

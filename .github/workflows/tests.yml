@@ -104,3 +104,104 @@ jobs:
 
       - name: Integrationstests (inkl. Use-Cases)
         run: python manage.py test booking -v2
+
+  # --------------------------------------------------------------------------
+  # 3) Migrations-Resilienz: Vorwärts-Migration auf einer BEFÜLLTEN Alt-DB.
+  #    Der normale Testlauf migriert immer eine FRISCHE, leere DB – genau das
+  #    verfehlte zwei Produktionsfehler (Unique-Index auf vorhandenen Duplikaten;
+  #    "pending trigger events" bei DML+DDL in einem Schritt). Dieser Job baut den
+  #    Altstand mit echten Daten nach und migriert vorwärts.
+  # --------------------------------------------------------------------------
+  migration-resilienz:
+    name: Migration auf befüllter Alt-DB (alt → neu)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: rehof_test
+          POSTGRES_USER: rehof
+          POSTGRES_PASSWORD: rehof
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rehof -d rehof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DATABASE_URL: postgres://rehof:rehof@localhost:5432/rehof_test
+      SECRET_KEY: ci-nur-fuer-tests-nicht-fuer-produktion-0123456789
+      DEBUG: "1"
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Auf aktuellen Stand migrieren und Stammdaten anlegen
+        run: |
+          python manage.py migrate
+          python manage.py shell <<'PY'
+          from django.contrib.auth.models import User
+          from booking.models import Member, EquivalenceClass, Quarter
+          u = User.objects.create_user("legacy", "legacy@example.org", "x" * 12)
+          Member.objects.create(user=u, display_name="Legacy")
+          eq = EquivalenceClass.objects.create(name="L")
+          Quarter.objects.create(name="LegacyQ", eq_class=eq, min_occupancy=1, max_occupancy=4)
+          print("Stammdaten angelegt.")
+          PY
+
+      - name: Booking auf Altstand (vor den Änderungen) zurücksetzen
+        run: python manage.py migrate booking 0015
+
+      - name: Problematischen Alt-Zustand erzeugen (zwei Perioden je Jahr + Wunsch)
+        run: |
+          python manage.py shell <<'PY'
+          from datetime import date
+          from django.db import connection
+          from booking.models import Member, Quarter, Wish
+          m = Member.objects.first(); q = Quarter.objects.first()
+          with connection.cursor() as c:
+              c.execute('INSERT INTO booking_bookingperiod '
+                        '(name,target_year,"start","end",status,applies_to_all) '
+                        'VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
+                        ["Normalbuchung", 2099, "2099-01-01", "2100-01-01", "free_booking", True])
+              c.execute('INSERT INTO booking_bookingperiod '
+                        '(name,target_year,"start","end",status,applies_to_all) '
+                        'VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
+                        ["Pfarrhaeuser", 2099, "2099-05-01", "2099-10-01", "suspended", True])
+              dup_id = c.fetchone()[0]
+          # Wunsch an der Dublette: dessen Cascade-Löschung erzeugt die
+          # "pending trigger events", an denen das ALTER TABLE scheiterte.
+          Wish.objects.create(period_id=dup_id, member=m, quarter=q,
+                              start=date(2099, 5, 2), end=date(2099, 5, 5),
+                              priority=1, submitted=True)
+          print("Alt-Zustand: 2 Perioden für 2099 + Wunsch auf der Dublette.")
+          PY
+
+      - name: Vorwärts migrieren MUSS gelingen (war Ursache der 502)
+        run: python manage.py migrate
+
+      - name: Ergebnis prüfen – genau eine Periode pro Jahr
+        run: |
+          python manage.py shell <<'PY'
+          from booking.models import BookingPeriod
+          n = BookingPeriod.objects.filter(target_year=2099).count()
+          assert n == 1, f"Erwartet genau 1 Periode für 2099, gefunden {n}"
+          print("OK: genau eine Periode pro Jahr nach der Migration.")
+          PY

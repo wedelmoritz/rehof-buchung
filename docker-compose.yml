@@ -40,9 +40,22 @@ services:
       DEMO_WIPE: ${DEMO_WIPE:-0}     # 1 = NUR ALLES löschen (Vorsicht!)
       SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      # Optional: nur wirksam, wenn gesetzt UND der redis-Dienst läuft
+      # (docker compose --profile cache up -d).
+      REDIS_URL: ${REDIS_URL:-}
     # KEIN ports: — kein Host-Port nötig, Caddy erreicht web im Docker-Netz.
     expose:
       - "8000"               # für Container im selben Netz (Caddy)
+    # Healthcheck: schlägt fehl, wenn Gunicorn nicht (mehr) antwortet – z.B. weil
+    # eine Migration beim Start abgebrochen ist. So ist ein kaputter Start sofort
+    # an `docker compose ps` (unhealthy) erkennbar, statt nur als 502 bei Caddy.
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/login/', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s        # Zeit für Warten-auf-DB + Migrationen + Start
     networks:
       caddy:
         # Feste IP für Caddys reverse_proxy/Health-Check. Schema im Netz
@@ -50,6 +63,18 @@ services:
         ipv4_address: 10.42.42.20
       internal: {}
     # gunicorn bindet 0.0.0.0:8000 (siehe entrypoint.sh)
+
+  # Optionaler Cache/Session-Store. Standardmäßig AUS – erst mit
+  # `docker compose --profile cache up -d` starten und REDIS_URL setzen
+  # (z.B. REDIS_URL=redis://redis:6379/0 in der .env).
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    profiles: ["cache"]
+    command: ["redis-server", "--save", "", "--maxmemory", "128mb",
+              "--maxmemory-policy", "allkeys-lru"]
+    networks:
+      - internal
 
 volumes:
   pgdata:

@@ -101,25 +101,25 @@
     <strong>Im Lostopf</strong>{% if wish_period.draw_at %} · Losung am {{ wish_period.draw_at|date:"d.m.Y H:i" }}{% else %} · Losungstermin noch offen{% endif %}.
     <a href="{% url 'wishlist' %}">Wunschliste ansehen →</a>
   </div>
-  <table>
+  <div class="table-wrap"><table>
     <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
     {% for w in submitted_wishes %}
     <tr><td>{{ forloop.counter }}</td><td>{{ w.quarter.name }}</td>
         <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
 {% if past %}
 <div class="card">
   <h2>Vergangene Buchungen</h2>
-  <table>
+  <div class="table-wrap"><table>
     <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Pers.</th></tr>
     {% for a in past %}
     <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td><td>{{ a.persons }}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 {% endif %}

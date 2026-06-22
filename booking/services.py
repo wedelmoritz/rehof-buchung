@@ -43,11 +43,14 @@ def run_period_lottery(
     die Ausgleichsfaktoren und legt ein Audit-Protokoll an."""
     members = list(Member.objects.filter(is_external=False))
     quarters = list(Quarter.objects.filter(active=True))
-    # Nur eingereichte Wünsche ("im Lostopf") nehmen an der Losung teil.
-    wishes_qs = list(
-        Wish.objects.filter(period=period, submitted=True)
+    # Nur eingereichte Wünsche ("im Lostopf") nehmen an der Losung teil – und nur,
+    # wenn das Quartier im GANZEN Wunschzeitraum saisonal buchbar ist (sonst würde
+    # die Losung eine Buchung außerhalb der Quartier-Saison erzeugen).
+    wishes_qs = [
+        w for w in Wish.objects.filter(period=period, submitted=True)
         .select_related("member", "quarter")
-    )
+        if _in_season_range(w.quarter, w.start, w.end)
+    ]
 
     parties = [
         L.Party(
@@ -228,6 +231,11 @@ def book_spontaneous(
     if not range_is_released(quarter, start, end):
         return None, ("Dieser Zeitraum ist (noch) nicht zur Buchung "
                       "freigeschaltet.")
+    # Gegen Doppelbuchung bei gleichzeitigen Anfragen: die Quartier-Zeile sperren,
+    # damit Buchungen DESSELBEN Quartiers serialisiert werden (andere Quartiere
+    # laufen weiter parallel). Die Belegungsprüfung danach sieht dann eine evtl.
+    # gerade zuvor angelegte Buchung. (Unter SQLite ein No-Op – nur für Tests.)
+    Quarter.objects.select_for_update().filter(pk=quarter.pk).first()
     if not quarter_is_free(quarter, start, end):
         return None, "Das Quartier ist in diesem Zeitraum bereits belegt."
     if member.nights_remaining_in_year(start.year) < nights:
@@ -294,10 +302,11 @@ def check_booking_rules(
 
 
 def schedule_blocker(
-    member: Member, quarter: Quarter, start: date, end: date,
+    member: Member, start: date, end: date,
 ) -> str | None:
     """Grund, warum der Zeitraum (Termin/Regeln/Budget) NICHT buchbar ist –
-    ohne Personenzahl- und Belegungsprüfung. Für die Vorab-Anzeige im Kalender."""
+    ohne Personenzahl- und Belegungsprüfung. Quartiers-unabhängig, daher pro
+    Auswahl nur EINMAL berechnen (nicht je Kandidat). Für die Vorab-Anzeige."""
     nights = (end - start).days
     if nights <= 0:
         return "Ungültiger Zeitraum."
@@ -586,8 +595,8 @@ def add_waitlist_entry(
     """Trägt einen Wunschzeitraum für ein belegtes Quartier in die Warteliste ein."""
     if (end - start).days <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
-    if not A.range_released(_active_windows(), str(quarter.id), start, end):
-        return None, "Dieser Zeitraum ist nicht zur Buchung freigeschaltet."
+    if not range_is_released(quarter, start, end):
+        return None, "Dieser Zeitraum ist nicht (durchgängig) zur Buchung freigeschaltet."
     if quarter_is_free(quarter, start, end):
         return None, "Dieses Quartier ist in dem Zeitraum bereits frei – du kannst direkt buchen."
     existing = WaitlistEntry.objects.filter(
@@ -626,8 +635,7 @@ def notify_waitlist_if_free(quarter: Quarter, start: date, end: date) -> int:
     for entry in candidates:
         if not quarter_is_free(quarter, entry.start, entry.end):
             continue
-        if not A.range_released(_active_windows(), str(quarter.id),
-                                entry.start, entry.end):
+        if not range_is_released(quarter, entry.start, entry.end):
             continue
         entry.fulfilled = True
         entry.notified_at = timezone.now()
@@ -936,17 +944,28 @@ def _renumber_wishes(member: Member, period: BookingPeriod) -> None:
             w.save(update_fields=["priority"])
 
 
-def add_wish(member, period, quarter, start, end) -> Wish:
-    """Fügt einen Wunsch als Entwurf ans Ende der Liste an."""
+def add_wish(member, period, quarter, start, end) -> tuple[Wish | None, str | None]:
+    """Fügt einen Wunsch als Entwurf ans Ende der Liste an.
+
+    Prüft vorab, dass das Quartier im GANZEN Wunschzeitraum saisonal buchbar ist
+    – sonst könnte ein Losgewinn eine Buchung außerhalb der Quartier-Saison
+    erzeugen (z.B. Anreise noch in Saison, Abreise schon außerhalb)."""
+    if (end - start).days <= 0:
+        return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+    if not _in_season_range(quarter, start, end):
+        return None, (f"{quarter.name} ist in diesem Zeitraum nicht durchgängig "
+                      "buchbar (Quartier-Saison). Bitte den gesamten Zeitraum "
+                      "innerhalb der Saison wählen.")
     last = (
         Wish.objects.filter(member=member, period=period)
         .order_by("-priority").first()
     )
     next_prio = (last.priority + 1) if last else 1
-    return Wish.objects.create(
+    wish = Wish.objects.create(
         member=member, period=period, quarter=quarter, start=start, end=end,
         priority=next_prio, submitted=False,
     )
+    return wish, None
 
 
 @transaction.atomic

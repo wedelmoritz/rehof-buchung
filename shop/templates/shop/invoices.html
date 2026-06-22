@@ -16,7 +16,7 @@
 <div class="card">
   <h2>Rechnungen</h2>
   {% if invoices %}
-  <table>
+  <div class="table-wrap"><table>
     <tr><th>Nummer</th><th>Monat</th><th>Betrag</th><th>Status</th><th></th></tr>
     {% for inv in invoices %}
     <tr>
@@ -39,7 +39,7 @@
       </td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% else %}<p class="muted">Noch keine Rechnungen.</p>{% endif %}
 </div>
 {% endif %}

@@ -44,7 +44,11 @@ elif [ "${SEED_DEMO:-0}" = "1" ]; then
 fi
 
 echo "[entrypoint] Starte Gunicorn …"
+# --max-requests recycelt Worker periodisch (begrenzt Speicherwachstum auf dem
+# knappen VPS); --jitter verhindert, dass alle Worker gleichzeitig neu starten.
 exec gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers "${GUNICORN_WORKERS:-3}" \
-    --timeout 60
+    --timeout 60 \
+    --max-requests 1000 \
+    --max-requests-jitter 100

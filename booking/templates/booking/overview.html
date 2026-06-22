@@ -68,12 +68,12 @@
   <h2 style="margin-top:0">{{ sel_day|date:"l, d.m.Y" }}</h2>
   {% if detail.occupied %}
   <h3>Wer ist da</h3>
-  <table>
+  <div class="table-wrap"><table>
     <tr><th>Quartier</th><th>Wer</th><th>Personen</th></tr>
     {% for o in detail.occupied %}
     <tr><td>{{ o.quarter }}</td><td>{{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %}</td><td>{{ o.persons }}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% else %}<p class="muted">An diesem Tag ist niemand eingebucht.</p>{% endif %}
 
   <h3>Noch frei</h3>

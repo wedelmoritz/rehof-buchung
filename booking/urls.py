@@ -1,9 +1,12 @@
 """URLs der Buchungs-App."""
 from django.urls import path
+from django.views.generic import TemplateView
 
 from . import views
 
 urlpatterns = [
+    path("offline/", TemplateView.as_view(
+        template_name="booking/offline.html"), name="offline"),
     path("", views.overview, name="overview"),
     path("buchen/", views.book, name="book"),
     path("wunschliste/", views.wishlist, name="wishlist"),

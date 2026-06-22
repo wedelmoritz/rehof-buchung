@@ -20,7 +20,8 @@ class ActivationGateMiddleware:
         if (user is not None and user.is_authenticated
                 and not user.is_staff and not user.is_superuser
                 and not hasattr(user, "member")):
-            allowed = {reverse("pending"), reverse("logout")}
+            allowed = {reverse("pending"), reverse("logout"),
+                       reverse("offline"), reverse("sw")}
             path = request.path
             if path not in allowed and not path.startswith("/static/"):
                 return redirect("pending")

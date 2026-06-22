@@ -104,13 +104,13 @@
   <h2>Meine Wünsche</h2>
   {% if wishlist_submitted %}
     <div class="msg success">Deine Wünsche sind im Lostopf eingereicht. Zum Bearbeiten erst zurückziehen.</div>
-    <table>
+    <div class="table-wrap"><table>
       <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
       {% for w in wishes %}
       <tr><td>{{ forloop.counter }}</td><td>{{ w.quarter.name }}</td>
           <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td></tr>
       {% endfor %}
-    </table>
+    </table></div>
     <form method="post" style="margin-top:.8rem">{% csrf_token %}
       <input type="hidden" name="action" value="withdraw_wishlist">
       <button class="btn ghost" type="submit">Zurückziehen &amp; bearbeiten</button>

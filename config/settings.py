@@ -5,10 +5,15 @@ werden sie für lokale Entwicklung gelockert.
 """
 from __future__ import annotations
 
+import mimetypes
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Korrekter MIME-Typ für das PWA-Manifest (sonst octet-stream). Greift sowohl im
+# Dev-Static-Server als auch bei WhiteNoise (initialisiert aus mimetypes).
+mimetypes.add_type("application/manifest+json", ".webmanifest", True)
 
 
 def env_bool(key: str, default: bool = False) -> bool:
@@ -22,6 +27,11 @@ ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if h.strip()
 ]
+# Loopback immer erlauben: damit der Container-Healthcheck (und der interne
+# Zugriff hinter Caddy) auch in Produktion funktioniert, ohne die Domain zu kennen.
+for _h in ("127.0.0.1", "localhost"):
+    if _h not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_h)
 CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
     if o.strip()
@@ -115,6 +125,9 @@ AXES_RESET_ON_SUCCESS = True
 # Gesperrt wird die Kombination aus Benutzer UND IP – schützt das Zielkonto,
 # ohne dass ein Angreifer fremde Konten flächendeckend aussperren kann.
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+# Erfolgreiche An-/Abmeldungen nicht protokollieren (spart DB-Schreiblast); die
+# Fehlversuche fürs Lockout werden weiterhin erfasst.
+AXES_DISABLE_ACCESS_LOG = True
 
 # --- Sitzungs-/Cookie-Härtung ----------------------------------------------
 SESSION_COOKIE_HTTPONLY = True
@@ -122,6 +135,24 @@ CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
+
+# --- Optionales Redis (Cache + Sessions + Axes-Lockout) --------------------
+# Standardmäßig AUS (DB-Sessions, lokaler Cache). Wird REDIS_URL gesetzt UND der
+# redis-Dienst gestartet (docker compose --profile cache), entlastet das die DB
+# bei vielen gleichzeitigen Zugriffen: Sessions und Brute-Force-Zähler liegen
+# dann im gemeinsamen Cache statt in PostgreSQL.
+REDIS_URL = os.environ.get("REDIS_URL", "")
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
+    # Brute-Force-Zähler im gemeinsamen Cache (statt je Request in der DB).
+    AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"
 
 # --- Lokalisierung ---------------------------------------------------------
 LANGUAGE_CODE = "de"
@@ -138,6 +169,8 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
     },
 }
+# WhiteNoise: PWA-Manifest mit korrektem MIME-Typ ausliefern.
+WHITENOISE_MIMETYPES = {".webmanifest": "application/manifest+json"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
