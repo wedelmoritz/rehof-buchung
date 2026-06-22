@@ -1,7 +1,7 @@
 """Datenmodelle der Buchungs-App."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -73,17 +73,67 @@ class Quarter(models.Model):
         return md >= s or md <= e
 
 
+class Membership(models.Model):
+    """Ein Mitglieds-Anteil der Genossenschaft (genau eine Vielleben-eG-Nummer).
+    Trägt das Gesamt-Tagebudget des Anteils. Ihm sind ein Nutzer (Voll-Mitglied)
+    oder mehrere Nutzer (Tandem) als `Member` mit je festem Tage-Anteil
+    zugeordnet."""
+    eg_number = models.CharField("Vielleben eG-Nummer", max_length=40, blank=True)
+    label = models.CharField("Bezeichnung", max_length=120, blank=True)
+    annual_night_budget = models.PositiveIntegerField(
+        "Tage/Jahr (gesamt)", default=50,
+        help_text="Gesamtkontingent des Anteils; wird auf die Nutzer aufgeteilt.",
+    )
+    created_on = models.DateField("Angelegt am", default=date.today)
+
+    class Meta:
+        verbose_name = "Mitglieds-Anteil"
+        verbose_name_plural = "Mitglieds-Anteile"
+        ordering = ["eg_number", "label"]
+
+    def __str__(self) -> str:
+        if self.label and self.eg_number:
+            return f"{self.label} ({self.eg_number})"
+        return self.label or self.eg_number or f"Anteil {self.pk}"
+
+    @property
+    def is_tandem(self) -> bool:
+        return self.members.count() > 1
+
+    @property
+    def allocated_budget(self) -> int:
+        """Summe der an die Nutzer vergebenen Tage-Anteile."""
+        return sum(m.annual_night_budget for m in self.members.all())
+
+    @staticmethod
+    def suggest_budget(full_budget: int = 50, on: date | None = None) -> int:
+        """Anteiliges Tagebudget für das Anlagejahr: bei Anlage mitten im Jahr
+        anteilig weniger (Rest des Kalenderjahres)."""
+        on = on or date.today()
+        year_start, year_end = date(on.year, 1, 1), date(on.year, 12, 31)
+        days_left = (year_end - on).days + 1
+        total_days = (year_end - year_start).days + 1
+        return max(1, round(full_budget * days_left / total_days))
+
+
 class Member(models.Model):
-    """Eine buchende Partei. Für die PoC 1:1 an einen Django-User gekoppelt
-    (Cliquen lassen sich später ergänzen). Trägt den Ausgleichsfaktor und die
-    Nächte-Budgets."""
+    """Eine buchende Partei (ein Nutzer). Gekoppelt an einen Django-User und an
+    einen Mitglieds-Anteil (`Membership`). Trägt den Ausgleichsfaktor und den
+    eigenen Tage-Anteil am Budget des Anteils."""
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="member",
         verbose_name="Login-Konto",
     )
+    membership = models.ForeignKey(
+        Membership, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="members", verbose_name="Mitglieds-Anteil",
+    )
     display_name = models.CharField("Anzeigename", max_length=120)
     factor = models.FloatField("Ausgleichsfaktor", default=1.0)
-    annual_night_budget = models.PositiveIntegerField("Nächte/Jahr", default=50)
+    annual_night_budget = models.PositiveIntegerField(
+        "Nächte/Jahr (Anteil)", default=50,
+        help_text="Fester Tage-Anteil dieses Nutzers am Anteil-Gesamtbudget.",
+    )
     wish_night_budget = models.PositiveIntegerField(
         "Nächte über Wunschliste", default=25,
     )
@@ -120,6 +170,13 @@ class Member(models.Model):
 
     def nights_remaining_in_year(self, year: int) -> int:
         return self.effective_annual_budget(year) - self.nights_used_in_year(year)
+
+    @property
+    def tandem_partners(self):
+        """Andere Nutzer desselben Mitglieds-Anteils (leer bei Voll-Mitglied)."""
+        if not self.membership_id:
+            return []
+        return list(self.membership.members.exclude(pk=self.pk))
 
 
 class BookingPeriod(models.Model):
