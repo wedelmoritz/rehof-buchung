@@ -5,10 +5,15 @@ werden sie für lokale Entwicklung gelockert.
 """
 from __future__ import annotations
 
+import mimetypes
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Korrekter MIME-Typ für das PWA-Manifest (sonst octet-stream). Greift sowohl im
+# Dev-Static-Server als auch bei WhiteNoise (initialisiert aus mimetypes).
+mimetypes.add_type("application/manifest+json", ".webmanifest", True)
 
 
 def env_bool(key: str, default: bool = False) -> bool:
@@ -164,6 +169,8 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
     },
 }
+# WhiteNoise: PWA-Manifest mit korrektem MIME-Typ ausliefern.
+WHITENOISE_MIMETYPES = {".webmanifest": "application/manifest+json"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

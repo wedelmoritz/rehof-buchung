@@ -90,6 +90,16 @@ Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
 ausgeblendet (nur Autocomplete). Tage-Anteile werden am `Membership` zugeordnet.
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
+**PWA / Mobil:** Die Web-App ist installierbar (iOS „Zum Home-Bildschirm“,
+Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),
+Re:Hof-Logo/Icons (`booking/static/booking/icons/`), Service Worker (`/sw.js`,
+Template `booking/sw.js`, Root-Scope) mit network-first + Offline-Fallback
+(`/offline/`). Registrierung am Ende von `base.html`. Das Layout ist responsiv
+(Media-Query in `base.html`, Nav als Scroll-Leiste, Eingaben volle Breite,
+breite Datentabellen in `.table-wrap` → horizontal scrollbar statt überstehend,
+iOS-Safe-Area). `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen
+(das Manifest liegt unter `/static/` und ist damit ohnehin frei).
+
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
 `kind="dienstleistung"` + `needs_date`), Einkauf mit **Preis-Snapshot**

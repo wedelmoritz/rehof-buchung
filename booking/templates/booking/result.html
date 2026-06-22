@@ -24,7 +24,7 @@
 
 <h2>Zuteilungen (Gemeinschaft)</h2>
 <div class="card">
-  <table>
+  <div class="table-wrap"><table>
     <tr><th>Quartier</th><th>Mitglied</th><th>Anreise</th><th>Abreise</th><th></th></tr>
     {% for a in allocations %}
     <tr>
@@ -34,7 +34,7 @@
           {% if a.contested %}<span class="tag con">umkämpft</span>{% endif %}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 
 {% if run and user.is_staff %}

@@ -24,7 +24,7 @@
     <div class="muted" style="white-space:pre-line">{{ invoice.recipient_address }}</div>
   </div>
 
-  <table class="inv-items">
+  <div class="table-wrap"><table class="inv-items">
     <tr><th>Pos.</th><th>Bezeichnung</th><th>Menge</th><th>Einzel</th><th>MwSt</th><th>Betrag</th></tr>
     {% for it in items %}
     <tr>
@@ -36,7 +36,7 @@
       <td>{{ it.gross }} €</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 
   <div class="inv-sums">
     <table>
