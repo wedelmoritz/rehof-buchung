@@ -42,10 +42,12 @@
 
 <div class="card">
   <div class="cal-head">
-    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">&lsaquo;</a>
+    {% with selqs=sel_qs %}
+    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ selqs }}">&lsaquo;</a>
     <strong class="cal-title">{{ cal.label }}</strong>
-    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">&rsaquo;</a>
-    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Heute</a>
+    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ selqs }}">&rsaquo;</a>
+    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ selqs }}">Heute</a>
+    {% endwith %}
   </div>
 
   <table class="cal book-cal">
@@ -86,6 +88,18 @@
   {% endif %}
 </div>
 
+<div class="card">
+  <strong>Oder Zeitraum direkt eingeben</strong>
+  <form method="get" class="filters" style="margin-top:.5rem">
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
+    <label class="pers">Anreise <input type="date" name="start" value="{{ sel_start|date:'Y-m-d' }}"></label>
+    <label class="pers">Abreise <input type="date" name="end" value="{{ sel_end|date:'Y-m-d' }}"></label>
+    <button class="btn small" type="submit">Übernehmen</button>
+  </form>
+  <p class="muted" style="margin:.4rem 0 0">Praktisch für Zeiträume über einen Monatswechsel hinweg.</p>
+</div>
+
 {% if sel_start %}
 <div class="card">
   <div style="display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap">
@@ -96,6 +110,11 @@
       · {{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}</span>
     <a class="muted" style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
   </div>
+
+  {% if too_short %}
+  <div class="msg warning">Mindestaufenthalt in diesem Zeitraum: <strong>{{ range_min_nights }} Nächte</strong>
+    (aktuell {{ nights_selected }}). Bitte einen längeren Zeitraum wählen.</div>
+  {% endif %}
 
   {% if suitable %}
   <h3>Passend &amp; buchbar</h3>

@@ -11,7 +11,7 @@ from django.urls import reverse
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
     LotteryRun, Member, NightTransfer, Notification, Quarter, SchoolHoliday,
-    SeasonRule, UpcomingAllocation, WaitlistEntry, Wish,
+    SeasonRule, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
 )
 from .services import run_period_lottery
 
@@ -175,6 +175,14 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ("member", "message", "read", "created_at")
     list_filter = ("read",)
     search_fields = ("member__display_name", "message")
+
+
+@admin.register(SwapRequest)
+class SwapRequestAdmin(admin.ModelAdmin):
+    list_display = ("from_member", "to_member", "from_allocation",
+                    "to_allocation", "status", "created_at")
+    list_filter = ("status",)
+    search_fields = ("from_member__display_name", "to_member__display_name")
 
 
 class SeasonRuleInline(admin.TabularInline):

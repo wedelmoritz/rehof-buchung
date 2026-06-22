@@ -101,12 +101,16 @@ def overview(request):
                     legend.append({"name": b["who"], "color": color_map[mid],
                                    "mine": b["mine"]})
                 b["color"] = color_map[mid]
+    sel_day = _parse_date(request.GET.get("day"))
+    detail = svc.day_detail(member, sel_day) if sel_day else None
     return render(request, "booking/overview.html", {
         "member": member,
         "cal": cal,
         "today": today,
         "year": today.year,
         "legend": legend,
+        "sel_day": sel_day,
+        "detail": detail,
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0
         ),
@@ -188,11 +192,25 @@ def book(request):
     cal = svc.build_booking_calendar(member, year, month, sel_start, sel_end) \
         if member else None
 
+    # Query-Suffix, der Personenzahl/Filter UND Auswahl über die Monats-
+    # Navigation hinweg erhält (damit auch Buchungen über Monatsgrenzen gehen).
+    sel_qs = f"&persons={persons}"
+    if need_accessible:
+        sel_qs += "&accessible=1"
+    if sel_start:
+        sel_qs += f"&start={sel_start.isoformat()}"
+    if sel_end:
+        sel_qs += f"&end={sel_end.isoformat()}"
+
     eff_start = eff_end = None
     suitable, maybe_unsuitable, occ_quarters = [], [], []
+    range_min_nights = 0
+    too_short = False
     if member and sel_start:
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+        range_min_nights = svc.min_nights_for_range(eff_start, eff_end)
+        too_short = (eff_end - eff_start).days < range_min_nights
         free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
         for q in free_quarters:
             reason = svc.schedule_blocker(member, q, eff_start, eff_end)
@@ -214,11 +232,14 @@ def book(request):
         "today": today,
         "persons": persons,
         "need_accessible": need_accessible,
+        "sel_qs": sel_qs,
         "sel_start": sel_start,
         "sel_end": sel_end,
         "eff_start": eff_start,
         "eff_end": eff_end,
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
+        "range_min_nights": range_min_nights,
+        "too_short": too_short,
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,
         "occ_quarters": occ_quarters,
@@ -243,14 +264,35 @@ def my_bookings(request):
                 else messages.error(request, err or "Stornierung nicht möglich.")
         elif action == "read_notifications":
             svc.mark_notifications_read(member)
+        elif action == "swap_request":
+            try:
+                mine = member.allocations.get(id=request.POST.get("from_allocation"))
+                other = Allocation.objects.select_related("quarter", "member").get(
+                    id=request.POST.get("to_allocation"))
+            except Allocation.DoesNotExist:
+                messages.error(request, "Buchung nicht gefunden.")
+            else:
+                sr, err = svc.create_swap_request(
+                    member, mine, other, request.POST.get("message", "").strip())
+                messages.success(request, f"Wechselwunsch an {other.member.display_name} gesendet.") \
+                    if sr else messages.error(request, err or "Nicht möglich.")
+        elif action == "swap_respond":
+            ok, err = svc.respond_swap_request(
+                member, request.POST.get("swap_id"),
+                request.POST.get("decision") == "accept")
+            messages.success(request, "Antwort gesendet.") if ok \
+                else messages.error(request, err or "Nicht möglich.")
         return redirect("my_bookings")
 
     upcoming, past = [], []
+    incoming_swaps = []
     if member:
         for a in member.allocations.select_related("quarter").order_by("start"):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
             a.waiters = svc.waiters_for_allocation(a)
+            a.concurrent = svc.concurrent_allocations(a)
+        incoming_swaps = svc.pending_swaps_for(member)
 
     return render(request, "booking/my_bookings.html", {
         "member": member,
@@ -261,6 +303,7 @@ def my_bookings(request):
         "annual_budget": member.annual_night_budget if member else 0,
         "upcoming": upcoming,
         "past": past,
+        "incoming_swaps": incoming_swaps,
         "notifications": svc.unread_notifications(member),
     })
 
