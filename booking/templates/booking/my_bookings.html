@@ -53,12 +53,13 @@
     <div class="stat"><div class="num">{{ member.factor }}</div>
       <div class="lbl">Ausgleichsfaktor</div></div>
   </div>
-  {% if member.membership %}
+  {% if member.memberships %}
   <p class="muted" style="margin:.6rem 0 0">
-    Mitglieds-Anteil {{ member.membership.eg_number|default:member.membership }}
-    {% if member.tandem_partners %}· <strong>Tandem</strong> mit
-      {% for p in member.tandem_partners %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-      (dein Anteil: {{ annual_budget }} von {{ member.membership.annual_night_budget }} Tagen){% else %}· Voll-Mitglied{% endif %}.
+    Mitglieds-Anteil(e):
+    {% for ms in member.memberships %}{{ ms.eg_number|default:ms }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    · dein Tage-Budget gesamt: <strong>{{ annual_budget }}</strong>
+    {% if member.tandem_partners %}· gemeinsam mit
+      {% for p in member.tandem_partners %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}.
   </p>
   {% endif %}
   <p class="muted" style="margin:.5rem 0 0"><a href="{% url 'book' %}">Neue Buchung →</a></p>

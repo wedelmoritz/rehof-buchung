@@ -15,7 +15,7 @@ from django.test import TestCase
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    Member, NightTransfer, Quarter, SeasonRule, Wish,
+    Member, Membership, NightTransfer, Quarter, SeasonRule, Share, Wish,
 )
 from booking.services import (
     book_spontaneous, run_period_lottery, transfer_nights,
@@ -25,9 +25,16 @@ from booking import services as svc
 YEAR = date.today().year
 
 
-def make_member(name, **kwargs):
+def make_member(name, nights=50, wish=25, **kwargs):
+    """Legt einen Nutzer als Voll-Mitglied an (eigener Anteil mit `nights` Tagen)."""
     u = User.objects.create_user(username=name, password="x" * 12)
-    return Member.objects.create(user=u, display_name=name, **kwargs)
+    m = Member.objects.create(user=u, display_name=name, **kwargs)
+    ms = Membership.objects.create(
+        eg_number=f"EG-{name}", label=name,
+        annual_night_budget=nights, wish_night_budget=wish)
+    Share.objects.create(membership=ms, member=m,
+                         night_budget=nights, wish_night_budget=wish)
+    return m
 
 
 def release_period(name, start, end, applies_to_all=True, active=True,

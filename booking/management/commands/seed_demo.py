@@ -19,7 +19,8 @@ from django.db import transaction
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    Member, Membership, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
+    Member, Membership, NightTransfer, Quarter, SchoolHoliday, SeasonRule,
+    Share, Wish,
 )
 
 # Die 10 echten Quartiere mit der von der Genossenschaft bestätigten
@@ -127,27 +128,27 @@ class Command(BaseCommand):
 
         # Mitglieds-Anteile: die ersten beiden bilden als Demo ein Tandem
         # (ein Anteil, 50 Tage fair geteilt = je 25). Alle übrigen sind
-        # Voll-Mitglieder (eigener Anteil, 50 Tage).
+        # Voll-Mitglieder (eigener Anteil, 50 Tage). Budget = Summe der Anteile.
         tandem_members = members[:2] if len(members) >= 2 else []
+        assigned = set()
         if tandem_members:
             tandem = Membership.objects.create(
-                eg_number="VL-0001", label="Tandem-Demo", annual_night_budget=50)
+                eg_number="VL-0001", label="Tandem-Demo", kind=Membership.TEIL,
+                annual_night_budget=50, wish_night_budget=25)
             for m in tandem_members:
-                m.membership = tandem
-                m.annual_night_budget = 25
-                m.save(update_fields=["membership", "annual_night_budget"])
+                Share.objects.create(membership=tandem, member=m,
+                                     night_budget=25, wish_night_budget=12)
+                assigned.add(m.id)
         for idx, m in enumerate(members, start=1):
-            if m.membership_id:
+            if m.id in assigned:
                 continue
             ms = Membership.objects.create(
                 eg_number=f"VL-{1000 + idx}", label=m.display_name,
-                annual_night_budget=50,
-            )
-            m.membership = ms
-            m.annual_night_budget = 50
-            m.save(update_fields=["membership", "annual_night_budget"])
+                kind=Membership.VOLL, annual_night_budget=50, wish_night_budget=25)
+            Share.objects.create(membership=ms, member=m,
+                                 night_budget=50, wish_night_budget=25)
         self.stdout.write(self.style.SUCCESS(
-            f"{len(members)} Mitglieder angelegt (inkl. 1 Tandem-Anteil 25/25)."))
+            f"{len(members)} Nutzer angelegt (inkl. 1 Tandem-Anteil 25/25)."))
 
         # Buchungsperiode fürs nächste Jahr – Wunsch-Einträge freigegeben.
         next_year = date.today().year + 1

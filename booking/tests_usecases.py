@@ -16,16 +16,24 @@ from django.test import TestCase
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    Member, Membership, Notification, Quarter, SeasonRule, WaitlistEntry, Wish,
+    Member, Membership, Notification, Quarter, SeasonRule, Share, WaitlistEntry,
+    Wish,
 )
 from booking import services as svc
 
 NEXT_YEAR = date.today().year + 1
 
 
-def make_member(name, **kwargs):
+def make_member(name, nights=50, wish=25, **kwargs):
+    """Nutzer als Voll-Mitglied (eigener Anteil mit `nights` Tagen)."""
     u = User.objects.create_user(username=name, password="x" * 12)
-    return Member.objects.create(user=u, display_name=name, **kwargs)
+    m = Member.objects.create(user=u, display_name=name, **kwargs)
+    ms = Membership.objects.create(
+        eg_number=f"EG-{name}", label=name,
+        annual_night_budget=nights, wish_night_budget=wish)
+    Share.objects.create(membership=ms, member=m,
+                         night_budget=nights, wish_night_budget=wish)
+    return m
 
 
 class UseCaseBase(TestCase):
@@ -537,12 +545,14 @@ class TandemTests(UseCaseBase):
     def setUp(self):
         super().setUp()
         self.open_full_year_window(NEXT_YEAR)
+        # Solo-Anteile von alice/bob entfernen und gemeinsamen Tandem-Anteil bilden
+        Share.objects.filter(member__in=[self.alice, self.bob]).delete()
         self.share = Membership.objects.create(
-            eg_number="VL-1", label="Tandem", annual_night_budget=50)
+            eg_number="VL-1", label="Tandem", kind=Membership.TEIL,
+            annual_night_budget=50, wish_night_budget=25)
         for m in (self.alice, self.bob):
-            m.membership = self.share
-            m.annual_night_budget = 25  # 50 Tage fair geteilt
-            m.save(update_fields=["membership", "annual_night_budget"])
+            Share.objects.create(membership=self.share, member=m,
+                                 night_budget=25, wish_night_budget=12)
 
     def test_tandem_budgets_sind_getrennt(self):
         self.assertEqual(self.alice.nights_remaining_in_year(NEXT_YEAR), 25)
@@ -568,3 +578,16 @@ class TandemTests(UseCaseBase):
         mid = Membership.suggest_budget(50, date(2030, 7, 1))
         self.assertLess(mid, 50)
         self.assertGreater(mid, 0)
+
+    def test_nutzer_in_zwei_anteilen_summiert_kapazitaet(self):
+        # carla bekommt einen eigenen + einen zweiten Anteil: 20 + 15 = 35
+        Share.objects.filter(member=self.carla).delete()
+        a1 = Membership.objects.create(eg_number="A1", annual_night_budget=20)
+        a2 = Membership.objects.create(eg_number="A2", annual_night_budget=15)
+        Share.objects.create(membership=a1, member=self.carla,
+                             night_budget=20, wish_night_budget=10)
+        Share.objects.create(membership=a2, member=self.carla,
+                             night_budget=15, wish_night_budget=5)
+        self.assertEqual(self.carla.annual_night_budget, 35)
+        self.assertEqual(self.carla.wish_night_budget, 15)
+        self.assertEqual(len(self.carla.memberships), 2)

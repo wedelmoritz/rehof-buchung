@@ -74,21 +74,28 @@ class Quarter(models.Model):
 
 
 class Membership(models.Model):
-    """Ein Mitglieds-Anteil der Genossenschaft (genau eine Vielleben-eG-Nummer).
-    Trägt das Gesamt-Tagebudget des Anteils. Ihm sind ein Nutzer (Voll-Mitglied)
-    oder mehrere Nutzer (Tandem) als `Member` mit je festem Tage-Anteil
-    zugeordnet."""
+    """Ein „Mitglied“ im Sinne der Genossenschaft = ein Anteil mit genau einer
+    Vielleben-eG-Nummer. Voll-Mitglied = ein Nutzer (voller Anteil); Teil-
+    Mitglied (Tandem) = mehrere Nutzer, deren Tage-Anteile zusammen das
+    Gesamtbudget ergeben. Ein Nutzer kann mehreren Anteilen angehören und
+    erhält dann die Summe der Anteile (siehe `Share`)."""
+    VOLL, TEIL = "voll", "teil"
+    KIND = [(VOLL, "Voll-Mitglied"), (TEIL, "Teil-Mitglied (Tandem)")]
     eg_number = models.CharField("Vielleben eG-Nummer", max_length=40, blank=True)
     label = models.CharField("Bezeichnung", max_length=120, blank=True)
+    kind = models.CharField("Art", max_length=4, choices=KIND, default=VOLL)
     annual_night_budget = models.PositiveIntegerField(
         "Tage/Jahr (gesamt)", default=50,
         help_text="Gesamtkontingent des Anteils; wird auf die Nutzer aufgeteilt.",
     )
+    wish_night_budget = models.PositiveIntegerField(
+        "Wunsch-Tage (gesamt)", default=25,
+    )
     created_on = models.DateField("Angelegt am", default=date.today)
 
     class Meta:
-        verbose_name = "Mitglieds-Anteil"
-        verbose_name_plural = "Mitglieds-Anteile"
+        verbose_name = "Mitglied (Anteil)"
+        verbose_name_plural = "Mitglieder (Anteile)"
         ordering = ["eg_number", "label"]
 
     def __str__(self) -> str:
@@ -98,12 +105,12 @@ class Membership(models.Model):
 
     @property
     def is_tandem(self) -> bool:
-        return self.members.count() > 1
+        return self.shares.count() > 1
 
     @property
     def allocated_budget(self) -> int:
         """Summe der an die Nutzer vergebenen Tage-Anteile."""
-        return sum(m.annual_night_budget for m in self.members.all())
+        return sum(s.night_budget for s in self.shares.all())
 
     @staticmethod
     def suggest_budget(full_budget: int = 50, on: date | None = None) -> int:
@@ -117,35 +124,33 @@ class Membership(models.Model):
 
 
 class Member(models.Model):
-    """Eine buchende Partei (ein Nutzer). Gekoppelt an einen Django-User und an
-    einen Mitglieds-Anteil (`Membership`). Trägt den Ausgleichsfaktor und den
-    eigenen Tage-Anteil am Budget des Anteils."""
+    """Das Buchungs-Subjekt eines Nutzers (Konto). Buchungen, Wünsche, Losung und
+    Ausgleichsfaktor hängen hier. Das Tage- und Wunsch-Budget ergibt sich als
+    **Summe der Anteile** (`Share`) über alle Mitglieds-Anteile des Nutzers."""
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="member",
         verbose_name="Login-Konto",
     )
-    membership = models.ForeignKey(
-        Membership, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="members", verbose_name="Mitglieds-Anteil",
-    )
     display_name = models.CharField("Anzeigename", max_length=120)
     factor = models.FloatField("Ausgleichsfaktor", default=1.0)
-    annual_night_budget = models.PositiveIntegerField(
-        "Nächte/Jahr (Anteil)", default=50,
-        help_text="Fester Tage-Anteil dieses Nutzers am Anteil-Gesamtbudget.",
-    )
-    wish_night_budget = models.PositiveIntegerField(
-        "Nächte über Wunschliste", default=25,
-    )
     is_external = models.BooleanField("Externer Gast", default=False)
 
     class Meta:
-        verbose_name = "Mitglied"
-        verbose_name_plural = "Mitglieder"
+        verbose_name = "Nutzer-Konto"
+        verbose_name_plural = "Nutzer-Konten"
         ordering = ["display_name"]
 
     def __str__(self) -> str:
         return self.display_name
+
+    @property
+    def annual_night_budget(self) -> int:
+        """Summe der Tage-Anteile über alle Mitglieds-Anteile des Nutzers."""
+        return sum(s.night_budget for s in self.shares.all())
+
+    @property
+    def wish_night_budget(self) -> int:
+        return sum(s.wish_night_budget for s in self.shares.all())
 
     def nights_used_in_year(self, year: int) -> int:
         total = 0
@@ -172,11 +177,44 @@ class Member(models.Model):
         return self.effective_annual_budget(year) - self.nights_used_in_year(year)
 
     @property
+    def memberships(self):
+        """Alle Mitglieds-Anteile, denen der Nutzer angehört."""
+        return [s.membership for s in self.shares.select_related("membership")]
+
+    @property
     def tandem_partners(self):
-        """Andere Nutzer desselben Mitglieds-Anteils (leer bei Voll-Mitglied)."""
-        if not self.membership_id:
+        """Andere Nutzer, die mit diesem Nutzer einen Anteil teilen."""
+        mids = [s.membership_id for s in self.shares.all()]
+        if not mids:
             return []
-        return list(self.membership.members.exclude(pk=self.pk))
+        return list(
+            Member.objects.filter(shares__membership_id__in=mids)
+            .exclude(pk=self.pk).distinct()
+        )
+
+
+class Share(models.Model):
+    """Tage-Anteil eines Nutzers an einem Mitglieds-Anteil. Über mehrere Shares
+    kann ein Nutzer mehreren Anteilen (z.B. zwei Tandems) angehören; sein Budget
+    ist die Summe. Halbe Tage gibt es nicht (ganze Zahlen)."""
+    membership = models.ForeignKey(
+        Membership, on_delete=models.CASCADE, related_name="shares",
+        verbose_name="Mitglieds-Anteil",
+    )
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="shares",
+        verbose_name="Nutzer",
+    )
+    night_budget = models.PositiveIntegerField("Tage-Anteil", default=0)
+    wish_night_budget = models.PositiveIntegerField("Wunsch-Tage-Anteil", default=0)
+
+    class Meta:
+        verbose_name = "Tage-Anteil"
+        verbose_name_plural = "Tage-Anteile"
+        unique_together = ("membership", "member")
+
+    def __str__(self) -> str:
+        return f"{self.member} @ {self.membership}: {self.night_budget} Tage"
 
 
 class BookingPeriod(models.Model):
