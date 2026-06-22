@@ -1,0 +1,108 @@
+{% extends "booking/base.html" %}
+{% block title %}Hilfe & Erklärung{% endblock %}
+{% block content %}
+<h1>Hilfe &amp; Erklärung</h1>
+
+<div class="card toc">
+  <strong>Inhalt</strong>
+  <ul>
+    <li><a href="#begriffe">Begriffe: Anteil, Voll-/Teil-Mitglied, Tage</a></li>
+    <li><a href="#buchen">Buchen (Ampel-Kalender)</a></li>
+    <li><a href="#losung">So funktioniert die Auslosung</a></li>
+    <li><a href="#hofladen">Hofladen &amp; Rechnungen</a></li>
+  </ul>
+</div>
+
+<div class="card" id="begriffe">
+  <h2>Begriffe: Anteil, Voll-/Teil-Mitglied, Tage</h2>
+  <ul>
+    <li><strong>Mitglieds-Anteil</strong> = eine Vielleben-eG-Nummer mit einem
+      Jahres-Tagebudget (Standard 50 Tage/Jahr).</li>
+    <li><strong>Voll-Mitglied:</strong> du hältst einen Anteil allein (z. B. 50 Tage).</li>
+    <li><strong>Teil-Mitglied / Tandem:</strong> mehrere Personen teilen sich einen
+      Anteil (z. B. 50 Tage → 25/25). Jede Person bucht aus ihrem eigenen Anteil.</li>
+    <li>Bist du an <strong>mehreren Anteilen</strong> beteiligt, ist dein Budget die
+      <strong>Summe</strong> der Anteile (ganze Tage, wird abgerundet).</li>
+    <li><strong>Tage:</strong> gelten je Kalenderjahr frisch (<em>kein</em> Übertrag
+      ins Folgejahr), können aber <a href="{% url 'transfer' %}">an andere Mitglieder
+      übertragen</a> werden – das ist verbindlich und vorher privat abzusprechen.</li>
+    <li>Davon sind max. 25 Tage über die <a href="{% url 'wishlist' %}">Wunschliste</a>
+      (Losverfahren) buchbar.</li>
+  </ul>
+</div>
+
+<div class="card" id="buchen">
+  <h2>Buchen (Ampel-Kalender)</h2>
+  <ul>
+    <li>Oben Personenzahl (und ggf. „barrierearm/-frei“) einstellen.</li>
+    <li>Die <strong>Ampel</strong> zeigt je Tag, wie viel frei ist: grün = alles frei,
+      hellgrün = viele, gelb = wenige, rot = nichts mehr frei.</li>
+    <li><strong>1. Klick</strong> = Anreise, <strong>2. Klick</strong> = Abreise
+      (Check-out), <strong>3. Klick</strong> = neue Anreise. Auch über Monatsgrenzen
+      (oder Datum direkt eingeben).</li>
+    <li>Passende Quartiere stehen oben; nicht passende (Personenzahl/Barrierefreiheit)
+      unter „ggf. nicht geeignet“. Greift eine Regel (Mindestnächte, zu wenig Budget),
+      wird das sofort angezeigt.</li>
+    <li>Ist dein Wunschzeitraum belegt, kannst du dich auf die <strong>Warteliste</strong>
+      setzen und wirst benachrichtigt, sobald er frei wird.</li>
+    <li>Unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a> siehst du deine
+      Buchungen, kannst stornieren und einen <strong>Wechselwunsch</strong> an andere
+      stellen.</li>
+  </ul>
+</div>
+
+<div class="card" id="losung">
+  <h2>So funktioniert die Auslosung</h2>
+  <p>Für das nächste Jahr werden begehrte Zeiträume nicht „wer zuerst klickt“,
+    sondern <strong>fair per Los</strong> vergeben.</p>
+  <ol>
+    <li><strong>Wünsche eintragen:</strong> In der <a href="{% url 'wishlist' %}">Wunschliste</a>
+      trägst du deine Wunsch-Zeiträume mit Quartier ein und bringst sie in deine
+      <strong>Prioritäts-Reihenfolge</strong> (Priorität 1 = wichtigster Wunsch).
+      Wünsche dürfen sich mit denen anderer überschneiden; die Ampel zeigt, wie
+      umkämpft ein Zeitraum ist.</li>
+    <li><strong>Einreichen:</strong> Nur <strong>eingereichte</strong> Wünsche („im
+      Lostopf“) nehmen teil. Bis zum Stichtag kannst du sie zurückziehen und ändern.</li>
+    <li><strong>Runden-Prinzip:</strong> Die Auslosung geht in Runden. In Runde 1
+      bekommt jede:r möglichst den Erstwunsch, in Runde 2 den Zweitwunsch usw. So
+      schlägt der Erstwunsch einer Person den Zweitwunsch einer anderen.</li>
+    <li><strong>Faire Reihenfolge (Ausgleichsfaktor/„Karma“):</strong> Die Reihenfolge
+      innerhalb einer Runde ist eine <em>gewichtete Zufallsreihenfolge</em>. Wer in der
+      Vergangenheit einen umkämpften Wunsch <em>verloren</em> hat, bekommt etwas mehr
+      Gewicht (Karma steigt); wer einen umkämpften Slot gewinnt, wird zurückgesetzt.
+      So gleicht sich Pech über die Jahre aus.</li>
+    <li><strong>Ausweichquartiere:</strong> Ist dein Wunschquartier vergeben, kann die
+      Losung auf ein <em>gleichwertiges</em> Quartier derselben Gruppe (Äquivalenzklasse)
+      ausweichen, statt dich leer ausgehen zu lassen.</li>
+    <li><strong>Ehrlich angeben lohnt sich:</strong> Das Verfahren ist
+      <em>strategiesicher</em> – du fährst am besten, wenn du deine echten Wünsche in
+      echter Reihenfolge einträgst. Taktieren bringt keinen Vorteil.</li>
+    <li><strong>Termin:</strong> Die Verwaltung legt einen Losungstermin fest; die
+      Auslosung läuft dann automatisch. Das Ergebnis siehst du anschließend in
+      <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</li>
+  </ol>
+</div>
+
+<div class="card" id="hofladen">
+  <h2>Hofladen &amp; Rechnungen</h2>
+  <ul>
+    <li>Im <a href="{% url 'shop_index' %}">Hofladen</a> wählst du Produkte (und
+      Dienstleistungen wie Sauna), gibst die Menge an und legst sie in den Warenkorb.
+      Preise sind <strong>brutto</strong>; der Preis zum Kaufzeitpunkt wird
+      gespeichert.</li>
+    <li>Am <strong>Monatsende</strong> entsteht automatisch eine
+      <strong>Sammelrechnung</strong> über alle offenen Positionen.</li>
+    <li>Du überweist den Betrag mit der <strong>Rechnungsnummer als
+      Verwendungszweck</strong> auf die angegebene IBAN und meldest die Rechnung in der
+      App als „bezahlt“. Die Verwaltung bestätigt den Eingang.</li>
+    <li>Deine Rechnungs-/Profildaten (Name, Anschrift, IBAN) pflegst du selbst unter
+      <a href="{% url 'profile' %}">Profil</a> – sie sind nur für dich sichtbar.</li>
+  </ul>
+</div>
+
+<style>
+  .toc ul { margin:.4rem 0 0; padding-left:1.1rem; }
+  .card h2 { margin-top:0; }
+  .card ol, .card ul { line-height:1.6; }
+</style>
+{% endblock %}

@@ -148,6 +148,9 @@
     .legend .sw.mine { background: var(--sage); }
 
     .form-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+    details.explain { margin: .5rem 0; }
+    details.explain > summary { cursor: pointer; color: var(--accent-deep); font-weight: 600; font-size: .92rem; }
+    details.explain p { margin: .4rem 0 0; }
   </style>
   {% block extrahead %}{% endblock %}
 </head>
@@ -164,6 +167,7 @@
     <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}">Tage übertragen</a>
     <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}">Hofladen</a>
     <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}">Profil</a>
+    <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}">Hilfe</a>
     {% if user.is_staff %}<a href="/admin/">Verwaltung</a>{% endif %}
   </nav>
   {% endwith %}

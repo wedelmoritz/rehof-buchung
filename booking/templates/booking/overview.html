@@ -23,6 +23,7 @@
 <div class="msg info">
   Anmeldung fürs Losverfahren offen: <strong>{{ open_period }}</strong>{% if open_period.wishlist_close %} (bis {{ open_period.wishlist_close }}){% endif %}.
   <a href="{% url 'wishlist' %}">Wünsche fürs nächste Jahr eintragen →</a>
+  <span class="muted">· <a href="{% url 'help' %}#losung">Wie funktioniert die Auslosung?</a></span>
 </div>
 {% endif %}
 

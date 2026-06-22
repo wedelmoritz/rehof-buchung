@@ -470,6 +470,14 @@ def wishlist(request):
 # --------------------------------------------------------------------------- #
 
 @login_required
+def help_page(request):
+    """Erklärseite: Abläufe, Auslosung im Detail, Tage & Anteile, Hofladen."""
+    return render(request, "booking/help.html", {
+        "member": _current_member(request),
+    })
+
+
+@login_required
 def profile(request):
     """Eigene Profil-/Rechnungsdaten (Name, Anschrift, IBAN) selbst pflegen.
     Nur die eigenen Daten – `member` stammt aus request.user."""

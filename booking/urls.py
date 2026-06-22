@@ -10,5 +10,6 @@ urlpatterns = [
     path("meine-buchungen/", views.my_bookings, name="my_bookings"),
     path("tage-uebertragen/", views.transfer, name="transfer"),
     path("profil/", views.profile, name="profile"),
+    path("hilfe/", views.help_page, name="help"),
     path("ergebnis/<int:period_id>/", views.period_result, name="period_result"),
 ]

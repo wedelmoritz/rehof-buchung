@@ -13,8 +13,13 @@ from .models import Invoice, LineItem, Product, ProductGroup, ShopConfig
 class ShopConfigAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Genossenschaft (für die Rechnung)", {
-            "fields": ("coop_name", "coop_address", "tax_number")}),
-        ("Zahlung", {"fields": ("iban", "bic", "invoice_prefix")}),
+            "fields": ("coop_name", "coop_address", "tax_number"),
+            "description": "Diese Angaben erscheinen als Absender auf jeder "
+                           "Hofladen-Rechnung (§14 UStG). Einmalig pflegen."}),
+        ("Zahlung", {
+            "fields": ("iban", "bic", "invoice_prefix"),
+            "description": "IBAN/BIC, auf die Mitglieder überweisen. Das Präfix "
+                           "bildet die Rechnungsnummer (z. B. HL-2026-04-001)."}),
     )
 
     def has_add_permission(self, request):
@@ -28,6 +33,11 @@ class ShopConfigAdmin(admin.ModelAdmin):
 class ProductGroupAdmin(admin.ModelAdmin):
     list_display = ("name", "emoji", "sort_order", "active")
     list_editable = ("emoji", "sort_order", "active")
+    fieldsets = ((None, {
+        "fields": ("name", "emoji", "sort_order", "active"),
+        "description": "Kategorie/Kachel im Hofladen (z. B. Obst & Gemüse, "
+                       "Dienstleistungen). „Sortierung“ bestimmt die Reihenfolge.",
+    }),)
 
 
 @admin.register(Product)
@@ -37,6 +47,21 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ("group", "kind", "active", "vat_rate")
     list_editable = ("price", "active")
     search_fields = ("name",)
+    fieldsets = (
+        (None, {
+            "fields": ("group", "name", "description", "active", "sort_order"),
+            "description": "Ein Artikel ODER eine Dienstleistung im Hofladen."}),
+        ("Preis & Steuer", {
+            "fields": ("price", "unit", "vat_rate"),
+            "description": "Preis ist <b>brutto</b>; Netto/Steuer rechnet die App "
+                           "aus dem MwSt-Satz. Der Preis wird beim Kauf als Snapshot "
+                           "gespeichert – spätere Änderungen wirken nicht rückwirkend."}),
+        ("Art", {
+            "fields": ("kind", "needs_date"),
+            "description": "„Dienstleistung“ (z. B. Sauna) wird wie eine Ware "
+                           "abgerechnet. „Termin nötig“ = Mitglied gibt beim Kauf "
+                           "ein Datum an."}),
+    )
 
 
 class LineItemInline(admin.TabularInline):
@@ -95,6 +120,24 @@ class InvoiceAdmin(admin.ModelAdmin):
                        "confirmed_at", "recipient_name", "recipient_address",
                        "coop_name", "coop_address", "tax_number", "iban", "bic",
                        "total_net", "total_vat", "total_gross")
+    fieldsets = (
+        (None, {
+            "fields": ("number", "member", "year", "month", "status"),
+            "description": (
+                "Sammelrechnungen entstehen <b>automatisch monatlich</b> "
+                "(Kommando <code>generate_monthly_invoices</code>, per Cron). "
+                "Ablauf: <b>offen</b> → das Mitglied meldet „bezahlt“ → hier mit "
+                "der Aktion <b>„Zahlungseingang bestätigen“</b> bestätigen "
+                "(→ archiviert). Mit der Aktion <b>„Excel-Export“</b> lassen sich "
+                "ausgewählte Rechnungen exportieren."),
+        }),
+        ("Beträge", {"fields": ("total_net", "total_vat", "total_gross")}),
+        ("Zeitstempel", {"fields": ("created_at", "paid_reported_at", "confirmed_at")}),
+        ("Rechnungs-Snapshots (§14 UStG)", {
+            "classes": ("collapse",),
+            "fields": ("recipient_name", "recipient_address", "coop_name",
+                       "coop_address", "tax_number", "iban", "bic")}),
+    )
 
     @admin.display(description="Brutto")
     def total_gross(self, obj):

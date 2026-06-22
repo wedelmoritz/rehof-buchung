@@ -5,6 +5,8 @@ import random
 from datetime import date
 
 from django.contrib import admin, messages
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import User
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -35,9 +37,17 @@ class QuarterAdmin(admin.ModelAdmin):
     list_editable = ("accessible",)
     search_fields = ("name",)
     fieldsets = (
-        (None, {"fields": ("name", "eq_class", "description", "active")}),
+        (None, {
+            "fields": ("name", "eq_class", "description", "active"),
+            "description": (
+                "Ein buchbares Quartier. Die <b>Äquivalenzklasse</b> gruppiert "
+                "gleichwertige Quartiere – die Losung darf innerhalb einer Klasse "
+                "auf ein freies Quartier ausweichen. „Aktiv“ aus = nicht buchbar."),
+        }),
         ("Belegung & Merkmale", {
             "fields": ("size_sqm", "min_occupancy", "max_occupancy", "accessible"),
+            "description": "Min./Max.-Personen steuern, welche Quartiere beim "
+                           "Buchen je nach Personenzahl als passend angezeigt werden.",
         }),
         ("Buchbarkeitszeitraum (jährlich, ohne Jahr – leer = ganzjährig)", {
             "fields": ("season_start_month", "season_start_day",
@@ -48,37 +58,64 @@ class QuarterAdmin(admin.ModelAdmin):
     )
 
 
-class MemberShareInline(admin.TabularInline):
-    """Anteile, denen dieser Nutzer angehört (für die Sicht vom Nutzer aus)."""
-    model = Share
-    extra = 0
-    autocomplete_fields = ("membership",)
-    fields = ("membership", "night_budget", "wish_night_budget")
-    verbose_name = "Mitglieds-Anteil dieses Nutzers"
-    verbose_name_plural = "Mitglieds-Anteile dieses Nutzers (Budget = Summe)"
+# --------------------------------------------------------------------------- #
+# Benutzer (Person + Login + Mitglieds-Profil in EINEM Formular)
+# --------------------------------------------------------------------------- #
+
+class MemberProfileInline(admin.StackedInline):
+    """Das Mitglieds-Profil dieses Benutzers: Anzeigename, Ausgleichsfaktor und
+    die Rechnungsdaten. Ohne ausgefülltes Profil kann die Person nicht buchen
+    (reine Verwaltungs-Konten brauchen es nicht)."""
+    model = Member
+    can_delete = False
+    extra = 1
+    max_num = 1
+    verbose_name = "Mitglieds-Profil"
+    verbose_name_plural = "Mitglieds-Profil (zum Buchen nötig)"
+    fieldsets = (
+        ("Buchungs-Profil", {
+            "fields": ("display_name", "factor", "is_external"),
+            "description": "Der Ausgleichsfaktor (Karma) wird von der Losung "
+                           "automatisch gepflegt – im Normalfall nicht ändern.",
+        }),
+        ("Rechnungsdaten (Hofladen)", {
+            "fields": ("legal_name", "street", "zip_code", "city", "iban",
+                       "membership_number"),
+        }),
+    )
+
+
+admin.site.unregister(User)
+
+
+@admin.register(User)
+class UserAdmin(DjangoUserAdmin):
+    """Ein Benutzer = eine Person mit Login UND Buchungs-/Rechnungsprofil.
+    Tage-Anteile (welche eG-Anteile die Person hält) werden beim jeweiligen
+    „Mitglieds-Anteil“ zugeordnet."""
+    inlines = [MemberProfileInline]
 
 
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ("display_name", "user", "factor", "annual_night_budget",
-                    "wish_night_budget", "is_external")
-    list_filter = ("is_external",)
+    """Wird nicht eigenständig angezeigt (Profil steckt im Benutzer). Bleibt nur
+    für die Such-/Auswahl-Funktion bei der Anteils-Zuordnung registriert."""
     search_fields = ("display_name", "user__username", "user__email")
-    list_editable = ("factor",)
-    list_select_related = ("user",)
-    inlines = [MemberShareInline]
+
+    def get_model_perms(self, request):
+        return {}  # aus der Verwaltungs-Übersicht ausblenden
 
 
 class ShareInline(admin.TabularInline):
-    """Die einem Anteil zugeordneten Nutzer mit ihrem festen Tage-Anteil.
-    Voll-Mitglied = ein Nutzer (voller Anteil); Tandem = mehrere Nutzer, deren
-    Tage-Anteile zusammen das Gesamtbudget ergeben. Leer gelassene Anteile (0)
-    werden beim Speichern gleichmäßig (abgerundet) vorgeschlagen."""
+    """Die diesem Anteil zugeordneten Nutzer mit ihrem festen Tage-Anteil.
+    Voll-Mitglied = ein Nutzer (voller Anteil); Teil/Tandem = mehrere Nutzer,
+    deren Tage-Anteile zusammen das Gesamtbudget ergeben. Leer gelassene Anteile
+    (0) werden beim Speichern gleichmäßig (abgerundet) vorgeschlagen."""
     model = Share
     extra = 1
     autocomplete_fields = ("member",)
     fields = ("member", "night_budget", "wish_night_budget")
-    verbose_name = "Nutzer (Tage-Anteil)"
+    verbose_name = "Zugeordneter Nutzer (Tage-Anteil)"
     verbose_name_plural = "Zugeordnete Nutzer (je fester Tage-Anteil)"
 
 
@@ -93,11 +130,16 @@ class MembershipAdmin(admin.ModelAdmin):
         (None, {
             "fields": ("eg_number", "label", "kind", "annual_night_budget",
                        "wish_night_budget", "created_on"),
-            "description": "Ein „Mitglied“ = ein Anteil mit eG-Nummer. Voll- oder "
-                           "Teil-Mitglied (Tandem) über die Art wählen; Nutzer unten "
-                           "zuordnen. Bei Anlage mitten im Jahr ist das Gesamtbudget "
-                           "bereits anteilig vorgeschlagen. Leere Tage-Anteile (0) "
-                           "werden beim Speichern gleichmäßig abgerundet aufgeteilt.",
+            "description": (
+                "Ein <b>Mitglieds-Anteil</b> = eine Vielleben-eG-Nummer mit einem "
+                "Jahres-Tagebudget (Standard 50). <b>Voll-Mitglied</b> = ein Nutzer "
+                "hält den ganzen Anteil; <b>Teil-Mitglied (Tandem)</b> = mehrere "
+                "Nutzer teilen sich den Anteil. Unten ordnest du die <b>Nutzer</b> "
+                "(= Benutzer mit Mitglieds-Profil) mit ihrem festen Tage-Anteil zu. "
+                "Ein Nutzer kann mehreren Anteilen angehören – sein Budget ist die "
+                "Summe. Bei Anlage mitten im Jahr ist das Budget bereits anteilig "
+                "vorgeschlagen; leer gelassene Tage-Anteile (0) werden beim "
+                "Speichern gleichmäßig abgerundet aufgeteilt."),
         }),
     )
 
@@ -144,7 +186,16 @@ class BookingPeriodAdmin(admin.ModelAdmin):
     filter_horizontal = ("quarters",)
     actions = ["action_run_lottery"]
     fieldsets = (
-        (None, {"fields": ("name", "target_year", "status")}),
+        (None, {
+            "fields": ("name", "target_year", "status"),
+            "description": (
+                "Eine Buchungsperiode steuert ein Buchungsjahr über ihren "
+                "<b>Status</b>: Entwurf → „Für Wunsch-Einträge freigegeben“ "
+                "(Mitglieder tragen Wünsche ein) → „Zur Auslosung freigegeben“ → "
+                "„Auslosung beendet“ → „Freie Bebuchbarkeit“ (normale Buchung im "
+                "Zeitraum möglich) → „Beendet“. „Unterbrochen“ pausiert. <b>Normal "
+                "gebucht</b> werden kann nur im Status „Freie Bebuchbarkeit“."),
+        }),
         ("Zeitraum (buchbarer Bereich)", {
             "fields": ("start", "end"),
             "description": (
