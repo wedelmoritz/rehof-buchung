@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - internal             # bewusst NICHT am caddy-Netz
 
   web:
     build: .
@@ -34,9 +36,20 @@ services:
       SEED_DEMO: ${SEED_DEMO:-0}
       SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
-    # Nur an localhost binden – Caddy auf dem Host übernimmt TLS & Proxy.
-    ports:
-      - "127.0.0.1:${WEB_PORT:-8000}:8000"
+    # KEIN ports: — Zugriff ausschließlich über Caddy
+    expose:
+      - "8000"               # nur dokumentarisch
+    networks:
+      caddy:
+        ipv4_address: 10.42.42.20
+      internal: {}
+    # gunicorn muss auf 0.0.0.0:8000 binden!
 
 volumes:
   pgdata:
+
+networks:
+  internal: {}
+  caddy:
+    external: true
+    name: compose_web        # <-- auf dem Server verifizieren, s.u.
