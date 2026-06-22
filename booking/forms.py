@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from django import forms
 
-from .models import Member, Quarter, Wish
+from .models import Member, Wish
 
 
 class WishForm(forms.ModelForm):
@@ -16,25 +16,6 @@ class WishForm(forms.ModelForm):
             "start": forms.DateInput(attrs={"type": "date"}),
             "end": forms.DateInput(attrs={"type": "date"}),
         }
-
-    def clean(self):
-        cleaned = super().clean()
-        start, end = cleaned.get("start"), cleaned.get("end")
-        if start and end and end <= start:
-            raise forms.ValidationError("Abreise muss nach der Anreise liegen.")
-        return cleaned
-
-
-class SpontaneousBookingForm(forms.Form):
-    quarter = forms.ModelChoiceField(
-        queryset=Quarter.objects.filter(active=True), label="Quartier",
-    )
-    start = forms.DateField(
-        label="Anreise", widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    end = forms.DateField(
-        label="Abreise (exkl.)", widget=forms.DateInput(attrs={"type": "date"}),
-    )
 
     def clean(self):
         cleaned = super().clean()
