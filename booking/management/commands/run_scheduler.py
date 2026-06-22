@@ -40,19 +40,21 @@ class Command(BaseCommand):
         if opts["once"]:
             self._safe("run_due_lotteries")
             self._safe("run_monthly_invoices")
+            self._safe("notify_admins_upcoming")
             self._safe("send_outbox")
             return
 
         interval = opts["interval"] or int(os.environ.get("CRON_INTERVAL_SECONDS", "900"))
         self.stdout.write(f"[scheduler] Start – Intervall {interval}s.")
-        last_invoice_day: date | None = None
+        last_daily: date | None = None
         while True:
             self._safe("run_due_lotteries")
-            self._safe("send_outbox")           # wartende E-Mails verschicken
             today = date.today()
-            if today != last_invoice_day:
+            if today != last_daily:
                 self._safe("run_monthly_invoices")
-                last_invoice_day = today
+                self._safe("notify_admins_upcoming")  # idempotent (eigener Tag)
+                last_daily = today
+            self._safe("send_outbox")           # wartende E-Mails verschicken
             time.sleep(interval)
 
     def _safe(self, command: str, *cmd_args):

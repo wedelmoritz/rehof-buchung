@@ -205,9 +205,10 @@ def book_confirm(request):
             added = []
             for o in offers:
                 if request.POST.get(f"service_{o['p'].id}") and o["available"]:
-                    # Direkt als bestätigter Einkauf (nicht im Warenkorb).
+                    # Direkt als bestätigter Einkauf (nicht im Warenkorb),
+                    # verknüpft mit der Buchung (für die Reinigungsliste).
                     item, _serr = shop_svc.purchase_service(
-                        member, o["p"], 1, service_date=end)
+                        member, o["p"], 1, service_date=end, allocation=alloc)
                     if item:
                         added.append(o["p"].name)
             msg = f"Gebucht: {quarter.name}, {start} – {end} ({persons} Pers.)."
@@ -649,6 +650,124 @@ def transfer(request):
         "remaining": member.nights_remaining_in_year(year),
         "outgoing": outgoing, "incoming": incoming, "pending": pending,
     })
+
+
+# --------------------------------------------------------------------------- #
+# Verwaltungs-Dashboard (nur Staff): anstehende Buchungen, Reinigung, Rechnungen
+# --------------------------------------------------------------------------- #
+
+def _staff_required(request):
+    return bool(request.user.is_authenticated and request.user.is_staff)
+
+
+@login_required
+def dashboard(request):
+    """Operatives Verwaltungs-Dashboard für das (kleine) Team: was steht an, was
+    muss geputzt werden, welche Rechnungen sind offen/überfällig – mit Export
+    und Versand per Knopfdruck. Nur für Verwaltungs-/Superuser."""
+    if not _staff_required(request):
+        messages.error(request, "Dieser Bereich ist der Verwaltung vorbehalten.")
+        return redirect("overview")
+
+    from shop import services as shop_svc
+    from shop.models import Invoice
+    from decimal import Decimal
+
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    m_from, m_to = svc.month_bounds(year, month)
+    only_cleaning = (request.GET.get("only_cleaning") == "1"
+                     or request.POST.get("only_cleaning") == "1")
+
+    # Aktionen (POST): Listen versenden bzw. überfällige erinnern.
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "send_cleaning":
+            deps = list(svc.departures_in_range(m_from, m_to))
+            text = svc.cleaning_text(deps, only_cleaning=only_cleaning)
+            body = (f"Reinigungsliste {svc.month_label(year, month)}\n"
+                    f"(Abreisetag = Reinigungstag)\n\n{text}\n")
+            recips = svc.email_cleaning(
+                f"Re:Hof – Reinigungsliste {month:02d}/{year}", body)
+            messages.success(
+                request, f"Reinigungsliste an {len(recips)} Empfänger gesendet."
+                if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
+        elif action == "send_upcoming":
+            allocs = list(svc.arrivals_in_range(m_from, m_to))
+            body = (f"Anstehende Buchungen {svc.month_label(year, month)}\n\n"
+                    f"{svc.bookings_text(allocs)}\n")
+            recips = svc.email_admins(
+                f"Re:Hof – Buchungen {month:02d}/{year}", body)
+            messages.success(
+                request, f"Übersicht an {len(recips)} Empfänger gesendet."
+                if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
+        elif action == "remind_overdue":
+            n = shop_svc.remind_overdue()
+            messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
+        return redirect(f"{reverse('dashboard')}?year={year}&month={month}"
+                        + ("&only_cleaning=1" if only_cleaning else ""))
+
+    arrivals = list(svc.arrivals_in_range(m_from, m_to))
+    departures = list(svc.departures_in_range(m_from, m_to))
+    cleaning = [a for a in departures if getattr(a, "has_cleaning", False)]
+    cleaning_view = cleaning if only_cleaning else departures
+
+    open_inv = list(shop_svc.open_invoices().order_by("due_date", "number"))
+    overdue = [i for i in open_inv if i.is_overdue]
+    open_sum = sum((i.total_gross for i in open_inv), Decimal(0))
+    overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
+
+    months = [{"num": i, "name": svc.MONTHS_DE[i]} for i in range(1, 13)]
+    return render(request, "booking/dashboard.html", {
+        "today": today, "year": year, "month": month,
+        "month_label": svc.month_label(year, month),
+        "months": months, "years": list(range(today.year - 1, today.year + 3)),
+        "arrivals": arrivals, "departures": departures,
+        "cleaning_view": cleaning_view, "only_cleaning": only_cleaning,
+        "n_cleaning": len(cleaning),
+        "open_invoices": open_inv, "overdue": overdue,
+        "open_sum": open_sum, "overdue_sum": overdue_sum,
+    })
+
+
+@login_required
+def dashboard_export(request, kind: str, fmt: str):
+    """Export der Dashboard-Listen als xlsx oder CSV (Buchungen, Reinigung,
+    Rechnungen)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from . import exports
+    from shop import services as shop_svc
+    from shop.models import Invoice
+
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    m_from, m_to = svc.month_bounds(year, month)
+    tag = f"{year}-{month:02d}"
+
+    if kind == "buchungen":
+        allocs = svc.arrivals_in_range(m_from, m_to)
+        return exports.table_response(
+            fmt, f"buchungen-{tag}", f"Buchungen {tag}",
+            svc.BOOKING_COLUMNS, svc.booking_rows(allocs))
+    if kind == "reinigung":
+        only = request.GET.get("only_cleaning") == "1"
+        deps = svc.departures_in_range(m_from, m_to)
+        return exports.table_response(
+            fmt, f"reinigung-{tag}", f"Reinigung {tag}",
+            svc.CLEANING_COLUMNS, svc.cleaning_rows(deps, only_cleaning=only))
+    if kind == "rechnungen":
+        status = request.GET.get("status", "open")
+        qs = (shop_svc.overdue_invoices() if status == "overdue"
+              else shop_svc.open_invoices() if status == "open"
+              else Invoice.objects.all())
+        qs = qs.order_by("due_date", "number")
+        return exports.table_response(
+            fmt, f"rechnungen-{status}", f"Rechnungen {status}",
+            shop_svc.INVOICE_COLUMNS, shop_svc.invoice_export_rows(qs))
+    return redirect("dashboard")
 
 
 @login_required

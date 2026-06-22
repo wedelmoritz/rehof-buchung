@@ -18,4 +18,7 @@ urlpatterns = [
     path("registrieren/", views.register, name="register"),
     path("freischaltung/", views.pending, name="pending"),
     path("ergebnis/<int:period_id>/", views.period_result, name="period_result"),
+    path("verwaltung/", views.dashboard, name="dashboard"),
+    path("verwaltung/export/<str:kind>.<str:fmt>", views.dashboard_export,
+         name="dashboard_export"),
 ]

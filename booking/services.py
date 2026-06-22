@@ -699,6 +699,148 @@ def email_member(member, subject: str, body: str, html_body: str = ""):
     return queue_email(email, subject, body, html_body, member)
 
 
+def queue_email_many(recipients, subject: str, body: str, html_body: str = ""):
+    """Stellt dieselbe Mail an mehrere Adressen ein (für Verwaltungs-Mails)."""
+    return [em for to in recipients
+            if (em := queue_email(to, subject, body, html_body))]
+
+
+def email_admins(subject: str, body: str, html_body: str = ""):
+    from .models import OpsConfig
+    return queue_email_many(OpsConfig.get_solo().admin_list(), subject, body, html_body)
+
+
+def email_cleaning(subject: str, body: str, html_body: str = ""):
+    from .models import OpsConfig
+    return queue_email_many(OpsConfig.get_solo().cleaning_list(), subject, body, html_body)
+
+
+# --------------------------------------------------------------------------- #
+# Verwaltungs-Dashboard: anstehende Buchungen, Reinigung, Exporte, Monats-Mail
+# --------------------------------------------------------------------------- #
+
+MONTHS_DE = ["", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+             "August", "September", "Oktober", "November", "Dezember"]
+WEEKDAYS_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def month_label(year: int, month: int) -> str:
+    return f"{MONTHS_DE[month]} {year}"
+
+
+def month_bounds(year: int, month: int) -> tuple[date, date]:
+    """Erster Tag des Monats und erster Tag des Folgemonats (exklusiv)."""
+    start = date(year, month, 1)
+    end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    return start, end
+
+
+def next_month(today: date | None = None) -> tuple[int, int]:
+    today = today or date.today()
+    return (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+
+
+def _annotate_cleaning(qs):
+    """Markiert je Buchung, ob eine Endreinigung mitgebucht wurde."""
+    from django.db.models import Exists, OuterRef
+    from shop.models import LineItem
+    sq = LineItem.objects.filter(
+        allocation=OuterRef("pk"), product__counts_as_cleaning=True)
+    return qs.annotate(has_cleaning=Exists(sq))
+
+
+def arrivals_in_range(d_from: date, d_to: date):
+    """Buchungen mit Anreise in [d_from, d_to), inkl. Endreinigung-Markierung."""
+    qs = Allocation.objects.filter(start__gte=d_from, start__lt=d_to)
+    return (_annotate_cleaning(qs).select_related("quarter", "member")
+            .order_by("start", "quarter__name"))
+
+
+def departures_in_range(d_from: date, d_to: date):
+    """Abreisen in [d_from, d_to) – Basis der Reinigungsliste (Abreisetag =
+    Reinigungstag), inkl. Endreinigung-Markierung."""
+    qs = Allocation.objects.filter(end__gte=d_from, end__lt=d_to)
+    return (_annotate_cleaning(qs).select_related("quarter", "member")
+            .order_by("end", "quarter__name"))
+
+
+BOOKING_COLUMNS = ["Anreise", "Abreise", "Nächte", "Quartier", "Mitglied",
+                   "Personen", "Begleitung", "Endreinigung", "Quelle"]
+
+
+def booking_rows(allocs):
+    for a in allocs:
+        yield [a.start.isoformat(), a.end.isoformat(), a.nights, a.quarter.name,
+               a.member.display_name, a.persons, a.companions,
+               "ja" if getattr(a, "has_cleaning", False) else "nein",
+               a.get_source_display()]
+
+
+CLEANING_COLUMNS = ["Reinigung am", "Wochentag", "Quartier", "Mitglied",
+                    "Personen", "Endreinigung gebucht"]
+
+
+def cleaning_rows(deps, only_cleaning: bool = False):
+    for a in deps:
+        has = getattr(a, "has_cleaning", False)
+        if only_cleaning and not has:
+            continue
+        yield [a.end.isoformat(), WEEKDAYS_DE[a.end.weekday()], a.quarter.name,
+               a.member.display_name, a.persons, "ja" if has else "nein"]
+
+
+def bookings_text(allocs) -> str:
+    lines = []
+    for a in allocs:
+        clean = " · inkl. Endreinigung" if getattr(a, "has_cleaning", False) else ""
+        lines.append(f"{a.start:%d.%m.}–{a.end:%d.%m.%Y}  {a.quarter.name}  "
+                     f"{a.member.display_name} ({a.persons} Pers.){clean}")
+    return "\n".join(lines) if lines else "— keine —"
+
+
+def cleaning_text(deps, only_cleaning: bool = False) -> str:
+    lines = []
+    for a in deps:
+        has = getattr(a, "has_cleaning", False)
+        if only_cleaning and not has:
+            continue
+        mark = "ENDREINIGUNG" if has else "(keine Endreinigung gebucht)"
+        lines.append(f"{WEEKDAYS_DE[a.end.weekday()]} {a.end:%d.%m.%Y}  "
+                     f"{a.quarter.name}  – {mark}  "
+                     f"({a.member.display_name}, {a.persons} Pers.)")
+    return "\n".join(lines) if lines else "— keine Abreisen —"
+
+
+def notify_admins_upcoming(force: bool = False) -> int:
+    """Schickt der Verwaltung die Buchungen des Folgemonats. Vom Scheduler täglich
+    aufgerufen; sendet idempotent nur am eingestellten Tag, einmal pro Monat.
+    Gibt die Zahl der Empfänger zurück (0 = nichts gesendet)."""
+    from .models import OpsConfig
+    cfg = OpsConfig.get_solo()
+    today = date.today()
+    if not force:
+        if today.day != cfg.notify_day:
+            return 0
+        if (cfg.last_admin_notice and cfg.last_admin_notice.year == today.year
+                and cfg.last_admin_notice.month == today.month):
+            return 0
+    recipients = cfg.admin_list()
+    if not recipients:
+        return 0
+    y, m = next_month(today)
+    d_from, d_to = month_bounds(y, m)
+    arrivals = list(arrivals_in_range(d_from, d_to))
+    deps = list(departures_in_range(d_from, d_to))
+    body = (f"Anstehende Buchungen – {month_label(y, m)}\n\n"
+            f"ANREISEN / AUFENTHALTE ({len(arrivals)}):\n{bookings_text(arrivals)}\n\n"
+            f"REINIGUNG / ABREISEN ({len(deps)}):\n{cleaning_text(deps)}\n\n"
+            f"Details im Verwaltungs-Dashboard: {absolute_url('/verwaltung/')}\n")
+    queue_email_many(recipients, f"Re:Hof – Buchungen {m:02d}/{y}", body)
+    cfg.last_admin_notice = today
+    cfg.save(update_fields=["last_admin_notice"])
+    return len(recipients)
+
+
 # --------------------------------------------------------------------------- #
 # Tages-Detail (Übersicht) & Wechselwünsche
 # --------------------------------------------------------------------------- #

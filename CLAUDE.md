@@ -67,8 +67,10 @@ sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `LotteryRun`, `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
-Warteliste), `Notification` (In-App-Benachrichtigung), `SwapRequest`
-(Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
+Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
+(E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
+Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag),
+`SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
 `SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 
@@ -87,7 +89,8 @@ Rückfrage**; je Buchung „wer ist gleichzeitig da“ + Wechselwunsch an andere
 Mitglieder, die zustimmen/ablehnen können), `transfer` (**zweistufig**: Vorschau
 mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
 des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
-Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
+`dashboard` (nur Staff, `/verwaltung/`) ist das operative Verwaltungs-Dashboard
+(s.u. „Verwaltungs-Dashboard“). Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
 `unavailable_weekdays` sperrt Wochentage (geprüft am Abreisetag, z.B.
 Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` **und** (über die Outbox)
@@ -139,10 +142,29 @@ gruppiert via `Invoice.purchase_groups`). Rechnung **monatlich**
 (`generate_monthly_invoices`, Cron) **oder sofort** (`generate_invoice_now`,
 Button „Jetzt abrechnen“ bzw. „sofort abrechnen“ beim Checkout). Beim Buchen
 mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
-`services.purchase_service` direkt als bestätigter Einkauf. Stammdaten der
-Genossenschaft im `ShopConfig`-Singleton. Geldlogik/Tests in `shop/services.py`
-bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices` (monatlich) und
-`run_due_lotteries` (Perioden/Losungen). Rechnung als In-App-HTML, PDF/Mail später.
+`services.purchase_service` direkt als bestätigter Einkauf – dabei wird
+`LineItem.allocation` gesetzt (verknüpft die Reinigung mit Quartier + Abreisetag).
+`Product.counts_as_cleaning` markiert die Endreinigung für die Reinigungsliste.
+**Offene Posten:** `Invoice.due_date` (aus `ShopConfig.payment_term_days`) +
+`is_overdue`; **Zahlungserinnerung** idempotent über `services.send_payment_reminder`
+/ `remind_overdue` (Aktion im Admin + Dashboard, „zuletzt erinnert am“).
+Stammdaten der Genossenschaft im `ShopConfig`-Singleton. Geldlogik/Tests in
+`shop/services.py` bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices`
+(monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
+(Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
+`OpsConfig.notify_day`). Rechnung als In-App-HTML, PDF/Mail später.
+
+**Verwaltungs-Dashboard (`dashboard`, nur Staff, `/verwaltung/`):** operative
+Seite fürs kleine Team – Kennzahlen, **Reinigungsliste** (alle Abreisen des
+gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
+**anstehende Buchungen** und **offene/überfällige Rechnungen**. Je Liste
+**Export** als xlsx **und** CSV (`booking/exports.py`) und **Versand per Knopf**
+(Reinigungsliste ans Reinigungsteam, Buchungen an die Verwaltung,
+Zahlungserinnerung an überfällige). Empfänger in `OpsConfig`
+(`email_admins`/`email_cleaning`; Reinigungsteam leer = Verwaltungs-Adresse).
+Die Nav „Verwaltung“ zeigt aufs Dashboard; von dort Link ins Django-Backend.
+Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
+`departures_in_range`, `_annotate_cleaning`, `*_rows`, `*_text`).
 
 ---
 
@@ -278,6 +300,11 @@ bleibt in `settings.py` markiert.
   `Allocation.source="external"` vorhanden).
 - E-Mail-Fundament steht (Outbox + `send_outbox`); offen: PDF-Rechnungen
   (WeasyPrint), Losergebnis-PDF + Massenmail, Web-Push (mobil).
+- **Kontoabgleich** (Phase C): Bank-CSV/CAMT importieren, über Betrag +
+  Rechnungsnummer im Verwendungszweck offenen Rechnungen zuordnen → automatisch
+  „bezahlt“, Rest manuell bestätigen (Dashboard hat dafür schon Status/Export).
+- Verwaltungs-Mails/Putzliste später optional als **Datei-Anhang** (xlsx/CSV)
+  statt nur inline (OutboxEmail um Anhang erweitern).
 - Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
 
 ---

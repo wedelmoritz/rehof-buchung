@@ -520,6 +520,46 @@ class Notification(models.Model):
         return f"{self.member}: {self.message}"
 
 
+class OpsConfig(models.Model):
+    """Betriebs-Einstellungen der Verwaltung (Singleton): Empfänger der
+    Verwaltungs-Mails (anstehende Buchungen) und der Reinigungsliste."""
+    admin_emails = models.CharField(
+        "Verwaltung – E-Mail(s)", max_length=400, blank=True,
+        help_text="Komma-getrennt. Empfänger der Übersicht über anstehende "
+                  "Buchungen.")
+    cleaning_emails = models.CharField(
+        "Reinigungsteam – E-Mail(s)", max_length=400, blank=True,
+        help_text="Komma-getrennt. Empfänger der Putzliste. Leer = wie Verwaltung.")
+    notify_day = models.PositiveSmallIntegerField(
+        "Monats-Mail am Tag", default=25,
+        help_text="An diesem Tag des Monats geht die Übersicht der Buchungen des "
+                  "Folgemonats automatisch an die Verwaltung.")
+    last_admin_notice = models.DateField(
+        "Zuletzt benachrichtigt am", null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "Betriebs-Einstellungen"
+        verbose_name_plural = "Betriebs-Einstellungen"
+
+    def __str__(self) -> str:
+        return "Betriebs-Einstellungen"
+
+    @classmethod
+    def get_solo(cls) -> "OpsConfig":
+        return cls.objects.first() or cls.objects.create()
+
+    @staticmethod
+    def _parse(raw: str) -> list[str]:
+        import re
+        return [e for e in re.split(r"[,;\s]+", raw or "") if "@" in e]
+
+    def admin_list(self) -> list[str]:
+        return self._parse(self.admin_emails)
+
+    def cleaning_list(self) -> list[str]:
+        return self._parse(self.cleaning_emails) or self.admin_list()
+
+
 class OutboxEmail(models.Model):
     """Ausgehende E-Mail in der Warteschlange. Das Versenden ist vom Request
     entkoppelt (wichtig für Massenmails): das Kommando `send_outbox` – vom

@@ -29,6 +29,10 @@ class ShopConfig(models.Model):
     iban = models.CharField("IBAN (Zahlungsempfang)", max_length=34, blank=True)
     bic = models.CharField("BIC", max_length=11, blank=True)
     invoice_prefix = models.CharField("Rechnungs-Präfix", max_length=8, default="HL")
+    payment_term_days = models.PositiveSmallIntegerField(
+        "Zahlungsziel (Tage)", default=14,
+        help_text="Nach so vielen Tagen ohne Zahlungseingang gilt eine Rechnung "
+                  "als überfällig (für die Zahlungserinnerung).")
 
     class Meta:
         verbose_name = "Hofladen-Einstellungen"
@@ -85,6 +89,11 @@ class Product(models.Model):
         "Beim Buchen einer Unterkunft anbieten", default=False,
         help_text="z.B. Endreinigung: erscheint im Bestätigungsschritt der Buchung "
                   "und kann gleich mitgebucht werden.")
+    counts_as_cleaning = models.BooleanField(
+        "Zählt als Endreinigung", default=False,
+        help_text="Wenn aktiv, gilt diese Dienstleistung als Endreinigung und "
+                  "erscheint in der Reinigungsliste fürs Team (Markierung an der "
+                  "betroffenen Buchung).")
     unavailable_weekdays = models.CharField(
         "Nicht möglich an Wochentagen", max_length=20, blank=True, default="",
         help_text="Komma-getrennt 0=Mo … 6=So. An diesen Wochentagen (Abreisetag) "
@@ -159,6 +168,11 @@ class LineItem(models.Model):
     purchase = models.ForeignKey(
         "Purchase", on_delete=models.CASCADE, null=True, blank=True,
         related_name="items", verbose_name="Einkauf")
+    allocation = models.ForeignKey(
+        "booking.Allocation", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="service_items", verbose_name="Zugehörige Buchung",
+        help_text="Gesetzt, wenn die Dienstleistung beim Buchen mitgebucht wurde "
+                  "(z.B. Endreinigung) – verknüpft sie mit Quartier und Abreisetag.")
     name = models.CharField("Bezeichnung", max_length=160)
     unit = models.CharField("Einheit", max_length=10)
     unit_price = models.DecimalField("Einzelpreis (brutto)", max_digits=8,
@@ -209,8 +223,10 @@ class Invoice(models.Model):
     month = models.PositiveSmallIntegerField("Monat")
     status = models.CharField("Status", max_length=10, choices=STATUS, default=OPEN)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    due_date = models.DateField("Fällig am", null=True, blank=True)
     paid_reported_at = models.DateTimeField("Bezahlt gemeldet am", null=True, blank=True)
     confirmed_at = models.DateTimeField("Bestätigt am", null=True, blank=True)
+    reminded_at = models.DateTimeField("Zuletzt erinnert am", null=True, blank=True)
     # Snapshots (Empfänger + Genossenschaft) für §14 UStG
     recipient_name = models.CharField("Empfänger", max_length=160, blank=True)
     recipient_address = models.TextField("Empfänger-Anschrift", blank=True)
@@ -231,6 +247,13 @@ class Invoice(models.Model):
     @property
     def archived(self) -> bool:
         return self.status == self.CONFIRMED
+
+    @property
+    def is_overdue(self) -> bool:
+        """Offen UND Zahlungsziel überschritten (für die Erinnerung)."""
+        from datetime import date as _date
+        return (self.status == self.OPEN and self.due_date is not None
+                and self.due_date < _date.today())
 
     @property
     def total_gross(self) -> Decimal:

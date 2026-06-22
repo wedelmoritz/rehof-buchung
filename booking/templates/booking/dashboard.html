@@ -1,0 +1,171 @@
+{% extends "booking/base.html" %}
+{% block title %}Verwaltung{% endblock %}
+{% block content %}
+<h1>Verwaltung</h1>
+
+{# --- Kennzahlen ----------------------------------------------------------- #}
+<div class="kpis">
+  <div class="card kpi"><span class="num">{{ arrivals|length }}</span>
+    <span class="lbl">Anreisen<br>{{ month_label }}</span></div>
+  <div class="card kpi"><span class="num">{{ n_cleaning }}</span>
+    <span class="lbl">Endreinigungen<br>{{ month_label }}</span></div>
+  <div class="card kpi"><span class="num">{{ open_invoices|length }}</span>
+    <span class="lbl">offene Rechnungen<br>{{ open_sum }} €</span></div>
+  <div class="card kpi {% if overdue %}danger{% endif %}"><span class="num">{{ overdue|length }}</span>
+    <span class="lbl">überfällig<br>{{ overdue_sum }} €</span></div>
+</div>
+
+{# --- Monatsauswahl -------------------------------------------------------- #}
+<div class="card monthbar">
+  <form method="get" class="inline-form">
+    <label>Monat
+      <select name="month" onchange="this.form.submit()">
+        {% for m in months %}<option value="{{ m.num }}" {% if m.num == month %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+      </select></label>
+    <label>Jahr
+      <select name="year" onchange="this.form.submit()">
+        {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select></label>
+    {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
+    <noscript><button class="btn small" type="submit">Anzeigen</button></noscript>
+  </form>
+  <span class="spacer"></span>
+  <a class="btn small ghost" href="/admin/">Backend (Admin)</a>
+</div>
+
+{# --- Reinigung ------------------------------------------------------------ #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Reinigung – {{ month_label }}</h2>
+    <span class="spacer"></span>
+    <a class="btn small ghost" href="?year={{ year }}&month={{ month }}{% if not only_cleaning %}&only_cleaning=1{% endif %}">
+      {% if only_cleaning %}Alle Abreisen zeigen{% else %}Nur mit Endreinigung{% endif %}</a>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Abreisetag = Reinigungstag. Liste fürs Reinigungsteam.</p>
+  {% if cleaning_view %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead><tr><th>Reinigung am</th><th>Quartier</th><th>Mitglied</th><th>Pers.</th><th>Endreinigung</th></tr></thead>
+      <tbody>
+        {% for a in cleaning_view %}
+        <tr class="{% if a.has_cleaning %}hl{% endif %}">
+          <td>{{ a.end|date:"D d.m.Y" }}</td>
+          <td>{{ a.quarter.name }}</td>
+          <td>{{ a.member.display_name }}</td>
+          <td>{{ a.persons }}</td>
+          <td>{% if a.has_cleaning %}<span class="tag ok">gebucht</span>{% else %}<span class="tag">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Keine Abreisen in diesem Monat.</p>{% endif %}
+  <div class="actions">
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'reinigung' 'xlsx' %}?year={{ year }}&month={{ month }}{% if only_cleaning %}&only_cleaning=1{% endif %}">Excel</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'reinigung' 'csv' %}?year={{ year }}&month={{ month }}{% if only_cleaning %}&only_cleaning=1{% endif %}">CSV</a>
+    <form method="post" class="inline">{% csrf_token %}
+      <input type="hidden" name="action" value="send_cleaning">
+      <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+      {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
+      <button class="btn small" type="submit">Ans Reinigungsteam senden</button>
+    </form>
+  </div>
+</div>
+
+{# --- Anstehende Buchungen ------------------------------------------------- #}
+<div class="card">
+  <h2>Anstehende Buchungen – {{ month_label }}</h2>
+  {% if arrivals %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead><tr><th>Anreise</th><th>Abreise</th><th>Nächte</th><th>Quartier</th><th>Mitglied</th><th>Pers.</th><th>Endreinig.</th></tr></thead>
+      <tbody>
+        {% for a in arrivals %}
+        <tr>
+          <td>{{ a.start|date:"D d.m.Y" }}</td>
+          <td>{{ a.end|date:"d.m.Y" }}</td>
+          <td>{{ a.nights }}</td>
+          <td>{{ a.quarter.name }}</td>
+          <td>{{ a.member.display_name }}{% if a.companions %} <span class="muted">(+{{ a.companions }})</span>{% endif %}</td>
+          <td>{{ a.persons }}</td>
+          <td>{% if a.has_cleaning %}✓{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Keine Anreisen in diesem Monat.</p>{% endif %}
+  <div class="actions">
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'buchungen' 'xlsx' %}?year={{ year }}&month={{ month }}">Excel</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'buchungen' 'csv' %}?year={{ year }}&month={{ month }}">CSV</a>
+    <form method="post" class="inline">{% csrf_token %}
+      <input type="hidden" name="action" value="send_upcoming">
+      <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+      <button class="btn small" type="submit">An Verwaltung senden</button>
+    </form>
+  </div>
+</div>
+
+{# --- Rechnungen ----------------------------------------------------------- #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Offene Rechnungen</h2>
+    <span class="spacer"></span>
+    <span class="muted">{{ open_invoices|length }} offen · {{ overdue|length }} überfällig</span>
+  </div>
+  {% if open_invoices %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead><tr><th>Nummer</th><th>Mitglied</th><th>Fällig</th><th>Brutto</th><th>Status</th><th>Erinnert</th></tr></thead>
+      <tbody>
+        {% for i in open_invoices %}
+        <tr class="{% if i.is_overdue %}danger-row{% endif %}">
+          <td><a href="/admin/shop/invoice/{{ i.id }}/change/">{{ i.number }}</a></td>
+          <td>{{ i.member.display_name }}</td>
+          <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
+          <td>{{ i.total_gross }} €</td>
+          <td>{{ i.get_status_display }}</td>
+          <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Keine offenen Rechnungen. 🎉</p>{% endif %}
+  <div class="actions">
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'xlsx' %}?status=open">Excel (offen)</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status=open">CSV (offen)</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status=overdue">CSV (überfällig)</a>
+    {% if overdue %}
+    <form method="post" class="inline" onsubmit="return confirm('Zahlungserinnerung an alle {{ overdue|length }} überfälligen Rechnungen senden?');">{% csrf_token %}
+      <input type="hidden" name="action" value="remind_overdue">
+      <button class="btn small" type="submit">Überfällige erinnern ({{ overdue|length }})</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .kpis { display:flex; gap:.8rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .kpi { flex:1 1 140px; display:flex; align-items:center; gap:.7rem; padding:.9rem 1rem; }
+  .kpi .num { font-size:1.9rem; font-weight:700; line-height:1; color:var(--accent-deep); }
+  .kpi .lbl { font-size:.8rem; color:var(--muted); line-height:1.25; }
+  .kpi.danger .num { color:#b3261e; }
+  .monthbar { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  .inline-form { display:inline-flex; gap:.8rem; align-items:flex-end; flex-wrap:wrap; }
+  .inline-form label { font-size:.8rem; color:var(--muted); display:flex; flex-direction:column; gap:.2rem; }
+  .inline-form select { min-width:auto; padding:.4rem .55rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); }
+  .monthbar .spacer, .sec-head .spacer { margin-left:auto; }
+  .sec-head { display:flex; align-items:center; gap:.6rem; }
+  table.grid { width:100%; border-collapse:collapse; font-size:.92rem; }
+  table.grid th, table.grid td { text-align:left; padding:.5rem .6rem; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.grid th { font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  table.grid tr.hl td, table.grid tr.danger-row td { background:rgba(179,38,30,.05); }
+  table.grid tr.hl td { background:var(--accent-soft); }
+  .tag { display:inline-block; padding:.05rem .45rem; border-radius:999px; font-size:.72rem; background:var(--line); color:var(--muted); }
+  .tag.ok { background:var(--accent-soft); color:var(--accent-deep); }
+  .tag.danger { background:rgba(179,38,30,.12); color:#b3261e; }
+  .actions { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
+  .actions form.inline { display:inline; }
+</style>
+{% endblock %}

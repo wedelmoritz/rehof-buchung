@@ -12,9 +12,9 @@ from django.urls import reverse
 
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    LotteryRun, Member, Membership, NightTransfer, Notification, OutboxEmail,
-    Quarter, SchoolHoliday, SeasonRule, Share, SwapRequest, UpcomingAllocation,
-    WaitlistEntry, Wish,
+    LotteryRun, Member, Membership, NightTransfer, Notification, OpsConfig,
+    OutboxEmail, Quarter, SchoolHoliday, SeasonRule, Share, SwapRequest,
+    UpcomingAllocation, WaitlistEntry, Wish,
 )
 from .services import run_period_lottery
 
@@ -236,24 +236,41 @@ class AllocationAdmin(admin.ModelAdmin):
     search_fields = ("member__display_name",)
 
 
+@admin.action(description="Excel-Export der ausgewählten Buchungen")
+def export_bookings_xlsx(modeladmin, request, queryset):
+    from . import exports, services as svc
+    return exports.xlsx_response(
+        "buchungen", "Buchungen", svc.BOOKING_COLUMNS,
+        svc.booking_rows(svc._annotate_cleaning(queryset)
+                         .select_related("quarter", "member")))
+
+
 @admin.register(UpcomingAllocation)
 class UpcomingAllocationAdmin(admin.ModelAdmin):
     """Anstehende Buchungen – für die Vorbereitung der Verwaltung. Zeigt nur
-    Buchungen mit Abreise ab heute, chronologisch nach Anreise."""
+    Buchungen mit Abreise ab heute, chronologisch nach Anreise. Für die
+    monatliche Reinigungs-/Buchungsübersicht das <b>Verwaltungs-Dashboard</b>
+    nutzen (Filter, Versand, Export)."""
     list_display = ("start", "end", "quarter", "member", "persons",
-                    "nights_display", "source")
+                    "nights_display", "cleaning_display", "source")
     list_filter = ("quarter", "source")
     search_fields = ("member__display_name", "quarter__name")
     date_hierarchy = "start"
     ordering = ("start",)
+    actions = [export_bookings_xlsx]
 
     @admin.display(description="Nächte")
     def nights_display(self, obj):
         return obj.nights
 
+    @admin.display(boolean=True, description="Endreinigung")
+    def cleaning_display(self, obj):
+        return bool(getattr(obj, "has_cleaning", False))
+
     def get_queryset(self, request):
+        from .services import _annotate_cleaning
         return (
-            super().get_queryset(request)
+            _annotate_cleaning(super().get_queryset(request))
             .filter(end__gte=date.today())
             .select_related("quarter", "member")
         )
@@ -304,6 +321,33 @@ class SwapRequestAdmin(admin.ModelAdmin):
                     "to_allocation", "status", "created_at")
     list_filter = ("status",)
     search_fields = ("from_member__display_name", "to_member__display_name")
+
+
+@admin.register(OpsConfig)
+class OpsConfigAdmin(admin.ModelAdmin):
+    """Betriebs-Einstellungen (Singleton): Empfänger der Verwaltungs-Mails und
+    der Reinigungsliste. Im Verwaltungs-Dashboard genutzt."""
+    fieldsets = (
+        ("Empfänger der Verwaltungs-Mails", {
+            "fields": ("admin_emails", "cleaning_emails"),
+            "description": "Komma-getrennte E-Mail-Adressen. „Reinigungsteam“ "
+                           "leer = es gilt die Verwaltungs-Adresse."}),
+        ("Automatische Monats-Mail", {
+            "fields": ("notify_day",),
+            "description": "An diesem Tag des Monats geht die Übersicht der "
+                           "Buchungen des Folgemonats automatisch an die Verwaltung "
+                           "(per Cron/Scheduler)."}),
+    )
+
+    def has_add_permission(self, request):
+        return not OpsConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj = OpsConfig.get_solo()
+        return redirect(reverse("admin:booking_opsconfig_change", args=[obj.id]))
 
 
 @admin.register(OutboxEmail)
