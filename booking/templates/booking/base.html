@@ -1,0 +1,100 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Quartier-Buchung{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f4f2ec; --card: #fffdf8; --ink: #2a2722; --muted: #6f6a60;
+      --line: #ddd6c8; --accent: #3f6f4e; --accent-soft: #e3ede4;
+      --warn: #9a5b2b; --warn-soft: #f3e4d4; --bad: #8a3b3b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    header {
+      background: var(--ink); color: #f4f2ec; padding: 0.75rem 1.25rem;
+      display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+    }
+    header .brand { font-weight: 700; letter-spacing: 0.02em; }
+    header nav { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+    header a { color: #d8e3da; text-decoration: none; }
+    header a:hover { color: #fff; }
+    header .spacer { margin-left: auto; }
+    main { max-width: 980px; margin: 1.5rem auto; padding: 0 1.25rem; }
+    h1 { font-size: 1.5rem; margin: 0.2rem 0 1rem; }
+    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.6rem; }
+    .card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: 1.1rem;
+    }
+    .stat-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .stat {
+      flex: 1 1 160px; background: var(--accent-soft); border-radius: 8px;
+      padding: 0.8rem 1rem;
+    }
+    .stat .num { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+    .stat .lbl { color: var(--muted); font-size: 0.85rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+    .tag {
+      display: inline-block; font-size: 0.72rem; padding: 0.1rem 0.5rem;
+      border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    }
+    .tag.sub { background: var(--warn-soft); color: var(--warn); }
+    .tag.con { background: #e6e0f0; color: #5b4b8a; }
+    form.inline { display: inline; }
+    .field { margin-bottom: 0.7rem; }
+    .field label { display: block; font-size: 0.85rem; color: var(--muted); }
+    input, select {
+      font: inherit; padding: 0.45rem 0.55rem; border: 1px solid var(--line);
+      border-radius: 6px; background: #fff; min-width: 12rem;
+    }
+    .btn {
+      font: inherit; cursor: pointer; border: 0; border-radius: 6px;
+      background: var(--accent); color: #fff; padding: 0.5rem 1rem;
+    }
+    .btn:hover { background: #345d41; }
+    .btn.small { padding: 0.25rem 0.6rem; font-size: 0.85rem; }
+    .btn.ghost { background: transparent; color: var(--bad); border: 1px solid var(--line); }
+    .msg { padding: 0.7rem 1rem; border-radius: 8px; margin-bottom: 0.7rem; }
+    .msg.success { background: var(--accent-soft); color: var(--accent); }
+    .msg.error { background: #f3d9d9; color: var(--bad); }
+    .msg.info, .msg.warning { background: var(--warn-soft); color: var(--warn); }
+    .muted { color: var(--muted); }
+    pre.log {
+      background: #2a2722; color: #e8e3d8; padding: 1rem; border-radius: 8px;
+      overflow-x: auto; font-size: 0.82rem; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <span class="brand">Re:Hof Quartiere</span>
+  {% if user.is_authenticated %}
+  <nav>
+    <a href="{% url 'dashboard' %}">Übersicht</a>
+    <a href="{% url 'calendar' %}">Mein Kalender</a>
+    <a href="{% url 'transfer' %}">Tage übertragen</a>
+    {% if user.is_staff %}<a href="/admin/">Verwaltung</a>{% endif %}
+  </nav>
+  <span class="spacer"></span>
+  <span class="muted" style="color:#b9b2a4">{{ user.member.display_name|default:user.username }}</span>
+  <form class="inline" action="{% url 'logout' %}" method="post">{% csrf_token %}
+    <button class="btn small" type="submit">Abmelden</button>
+  </form>
+  {% endif %}
+</header>
+<main>
+  {% if messages %}
+    {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

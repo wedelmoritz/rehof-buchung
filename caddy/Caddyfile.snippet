@@ -1,0 +1,7 @@
+# Diesen Block in das vorhandene Caddyfile auf dem Host aufnehmen.
+# Caddy holt das TLS-Zertifikat automatisch via Let's Encrypt.
+
+quartiere.example.org {
+    encode gzip
+    reverse_proxy 127.0.0.1:8000
+}

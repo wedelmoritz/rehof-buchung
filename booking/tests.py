@@ -1,0 +1,351 @@
+"""
+Django-Integrationstests für die DB-Logik rund um Buchungszeiträume und
+Tage-Übertragung.
+
+Lauf:  python manage.py test booking
+(Diese Tests brauchen Django + DB; die reine Algorithmus-Logik wird separat
+unter tests/ mit pytest geprüft.)
+"""
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+from django.contrib.auth.models import User
+from django.test import TestCase
+
+from booking.models import (
+    Allocation, BookingPeriod, BookingPolicy, BookingWindow, EquivalenceClass,
+    Member, NightTransfer, Quarter, SeasonRule, Wish,
+)
+from booking.services import (
+    book_spontaneous, run_period_lottery, transfer_nights,
+)
+from booking import services as svc
+
+YEAR = date.today().year
+
+
+def make_member(name, **kwargs):
+    u = User.objects.create_user(username=name, password="x" * 12)
+    return Member.objects.create(user=u, display_name=name, **kwargs)
+
+
+class BaseData(TestCase):
+    def setUp(self):
+        self.cls = EquivalenceClass.objects.create(name="Test")
+        self.q1 = Quarter.objects.create(
+            name="Q1", eq_class=self.cls, min_occupancy=1, max_occupancy=4)
+        self.q2 = Quarter.objects.create(
+            name="Q2", eq_class=self.cls, min_occupancy=1, max_occupancy=4)
+        self.q3 = Quarter.objects.create(
+            name="Q3", eq_class=self.cls, min_occupancy=1, max_occupancy=4)
+        self.alice = make_member("alice")
+        self.bob = make_member("bob")
+
+
+class BookingWindowTests(BaseData):
+    def test_keine_buchung_ohne_freigeschalteten_zeitraum(self):
+        """Ohne Buchungszeitraum ist Spontanbuchung gesperrt."""
+        start = date(YEAR, 6, 1)
+        alloc, err = book_spontaneous(self.alice, self.q1, start,
+                                      start + timedelta(days=3))
+        self.assertIsNone(alloc)
+        self.assertIn("freigeschaltet", err)
+
+    def test_buchung_im_globalen_zeitraum(self):
+        BookingWindow.objects.create(
+            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
+            applies_to_all=True, active=True)
+        start = date(YEAR, 6, 1)
+        alloc, err = book_spontaneous(self.alice, self.q1, start,
+                                      start + timedelta(days=3))
+        self.assertIsNotNone(alloc, err)
+        self.assertEqual(alloc.nights, 3)
+
+    def test_teilmengen_einschraenkung(self):
+        """Global Jan–Dez, aber Q1 nur im Juni. Buchung von Q1 im Mai scheitert,
+        im Juni klappt sie; Q2 (nicht eingeschränkt) klappt auch im Mai."""
+        BookingWindow.objects.create(
+            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
+            applies_to_all=True, active=True)
+        spec = BookingWindow.objects.create(
+            name="q1-nur-juni", start=date(YEAR, 6, 1), end=date(YEAR, 7, 1),
+            applies_to_all=False, active=True)
+        spec.quarters.set([self.q1])
+
+        # Q1 im Mai: gesperrt
+        may = date(YEAR, 5, 10)
+        alloc, err = book_spontaneous(self.alice, self.q1, may,
+                                      may + timedelta(days=3))
+        self.assertIsNone(alloc)
+
+        # Q1 im Juni: frei
+        jun = date(YEAR, 6, 10)
+        alloc, err = book_spontaneous(self.alice, self.q1, jun,
+                                      jun + timedelta(days=3))
+        self.assertIsNotNone(alloc, err)
+
+        # Q2 im Mai: frei (keine Einschränkung)
+        alloc2, err2 = book_spontaneous(self.bob, self.q2, may,
+                                        may + timedelta(days=3))
+        self.assertIsNotNone(alloc2, err2)
+
+    def test_gesperrtes_fenster_blockt(self):
+        BookingWindow.objects.create(
+            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
+            applies_to_all=True, active=False)  # gesperrt
+        start = date(YEAR, 6, 1)
+        alloc, err = book_spontaneous(self.alice, self.q1, start,
+                                      start + timedelta(days=3))
+        self.assertIsNone(alloc)
+
+    def test_doppelbuchung_wird_verhindert(self):
+        BookingWindow.objects.create(
+            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
+            applies_to_all=True, active=True)
+        start = date(YEAR, 6, 1)
+        a1, _ = book_spontaneous(self.alice, self.q1, start,
+                                 start + timedelta(days=3))
+        self.assertIsNotNone(a1)
+        # Bob will denselben Zeitraum -> belegt
+        a2, err = book_spontaneous(self.bob, self.q1, start,
+                                   start + timedelta(days=3))
+        self.assertIsNone(a2)
+        self.assertIn("belegt", err)
+
+
+class NightTransferTests(BaseData):
+    def setUp(self):
+        super().setUp()
+        BookingWindow.objects.create(
+            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
+            applies_to_all=True, active=True)
+
+    def test_uebertragung_aendert_budgets(self):
+        self.assertEqual(self.alice.nights_remaining_in_year(YEAR), 50)
+        self.assertEqual(self.bob.nights_remaining_in_year(YEAR), 50)
+        t, err = transfer_nights(self.alice, self.bob, 10, YEAR)
+        self.assertIsNotNone(t, err)
+        self.assertEqual(self.alice.nights_remaining_in_year(YEAR), 40)
+        self.assertEqual(self.bob.nights_remaining_in_year(YEAR), 60)
+
+    def test_kann_nicht_mehr_uebertragen_als_verfuegbar(self):
+        t, err = transfer_nights(self.alice, self.bob, 60, YEAR)
+        self.assertIsNone(t)
+        self.assertIn("Nicht genügend", err)
+
+    def test_uebertragung_an_sich_selbst_unzulaessig(self):
+        t, err = transfer_nights(self.alice, self.alice, 5, YEAR)
+        self.assertIsNone(t)
+
+    def test_empfaenger_kann_mehr_buchen(self):
+        # Bob bekommt 10 Tage -> kann 60 statt 50 buchen
+        transfer_nights(self.alice, self.bob, 10, YEAR)
+        # eine 55-Nächte-Buchung wäre ohne Übertragung unmöglich, mit möglich
+        start = date(YEAR, 1, 2)
+        alloc, err = book_spontaneous(self.bob, self.q1, start,
+                                      start + timedelta(days=55))
+        self.assertIsNotNone(alloc, err)
+
+    def test_kein_uebertrag_ins_folgejahr(self):
+        """Tage gelten je Kalenderjahr frisch; eine Buchung im Vorjahr
+        beeinflusst das Folgejahr nicht."""
+        # Buchung im laufenden Jahr verbraucht Tage in YEAR …
+        start = date(YEAR, 1, 2)
+        alloc, err = book_spontaneous(self.alice, self.q1, start,
+                                      start + timedelta(days=10))
+        self.assertIsNotNone(alloc, err)
+        self.assertEqual(self.alice.nights_remaining_in_year(YEAR), 40)
+        # … aber im Folgejahr stehen wieder volle 50 zur Verfügung.
+        self.assertEqual(self.alice.nights_remaining_in_year(YEAR + 1), 50)
+
+
+class LotteryWindowIndependenceTests(BaseData):
+    def test_losung_vergibt_folgejahr_ohne_freigeschalteten_zeitraum(self):
+        """Das Losverfahren vergibt das nächste Jahr, obwohl dafür KEIN
+        Buchungszeitraum freigeschaltet ist (Zeitlogik: Losung im Sommer
+        fürs Folgejahr)."""
+        next_year = YEAR + 1
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=next_year,
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status="open")
+        s = date(next_year, 5, 24)
+        Wish.objects.create(period=period, member=self.alice, priority=1,
+                            quarter=self.q1, start=s, end=s + timedelta(days=5),
+                            submitted=True)
+        Wish.objects.create(period=period, member=self.bob, priority=1,
+                            quarter=self.q1, start=s, end=s + timedelta(days=5),
+                            submitted=True)
+        # KEIN BookingWindow fürs Folgejahr
+        self.assertEqual(BookingWindow.objects.count(), 0)
+
+        run = run_period_lottery(period, seed=1)
+        allocs = Allocation.objects.filter(period=period, source="lottery")
+        # Beide bekommen etwas (Q1 + Ausweich Q2), trotz fehlender Freischaltung
+        self.assertEqual(allocs.count(), 2)
+        self.assertTrue(run.summary)
+
+
+class SeasonRuleTests(BaseData):
+    """Saison-Regeln (Mindestnächte, Parallel-Limit, Aufenthaltsdeckel) im
+    Zusammenspiel mit der echten Buchung über den Service."""
+
+    def setUp(self):
+        super().setUp()
+        # Ganzjährig freigeschaltet, damit nur die Saison-Regeln greifen
+        BookingWindow.objects.create(
+            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 1, 1, 1),
+            applies_to_all=True, active=True)
+        # Standard-Mindestnächte 3
+        p = BookingPolicy.get_solo()
+        p.default_min_nights = 3
+        p.save()
+
+    def test_standard_mindestbuchung_3(self):
+        start = date(YEAR, 6, 2)
+        a, err = book_spontaneous(self.alice, self.q1, start,
+                                  start + timedelta(days=2))  # 2 Nächte
+        self.assertIsNone(a)
+        self.assertIn("Mindestbuchung", err)
+        a, err = book_spontaneous(self.alice, self.q1, start,
+                                  start + timedelta(days=3))  # 3 Nächte ok
+        self.assertIsNotNone(a, err)
+
+    def test_juli_mindestens_7_naechte(self):
+        SeasonRule.objects.create(
+            name="Hochsaison", start=date(YEAR, 7, 1), end=date(YEAR, 9, 1),
+            min_nights=7, active=True)
+        start = date(YEAR, 7, 10)
+        a, err = book_spontaneous(self.alice, self.q1, start,
+                                  start + timedelta(days=5))  # 5 < 7
+        self.assertIsNone(a)
+        self.assertIn("7 Nächte", err)
+        a, err = book_spontaneous(self.alice, self.q1, start,
+                                  start + timedelta(days=7))
+        self.assertIsNotNone(a, err)
+
+    def test_max_zwei_parallele_einheiten_in_pfingsten(self):
+        SeasonRule.objects.create(
+            name="Pfingsten", start=date(YEAR, 5, 22), end=date(YEAR, 5, 27),
+            max_parallel_units=2, active=True)
+        s, e = date(YEAR, 5, 23), date(YEAR, 5, 26)
+        a1, _ = book_spontaneous(self.alice, self.q1, s, e)
+        a2, _ = book_spontaneous(self.alice, self.q2, s, e)
+        self.assertIsNotNone(a1)
+        self.assertIsNotNone(a2)  # zwei parallel ok
+        a3, err = book_spontaneous(self.alice, self.q3, s, e)
+        self.assertIsNone(a3)  # dritte parallele Einheit -> abgelehnt
+        self.assertIn("gleichzeitig", err)
+
+    def test_sommerferien_deckel_14(self):
+        SeasonRule.objects.create(
+            name="Sommerferien BB", start=date(YEAR, 7, 9),
+            end=date(YEAR, 8, 23), max_parallel_units=2, max_stay_nights=14,
+            active=True)
+        # 14 Nächte am Stück: ok
+        a, err = book_spontaneous(self.alice, self.q1, date(YEAR, 7, 10),
+                                  date(YEAR, 7, 24))
+        self.assertIsNotNone(a, err)
+        # eine weitere Nacht im Sommer -> Deckel überschritten
+        a2, err = book_spontaneous(self.alice, self.q2, date(YEAR, 8, 1),
+                                   date(YEAR, 8, 4))
+        self.assertIsNone(a2)
+        self.assertIn("je Partei", err)
+
+    def test_sommerferien_eine_woche_zwei_einheiten(self):
+        SeasonRule.objects.create(
+            name="Sommerferien BB", start=date(YEAR, 7, 9),
+            end=date(YEAR, 8, 23), max_parallel_units=2, max_stay_nights=14,
+            active=True)
+        # Woche 1 in Q1 (7 Nächte) + Woche 1 in Q2 parallel (7 Nächte) = 14: ok
+        s, e = date(YEAR, 7, 10), date(YEAR, 7, 17)
+        a1, err1 = book_spontaneous(self.alice, self.q1, s, e)
+        a2, err2 = book_spontaneous(self.alice, self.q2, s, e)
+        self.assertIsNotNone(a1, err1)
+        self.assertIsNotNone(a2, err2)
+        # dritte parallele Woche -> Parallel-Limit (2) verletzt
+        a3, err3 = book_spontaneous(self.alice, self.q3, s, e)
+        self.assertIsNone(a3)
+
+
+class CalendarAndWishlistTests(BaseData):
+    """Stornierung, Wunschlisten-Einreichung (Lostopf) und Reihenfolge."""
+
+    def setUp(self):
+        super().setUp()
+        BookingWindow.objects.create(
+            name="global", start=date(YEAR, 1, 1), end=date(YEAR + 2, 1, 1),
+            applies_to_all=True, active=True)
+        self.period = BookingPeriod.objects.create(
+            name="Losung", target_year=YEAR + 1,
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status="open")
+
+    def test_stornierung_entfernt_zukuenftige_buchung(self):
+        start = date(YEAR + 1, 3, 1)  # in der Zukunft
+        a, err = book_spontaneous(self.alice, self.q1, start,
+                                  start + timedelta(days=4))
+        self.assertIsNotNone(a, err)
+        ok, err = svc.cancel_allocation(self.alice, a.id)
+        self.assertTrue(ok, err)
+        self.assertFalse(Allocation.objects.filter(id=a.id).exists())
+
+    def test_storno_nur_eigene_buchung(self):
+        start = date(YEAR + 1, 3, 1)
+        a, _ = book_spontaneous(self.alice, self.q1, start,
+                                start + timedelta(days=4))
+        ok, err = svc.cancel_allocation(self.bob, a.id)  # Bob ist nicht Eigentümer
+        self.assertFalse(ok)
+
+    def test_nur_eingereichte_wuensche_kommen_in_die_losung(self):
+        s = date(YEAR + 1, 5, 24)
+        # Alice reicht ein, Bob bleibt Entwurf
+        svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=5))
+        svc.add_wish(self.bob, self.period, self.q1, s, s + timedelta(days=5))
+        svc.submit_wishlist(self.alice, self.period)
+        run = run_period_lottery(self.period, seed=1)
+        winners = set(
+            Allocation.objects.filter(period=self.period, source="lottery")
+            .values_list("member__display_name", flat=True))
+        self.assertIn("alice", winners)
+        self.assertNotIn("bob", winners)  # Entwurf nimmt nicht teil
+
+    def test_wunsch_reihenfolge_aendern(self):
+        s = date(YEAR + 1, 6, 1)
+        w1 = svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=3))
+        w2 = svc.add_wish(self.alice, self.period, self.q2, s, s + timedelta(days=3))
+        self.assertEqual(w1.priority, 1)
+        self.assertEqual(w2.priority, 2)
+        # w2 nach oben
+        svc.move_wish(self.alice, self.period, w2.id, "up")
+        w1.refresh_from_db(); w2.refresh_from_db()
+        self.assertEqual(w2.priority, 1)
+        self.assertEqual(w1.priority, 2)
+        # explizite Reihenfolge per Drag-and-Drop
+        svc.reorder_wishes(self.alice, self.period, [str(w1.id), str(w2.id)])
+        w1.refresh_from_db(); w2.refresh_from_db()
+        self.assertEqual(w1.priority, 1)
+        self.assertEqual(w2.priority, 2)
+
+    def test_zuruckziehen_macht_wieder_bearbeitbar(self):
+        s = date(YEAR + 1, 6, 1)
+        svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=3))
+        svc.submit_wishlist(self.alice, self.period)
+        self.assertTrue(
+            Wish.objects.filter(member=self.alice, submitted=True).exists())
+        svc.withdraw_wishlist(self.alice, self.period)
+        self.assertFalse(
+            Wish.objects.filter(member=self.alice, submitted=True).exists())
+
+    def test_kalender_zeigt_ferien_und_buchung(self):
+        from booking.models import SchoolHoliday
+        SchoolHoliday.objects.create(
+            name="Sommerferien", start=date(YEAR, 7, 9), end=date(YEAR, 8, 23))
+        start = date(YEAR, 7, 15)
+        book_spontaneous(self.alice, self.q1, start, start + timedelta(days=4))
+        cal = svc.build_member_calendar(self.alice, YEAR, 7)
+        # Irgendein Tag im Juli trägt eine Ferien-Markierung und eine Buchung
+        flat = [d for week in cal["weeks"] for d in week if d["in_month"]]
+        self.assertTrue(any(d["holiday"] for d in flat))
+        self.assertTrue(any(d["allocations"] for d in flat))

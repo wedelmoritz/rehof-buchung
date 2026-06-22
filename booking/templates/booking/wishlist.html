@@ -1,0 +1,41 @@
+{% extends "booking/base.html" %}
+{% block title %}Meine Wünsche{% endblock %}
+{% block content %}
+<h1>Wünsche für {{ period }}</h1>
+<p class="muted">Trage deine Wunschzeiträume mit Priorität ein (1 = höchste).
+  Tipp: Gib einfach deine <em>echten</em> Wünsche in echter Reihenfolge an –
+  Tricksen bringt im Verfahren keinen Vorteil.</p>
+
+<div class="card">
+  <h2>Neuer Wunsch</h2>
+  <form method="post">{% csrf_token %}
+    {% for f in form %}
+      <div class="field">{{ f.label_tag }} {{ f }}
+        {% if f.errors %}<div class="msg error">{{ f.errors|striptags }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <button class="btn" type="submit">Wunsch hinzufügen</button>
+  </form>
+</div>
+
+<h2>Eingetragene Wünsche</h2>
+<div class="card">
+  {% if wishes %}
+  <table>
+    <tr><th>Prio</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th><th></th></tr>
+    {% for w in wishes %}
+    <tr>
+      <td>{{ w.priority }}</td><td>{{ w.quarter.name }}</td>
+      <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td>
+      <td>
+        <form class="inline" method="post">{% csrf_token %}
+          <input type="hidden" name="delete" value="{{ w.id }}">
+          <button class="btn ghost small" type="submit">löschen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Noch keine Wünsche eingetragen.</p>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "booking/base.html" %}
+{% block title %}Tage übertragen{% endblock %}
+{% block content %}
+<h1>Tage übertragen ({{ year }})</h1>
+<p class="muted">Du kannst Tage aus deinem Jahreskontingent an andere Mitglieder
+  übertragen. Ein Übertrag ins nächste Jahr ist nicht möglich.</p>
+
+<div class="card">
+  <div class="stat" style="max-width:220px"><div class="num">{{ remaining }}</div>
+    <div class="lbl">Tage verfügbar ({{ year }})</div></div>
+</div>
+
+<div class="card">
+  <h2>Tage abgeben</h2>
+  <form method="post">{% csrf_token %}
+    {% for f in form %}
+      <div class="field">{{ f.label_tag }} {{ f }}
+        {% if f.errors %}<div class="msg error">{{ f.errors|striptags }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <button class="btn" type="submit">Übertragen</button>
+  </form>
+</div>
+
+<h2>Übertragungen {{ year }}</h2>
+<div class="card">
+  {% if outgoing %}
+  <strong>Abgegeben</strong>
+  <table style="margin:0.4rem 0 1rem">
+    <tr><th>An</th><th>Tage</th><th>Notiz</th><th>Datum</th></tr>
+    {% for t in outgoing %}
+    <tr><td>{{ t.to_member.display_name }}</td><td>{{ t.nights }}</td>
+        <td>{{ t.note }}</td><td>{{ t.created_at|date:"d.m.Y" }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if incoming %}
+  <strong>Erhalten</strong>
+  <table style="margin-top:0.4rem">
+    <tr><th>Von</th><th>Tage</th><th>Notiz</th><th>Datum</th></tr>
+    {% for t in incoming %}
+    <tr><td>{{ t.from_member.display_name }}</td><td>{{ t.nights }}</td>
+        <td>{{ t.note }}</td><td>{{ t.created_at|date:"d.m.Y" }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if not outgoing and not incoming %}
+  <p class="muted">Noch keine Übertragungen in diesem Jahr.</p>
+  {% endif %}
+</div>
+{% endblock %}
