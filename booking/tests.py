@@ -324,8 +324,8 @@ class CalendarAndWishlistTests(BaseData):
 
     def test_wunsch_reihenfolge_aendern(self):
         s = date(YEAR + 1, 6, 1)
-        w1 = svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=3))
-        w2 = svc.add_wish(self.alice, self.period, self.q2, s, s + timedelta(days=3))
+        w1, _ = svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=3))
+        w2, _ = svc.add_wish(self.alice, self.period, self.q2, s, s + timedelta(days=3))
         self.assertEqual(w1.priority, 1)
         self.assertEqual(w2.priority, 2)
         # w2 nach oben

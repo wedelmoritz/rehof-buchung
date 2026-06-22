@@ -55,6 +55,14 @@ class LoginTests(TestCase):
         self.client.post(reverse("login"), {"username": "hans", "password": PW})
         self.assertIn("_auth_user_id", self.client.session)
 
+    def test_losdurchlauf_kann_nicht_manuell_angelegt_werden(self):
+        """Regression: das manuelle Anlegen schlug mit 500 fehl (Pflicht-Seed
+        nicht setzbar). Die Add-Ansicht ist jetzt gesperrt."""
+        su = User.objects.create_superuser("root", "root@example.org", PW)
+        self.client.force_login(su)
+        resp = self.client.get("/admin/booking/lotteryrun/add/")
+        self.assertEqual(resp.status_code, 403)
+
     def test_brute_force_sperrt_auch_korrektes_passwort(self):
         user = User.objects.create_user("opfer", "opfer@example.org", PW)
         Member.objects.create(user=user, display_name="Opfer")

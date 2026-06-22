@@ -265,7 +265,14 @@ class UpcomingAllocationAdmin(admin.ModelAdmin):
 @admin.register(LotteryRun)
 class LotteryRunAdmin(admin.ModelAdmin):
     list_display = ("period", "executed_at", "seed", "summary")
-    readonly_fields = ("executed_at", "seed", "summary", "log_text")
+    readonly_fields = ("period", "executed_at", "seed", "summary", "log_text")
+
+    def has_add_permission(self, request):
+        # Losdurchläufe sind Audit-Einträge, die der Dienst bei der Auslosung
+        # erzeugt – manuelles Anlegen ergibt keinen Sinn (und schlug fehl, weil
+        # der Pflicht-Seed nicht setzbar war). Auslösen über die Aktion an der
+        # Buchungsperiode.
+        return False
 
 
 @admin.register(NightTransfer)

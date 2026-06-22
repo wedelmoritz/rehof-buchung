@@ -115,6 +115,9 @@ AXES_RESET_ON_SUCCESS = True
 # Gesperrt wird die Kombination aus Benutzer UND IP – schützt das Zielkonto,
 # ohne dass ein Angreifer fremde Konten flächendeckend aussperren kann.
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+# Erfolgreiche An-/Abmeldungen nicht protokollieren (spart DB-Schreiblast); die
+# Fehlversuche fürs Lockout werden weiterhin erfasst.
+AXES_DISABLE_ACCESS_LOG = True
 
 # --- Sitzungs-/Cookie-Härtung ----------------------------------------------
 SESSION_COOKIE_HTTPONLY = True

@@ -233,8 +233,9 @@ def book(request):
         days_remaining_year = member.nights_remaining_in_year(eff_start.year)
         not_enough_days = nights > days_remaining_year
         free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
+        # Termin-/Regel-/Budget-Grund ist quartiers-unabhängig → einmal berechnen.
+        reason = svc.schedule_blocker(member, eff_start, eff_end)
         for q in free_quarters:
-            reason = svc.schedule_blocker(member, q, eff_start, eff_end)
             fits_persons = q.min_occupancy <= persons <= q.max_occupancy
             fits_access = (not need_accessible) or q.accessible
             info = {
@@ -376,9 +377,11 @@ def wishlist(request):
         if action == "add_wish" and not is_submitted:
             form = WishForm(request.POST)
             if form.is_valid():
-                svc.add_wish(
+                _wish, werr = svc.add_wish(
                     member, period, form.cleaned_data["quarter"],
                     form.cleaned_data["start"], form.cleaned_data["end"])
+                if werr:
+                    messages.error(request, werr)
             else:
                 messages.error(request, "Bitte einen gültigen Wunsch eingeben.")
             # Auswahl im Kalender erhalten, damit man weitere Wünsche eintragen kann

@@ -679,6 +679,46 @@ class TandemTests(UseCaseBase):
         self.assertEqual(self.share.allocated_budget, 50)
         self.assertEqual([p.id for p in self.alice.tandem_partners], [self.bob.id])
 
+
+class WunschSaisonTests(UseCaseBase):
+    """Der GESAMTE Wunschzeitraum muss innerhalb der Quartier-Saison liegen –
+    sonst könnte ein Losgewinn eine Buchung außerhalb der Saison erzeugen."""
+
+    def setUp(self):
+        super().setUp()
+        # qa nur im 1. Halbjahr buchbar (Saison 1.1.–30.6.)
+        self.qa.season_start_month, self.qa.season_start_day = 1, 1
+        self.qa.season_end_month, self.qa.season_end_day = 6, 30
+        self.qa.save()
+        self.period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_wunsch_ueber_saisongrenze_abgelehnt(self):
+        # Start in Saison (28.6.), Ende außerhalb (3.7.) -> abgelehnt
+        w, err = svc.add_wish(self.alice, self.period, self.qa,
+                              date(NEXT_YEAR, 6, 28), date(NEXT_YEAR, 7, 3))
+        self.assertIsNone(w)
+        self.assertIn("Saison", err)
+        # vollständig in Saison -> ok
+        w2, err2 = svc.add_wish(self.alice, self.period, self.qa,
+                                date(NEXT_YEAR, 6, 20), date(NEXT_YEAR, 6, 25))
+        self.assertIsNotNone(w2, err2)
+
+    def test_losung_ueberspringt_wunsch_ausserhalb_saison(self):
+        # Direkt (unter Umgehung von add_wish) einen Alt-Wunsch außerhalb der
+        # Saison einreichen – die Losung darf ihn nicht zuteilen.
+        Wish.objects.create(
+            member=self.alice, period=self.period, quarter=self.qa,
+            start=date(NEXT_YEAR, 6, 28), end=date(NEXT_YEAR, 7, 3),
+            priority=1, submitted=True)
+        svc.run_period_lottery(self.period, seed=1)
+        self.assertEqual(
+            Allocation.objects.filter(period=self.period, source="lottery").count(),
+            0)
+
     def test_anteiliges_budget_bei_anlage_mitten_im_jahr(self):
         self.assertEqual(Membership.suggest_budget(50, date(2030, 1, 1)), 50)
         mid = Membership.suggest_budget(50, date(2030, 7, 1))
