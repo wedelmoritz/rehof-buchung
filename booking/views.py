@@ -206,11 +206,16 @@ def book(request):
     suitable, maybe_unsuitable, occ_quarters = [], [], []
     range_min_nights = 0
     too_short = False
+    not_enough_days = False
+    days_remaining_year = 0
     if member and sel_start:
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+        nights = (eff_end - eff_start).days
         range_min_nights = svc.min_nights_for_range(eff_start, eff_end)
-        too_short = (eff_end - eff_start).days < range_min_nights
+        too_short = nights < range_min_nights
+        days_remaining_year = member.nights_remaining_in_year(eff_start.year)
+        not_enough_days = nights > days_remaining_year
         free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
         for q in free_quarters:
             reason = svc.schedule_blocker(member, q, eff_start, eff_end)
@@ -240,6 +245,8 @@ def book(request):
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
         "range_min_nights": range_min_nights,
         "too_short": too_short,
+        "not_enough_days": not_enough_days,
+        "days_remaining_year": days_remaining_year,
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,
         "occ_quarters": occ_quarters,
