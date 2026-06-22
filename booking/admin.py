@@ -183,42 +183,29 @@ class BookingPeriodAdmin(admin.ModelAdmin):
     list_display = ("name", "target_year", "status", "start", "end",
                     "wishlist_open", "wishlist_close", "draw_at")
     list_filter = ("status", "target_year")
-    filter_horizontal = ("quarters",)
     actions = ["action_run_lottery"]
     fieldsets = (
         (None, {
             "fields": ("name", "target_year", "status"),
             "description": (
-                "Eine Buchungsperiode steuert ein Buchungsjahr über ihren "
-                "<b>Status</b>: Entwurf → „Für Wunsch-Einträge freigegeben“ "
-                "(Mitglieder tragen Wünsche ein) → „Zur Auslosung freigegeben“ → "
-                "„Auslosung beendet“ → „Freie Bebuchbarkeit“ (normale Buchung im "
-                "Zeitraum möglich) → „Beendet“. „Unterbrochen“ pausiert. <b>Normal "
-                "gebucht</b> werden kann nur im Status „Freie Bebuchbarkeit“."),
+                "Pro Buchungsjahr gibt es <b>genau eine</b> Periode. Der "
+                "<b>Status</b> ergibt sich normalerweise automatisch aus den "
+                "unten eingestellten Terminen (Entwurf → Wünsche offen → "
+                "Auslosung → frei buchbar → beendet) und wird per Cron "
+                "(<code>run_due_lotteries</code>) vorwärts geschaltet – inkl. der "
+                "fälligen Auslosung. Hier von Hand nur eingreifen, um z. B. auf "
+                "<b>„Unterbrochen“</b> zu setzen (pausiert die Automatik)."),
         }),
-        ("Zeitraum (buchbarer Bereich)", {
-            "fields": ("start", "end"),
+        ("Termine (steuern den Ablauf)", {
+            "fields": ("wishlist_open", "wishlist_close", "draw_at",
+                       "start", "end", "seed"),
             "description": (
-                "Der Zeitraum, der im Status „Freie Bebuchbarkeit“ zur normalen "
-                "Buchung freigeschaltet ist (Abreise/Ende exklusiv). Üblich: das "
-                "ganze Buchungsjahr."
-            ),
-        }),
-        ("Wunsch- & Losphase", {
-            "fields": ("wishlist_open", "wishlist_close", "draw_at", "seed"),
-            "description": (
-                "Anmeldezeitraum für die Wunschliste (relevant im Status „Für "
-                "Wunsch-Einträge freigegeben“). „Losung am“ terminiert die "
-                "automatische Auslosung (Cron: run_due_lotteries). Der Seed macht "
-                "die Auslosung reproduzierbar; leer = zufällig bei Durchführung."
-            ),
-        }),
-        ("Geltungsbereich der freien Bebuchbarkeit", {
-            "fields": ("applies_to_all", "quarters"),
-            "description": (
-                "Standard: der Zeitraum gilt für alle aktiven Quartiere. Haken "
-                "entfernen und Quartiere wählen, um die freie Buchbarkeit auf "
-                "einzelne Quartiere zu beschränken."
+                "Zeitlicher Ablauf eines Buchungsjahres: <b>Wünsche ab/bis</b> = "
+                "Anmeldefenster für die Wunschliste; <b>Losung am</b> = Termin der "
+                "automatischen Auslosung; <b>buchbar ab/bis</b> = Zeitraum der "
+                "freien Bebuchbarkeit (Ende exklusiv; „buchbar ab“ darf vor dem "
+                "1.1. liegen). Übliche Reihenfolge: Wünsche → Losung → buchbar. "
+                "Der Seed macht die Auslosung reproduzierbar (leer = zufällig)."
             ),
         }),
     )

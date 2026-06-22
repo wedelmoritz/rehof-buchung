@@ -226,16 +226,22 @@ class Share(models.Model):
 
 
 class BookingPeriod(models.Model):
-    """Buchungsperiode = zusammengeführter Jahres-Zeitraum.
+    """Buchungsperiode = genau EIN Zeitraum pro Buchungsjahr (`target_year`
+    eindeutig).
 
     Eine Periode durchläuft den gesamten Lebenszyklus eines Buchungsjahres:
     Wunsch-Einreichung → Auslosung → freie Bebuchbarkeit innerhalb des
     Zeitraums → Ende. Der `status` steuert, was gerade möglich ist; der
-    Zeitraum [start, end) ist der buchbare Bereich (früher: BookingWindow).
+    Zeitraum [start, end) ist der buchbare Bereich.
 
-    `applies_to_all` = True: der Zeitraum gilt für alle aktiven Quartiere.
-    Sonst gilt er nur für die unter `quarters` gewählten – so lässt sich die
-    freie Bebuchbarkeit auf einzelne Quartiere einschränken.
+    Der Status wird normalerweise aus den eingestellten Terminen abgeleitet
+    (`compute_status`) und vom Kommando `run_due_lotteries` (Cron) automatisch
+    vorwärts geschaltet – inkl. der fälligen Auslosung. `suspended` pausiert
+    eine Periode manuell.
+
+    Eine quartiersspezifische Einschränkung gibt es bewusst NICHT mehr: einzelne
+    Quartiere werden über ihren eigenen jährlichen Saison-Zeitraum begrenzt
+    (`Quarter.season_*`).
     """
     DRAFT = "draft"
     WISHES_OPEN = "wishes_open"
@@ -253,32 +259,54 @@ class BookingPeriod(models.Model):
         (ENDED, "Beendet"),
         (SUSPENDED, "Unterbrochen"),
     ]
+    # Reihenfolge des Lebenszyklus (für die automatische Vorwärts-Schaltung).
+    LIFECYCLE = [DRAFT, WISHES_OPEN, LOTTERY_READY, LOTTERY_DONE,
+                 FREE_BOOKING, ENDED]
+
     name = models.CharField("Bezeichnung", max_length=120)
-    target_year = models.PositiveIntegerField("Buchungsjahr")
-    start = models.DateField("Zeitraum buchbar ab")
+    target_year = models.PositiveIntegerField("Buchungsjahr", unique=True)
+    start = models.DateField(
+        "Zeitraum buchbar ab",
+        help_text="Ab wann der Zeitraum frei bebuchbar ist (darf vor dem 1.1. "
+                  "des Buchungsjahres liegen).")
     end = models.DateField("Zeitraum buchbar bis (exkl.)")
-    wishlist_open = models.DateField("Anmeldung ab", null=True, blank=True)
-    wishlist_close = models.DateField("Anmeldung bis", null=True, blank=True)
+    wishlist_open = models.DateField("Wünsche ab", null=True, blank=True)
+    wishlist_close = models.DateField("Wünsche bis", null=True, blank=True)
     draw_at = models.DateTimeField(
         "Losung am", null=True, blank=True,
         help_text="Terminierte Auslosung; läuft per Cron automatisch (siehe "
                   "Management-Kommando run_due_lotteries).",
     )
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
-    applies_to_all = models.BooleanField("Gilt für alle Quartiere", default=True)
-    quarters = models.ManyToManyField(
-        Quarter, blank=True, related_name="booking_periods",
-        verbose_name="Nur diese Quartiere (wenn nicht global)",
-    )
     seed = models.BigIntegerField("Zufalls-Seed", null=True, blank=True)
 
     class Meta:
-        verbose_name = "Buchungsperiode (Zeitraum)"
-        verbose_name_plural = "Buchungsperioden (Zeiträume)"
+        verbose_name = "Buchungsperiode (Jahr)"
+        verbose_name_plural = "Buchungsperioden (je Jahr eine)"
         ordering = ["-target_year"]
 
     def __str__(self) -> str:
         return f"{self.name} ({self.target_year})"
+
+    def compute_status(self, now) -> str:
+        """Leitet den Status aus den eingestellten Terminen ab. `suspended` ist
+        eine manuelle Sperre und wird hier NICHT berücksichtigt."""
+        today = now.date() if hasattr(now, "date") else now
+        if self.end and today >= self.end:
+            return self.ENDED
+        if self.start and today >= self.start:
+            return self.FREE_BOOKING
+        if self.draw_at and now >= self.draw_at:
+            return self.LOTTERY_DONE
+        if self.wishlist_close and today >= self.wishlist_close:
+            return self.LOTTERY_READY
+        if self.wishlist_open and today >= self.wishlist_open:
+            return self.WISHES_OPEN
+        return self.DRAFT
+
+    @property
+    def status_rank(self) -> int:
+        return self.LIFECYCLE.index(self.status) if self.status in self.LIFECYCLE else -1
 
 
 class Wish(models.Model):

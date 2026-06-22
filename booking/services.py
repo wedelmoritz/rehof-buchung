@@ -132,6 +132,8 @@ def _notify_lottery_results(period, members, result, old_factors, quarter_names)
     }
     url = reverse("period_result", args=[period.id])
     year = period.target_year
+    # Idempotenz: bei einem Re-Run alte Losungs-Benachrichtigungen ersetzen.
+    Notification.objects.filter(url=url).delete()
 
     for m in members:
         pid = str(m.id)
@@ -324,14 +326,11 @@ def _active_windows() -> list[A.Window]:
     Objekte. Buchbar ist ein Tag nur innerhalb einer Periode im Status
     „Freie Bebuchbarkeit innerhalb Zeitraum“."""
     out: list[A.Window] = []
-    periods = BookingPeriod.objects.filter(
-        status=BookingPeriod.FREE_BOOKING
-    ).prefetch_related("quarters")
-    for p in periods:
-        qids = frozenset(str(q.id) for q in p.quarters.all())
+    for p in BookingPeriod.objects.filter(status=BookingPeriod.FREE_BOOKING):
+        # Genau eine Periode pro Jahr, immer global. Quartiersspezifische
+        # Grenzen kommen aus der Quartier-Saison (siehe range_is_released).
         out.append(A.Window(
-            start=p.start, end=p.end, applies_to_all=p.applies_to_all,
-            quarter_ids=qids, active=True,
+            start=p.start, end=p.end, applies_to_all=True, active=True,
         ))
     return out
 

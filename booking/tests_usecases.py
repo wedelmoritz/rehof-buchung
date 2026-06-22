@@ -70,7 +70,7 @@ class UseCaseBase(TestCase):
         Bebuchbarkeit“, für die normale Buchung)."""
         return BookingPeriod.objects.create(
             name=f"global {year}", target_year=year, start=date(year, 1, 1),
-            end=date(year + 1, 1, 1), applies_to_all=True,
+            end=date(year + 1, 1, 1),
             status=BookingPeriod.FREE_BOOKING)
 
 
@@ -199,7 +199,7 @@ class JahreswechselTests(UseCaseBase):
         BookingPeriod.objects.create(
             name="Jahreswechsel", target_year=NEXT_YEAR,
             start=date(NEXT_YEAR, 12, 1), end=date(NEXT_YEAR + 1, 1, 15),
-            applies_to_all=True, status=BookingPeriod.FREE_BOOKING)
+            status=BookingPeriod.FREE_BOOKING)
         BookingPolicy.get_solo()
         SeasonRule.objects.create(
             name="Weihnachten/Silvester", start_month=12, start_day=23,
@@ -580,6 +580,47 @@ class TerminierteLosungTests(UseCaseBase):
         call_command("run_due_lotteries")
         period.refresh_from_db()
         self.assertEqual(period.status, BookingPeriod.WISHES_OPEN)
+
+    def test_status_folgt_terminen_vorwaerts(self):
+        """Erreicht „Wünsche ab“, schaltet der Cron den Entwurf auf
+        „Wünsche offen“ – aber nie zurück."""
+        today = date.today()
+        period = BookingPeriod.objects.create(
+            name="Auto", target_year=NEXT_YEAR,
+            wishlist_open=today - timedelta(days=1),
+            wishlist_close=today + timedelta(days=5),
+            draw_at=timezone.now() + timedelta(days=10),
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            status=BookingPeriod.DRAFT)
+        call_command("run_due_lotteries")
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.WISHES_OPEN)
+
+    def test_unterbrochen_wird_nicht_geschaltet(self):
+        today = date.today()
+        period = BookingPeriod.objects.create(
+            name="Pause", target_year=NEXT_YEAR,
+            wishlist_open=today - timedelta(days=1),
+            wishlist_close=today + timedelta(days=5),
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            status=BookingPeriod.SUSPENDED)
+        call_command("run_due_lotteries")
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.SUSPENDED)
+
+    def test_buchbar_ab_oeffnet_freie_buchung(self):
+        """Ist „buchbar ab“ erreicht (und die Losung gelaufen), steht die Periode
+        auf „Freie Bebuchbarkeit“."""
+        today = date.today()
+        y = today.year
+        period = BookingPeriod.objects.create(
+            name="Jetzt", target_year=y,
+            start=date(y, 1, 1), end=date(y + 1, 1, 1),
+            draw_at=timezone.now() - timedelta(days=1),
+            status=BookingPeriod.DRAFT)
+        call_command("run_due_lotteries")
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.FREE_BOOKING)
 
 
 class WunschKalenderTests(UseCaseBase):

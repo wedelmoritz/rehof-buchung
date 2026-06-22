@@ -258,6 +258,7 @@ class Command(BaseCommand):
         # (Status „Freie Bebuchbarkeit“). Das nächste Jahr (Los-Ziel) bewusst
         # NICHT – so wird die Zeitlogik sichtbar: Losung im Sommer fürs Folgejahr,
         # normale Buchung nur im bereits freigeschalteten laufenden Jahr.
+        # Pro Jahr gibt es GENAU EINE (globale) Periode.
         this_year = date.today().year
         global_period, _ = BookingPeriod.objects.get_or_create(
             name=f"Normalbuchung {this_year}",
@@ -265,28 +266,18 @@ class Command(BaseCommand):
             defaults=dict(
                 start=date(this_year, 1, 1),
                 end=date(this_year + 1, 1, 1),
-                applies_to_all=True,
                 status=BookingPeriod.FREE_BOOKING,
             ),
         )
-        # Enger eingeschränkte Periode für eine Teilmenge: die Pfarrhäuser sind
-        # nur in der wärmeren Jahreshälfte buchbar (Beispiel-Einschränkung).
-        pfarr_period, _ = BookingPeriod.objects.get_or_create(
-            name=f"Pfarrhäuser nur Sommerhalbjahr {this_year}",
-            target_year=this_year,
-            defaults=dict(
-                start=date(this_year, 5, 1),
-                end=date(this_year, 10, 1),
-                applies_to_all=False,
-                status=BookingPeriod.FREE_BOOKING,
-            ),
-        )
-        pfarr_period.quarters.set(
-            Quarter.objects.filter(name__startswith="Pfarrhaus")
+        # Quartiersspezifische Einschränkung über die Quartier-Saison statt über
+        # eine eigene Periode: Pfarrhäuser nur im Sommerhalbjahr (Mai–Sept).
+        Quarter.objects.filter(name__startswith="Pfarrhaus").update(
+            season_start_month=5, season_start_day=1,
+            season_end_month=9, season_end_day=30,
         )
         self.stdout.write(self.style.SUCCESS(
-            f"Freie-Bebuchbarkeit-Perioden angelegt: global {this_year} (alle "
-            f"Quartiere) + Pfarrhäuser nur Mai–Sept."
+            f"Freie-Bebuchbarkeit-Periode angelegt: global {this_year} (alle "
+            f"Quartiere); Pfarrhäuser saisonal nur Mai–Sept."
         ))
 
         # Beispielhafte Tage-Übertragungen zwischen Mitgliedern (laufendes Jahr)
