@@ -10,8 +10,9 @@ from django.urls import reverse
 
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    LotteryRun, Member, NightTransfer, Notification, Quarter, SchoolHoliday,
-    SeasonRule, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
+    LotteryRun, Member, Membership, NightTransfer, Notification, Quarter,
+    SchoolHoliday, SeasonRule, SwapRequest, UpcomingAllocation, WaitlistEntry,
+    Wish,
 )
 from .services import run_period_lottery
 
@@ -49,11 +50,53 @@ class QuarterAdmin(admin.ModelAdmin):
 
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ("display_name", "user", "factor", "annual_night_budget",
-                    "wish_night_budget", "is_external")
-    list_filter = ("is_external",)
-    search_fields = ("display_name", "user__username", "user__email")
+    list_display = ("display_name", "user", "membership", "factor",
+                    "annual_night_budget", "wish_night_budget", "is_external")
+    list_filter = ("is_external", "membership")
+    search_fields = ("display_name", "user__username", "user__email",
+                     "membership__eg_number")
     list_editable = ("factor",)
+    list_select_related = ("user", "membership")
+
+
+class MemberInline(admin.TabularInline):
+    """Die einem Anteil zugeordneten Nutzer mit ihrem festen Tage-Anteil.
+    Voll-Mitglied = ein Nutzer (voller Anteil); Tandem = mehrere Nutzer, deren
+    Tage-Anteile zusammen das Gesamtbudget ergeben."""
+    model = Member
+    extra = 0
+    fields = ("user", "display_name", "annual_night_budget", "wish_night_budget",
+              "factor", "is_external")
+    autocomplete_fields = ("user",)
+    verbose_name = "Nutzer (Tage-Anteil)"
+    verbose_name_plural = "Zugeordnete Nutzer (je fester Tage-Anteil)"
+
+
+@admin.register(Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "eg_number", "annual_night_budget",
+                    "allocated_display", "is_tandem", "created_on")
+    search_fields = ("eg_number", "label", "members__display_name")
+    inlines = [MemberInline]
+    fieldsets = (
+        (None, {
+            "fields": ("eg_number", "label", "annual_night_budget", "created_on"),
+            "description": "Bei Anlage mitten im Jahr ist das Gesamtbudget bereits "
+                           "anteilig vorgeschlagen (Rest des Kalenderjahres).",
+        }),
+    )
+
+    @admin.display(description="vergeben")
+    def allocated_display(self, obj):
+        return f"{obj.allocated_budget}/{obj.annual_night_budget}"
+
+    @admin.display(boolean=True, description="Tandem")
+    def is_tandem(self, obj):
+        return obj.is_tandem
+
+    def get_changeform_initial_data(self, request):
+        # Beim Anlegen das anteilige Tagebudget vorschlagen.
+        return {"annual_night_budget": Membership.suggest_budget()}
 
 
 class WishInline(admin.TabularInline):

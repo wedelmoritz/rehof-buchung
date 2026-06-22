@@ -16,7 +16,7 @@ from django.test import TestCase
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    Member, Notification, Quarter, SeasonRule, WaitlistEntry, Wish,
+    Member, Membership, Notification, Quarter, SeasonRule, WaitlistEntry, Wish,
 )
 from booking import services as svc
 
@@ -507,3 +507,44 @@ class DetailUndWechselwunschTests(UseCaseBase):
         # Kein doppeltes Beantworten
         ok2, _ = svc.respond_swap_request(self.bob, sr.id, accept=False)
         self.assertFalse(ok2)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case 11: Tandem-Mitgliedschaften (fester Tage-Anteil je Nutzer)
+# --------------------------------------------------------------------------- #
+
+class TandemTests(UseCaseBase):
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+        self.share = Membership.objects.create(
+            eg_number="VL-1", label="Tandem", annual_night_budget=50)
+        for m in (self.alice, self.bob):
+            m.membership = self.share
+            m.annual_night_budget = 25  # 50 Tage fair geteilt
+            m.save(update_fields=["membership", "annual_night_budget"])
+
+    def test_tandem_budgets_sind_getrennt(self):
+        self.assertEqual(self.alice.nights_remaining_in_year(NEXT_YEAR), 25)
+        # Alice bucht 20 Nächte aus ihrem 25er-Anteil
+        a, err = svc.book_spontaneous(
+            self.alice, self.k1, date(NEXT_YEAR, 3, 1), date(NEXT_YEAR, 3, 21))
+        self.assertIsNotNone(a, err)
+        self.assertEqual(self.alice.nights_remaining_in_year(NEXT_YEAR), 5)
+        # Bobs Anteil bleibt unberührt
+        self.assertEqual(self.bob.nights_remaining_in_year(NEXT_YEAR), 25)
+        # Alice über ihren Anteil hinaus (10 > 5) -> abgelehnt
+        a2, err2 = svc.book_spontaneous(
+            self.alice, self.k2, date(NEXT_YEAR, 4, 1), date(NEXT_YEAR, 4, 11))
+        self.assertIsNone(a2)
+        self.assertIn("verfügbare Tage", err2)
+        # Anteils-Eigenschaften
+        self.assertTrue(self.share.is_tandem)
+        self.assertEqual(self.share.allocated_budget, 50)
+        self.assertEqual([p.id for p in self.alice.tandem_partners], [self.bob.id])
+
+    def test_anteiliges_budget_bei_anlage_mitten_im_jahr(self):
+        self.assertEqual(Membership.suggest_budget(50, date(2030, 1, 1)), 50)
+        mid = Membership.suggest_budget(50, date(2030, 7, 1))
+        self.assertLess(mid, 50)
+        self.assertGreater(mid, 0)

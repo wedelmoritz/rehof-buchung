@@ -58,7 +58,10 @@ tests/                  # reine pytest-Suite (ohne Django/DB)
   test_lottery.py  test_availability.py  test_rules.py
 ```
 
-Modelle in `models.py`: `EquivalenceClass`, `Quarter`, `Member`,
+Modelle in `models.py`: `EquivalenceClass`, `Quarter`, `Membership`
+(Mitglieds-Anteil = eine Vielleben-eG-Nummer + Gesamt-Tagebudget; ein Nutzer =
+Voll-Mitglied, mehrere Nutzer = Tandem), `Member` (ein Nutzer; Buchungs-Subjekt
+mit eigenem **festem Tage-Anteil** `annual_night_budget` und FK `membership`),
 `BookingPeriod` (zusammengeführt: Jahres-Losung **und** buchbarer Zeitraum,
 gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende

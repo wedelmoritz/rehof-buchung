@@ -19,7 +19,7 @@ from django.db import transaction
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
+    Member, Membership, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
 )
 
 # Die 10 echten Quartiere mit der von der Genossenschaft bestätigten
@@ -73,6 +73,7 @@ class Command(BaseCommand):
             BookingPolicy.objects.all().delete()
             BookingPeriod.objects.all().delete()
             Member.objects.all().delete()
+            Membership.objects.all().delete()
             User.objects.filter(is_superuser=False).delete()
             Quarter.objects.all().delete()
             EquivalenceClass.objects.all().delete()
@@ -123,7 +124,30 @@ class Command(BaseCommand):
                 ),
             )
             members.append(m)
-        self.stdout.write(self.style.SUCCESS(f"{len(members)} Mitglieder angelegt."))
+
+        # Mitglieds-Anteile: die ersten beiden bilden als Demo ein Tandem
+        # (ein Anteil, 50 Tage fair geteilt = je 25). Alle übrigen sind
+        # Voll-Mitglieder (eigener Anteil, 50 Tage).
+        tandem_members = members[:2] if len(members) >= 2 else []
+        if tandem_members:
+            tandem = Membership.objects.create(
+                eg_number="VL-0001", label="Tandem-Demo", annual_night_budget=50)
+            for m in tandem_members:
+                m.membership = tandem
+                m.annual_night_budget = 25
+                m.save(update_fields=["membership", "annual_night_budget"])
+        for idx, m in enumerate(members, start=1):
+            if m.membership_id:
+                continue
+            ms = Membership.objects.create(
+                eg_number=f"VL-{1000 + idx}", label=m.display_name,
+                annual_night_budget=50,
+            )
+            m.membership = ms
+            m.annual_night_budget = 50
+            m.save(update_fields=["membership", "annual_night_budget"])
+        self.stdout.write(self.style.SUCCESS(
+            f"{len(members)} Mitglieder angelegt (inkl. 1 Tandem-Anteil 25/25)."))
 
         # Buchungsperiode fürs nächste Jahr – Wunsch-Einträge freigegeben.
         next_year = date.today().year + 1
