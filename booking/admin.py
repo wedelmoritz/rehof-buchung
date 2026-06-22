@@ -4,9 +4,11 @@ from __future__ import annotations
 import random
 
 from django.contrib import admin, messages
+from django.shortcuts import redirect
+from django.urls import reverse
 
 from .models import (
-    Allocation, BookingPeriod, BookingPolicy, BookingWindow, EquivalenceClass,
+    Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
     LotteryRun, Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
 )
 from .services import run_period_lottery
@@ -41,10 +43,38 @@ class WishInline(admin.TabularInline):
 
 @admin.register(BookingPeriod)
 class BookingPeriodAdmin(admin.ModelAdmin):
-    list_display = ("name", "target_year", "status", "wishlist_open",
-                    "wishlist_close", "seed")
+    list_display = ("name", "target_year", "status", "start", "end",
+                    "wishlist_open", "wishlist_close")
     list_filter = ("status", "target_year")
+    filter_horizontal = ("quarters",)
     actions = ["action_run_lottery"]
+    fieldsets = (
+        (None, {"fields": ("name", "target_year", "status")}),
+        ("Zeitraum (buchbarer Bereich)", {
+            "fields": ("start", "end"),
+            "description": (
+                "Der Zeitraum, der im Status „Freie Bebuchbarkeit“ zur normalen "
+                "Buchung freigeschaltet ist (Abreise/Ende exklusiv). Üblich: das "
+                "ganze Buchungsjahr."
+            ),
+        }),
+        ("Wunsch- & Losphase", {
+            "fields": ("wishlist_open", "wishlist_close", "seed"),
+            "description": (
+                "Anmeldezeitraum für die Wunschliste (relevant im Status „Für "
+                "Wunsch-Einträge freigegeben“). Der Seed macht die Auslosung "
+                "reproduzierbar; leer = zufällig bei Durchführung."
+            ),
+        }),
+        ("Geltungsbereich der freien Bebuchbarkeit", {
+            "fields": ("applies_to_all", "quarters"),
+            "description": (
+                "Standard: der Zeitraum gilt für alle aktiven Quartiere. Haken "
+                "entfernen und Quartiere wählen, um die freie Buchbarkeit auf "
+                "einzelne Quartiere zu beschränken."
+            ),
+        }),
+    )
 
     @admin.action(description="Losung für gewählte Periode(n) durchführen")
     def action_run_lottery(self, request, queryset):
@@ -78,27 +108,6 @@ class LotteryRunAdmin(admin.ModelAdmin):
     readonly_fields = ("executed_at", "seed", "summary", "log_text")
 
 
-@admin.register(BookingWindow)
-class BookingWindowAdmin(admin.ModelAdmin):
-    list_display = ("name", "start", "end", "applies_to_all", "active")
-    list_filter = ("active", "applies_to_all")
-    list_editable = ("active",)
-    filter_horizontal = ("quarters",)
-    fieldsets = (
-        (None, {"fields": ("name", "active")}),
-        ("Zeitraum", {"fields": ("start", "end")}),
-        ("Geltungsbereich", {
-            "fields": ("applies_to_all", "quarters"),
-            "description": (
-                "Globale Fenster (Haken bei „Gilt für alle Quartiere“) geben "
-                "die Grundfreigabe. Ein nicht-globales Fenster schränkt die "
-                "Buchbarkeit für die gewählten Quartiere weiter ein – buchbar "
-                "ist dann nur, was sowohl global als auch hier freigegeben ist."
-            ),
-        }),
-    )
-
-
 @admin.register(NightTransfer)
 class NightTransferAdmin(admin.ModelAdmin):
     list_display = ("year", "from_member", "to_member", "nights", "created_at")
@@ -106,42 +115,51 @@ class NightTransferAdmin(admin.ModelAdmin):
     search_fields = ("from_member__display_name", "to_member__display_name")
 
 
+class SeasonRuleInline(admin.TabularInline):
+    """Saison-/Sonderzeiträume mit verschärften Regeln – Teil der Buchungsregeln.
+
+    Beispiele: Juli/August → Mindestnächte 7. Schulferien/Feiertage → max. 2
+    gleichzeitige Wohneinheiten. BB-Sommerferien → zusätzlich Deckel 14 Nächte.
+    Leere Felder = die jeweilige Regel greift nicht.
+    """
+    model = SeasonRule
+    extra = 0
+    ordering = ("start",)
+    fields = ("name", "start", "end", "min_nights", "max_parallel_units",
+              "max_stay_nights", "active")
+    verbose_name = "Saison-Regel"
+    verbose_name_plural = "Saison-Regeln (verschärfen die globalen Regeln je Zeitraum)"
+
+
+class SchoolHolidayInline(admin.TabularInline):
+    """Schulferien – rein informativ (Kalender-Anzeige), ohne Regelwirkung."""
+    model = SchoolHoliday
+    extra = 0
+    ordering = ("start",)
+    fields = ("name", "start", "end", "region", "active")
+    verbose_name = "Schulferien"
+    verbose_name_plural = "Schulferien (nur Kalender-Anzeige, keine Regelwirkung)"
+
+
 @admin.register(BookingPolicy)
 class BookingPolicyAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+    """Eine gemeinsame Einstellungsseite für alle Buchungsregeln: globale
+    Mindestnächte, beliebig viele Saison-Regeln und die Schulferien."""
+    inlines = [SeasonRuleInline, SchoolHolidayInline]
+    fieldsets = (
+        ("Globale Regeln", {"fields": ("default_min_nights",)}),
+    )
 
     def has_add_permission(self, request):
-        # Nur eine globale Regel-Zeile zulassen
+        # Es gibt genau ein Regelwerk.
         return not BookingPolicy.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
         return False
 
-
-@admin.register(SeasonRule)
-class SeasonRuleAdmin(admin.ModelAdmin):
-    list_display = ("name", "start", "end", "min_nights",
-                    "max_parallel_units", "max_stay_nights", "active")
-    list_filter = ("active",)
-    list_editable = ("active",)
-    ordering = ("start",)
-    fieldsets = (
-        (None, {"fields": ("name", "active")}),
-        ("Zeitraum", {"fields": ("start", "end")}),
-        ("Regeln (leer = Regel greift nicht)", {
-            "fields": ("min_nights", "max_parallel_units", "max_stay_nights"),
-            "description": (
-                "Beispiele: Juli/August → Mindestnächte 7. Schulferien/Feiertage "
-                "→ max. 2 gleichzeitige Wohneinheiten. BB-Sommerferien → "
-                "zusätzlich Deckel 14 Nächte je Partei."
-            ),
-        }),
-    )
-
-
-@admin.register(SchoolHoliday)
-class SchoolHolidayAdmin(admin.ModelAdmin):
-    list_display = ("name", "start", "end", "region", "active")
-    list_filter = ("region", "active")
-    list_editable = ("active",)
-    ordering = ("start",)
+    def changelist_view(self, request, extra_context=None):
+        # Direkt auf die eine Einstellungsseite springen (statt Listenansicht).
+        obj = BookingPolicy.get_solo()
+        return redirect(
+            reverse("admin:booking_bookingpolicy_change", args=[obj.id])
+        )
