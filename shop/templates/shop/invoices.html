@@ -8,10 +8,30 @@
 {% else %}
 
 <div class="card">
-  <p style="margin-top:0">Offener Warenkorb: <strong>{{ open_count }}</strong> Position(en),
-    <strong>{{ open_total }} €</strong>. <a href="{% url 'shop_index' %}">Zum Hofladen →</a></p>
-  <p class="muted" style="margin-bottom:0">Die Sammelrechnung über die offenen Positionen wird automatisch am Monatsende erstellt.</p>
+  <p style="margin-top:0">Warenkorb (noch nicht bestätigt): <strong>{{ open_count }}</strong>
+    Position(en), <strong>{{ open_total }} €</strong>.
+    <a href="{% url 'shop_index' %}">Zum Hofladen →</a></p>
 </div>
+
+{% if unbilled %}
+<div class="card" style="border-color:var(--sage)">
+  <h2 style="margin-top:0">Bestätigte Einkäufe – noch nicht abgerechnet</h2>
+  {% for p in unbilled %}
+  <div class="purchase">
+    <div class="muted">Einkauf vom {{ p.confirmed_at|date:"d.m.Y H:i" }} · <strong>{{ p.gross }} €</strong></div>
+    <ul style="margin:.2rem 0 .4rem">
+      {% for it in p.items.all %}<li>{{ it.quantity|floatformat:"-3" }}× {{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %} – {{ it.gross }} €</li>{% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  <p class="muted" style="margin:.4rem 0">Summe: <strong>{{ unbilled_total }} €</strong>.
+    Kommt automatisch auf die Monatsrechnung – oder gleich abrechnen:</p>
+  <form method="post" class="inline">{% csrf_token %}
+    <input type="hidden" name="action" value="invoice_now">
+    <button class="btn small" type="submit">Jetzt abrechnen</button>
+  </form>
+</div>
+{% endif %}
 
 <div class="card">
   <h2>Rechnungen</h2>

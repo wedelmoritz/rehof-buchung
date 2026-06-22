@@ -157,17 +157,25 @@ jobs:
         run: |
           python manage.py migrate
           python manage.py shell <<'PY'
+          from decimal import Decimal
           from django.contrib.auth.models import User
           from booking.models import Member, EquivalenceClass, Quarter
+          from shop.models import Invoice, LineItem
           u = User.objects.create_user("legacy", "legacy@example.org", "x" * 12)
-          Member.objects.create(user=u, display_name="Legacy")
+          m = Member.objects.create(user=u, display_name="Legacy")
           eq = EquivalenceClass.objects.create(name="L")
           Quarter.objects.create(name="LegacyQ", eq_class=eq, min_occupancy=1, max_occupancy=4)
-          print("Stammdaten angelegt.")
+          # Abgerechnete Hofladen-Position OHNE Einkauf (wie vor shop 0003/0004)
+          inv = Invoice.objects.create(member=m, number="HL-2025-01-001", year=2025, month=1)
+          LineItem.objects.create(member=m, name="Äpfel", unit="kg",
+              unit_price=Decimal("3.20"), vat_rate=7, quantity=Decimal("2"), invoice=inv)
+          print("Stammdaten + abgerechnete Alt-Position angelegt.")
           PY
 
-      - name: Booking auf Altstand (vor den Änderungen) zurücksetzen
-        run: python manage.py migrate booking 0015
+      - name: Booking & Shop auf Altstand (vor den Änderungen) zurücksetzen
+        run: |
+          python manage.py migrate booking 0015
+          python manage.py migrate shop 0002
 
       - name: Problematischen Alt-Zustand erzeugen (zwei Perioden je Jahr + Wunsch)
         run: |
@@ -197,11 +205,16 @@ jobs:
       - name: Vorwärts migrieren MUSS gelingen (war Ursache der 502)
         run: python manage.py migrate
 
-      - name: Ergebnis prüfen – genau eine Periode pro Jahr
+      - name: Ergebnis prüfen – Periode & Hofladen-Einkauf
         run: |
           python manage.py shell <<'PY'
           from booking.models import BookingPeriod
+          from shop.models import Purchase, LineItem
           n = BookingPeriod.objects.filter(target_year=2099).count()
           assert n == 1, f"Erwartet genau 1 Periode für 2099, gefunden {n}"
-          print("OK: genau eine Periode pro Jahr nach der Migration.")
+          # shop 0004: abgerechnete Alt-Position hat jetzt einen Einkauf
+          li = LineItem.objects.get(name="Äpfel")
+          assert li.purchase_id is not None, "Alt-Position ohne Einkauf nach Backfill"
+          assert Purchase.objects.count() == 1, "Einkauf nicht nachgetragen"
+          print("OK: eine Periode pro Jahr + Hofladen-Einkauf nachgetragen.")
           PY

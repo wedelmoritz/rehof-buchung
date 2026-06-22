@@ -1,5 +1,6 @@
-"""Geschäftslogik des Hofladens: Warenkorb (offene Positionen), monatliche
-Sammelrechnung, Statuswechsel. Reines Django-ORM, serverseitige Validierung."""
+"""Geschäftslogik des Hofladens: Warenkorb (offene Positionen), Checkout
+(bestätigter Einkauf), monatliche bzw. sofortige Sammelrechnung, Statuswechsel.
+Reines Django-ORM, serverseitige Validierung."""
 from __future__ import annotations
 
 from datetime import date, datetime, time
@@ -9,58 +10,149 @@ from django.db import transaction
 from django.utils import timezone
 
 from booking.models import Member
-from .models import Invoice, LineItem, Product, ShopConfig
+from .models import Invoice, LineItem, Product, Purchase, ShopConfig
 
+WEEKDAYS_DE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag",
+               "Samstag", "Sonntag"]
+
+
+# --------------------------------------------------------------------------- #
+# Warenkorb (offene, noch nicht bestätigte Positionen)
+# --------------------------------------------------------------------------- #
 
 def open_items(member: Member):
-    """Noch nicht abgerechnete Positionen des Mitglieds (der „Warenkorb“)."""
-    return member.shop_items.filter(invoice__isnull=True).order_by("-created_at")
+    """Der Warenkorb: erfasste, aber noch nicht bestätigte Positionen."""
+    return (member.shop_items
+            .filter(purchase__isnull=True, invoice__isnull=True)
+            .order_by("created_at"))
 
 
 def open_total(member: Member) -> Decimal:
     return sum((i.gross for i in open_items(member)), Decimal(0))
 
 
-@transaction.atomic
-def add_item(member, product: Product, quantity, service_date=None):
-    """Legt eine Position mit Preis-Snapshot an. Gibt (LineItem, None) oder
-    (None, Fehlertext)."""
+def _check_purchasable(product: Product, quantity, service_date):
+    """Gemeinsame Validierung (Menge/Raster/Verfügbarkeit). Gibt (qty, None)
+    oder (None, Fehlertext)."""
     try:
         qty = Decimal(str(quantity))
     except Exception:
         return None, "Ungültige Menge."
     if qty <= 0:
         return None, "Die Menge muss größer als 0 sein."
-    # Mengen-Raster erzwingen: kg in 0,1-Schritten, alles andere ganzzahlig.
     step = product.quantity_step
     if qty % step != 0:
-        einheit = product.get_unit_display()
         hinweis = "in 0,1-Schritten" if step == Decimal("0.1") else "in ganzen Schritten"
-        return None, f"{einheit} bitte {hinweis} angeben (Vielfaches von {step})."
+        return None, (f"{product.get_unit_display()} bitte {hinweis} angeben "
+                      f"(Vielfaches von {step}).")
     if not product.active:
         return None, "Dieses Produkt ist nicht verfügbar."
     if product.needs_date and not service_date:
         return None, "Für diese Dienstleistung bitte ein Datum angeben."
     if service_date and not product.available_on(service_date):
-        WT = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag",
-              "Samstag", "Sonntag"]
-        return None, (f"{product.name} ist am {WT[service_date.weekday()]} nicht "
-                      "möglich. Bitte einen anderen Termin wählen.")
+        return None, (f"{product.name} ist am {WEEKDAYS_DE[service_date.weekday()]} "
+                      "nicht möglich. Bitte einen anderen Termin wählen.")
+    return qty, None
+
+
+@transaction.atomic
+def add_item(member, product: Product, quantity, service_date=None):
+    """Legt eine Warenkorb-Position mit Preis-Snapshot an. Gleiche Artikel (selbes
+    Produkt, Preis, MwSt, Termin) werden zusammengefasst (Menge addiert)."""
+    qty, err = _check_purchasable(product, quantity, service_date)
+    if err:
+        return None, err
+    sdate = service_date if product.needs_date else None
+    existing = open_items(member).filter(
+        product=product, unit_price=product.price, vat_rate=product.vat_rate,
+        service_date=sdate).first()
+    if existing:
+        existing.quantity = existing.quantity + qty
+        existing.save(update_fields=["quantity"])
+        return existing, None
     item = LineItem.objects.create(
         member=member, product=product, name=product.name, unit=product.unit,
         unit_price=product.price, vat_rate=product.vat_rate, quantity=qty,
-        service_date=service_date if product.needs_date else None,
+        service_date=sdate,
     )
     return item, None
 
 
 @transaction.atomic
+def set_cart_quantity(member, item_id, quantity) -> tuple[bool, str | None]:
+    """Ändert die Menge einer Warenkorb-Position (0 oder weniger entfernt sie)."""
+    item = open_items(member).filter(id=item_id).first()
+    if not item:
+        return False, "Position nicht gefunden."
+    try:
+        qty = Decimal(str(quantity))
+    except Exception:
+        return False, "Ungültige Menge."
+    if qty <= 0:
+        item.delete()
+        return True, None
+    step = item.product.quantity_step if item.product else Decimal("1")
+    if qty % step != 0:
+        return False, f"Menge muss ein Vielfaches von {step} sein."
+    item.quantity = qty
+    item.save(update_fields=["quantity"])
+    return True, None
+
+
+@transaction.atomic
 def remove_item(member, item_id) -> bool:
-    """Entfernt eine noch offene Position des Mitglieds."""
-    deleted, _ = member.shop_items.filter(
-        id=item_id, invoice__isnull=True).delete()
+    """Entfernt eine Position aus dem Warenkorb (nur solange unbestätigt)."""
+    deleted, _ = open_items(member).filter(id=item_id).delete()
     return bool(deleted)
 
+
+# --------------------------------------------------------------------------- #
+# Checkout: aus dem Warenkorb wird ein bestätigter Einkauf
+# --------------------------------------------------------------------------- #
+
+@transaction.atomic
+def checkout(member) -> tuple[Purchase | None, str | None]:
+    """Bestätigt den Warenkorb als Einkauf. Danach ist er gesperrt und liegt in
+    der Verwaltung; abgerechnet wird er monatlich oder sofort."""
+    items = list(open_items(member))
+    if not items:
+        return None, "Dein Warenkorb ist leer."
+    purchase = Purchase.objects.create(member=member)
+    LineItem.objects.filter(id__in=[i.id for i in items]).update(purchase=purchase)
+    return purchase, None
+
+
+@transaction.atomic
+def purchase_service(member, product: Product, quantity=1, service_date=None):
+    """Direkt bestätigter Einkauf einer einzelnen Dienstleistung (z.B.
+    Endreinigung beim Buchen) – ohne Umweg über den Warenkorb."""
+    qty, err = _check_purchasable(product, quantity, service_date)
+    if err:
+        return None, err
+    purchase = Purchase.objects.create(member=member)
+    item = LineItem.objects.create(
+        member=member, product=product, name=product.name, unit=product.unit,
+        unit_price=product.price, vat_rate=product.vat_rate, quantity=qty,
+        service_date=service_date if product.needs_date else None,
+        purchase=purchase,
+    )
+    return item, None
+
+
+def unbilled_purchases(member):
+    """Bestätigte, aber noch nicht abgerechnete Einkäufe."""
+    return (Purchase.objects.filter(member=member, items__invoice__isnull=True)
+            .distinct().prefetch_related("items"))
+
+
+def unbilled_total(member: Member) -> Decimal:
+    items = member.shop_items.filter(purchase__isnull=False, invoice__isnull=True)
+    return sum((i.gross for i in items), Decimal(0))
+
+
+# --------------------------------------------------------------------------- #
+# Rechnungen (monatlich oder sofort)
+# --------------------------------------------------------------------------- #
 
 def _next_number(prefix: str, year: int, month: int) -> str:
     n = Invoice.objects.filter(year=year, month=month).count() + 1
@@ -68,41 +160,63 @@ def _next_number(prefix: str, year: int, month: int) -> str:
 
 
 @transaction.atomic
+def _invoice_items(member, items, year: int, month: int) -> Invoice | None:
+    """Erzeugt eine Rechnung aus konkreten (bestätigten, noch offenen) Positionen."""
+    items = list(items)
+    if not items:
+        return None
+    cfg = ShopConfig.get_solo()
+    addr = "\n".join(p for p in [
+        member.street, f"{member.zip_code} {member.city}".strip()] if p.strip())
+    inv = Invoice.objects.create(
+        member=member, number=_next_number(cfg.invoice_prefix, year, month),
+        year=year, month=month,
+        recipient_name=member.legal_name or member.display_name,
+        recipient_address=addr,
+        coop_name=cfg.coop_name, coop_address=cfg.coop_address,
+        tax_number=cfg.tax_number, iban=cfg.iban, bic=cfg.bic,
+    )
+    LineItem.objects.filter(id__in=[i.id for i in items]).update(invoice=inv)
+    return inv
+
+
+@transaction.atomic
 def generate_monthly_invoices(year: int, month: int) -> list[Invoice]:
-    """Erzeugt je Mitglied mit offenen Positionen (bis Monatsende) eine
-    Sammelrechnung für (year, month). Idempotent: bereits abgerechnete
-    Positionen werden nicht erneut erfasst."""
+    """Je Mitglied mit bestätigten, noch nicht abgerechneten Einkäufen (bis
+    Monatsende) eine Sammelrechnung. Der Warenkorb (unbestätigt) bleibt außen vor."""
     if month == 12:
         next_start = date(year + 1, 1, 1)
     else:
         next_start = date(year, month + 1, 1)
     boundary = timezone.make_aware(datetime.combine(next_start, time.min))
-    cfg = ShopConfig.get_solo()
 
     member_ids = (
-        LineItem.objects.filter(invoice__isnull=True, created_at__lt=boundary)
+        LineItem.objects.filter(
+            invoice__isnull=True, purchase__isnull=False,
+            purchase__confirmed_at__lt=boundary)
         .values_list("member_id", flat=True).distinct()
     )
     created: list[Invoice] = []
     for mid in member_ids:
         member = Member.objects.get(id=mid)
-        items = list(LineItem.objects.filter(
-            member_id=mid, invoice__isnull=True, created_at__lt=boundary))
-        if not items:
-            continue
-        addr = "\n".join(p for p in [
-            member.street, f"{member.zip_code} {member.city}".strip()] if p.strip())
-        inv = Invoice.objects.create(
-            member=member, number=_next_number(cfg.invoice_prefix, year, month),
-            year=year, month=month,
-            recipient_name=member.legal_name or member.display_name,
-            recipient_address=addr,
-            coop_name=cfg.coop_name, coop_address=cfg.coop_address,
-            tax_number=cfg.tax_number, iban=cfg.iban, bic=cfg.bic,
-        )
-        LineItem.objects.filter(id__in=[i.id for i in items]).update(invoice=inv)
-        created.append(inv)
+        items = LineItem.objects.filter(
+            member_id=mid, invoice__isnull=True, purchase__isnull=False,
+            purchase__confirmed_at__lt=boundary)
+        inv = _invoice_items(member, items, year, month)
+        if inv:
+            created.append(inv)
     return created
+
+
+@transaction.atomic
+def generate_invoice_now(member) -> tuple[Invoice | None, str | None]:
+    """Sofort eine Rechnung über alle bestätigten, noch offenen Einkäufe."""
+    today = date.today()
+    items = member.shop_items.filter(invoice__isnull=True, purchase__isnull=False)
+    if not items.exists():
+        return None, "Keine bestätigten Einkäufe zum Abrechnen."
+    inv = _invoice_items(member, items, today.year, today.month)
+    return inv, None
 
 
 @transaction.atomic

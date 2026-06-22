@@ -1,7 +1,8 @@
 """Views des Hofladens. Dünn – Logik liegt in shop/services.py.
 
-Sicherheit: Alle Mitglieds-bezogenen Queries laufen über `request.user.member`;
-fremde Daten sind nicht erreichbar.
+Ablauf: Warenkorb (offene Positionen) → Checkout (bestätigter Einkauf) →
+Rechnung (monatlich oder sofort). Sicherheit: Alle Mitglieds-bezogenen Queries
+laufen über `request.user.member`; fremde Daten sind nicht erreichbar.
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ def _parse_date(s):
 
 @login_required
 def shop_index(request):
-    """Katalog (Gruppen + Produkte) und offener Warenkorb."""
+    """Katalog (Gruppen + Produkte) und Warenkorb (Menge änderbar)."""
     member = _member(request)
 
     if request.method == "POST" and member:
@@ -44,6 +45,11 @@ def shop_index(request):
                 _parse_date(request.POST.get("service_date")))
             messages.success(request, f"Hinzugefügt: {item.quantity:g}× {item.name}.") \
                 if item else messages.error(request, err or "Nicht möglich.")
+        elif action == "set_qty":
+            ok, err = svc.set_cart_quantity(
+                member, request.POST.get("item_id"), request.POST.get("quantity", "0"))
+            if not ok:
+                messages.error(request, err or "Nicht möglich.")
         elif action == "remove":
             ok = svc.remove_item(member, request.POST.get("item_id"))
             messages.success(request, "Position entfernt.") if ok \
@@ -70,13 +76,50 @@ def shop_index(request):
 
 
 @login_required
+def checkout(request):
+    """Bestätigungsschritt: Warenkorb prüfen und verbindlich kaufen – optional
+    gleich abrechnen."""
+    member = _member(request)
+    if not member:
+        return redirect("shop_index")
+
+    if request.method == "POST":
+        if request.POST.get("action") == "confirm":
+            purchase, err = svc.checkout(member)
+            if not purchase:
+                messages.error(request, err or "Nicht möglich.")
+                return redirect("shop_index")
+            if request.POST.get("invoice_now"):
+                inv, _err = svc.generate_invoice_now(member)
+                if inv:
+                    messages.success(
+                        request, f"Einkauf bestätigt – Rechnung {inv.number} erstellt.")
+                    return redirect("shop_invoice", inv.id)
+            messages.success(
+                request, "Einkauf bestätigt. Er erscheint auf deiner Rechnung.")
+            return redirect("shop_invoices")
+        return redirect("shop_checkout")
+
+    items = list(svc.open_items(member))
+    return render(request, "shop/checkout.html", {
+        "member": member, "items": items, "total": svc.open_total(member),
+    })
+
+
+@login_required
 def invoices(request):
-    """Eigene Rechnungen + offener Warenkorb; Rechnung als bezahlt melden."""
+    """Eigene Rechnungen + bestätigte (noch offene) Einkäufe; sofort abrechnen
+    oder Rechnung als bezahlt melden."""
     member = _member(request)
     if request.method == "POST" and member:
-        if request.POST.get("action") == "mark_paid":
+        action = request.POST.get("action")
+        if action == "mark_paid":
             ok, err = svc.mark_paid(member, request.POST.get("invoice_id"))
             messages.success(request, "Danke! Als bezahlt gemeldet.") if ok \
+                else messages.error(request, err or "Nicht möglich.")
+        elif action == "invoice_now":
+            inv, err = svc.generate_invoice_now(member)
+            messages.success(request, f"Rechnung {inv.number} erstellt.") if inv \
                 else messages.error(request, err or "Nicht möglich.")
         return redirect("shop_invoices")
 
@@ -84,6 +127,8 @@ def invoices(request):
     return render(request, "shop/invoices.html", {
         "member": member,
         "invoices": invs,
+        "unbilled": list(svc.unbilled_purchases(member)) if member else [],
+        "unbilled_total": svc.unbilled_total(member) if member else 0,
         "open_total": svc.open_total(member) if member else 0,
         "open_count": svc.open_items(member).count() if member else 0,
     })
@@ -91,7 +136,8 @@ def invoices(request):
 
 @login_required
 def invoice_detail(request, invoice_id: int):
-    """Rechnungsansicht (HTML, §14-Angaben). Nur eigene Rechnungen."""
+    """Rechnungsansicht (HTML, §14-Angaben). Nur eigene Rechnungen.
+    Positionen nach Einkauf (Datum) gruppiert."""
     member = _member(request)
     if not member:
         return redirect("shop_invoices")
@@ -99,6 +145,6 @@ def invoice_detail(request, invoice_id: int):
     return render(request, "shop/invoice_detail.html", {
         "member": member,
         "invoice": invoice,
-        "items": invoice.items.all(),
+        "purchase_groups": invoice.purchase_groups(),
         "breakdown": invoice.vat_breakdown(),
     })
