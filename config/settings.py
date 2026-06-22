@@ -22,6 +22,11 @@ ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if h.strip()
 ]
+# Loopback immer erlauben: damit der Container-Healthcheck (und der interne
+# Zugriff hinter Caddy) auch in Produktion funktioniert, ohne die Domain zu kennen.
+for _h in ("127.0.0.1", "localhost"):
+    if _h not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_h)
 CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
     if o.strip()
@@ -125,6 +130,24 @@ CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
+
+# --- Optionales Redis (Cache + Sessions + Axes-Lockout) --------------------
+# Standardmäßig AUS (DB-Sessions, lokaler Cache). Wird REDIS_URL gesetzt UND der
+# redis-Dienst gestartet (docker compose --profile cache), entlastet das die DB
+# bei vielen gleichzeitigen Zugriffen: Sessions und Brute-Force-Zähler liegen
+# dann im gemeinsamen Cache statt in PostgreSQL.
+REDIS_URL = os.environ.get("REDIS_URL", "")
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
+    # Brute-Force-Zähler im gemeinsamen Cache (statt je Request in der DB).
+    AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"
 
 # --- Lokalisierung ---------------------------------------------------------
 LANGUAGE_CODE = "de"

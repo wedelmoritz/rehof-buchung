@@ -168,8 +168,18 @@ durch einen Test abgedeckt, `python manage.py makemigrations --check` zeigt kein
 fehlende Migration.
 
 **CI:** `.github/workflows/tests.yml` läuft bei jedem Push/PR — Job 1 die reinen
-Tests (ohne DB), Job 2 die Integrationstests gegen echtes PostgreSQL. Vor dem
-Pull auf die VPS am grünen Häkchen erkennbar, ob alles passt.
+Tests (ohne DB), Job 2 die Integrationstests gegen echtes PostgreSQL, Job 3
+**Migrations-Resilienz**: migriert eine **befüllte Alt-DB** (Booking auf 0015
+zurück, Duplikate + Cascade-Wunsch erzeugen) vorwärts — fängt DB-spezifische
+Migrationsfehler (Unique auf Duplikaten, „pending trigger events"), die ein
+frischer Testlauf NICHT sieht. Vor dem Pull auf die VPS am grünen Häkchen
+erkennbar, ob alles passt.
+
+**Betrieb:** `docker-compose.yml` hat einen **Healthcheck** am `web`-Container
+(scheitert, wenn Gunicorn nicht antwortet, z.B. nach Migrations-Abbruch →
+`docker compose ps` zeigt „unhealthy" statt nur 502 bei Caddy). **Optionales
+Redis** (Cache/Sessions/Axes-Lockout) ist über `REDIS_URL` + Profil `cache`
+zuschaltbar (`docker compose --profile cache up -d`); Standard bleibt DB-Sessions.
 
 ---
 
