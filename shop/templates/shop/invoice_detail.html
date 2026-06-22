@@ -1,0 +1,84 @@
+{% extends "booking/base.html" %}
+{% block title %}Rechnung {{ invoice.number }}{% endblock %}
+{% block content %}
+<p class="muted"><a href="{% url 'shop_invoices' %}">&larr; Meine Rechnungen</a></p>
+
+<div class="card invoice">
+  <div class="inv-head">
+    <div>
+      <div class="inv-from">{{ invoice.coop_name }}</div>
+      <div class="muted" style="white-space:pre-line">{{ invoice.coop_address }}</div>
+      {% if invoice.tax_number %}<div class="muted">Steuernr.: {{ invoice.tax_number }}</div>{% endif %}
+    </div>
+    <div class="inv-meta">
+      <h1 style="margin:0">Rechnung</h1>
+      <div><strong>{{ invoice.number }}</strong></div>
+      <div class="muted">Zeitraum {{ invoice.month }}/{{ invoice.year }}</div>
+      <div class="muted">Datum {{ invoice.created_at|date:"d.m.Y" }}</div>
+    </div>
+  </div>
+
+  <div class="inv-to">
+    <div class="muted">Rechnungsempfänger:in</div>
+    <div>{{ invoice.recipient_name }}</div>
+    <div class="muted" style="white-space:pre-line">{{ invoice.recipient_address }}</div>
+  </div>
+
+  <table class="inv-items">
+    <tr><th>Pos.</th><th>Bezeichnung</th><th>Menge</th><th>Einzel</th><th>MwSt</th><th>Betrag</th></tr>
+    {% for it in items %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %}</td>
+      <td>{{ it.quantity|floatformat:"-3" }} {{ it.get_unit_display|default:it.unit }}</td>
+      <td>{{ it.unit_price }} €</td>
+      <td>{{ it.vat_rate }} %</td>
+      <td>{{ it.gross }} €</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <div class="inv-sums">
+    <table>
+      {% for b in breakdown %}
+      <tr><td>Netto {{ b.rate }} %</td><td>{{ b.net }} €</td></tr>
+      <tr><td>MwSt {{ b.rate }} %</td><td>{{ b.vat }} €</td></tr>
+      {% endfor %}
+      <tr class="grand"><td>Gesamt (brutto)</td><td>{{ invoice.total_gross }} €</td></tr>
+    </table>
+  </div>
+
+  <div class="inv-pay">
+    <strong>Zahlbar bis 14 Tage nach Erhalt auf:</strong>
+    <div>IBAN: {{ invoice.iban|default:"—" }}{% if invoice.bic %} · BIC: {{ invoice.bic }}{% endif %}</div>
+    <div>Verwendungszweck: <strong>{{ invoice.number }}</strong></div>
+    {% if invoice.status == 'open' %}
+    <form method="post" action="{% url 'shop_invoices' %}" style="margin-top:.6rem"
+          onsubmit="return confirm('Als bezahlt melden?');">{% csrf_token %}
+      <input type="hidden" name="action" value="mark_paid">
+      <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
+      <button class="btn" type="submit">Habe ich bezahlt</button>
+    </form>
+    {% elif invoice.status == 'paid' %}
+    <p class="msg info" style="margin-top:.6rem">Als bezahlt gemeldet – wird von der Verwaltung bestätigt.</p>
+    {% else %}
+    <p class="msg success" style="margin-top:.6rem">Zahlung bestätigt.</p>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .invoice { max-width:720px; }
+  .inv-head { display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+  .inv-from { font-weight:700; }
+  .inv-meta { text-align:right; }
+  .inv-to { margin:1rem 0; }
+  table.inv-items { width:100%; margin-top:.5rem; }
+  table.inv-items th { text-align:left; color:var(--muted); font-size:.82rem; }
+  .inv-sums { display:flex; justify-content:flex-end; margin-top:.6rem; }
+  .inv-sums table { width:auto; }
+  .inv-sums td { padding:.2rem .8rem; text-align:right; }
+  .inv-sums tr.grand td { border-top:2px solid var(--line); font-weight:700; font-size:1.05rem; }
+  .inv-pay { margin-top:1rem; padding-top:.8rem; border-top:1px solid var(--line); }
+</style>
+{% endblock %}

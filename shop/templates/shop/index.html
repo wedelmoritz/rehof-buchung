@@ -1,0 +1,95 @@
+{% extends "booking/base.html" %}
+{% block title %}Hofladen{% endblock %}
+{% block content %}
+<h1>Hofladen</h1>
+
+{% if not member %}
+<div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt.</p></div>
+{% else %}
+
+<div class="shop-layout">
+  <div class="shop-catalog">
+    <form method="get" class="card searchbar">
+      <input type="search" name="q" value="{{ q }}" placeholder="Produkt suchen …">
+      <button class="btn small" type="submit">Suchen</button>
+      {% if q %}<a class="btn small ghost" href="{% url 'shop_index' %}">×</a>{% endif %}
+    </form>
+
+    {% for entry in groups %}
+    <div class="card">
+      <h2>{{ entry.group.emoji }} {{ entry.group.name }}</h2>
+      <div class="tiles">
+        {% for p in entry.products %}
+        <form method="post" class="tile">{% csrf_token %}
+          <input type="hidden" name="action" value="add">
+          <input type="hidden" name="product" value="{{ p.id }}">
+          <div class="tile-name">{{ p.name }}</div>
+          {% if p.description %}<div class="muted tile-desc">{{ p.description }}</div>{% endif %}
+          <div class="tile-price">{{ p.price }} €<span class="muted"> / {{ p.get_unit_display }} · {{ p.vat_rate }}%</span></div>
+          {% if p.needs_date %}
+          <label class="muted tile-date">Termin <input type="date" name="service_date" required></label>
+          {% endif %}
+          <div class="tile-add">
+            <input type="number" name="quantity" value="1" min="0" step="0.001" inputmode="decimal" aria-label="Menge">
+            <button class="btn small" type="submit">+ Warenkorb</button>
+          </div>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="card"><p class="muted">Keine Produkte gefunden.</p></div>
+    {% endfor %}
+  </div>
+
+  <aside class="shop-cart">
+    <div class="card">
+      <h2>Warenkorb</h2>
+      {% if items %}
+      {% for it in items %}
+      <div class="cart-row">
+        <span>{{ it.quantity|floatformat:"-3" }}× {{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %}</span>
+        <span class="cart-amount">{{ it.gross }} €</span>
+        <form method="post" class="inline">{% csrf_token %}
+          <input type="hidden" name="action" value="remove">
+          <input type="hidden" name="item_id" value="{{ it.id }}">
+          <button class="btn small ghost danger" title="Entfernen">&times;</button>
+        </form>
+      </div>
+      {% endfor %}
+      <div class="cart-total">Offener Betrag: <strong>{{ total }} €</strong></div>
+      <p class="muted" style="margin:.4rem 0">Die Sammelrechnung wird automatisch am Monatsende erstellt.</p>
+      <a class="btn ghost small" href="{% url 'shop_invoices' %}">Meine Rechnungen &rarr;</a>
+      {% else %}
+      <p class="muted">Noch nichts erfasst. Tippe oben auf ein Produkt.</p>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+
+<style>
+  .shop-layout { display:flex; gap:1.1rem; align-items:flex-start; }
+  .shop-catalog { flex:1 1 auto; min-width:0; }
+  .shop-cart { flex:0 0 280px; position:sticky; top:70px; }
+  .searchbar { display:flex; gap:.5rem; align-items:center; }
+  .searchbar input { flex:1 1 auto; min-width:0; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:.6rem; }
+  .tile { border:1px solid var(--line); border-radius:12px; padding:.7rem .8rem; background:var(--card);
+    display:flex; flex-direction:column; gap:.25rem; }
+  .tile-name { font-weight:700; }
+  .tile-desc { font-size:.82rem; }
+  .tile-price { font-size:.95rem; }
+  .tile-date { font-size:.78rem; display:flex; flex-direction:column; gap:.2rem; }
+  .tile-add { display:flex; gap:.4rem; margin-top:.35rem; }
+  .tile-add input { width:5rem; min-width:0; }
+  .cart-row { display:flex; align-items:center; gap:.5rem; padding:.35rem 0; border-bottom:1px solid var(--line); font-size:.9rem; }
+  .cart-row > span:first-child { flex:1 1 auto; }
+  .cart-amount { font-variant-numeric:tabular-nums; }
+  .cart-total { margin-top:.6rem; font-size:1.05rem; }
+  @media (max-width:780px) {
+    .shop-layout { flex-direction:column; }
+    .shop-cart { position:static; width:100%; flex-basis:auto; }
+  }
+</style>
+{% endif %}
+{% endblock %}

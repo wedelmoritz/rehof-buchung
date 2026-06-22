@@ -108,6 +108,23 @@
 <div class="card"><p class="muted">Keine bevorstehenden Buchungen. <a href="{% url 'book' %}">Jetzt buchen →</a></p></div>
 {% endif %}
 
+{% if submitted_wishes %}
+<div class="card">
+  <h2>Wunschliste fürs nächste Jahr</h2>
+  <div class="msg info" style="margin-top:0">
+    <strong>Im Lostopf</strong>{% if wish_period.draw_at %} · Losung am {{ wish_period.draw_at|date:"d.m.Y H:i" }}{% else %} · Losungstermin noch offen{% endif %}.
+    <a href="{% url 'wishlist' %}">Wunschliste ansehen →</a>
+  </div>
+  <table>
+    <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
+    {% for w in submitted_wishes %}
+    <tr><td>{{ forloop.counter }}</td><td>{{ w.quarter.name }}</td>
+        <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 {% if past %}
 <div class="card">
   <h2>Vergangene Buchungen</h2>

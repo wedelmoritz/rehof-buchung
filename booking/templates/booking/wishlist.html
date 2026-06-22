@@ -16,12 +16,7 @@
     das Losverfahren entscheidet später. Deine eingereichten Wünsche (&#9679;) und Entwürfe (&#9675;) sind markiert.
   </p>
 
-  <div class="cal-head">
-    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ sel_qs }}">&lsaquo;</a>
-    <strong class="cal-title">{{ cal.label }}</strong>
-    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ sel_qs }}">&rsaquo;</a>
-    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ sel_qs }}">Heute</a>
-  </div>
+  {% include "booking/_calnav.html" %}
 
   <table class="cal wish-cal">
     <thead><tr><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th></tr></thead>

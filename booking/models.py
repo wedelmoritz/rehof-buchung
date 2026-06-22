@@ -134,6 +134,14 @@ class Member(models.Model):
     display_name = models.CharField("Anzeigename", max_length=120)
     factor = models.FloatField("Ausgleichsfaktor", default=1.0)
     is_external = models.BooleanField("Externer Gast", default=False)
+    # Profil-/Rechnungsdaten (vom Nutzer selbst pflegbar; nur eigene Sicht)
+    legal_name = models.CharField("Vollständiger Name", max_length=160, blank=True)
+    street = models.CharField("Straße & Nr.", max_length=160, blank=True)
+    zip_code = models.CharField("PLZ", max_length=10, blank=True)
+    city = models.CharField("Ort", max_length=120, blank=True)
+    iban = models.CharField("IBAN", max_length=34, blank=True)
+    membership_number = models.CharField(
+        "Mitgliedsnummer (optional)", max_length=40, blank=True)
 
     class Meta:
         verbose_name = "Nutzer-Konto"
@@ -251,6 +259,11 @@ class BookingPeriod(models.Model):
     end = models.DateField("Zeitraum buchbar bis (exkl.)")
     wishlist_open = models.DateField("Anmeldung ab", null=True, blank=True)
     wishlist_close = models.DateField("Anmeldung bis", null=True, blank=True)
+    draw_at = models.DateTimeField(
+        "Losung am", null=True, blank=True,
+        help_text="Terminierte Auslosung; läuft per Cron automatisch (siehe "
+                  "Management-Kommando run_due_lotteries).",
+    )
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
     applies_to_all = models.BooleanField("Gilt für alle Quartiere", default=True)
     quarters = models.ManyToManyField(

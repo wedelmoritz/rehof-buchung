@@ -1,0 +1,22 @@
+{% extends "booking/base.html" %}
+{% block title %}Mein Profil{% endblock %}
+{% block content %}
+<h1>Mein Profil</h1>
+{% if not member %}
+<div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt.</p></div>
+{% else %}
+<div class="card">
+  <p class="muted" style="margin-top:0">Diese Daten werden für deine Hofladen-Rechnungen
+    verwendet. Sie sind nur für dich (und die Verwaltung) sichtbar.</p>
+  <form method="post">{% csrf_token %}
+    {% for f in form %}
+    <div class="field">
+      {{ f.label_tag }} {{ f }}
+      {% if f.errors %}<div class="msg error" style="margin-top:.3rem">{{ f.errors|striptags }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn" type="submit" style="margin-top:.4rem">Speichern</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

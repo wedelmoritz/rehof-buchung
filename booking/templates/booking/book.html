@@ -41,14 +41,7 @@
 </div>
 
 <div class="card">
-  <div class="cal-head">
-    {% with selqs=sel_qs %}
-    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ selqs }}">&lsaquo;</a>
-    <strong class="cal-title">{{ cal.label }}</strong>
-    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ selqs }}">&rsaquo;</a>
-    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ selqs }}">Heute</a>
-    {% endwith %}
-  </div>
+  {% include "booking/_calnav.html" %}
 
   <table class="cal book-cal">
     <thead><tr><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th></tr></thead>

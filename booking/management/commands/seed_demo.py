@@ -11,11 +11,14 @@ Aufruf:  python manage.py seed_demo
 from __future__ import annotations
 
 import random
+import sys
 from datetime import date, timedelta
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
@@ -50,34 +53,87 @@ VORNAMEN = [
 
 
 class Command(BaseCommand):
-    help = "Legt Demo-Daten an (Quartiere, Mitglieder, Periode, Wünsche)."
+    help = ("Legt Demo-/Testdaten an (Quartiere, Nutzer inkl. Tandems, Periode, "
+            "Wünsche, Hofladen). Mit --reset/--wipe werden vorhandene Daten "
+            "vorher gelöscht.")
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--reset", action="store_true", help="Vorhandene Daten löschen.",
-        )
+            "--reset", action="store_true",
+            help="ALLE Daten löschen und Demo-Daten neu anlegen.")
         parser.add_argument(
-            "--members", type=int, default=50, help="Anzahl Mitglieder.",
-        )
+            "--wipe", action="store_true",
+            help="NUR ALLE Daten löschen (keine neuen anlegen).")
+        parser.add_argument(
+            "--yes", action="store_true",
+            help="Sicherheitsabfrage beim Löschen überspringen (für Docker/Cron).")
+        parser.add_argument(
+            "--members", type=int, default=50, help="Anzahl Nutzer.")
+        parser.add_argument(
+            "--tandems", type=int, default=2,
+            help="Anzahl Zweier-Tandems (teilen sich je einen Anteil 25/25).")
+
+    def _confirm_destroy(self, opts):
+        """Definitive Warnung vor dem Löschen. --yes überspringt; ohne TTY und
+        ohne --yes wird abgebrochen (Schutz vor versehentlichem Löschen)."""
+        if opts["yes"]:
+            return True
+        self.stderr.write(self.style.WARNING(
+            "\n!!! ACHTUNG: Dies LÖSCHT UNWIDERRUFLICH alle Nutzer, Buchungen, "
+            "Anteile, Wünsche, Hofladen-Käufe und Rechnungen !!!"))
+        if not sys.stdin.isatty():
+            self.stderr.write(self.style.ERROR(
+                "Nicht-interaktiv ohne --yes: abgebrochen. (Im Docker per "
+                "Umgebungsvariable bzw. --yes ausführen.)"))
+            return False
+        answer = input("Zum Bestätigen 'LÖSCHEN' eingeben: ").strip()
+        if answer != "LÖSCHEN":
+            self.stdout.write("Abgebrochen.")
+            return False
+        return True
+
+    def _wipe(self):
+        """Löscht alle Nutzer-/Buchungs-/Hofladen-Daten in sicherer Reihenfolge
+        (Fremdschlüssel mit PROTECT zuerst entkoppeln)."""
+        from shop.models import (
+            Invoice, LineItem, Product, ProductGroup, ShopConfig)
+        from booking.models import (
+            LotteryRun, Notification, Share, SwapRequest, WaitlistEntry)
+        LineItem.objects.all().delete()
+        Invoice.objects.all().delete()
+        Product.objects.all().delete()
+        ProductGroup.objects.all().delete()
+        ShopConfig.objects.all().delete()
+        SwapRequest.objects.all().delete()
+        Notification.objects.all().delete()
+        WaitlistEntry.objects.all().delete()
+        LotteryRun.objects.all().delete()
+        Allocation.objects.all().delete()
+        NightTransfer.objects.all().delete()
+        Wish.objects.all().delete()
+        BookingPeriod.objects.all().delete()
+        SeasonRule.objects.all().delete()
+        SchoolHoliday.objects.all().delete()
+        BookingPolicy.objects.all().delete()
+        Share.objects.all().delete()
+        Member.objects.all().delete()
+        Membership.objects.all().delete()
+        User.objects.filter(is_superuser=False).delete()
+        Quarter.objects.all().delete()
+        EquivalenceClass.objects.all().delete()
 
     @transaction.atomic
     def handle(self, *args, **opts):
         rng = random.Random(20270524)
 
-        if opts["reset"]:
+        if opts["reset"] or opts["wipe"]:
+            if not self._confirm_destroy(opts):
+                return
             self.stdout.write("Lösche vorhandene Daten …")
-            Allocation.objects.all().delete()
-            NightTransfer.objects.all().delete()
-            Wish.objects.all().delete()
-            SeasonRule.objects.all().delete()
-            SchoolHoliday.objects.all().delete()
-            BookingPolicy.objects.all().delete()
-            BookingPeriod.objects.all().delete()
-            Member.objects.all().delete()
-            Membership.objects.all().delete()
-            User.objects.filter(is_superuser=False).delete()
-            Quarter.objects.all().delete()
-            EquivalenceClass.objects.all().delete()
+            self._wipe()
+            if opts["wipe"]:
+                self.stdout.write(self.style.SUCCESS("Alle Daten gelöscht."))
+                return
 
         # Äquivalenzklassen + Quartiere
         classes: dict[str, EquivalenceClass] = {}
@@ -126,16 +182,17 @@ class Command(BaseCommand):
             )
             members.append(m)
 
-        # Mitglieds-Anteile: die ersten beiden bilden als Demo ein Tandem
-        # (ein Anteil, 50 Tage fair geteilt = je 25). Alle übrigen sind
-        # Voll-Mitglieder (eigener Anteil, 50 Tage). Budget = Summe der Anteile.
-        tandem_members = members[:2] if len(members) >= 2 else []
+        # Mitglieds-Anteile: einige Zweier-Tandems (ein Anteil, 50 Tage fair
+        # geteilt = je 25), der Rest Voll-Mitglieder (eigener Anteil, 50 Tage).
+        # Budget eines Nutzers = Summe seiner Anteile.
+        n_tandems = max(0, min(opts["tandems"], len(members) // 2))
         assigned = set()
-        if tandem_members:
+        for t in range(n_tandems):
+            pair = members[2 * t:2 * t + 2]
             tandem = Membership.objects.create(
-                eg_number="VL-0001", label="Tandem-Demo", kind=Membership.TEIL,
-                annual_night_budget=50, wish_night_budget=25)
-            for m in tandem_members:
+                eg_number=f"VL-T{t + 1:03d}", label=f"Tandem-Demo {t + 1}",
+                kind=Membership.TEIL, annual_night_budget=50, wish_night_budget=25)
+            for m in pair:
                 Share.objects.create(membership=tandem, member=m,
                                      night_budget=25, wish_night_budget=12)
                 assigned.add(m.id)
@@ -148,7 +205,8 @@ class Command(BaseCommand):
             Share.objects.create(membership=ms, member=m,
                                  night_budget=50, wish_night_budget=25)
         self.stdout.write(self.style.SUCCESS(
-            f"{len(members)} Nutzer angelegt (inkl. 1 Tandem-Anteil 25/25)."))
+            f"{len(members)} Nutzer angelegt ({n_tandems} Zweier-Tandem(s) 25/25, "
+            f"Rest Voll-Mitglieder 50)."))
 
         # Buchungsperiode fürs nächste Jahr – Wunsch-Einträge freigegeben.
         next_year = date.today().year + 1
@@ -160,6 +218,7 @@ class Command(BaseCommand):
                 end=date(next_year + 1, 1, 1),
                 wishlist_open=date.today() - timedelta(days=3),
                 wishlist_close=date.today() + timedelta(days=14),
+                draw_at=timezone.now() + timedelta(days=15),
                 status=BookingPeriod.WISHES_OPEN,
             ),
         )
@@ -295,6 +354,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"{len(holidays)} jährliche Berliner Schulferien angelegt."
         ))
+
+        # Hofladen-Katalog (Gruppen, Produkte, Genossenschafts-Stammdaten)
+        call_command("seed_shop")
 
         self.stdout.write(self.style.WARNING(
             "\nLogin-Demodaten: Benutzername wie 'anna0', Passwort 'demo12345'.\n"

@@ -27,12 +27,7 @@
 {% endif %}
 
 <div class="card">
-  <div class="cal-head">
-    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}">&lsaquo;</a>
-    <strong class="cal-title">{{ cal.label }}</strong>
-    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}">&rsaquo;</a>
-    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}">Heute</a>
-  </div>
+  {% include "booking/_calnav.html" %}
 
   <table class="cal community-cal">
     <thead><tr>

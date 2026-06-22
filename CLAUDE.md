@@ -82,7 +82,19 @@ Losverfahren), `my_bookings` (eigene Buchungen + Storno; je Buchung „wer ist
 gleichzeitig da“ + Wechselwunsch an andere Mitglieder, die zustimmen/ablehnen
 können), `transfer`. Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` (E-Mail-Versand folgt
-in einer späteren Stufe).
+in einer späteren Stufe). Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
+das Mitglied selbst unter `profile`.
+
+**Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
+(`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
+`kind="dienstleistung"` + `needs_date`), Einkauf mit **Preis-Snapshot**
+(`LineItem`; offen = ohne `invoice`), monatliche Sammelrechnung (`Invoice`,
+Nummer `HL-JJJJ-MM-NNN`, Status offen→bezahlt-gemeldet→bestätigt/archiviert,
+§14-Angaben + Steuer-Aufschlüsselung). Stammdaten der Genossenschaft im
+`ShopConfig`-Singleton. Geldlogik/Tests in `shop/services.py` bzw. `shop/tests.py`
+(Preis-Snapshot, Rechnung, Zugriffsrechte). **Cron:** `generate_monthly_invoices`
+(monatlich) und `run_due_lotteries` (terminierte Losungen). Rechnung zunächst als
+In-App-HTML, PDF/Mail später.
 
 ---
 
@@ -94,7 +106,9 @@ in einer späteren Stufe).
   Deckel 1,5, Reset auf 1,0 bei Gewinn eines umkämpften Slots. **Nur
   eingereichte Wünsche (`submitted=True`) nehmen teil.** Die Strategiesicherheit
   ist deterministisch getestet (`test_strategieproof_ueber_alle_reihenfolgen`) —
-  bei Änderungen am Algorithmus muss dieser Test grün bleiben.
+  bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
+  sich über `BookingPeriod.draw_at` terminieren; das Kommando
+  `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
 - **Buchungsperiode/Zeitraum (`BookingPeriod`):** Eine Periode durchläuft den
   Lebenszyklus über ihren `status`: `draft` (Entwurf) → `wishes_open` (Wunsch-
   Einträge freigegeben) → `lottery_ready` (zur Auslosung freigegeben) →

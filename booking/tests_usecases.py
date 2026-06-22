@@ -12,7 +12,9 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
@@ -515,6 +517,32 @@ class DetailUndWechselwunschTests(UseCaseBase):
         # Kein doppeltes Beantworten
         ok2, _ = svc.respond_swap_request(self.bob, sr.id, accept=False)
         self.assertFalse(ok2)
+
+
+class TerminierteLosungTests(UseCaseBase):
+    def _period(self, draw_at, status=BookingPeriod.WISHES_OPEN):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            status=status, draw_at=draw_at)
+
+    def test_faellige_losung_laeuft_automatisch(self):
+        period = self._period(timezone.now() - timedelta(hours=1))
+        s = date(NEXT_YEAR, 5, 24)
+        svc.add_wish(self.alice, period, self.qa, s, s + timedelta(days=5))
+        svc.submit_wishlist(self.alice, period)
+        call_command("run_due_lotteries")
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_DONE)
+        self.assertIsNotNone(period.seed)
+        self.assertEqual(
+            Allocation.objects.filter(period=period, source="lottery").count(), 1)
+
+    def test_zukuenftige_losung_bleibt_offen(self):
+        period = self._period(timezone.now() + timedelta(days=2))
+        call_command("run_due_lotteries")
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.WISHES_OPEN)
 
 
 class WunschKalenderTests(UseCaseBase):
