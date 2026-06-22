@@ -343,6 +343,61 @@ def build_member_calendar(member: Member, year: int, month: int) -> dict:
     }
 
 
+def build_community_calendar(member, year, month) -> dict:
+    """Monatsmatrix mit ALLEN Buchungen der Gemeinschaft (wer ist wann wo).
+    Die eigenen Buchungen des angemeldeten Mitglieds werden markiert."""
+    cal = _calendar.Calendar(firstweekday=0)  # Montag zuerst
+    weeks = cal.monthdatescalendar(year, month)
+    first, last = weeks[0][0], weeks[-1][-1]
+
+    allocs = list(
+        Allocation.objects.select_related("quarter", "member").filter(
+            start__lte=last, end__gt=first,
+        ).order_by("quarter__name")
+    )
+    hols = school_holidays_in_range(first, last + timedelta(days=1))
+    own_id = member.id if member else None
+    today = date.today()
+
+    grid = []
+    for week in weeks:
+        row = []
+        for d in week:
+            holiday = next((h.name for h in hols if h.start <= d < h.end), None)
+            bookings = [
+                {
+                    "quarter": a.quarter.name,
+                    "who": a.member.display_name,
+                    "mine": a.member_id == own_id,
+                }
+                for a in allocs if a.start <= d < a.end
+            ]
+            row.append({
+                "date": d,
+                "day": d.day,
+                "in_month": d.month == month,
+                "is_today": d == today,
+                "is_weekend": d.weekday() >= 5,
+                "holiday": holiday,
+                "bookings": bookings,
+                "has_mine": any(b["mine"] for b in bookings),
+            })
+        grid.append(row)
+
+    prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+
+    return {
+        "weeks": grid,
+        "label": f"{GERMAN_MONTHS[month]} {year}",
+        "year": year,
+        "month": month,
+        "prev": {"year": prev_month[0], "month": prev_month[1]},
+        "next": {"year": next_month[0], "month": next_month[1]},
+        "holidays": hols,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Stornierung
 # --------------------------------------------------------------------------- #

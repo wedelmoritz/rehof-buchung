@@ -9,11 +9,20 @@ from .models import Member, Quarter, Wish
 class WishForm(forms.ModelForm):
     class Meta:
         model = Wish
-        fields = ["priority", "quarter", "start", "end"]
+        # priority wird vom Service automatisch vergeben (ans Ende der Liste),
+        # darf also NICHT Pflichtfeld des Formulars sein.
+        fields = ["quarter", "start", "end"]
         widgets = {
             "start": forms.DateInput(attrs={"type": "date"}),
             "end": forms.DateInput(attrs={"type": "date"}),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("start"), cleaned.get("end")
+        if start and end and end <= start:
+            raise forms.ValidationError("Abreise muss nach der Anreise liegen.")
+        return cleaned
 
 
 class SpontaneousBookingForm(forms.Form):

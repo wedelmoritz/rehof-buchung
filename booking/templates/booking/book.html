@@ -1,0 +1,123 @@
+{% extends "booking/base.html" %}
+{% block title %}Buchen{% endblock %}
+{% block content %}
+<h1>Buchen</h1>
+
+{% if not member %}
+<div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
+{% else %}
+
+<div class="card">
+  <div class="stat-row">
+    <div class="stat"><div class="num">{{ nights_remaining }}</div>
+      <div class="lbl">Tage verfügbar ({{ booking_year }}, von {{ annual_budget }})</div></div>
+    <div class="stat"><div class="num">{{ nights_used }}</div>
+      <div class="lbl">Tage gebucht ({{ booking_year }})</div></div>
+    <div class="stat"><div class="num">{{ member.factor }}</div>
+      <div class="lbl">Ausgleichsfaktor</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="cal-head">
+    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}">&lsaquo;</a>
+    <strong class="cal-title">{{ cal.label }}</strong>
+    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}">&rsaquo;</a>
+    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}">Heute</a>
+  </div>
+
+  <table class="cal">
+    <thead><tr>
+      <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
+    </tr></thead>
+    <tbody>
+      {% for week in cal.weeks %}
+      <tr>
+        {% for d in week %}
+        <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %}"
+            {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
+          <div class="d-num">{{ d.day }}</div>
+          {% for a in d.allocations %}
+            <div class="d-book mine" title="{{ a.quarter.name }} ({{ a.get_source_display }})">{{ a.quarter.name }}</div>
+          {% endfor %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="legend">
+    <span><i class="sw today"></i> heute</span>
+    <span><i class="sw holiday"></i> Berliner Ferien</span>
+    <span><i class="sw mine"></i> eigene Buchung</span>
+  </div>
+  {% if cal.holidays %}
+  <p class="muted" style="margin:.4rem 0 0">
+    Ferien in diesem Monat:
+    {% for h in cal.holidays %}{{ h.name }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Tage buchen</h2>
+  {% if released_windows %}
+  <p class="muted" style="margin-top:0">Freigeschaltet:
+    {% for w in released_windows %}{{ w.start }}&ndash;{{ w.end }}{% if not w.applies_to_all %} (Teilmenge){% endif %}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+  </p>
+  {% else %}
+  <div class="msg warning">Zurzeit ist kein Buchungszeitraum freigeschaltet.</div>
+  {% endif %}
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="action" value="book">
+    <input type="hidden" name="year" value="{{ cal.year }}">
+    <input type="hidden" name="month" value="{{ cal.month }}">
+    <div class="form-row">
+      {% for f in booking_form %}
+        <div class="field">{{ f.label_tag }} {{ f }}</div>
+      {% endfor %}
+    </div>
+    <button class="btn" type="submit" style="margin-top:.6rem">Buchen</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Meine Buchungen</h2>
+  {% if upcoming %}
+  <table>
+    <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Quelle</th><th></th></tr>
+    {% for a in upcoming %}
+    <tr>
+      <td>{{ a.quarter.name }}
+        {% if a.via_substitution %}<span class="tag sub">Ausweich</span>{% endif %}
+        {% if a.contested %}<span class="tag con">umk&auml;mpft</span>{% endif %}</td>
+      <td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td>
+      <td>{{ a.get_source_display }}</td>
+      <td>
+        <form method="post" onsubmit="return confirm('Diese Buchung wirklich stornieren?');">{% csrf_token %}
+          <input type="hidden" name="action" value="cancel">
+          <input type="hidden" name="allocation_id" value="{{ a.id }}">
+          <input type="hidden" name="year" value="{{ cal.year }}">
+          <input type="hidden" name="month" value="{{ cal.month }}">
+          <button class="btn ghost small danger" type="submit">stornieren</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Keine bevorstehenden Buchungen.</p>{% endif %}
+
+  {% if past %}
+  <details style="margin-top:.8rem">
+    <summary class="muted">Vergangene Buchungen ({{ past|length }})</summary>
+    <table style="margin-top:.5rem">
+      {% for a in past %}
+      <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }} N</td></tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
