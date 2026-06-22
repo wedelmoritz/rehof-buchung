@@ -7,6 +7,14 @@
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt.</p></div>
 {% else %}
 
+<details class="explain">
+  <summary>Wie funktioniert der Hofladen?</summary>
+  <p class="muted">Produkt wählen, Menge angeben, „+ Warenkorb“. Preise sind brutto;
+    der Preis zum Kaufzeitpunkt zählt. Am Monatsende entsteht automatisch eine
+    Sammelrechnung; du überweist mit der Rechnungsnummer als Verwendungszweck und
+    meldest sie als bezahlt. <a href="{% url 'help' %}#hofladen">Mehr →</a></p>
+</details>
+
 <div class="shop-layout">
   <div class="shop-catalog">
     <form method="get" class="card searchbar">

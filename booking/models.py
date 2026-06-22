@@ -94,8 +94,8 @@ class Membership(models.Model):
     created_on = models.DateField("Angelegt am", default=date.today)
 
     class Meta:
-        verbose_name = "Mitglied (Anteil)"
-        verbose_name_plural = "Mitglieder (Anteile)"
+        verbose_name = "Mitglieds-Anteil"
+        verbose_name_plural = "Mitglieds-Anteile"
         ordering = ["eg_number", "label"]
 
     def __str__(self) -> str:

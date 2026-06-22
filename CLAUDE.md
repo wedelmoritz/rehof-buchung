@@ -83,7 +83,12 @@ gleichzeitig da“ + Wechselwunsch an andere Mitglieder, die zustimmen/ablehnen
 können), `transfer`. Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` (E-Mail-Versand folgt
 in einer späteren Stufe). Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
-das Mitglied selbst unter `profile`.
+das Mitglied selbst unter `profile`. Eine `help`-Seite erklärt Abläufe und die
+Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Verwaltung
+vereinfacht:** ein Benutzer trägt Login **und** Mitglieds-Profil in einem
+Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
+ausgeblendet (nur Autocomplete). Tage-Anteile werden am `Membership` zugeordnet.
+Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
