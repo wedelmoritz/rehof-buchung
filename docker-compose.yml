@@ -1,7 +1,9 @@
 # Docker-Compose-Stack für die Quartier-Buchung.
 # Dienste: web (Django/Gunicorn) + db (PostgreSQL).
-# Caddy läuft bereits auf dem Host und proxyt auf 127.0.0.1:${WEB_PORT}.
-# (Optional kann man Caddy auch als Service ergänzen – siehe README.)
+# Caddy läuft als eigener Container und erreicht web über das gemeinsame
+# externe Docker-Netz (networks.caddy) unter web:8000 bzw. 10.42.42.20:8000.
+# Caddy terminiert TLS und proxyt nach HTTP weiter – die App selbst spricht
+# nur HTTP auf 0.0.0.0:8000.
 
 services:
   db:
@@ -36,14 +38,17 @@ services:
       SEED_DEMO: ${SEED_DEMO:-0}
       SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
-    # KEIN ports: — Zugriff ausschließlich über Caddy
+    # KEIN ports: — kein Host-Port nötig, Caddy erreicht web im Docker-Netz.
     expose:
-      - "8000"               # nur dokumentarisch
+      - "8000"               # für Container im selben Netz (Caddy)
     networks:
       caddy:
+        # Feste IP für Caddys reverse_proxy/Health-Check. Setzt voraus, dass das
+        # externe Netz (compose_web) ein Subnetz hat, das 10.42.42.20 abdeckt –
+        # sonst weglassen und per Servicename (web) auflösen.
         ipv4_address: 10.42.42.20
       internal: {}
-    # gunicorn muss auf 0.0.0.0:8000 binden!
+    # gunicorn bindet 0.0.0.0:8000 (siehe entrypoint.sh)
 
 volumes:
   pgdata:
@@ -52,4 +57,6 @@ networks:
   internal: {}
   caddy:
     external: true
-    name: compose_web        # <-- auf dem Server verifizieren, s.u.
+    # Muss das Netz sein, in dem der Caddy-Container hängt.
+    # Mit `docker network ls` / `docker inspect <caddy>` auf dem Server prüfen.
+    name: compose_web

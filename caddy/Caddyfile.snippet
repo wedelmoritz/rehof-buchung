@@ -1,7 +1,11 @@
-# Diesen Block in das vorhandene Caddyfile auf dem Host aufnehmen.
-# Caddy holt das TLS-Zertifikat automatisch via Let's Encrypt.
+# Diesen Block in das vorhandene Caddyfile aufnehmen.
+# Caddy holt das TLS-Zertifikat automatisch via Let's Encrypt und terminiert
+# TLS; nach hinten spricht er HTTP. Der Caddy-Container muss am selben
+# externen Docker-Netz hängen wie web (siehe docker-compose.yml: networks.caddy).
 
-quartiere.example.org {
+rehof.wedelparlow.de {
     encode gzip
-    reverse_proxy 127.0.0.1:8000
+    # Servicename des web-Containers im gemeinsamen Netz
+    # (alternativ die feste IP: 10.42.42.20:8000).
+    reverse_proxy web:8000
 }

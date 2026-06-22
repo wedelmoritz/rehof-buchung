@@ -124,5 +124,10 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    # Hinter Caddy: TLS endet beim Proxy, der per X-Forwarded-Proto signalisiert,
+    # dass die ursprüngliche Anfrage HTTPS war. So erkennt Django sie als sicher.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # Caddy setzt X-Forwarded-Host; damit baut Django absolute URLs unter der
+    # öffentlichen Domain (statt der internen Container-Adresse).
+    USE_X_FORWARDED_HOST = True
     X_FRAME_OPTIONS = "DENY"
