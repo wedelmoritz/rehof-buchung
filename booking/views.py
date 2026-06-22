@@ -150,6 +150,83 @@ def _book_redirect(year, month, persons, accessible):
 
 
 @login_required
+def book_confirm(request):
+    """Bestätigungsschritt vor der Buchung: Unterkunft & Zeitraum prüfen,
+    Personen/Begleitung angeben, optional Endreinigung mitbuchen, verbleibende
+    Tage sehen – erst „Bestätigen“ legt die Buchung an."""
+    from shop.models import Product
+    from shop import services as shop_svc
+
+    member = _current_member(request)
+    if not member:
+        return redirect("overview")
+
+    src = request.POST if request.method == "POST" else request.GET
+    quarter = Quarter.objects.filter(id=src.get("quarter"), active=True).first()
+    start = _parse_date(src.get("start"))
+    end = _parse_date(src.get("end"))
+    try:
+        persons = int(src.get("persons") or 0)
+    except (TypeError, ValueError):
+        persons = 0
+
+    if not quarter or not start or not end or end <= start:
+        messages.error(request, "Buchung nicht möglich – bitte Auswahl wiederholen.")
+        return redirect("book")
+
+    nights = (end - start).days
+    if not svc.range_is_released(quarter, start, end):
+        messages.error(request, "Dieser Zeitraum ist nicht (durchgängig) buchbar.")
+        return redirect("book")
+    if not svc.quarter_is_free(quarter, start, end):
+        messages.error(request, f"{quarter.name} ist in diesem Zeitraum bereits belegt.")
+        return redirect("book")
+
+    if persons < quarter.min_occupancy:
+        persons = quarter.min_occupancy
+    if persons > quarter.max_occupancy:
+        persons = quarter.max_occupancy
+
+    remaining_now = member.nights_remaining_in_year(start.year)
+    # Mitbuchbare Dienstleistungen (z.B. Endreinigung) – Verfügbarkeit am Abreisetag.
+    offers = [
+        {"p": p, "available": p.available_on(end)}
+        for p in Product.objects.filter(active=True, book_with_stay=True)
+        .order_by("sort_order", "name")
+    ]
+
+    if request.method == "POST" and request.POST.get("action") == "confirm":
+        companions = request.POST.get("companions", "").strip()
+        alloc, err = svc.book_spontaneous(
+            member, quarter, start, end, persons, companions=companions)
+        if not alloc:
+            messages.error(request, err or "Buchung nicht möglich.")
+        else:
+            added = []
+            for o in offers:
+                if request.POST.get(f"service_{o['p'].id}") and o["available"]:
+                    item, _serr = shop_svc.add_item(member, o["p"], 1, service_date=end)
+                    if item:
+                        added.append(o["p"].name)
+            msg = f"Gebucht: {quarter.name}, {start} – {end} ({persons} Pers.)."
+            if added:
+                msg += (" Zusätzlich gebucht: " + ", ".join(added)
+                        + " (wird über den Hofladen abgerechnet).")
+            messages.success(request, msg)
+            return redirect("my_bookings")
+
+    return render(request, "booking/book_confirm.html", {
+        "member": member, "quarter": quarter, "start": start, "end": end,
+        "nights": nights, "persons": persons,
+        "remaining_now": remaining_now,
+        "remaining_after": remaining_now - nights,
+        "enough_days": remaining_now >= nights,
+        "min_nights": svc.min_nights_for_range(start, end),
+        "offers": offers,
+    })
+
+
+@login_required
 def book(request):
     """Klick-Buchung: Personen + Barrierefrei oben einstellen, im Ampel-Kalender
     Anreise/Abreise wählen, dann passendes Quartier buchen (oder Warteliste)."""
@@ -539,26 +616,36 @@ def transfer(request):
     if not member:
         return redirect("overview")
 
+    pending = None
+    form = TransferForm(exclude_member=member)
     if request.method == "POST":
         form = TransferForm(request.POST, exclude_member=member)
         if form.is_valid():
-            t, err = svc.transfer_nights(
-                member, form.cleaned_data["to_member"],
-                form.cleaned_data["nights"], year,
-                note=form.cleaned_data.get("note", ""),
-            )
-            messages.success(request, f"{t.nights} Tage an {t.to_member} übertragen.") \
-                if t else messages.error(request, err or "Übertragung nicht möglich.")
-            return redirect("transfer")
-    else:
-        form = TransferForm(exclude_member=member)
+            to_member = form.cleaned_data["to_member"]
+            nights = form.cleaned_data["nights"]
+            note = form.cleaned_data.get("note", "")
+            if request.POST.get("action") == "confirm":
+                t, err = svc.transfer_nights(member, to_member, nights, year, note=note)
+                if t:
+                    messages.success(
+                        request, f"{t.nights} Tage an {t.to_member} übertragen.")
+                    return redirect("transfer")
+                messages.error(request, err or "Übertragung nicht möglich.")
+            else:
+                # Vorschau: erst bestätigen lassen (Empfänger + Disclaimer zeigen).
+                remaining = member.nights_remaining_in_year(year)
+                if nights > remaining:
+                    messages.error(
+                        request, f"Du hast nur noch {remaining} Tage übrig.")
+                else:
+                    pending = {"to_member": to_member, "nights": nights, "note": note}
 
     outgoing = member.transfers_out.filter(year=year).select_related("to_member")
     incoming = member.transfers_in.filter(year=year).select_related("from_member")
     return render(request, "booking/transfer.html", {
         "form": form, "member": member, "year": year,
         "remaining": member.nights_remaining_in_year(year),
-        "outgoing": outgoing, "incoming": incoming,
+        "outgoing": outgoing, "incoming": incoming, "pending": pending,
     })
 
 

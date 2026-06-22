@@ -2,11 +2,37 @@
 Rechnungsübersicht mit Zahlungs-Bestätigung und Excel-Export."""
 from __future__ import annotations
 
+from django import forms
 from django.contrib import admin, messages
 from django.http import HttpResponse
 
 from . import services as svc
 from .models import Invoice, LineItem, Product, ProductGroup, ShopConfig
+
+WEEKDAYS = [("0", "Montag"), ("1", "Dienstag"), ("2", "Mittwoch"),
+            ("3", "Donnerstag"), ("4", "Freitag"), ("5", "Samstag"),
+            ("6", "Sonntag")]
+
+
+class ProductAdminForm(forms.ModelForm):
+    """Wochentage als Checkboxen statt als roher Komma-String."""
+    unavailable_weekdays = forms.MultipleChoiceField(
+        choices=WEEKDAYS, required=False, widget=forms.CheckboxSelectMultiple,
+        label="Nicht möglich an Wochentagen",
+        help_text="Geprüft wird der Abreisetag der Buchung – z. B. Endreinigung "
+                  "am Wochenende nicht möglich.")
+
+    class Meta:
+        model = Product
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        raw = getattr(self.instance, "unavailable_weekdays", "") or ""
+        self.initial["unavailable_weekdays"] = [x for x in raw.split(",") if x.strip()]
+
+    def clean_unavailable_weekdays(self):
+        return ",".join(self.cleaned_data["unavailable_weekdays"])
 
 
 @admin.register(ShopConfig)
@@ -42,9 +68,10 @@ class ProductGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
+    form = ProductAdminForm
     list_display = ("name", "group", "kind", "price", "unit", "vat_rate",
-                    "needs_date", "active")
-    list_filter = ("group", "kind", "active", "vat_rate")
+                    "needs_date", "book_with_stay", "active")
+    list_filter = ("group", "kind", "active", "book_with_stay", "vat_rate")
     list_editable = ("price", "active")
     search_fields = ("name",)
     fieldsets = (
@@ -61,6 +88,13 @@ class ProductAdmin(admin.ModelAdmin):
             "description": "„Dienstleistung“ (z. B. Sauna) wird wie eine Ware "
                            "abgerechnet. „Termin nötig“ = Mitglied gibt beim Kauf "
                            "ein Datum an."}),
+        ("Beim Buchen anbieten (z. B. Endreinigung)", {
+            "fields": ("book_with_stay", "unavailable_weekdays"),
+            "description": "Ist „Beim Buchen anbieten“ aktiv, erscheint die "
+                           "Dienstleistung im Bestätigungsschritt der Unterkunfts-"
+                           "Buchung und kann gleich mitgebucht werden. Über die "
+                           "Wochentage lässt sich steuern, an welchen Abreisetagen "
+                           "die Leistung NICHT gewährleistet werden kann."}),
     )
 
 

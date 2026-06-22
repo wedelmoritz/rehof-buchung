@@ -10,6 +10,38 @@
     <div class="lbl">Tage verfügbar ({{ year }})</div></div>
 </div>
 
+{% if pending %}
+<div class="card" style="border-color:var(--accent)">
+  <h2 style="margin-top:0">Übertragung bestätigen</h2>
+  <p>Du überträgst <strong>{{ pending.nights }} Tag(e)</strong> an:</p>
+  <div class="recipient">
+    <div><strong>{{ pending.to_member.display_name }}</strong></div>
+    <div class="muted">Benutzername: {{ pending.to_member.user.username }}</div>
+    {% if pending.to_member.user.get_full_name %}
+    <div class="muted">Name: {{ pending.to_member.user.get_full_name }}</div>
+    {% elif pending.to_member.legal_name %}
+    <div class="muted">Name: {{ pending.to_member.legal_name }}</div>
+    {% endif %}
+    {% if pending.note %}<div class="muted">Notiz: {{ pending.note }}</div>{% endif %}
+  </div>
+
+  <div class="msg warning" style="margin-top:.9rem">
+    <strong>Hinweis:</strong> Der Übertrag von Tagen ist verbindlich. Auf welcher
+    (privatrechtlichen) Basis er erfolgt – etwa Schenkung, Bezahlung oder Tausch –
+    müsst ihr untereinander selbst regeln. Die Genossenschaft bzw. diese App ist
+    daran nicht beteiligt und vermittelt keine Gegenleistung.
+  </div>
+
+  <form method="post" style="display:flex; gap:.8rem; flex-wrap:wrap; margin-top:.4rem">{% csrf_token %}
+    <input type="hidden" name="action" value="confirm">
+    <input type="hidden" name="to_member" value="{{ pending.to_member.id }}">
+    <input type="hidden" name="nights" value="{{ pending.nights }}">
+    <input type="hidden" name="note" value="{{ pending.note }}">
+    <a class="btn ghost" href="{% url 'transfer' %}">Abbrechen</a>
+    <button class="btn" type="submit">Ja, {{ pending.nights }} Tag(e) verbindlich übertragen</button>
+  </form>
+</div>
+{% else %}
 <div class="card">
   <h2>Tage abgeben</h2>
   <form method="post">{% csrf_token %}
@@ -18,9 +50,13 @@
         {% if f.errors %}<div class="msg error">{{ f.errors|striptags }}</div>{% endif %}
       </div>
     {% endfor %}
-    <button class="btn" type="submit">Übertragen</button>
+    <p class="muted" style="font-size:.88rem">Vor dem Übertrag fragen wir noch
+      einmal nach und zeigen, an wen die Tage gehen. Die Basis des Übertrags
+      (Schenkung/Bezahlung/Tausch) regelt ihr privat untereinander.</p>
+    <button class="btn" type="submit">Weiter zur Bestätigung →</button>
   </form>
 </div>
+{% endif %}
 
 <h2>Übertragungen {{ year }}</h2>
 <div class="card">
@@ -48,4 +84,9 @@
   <p class="muted">Noch keine Übertragungen in diesem Jahr.</p>
   {% endif %}
 </div>
+
+<style>
+  .recipient { border:1px solid var(--line); border-radius:10px; padding:.7rem .9rem; }
+  .recipient > div { line-height:1.5; }
+</style>
 {% endblock %}

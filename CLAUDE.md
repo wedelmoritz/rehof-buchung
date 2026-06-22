@@ -76,11 +76,20 @@ Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
 farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
 unten, wer da ist und was noch frei ist), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
-eingeben – auch über Monatsgrenzen –, passende Quartiere buchen bzw. Warteliste;
-Eignung und Mindestaufenthalt werden vorab angezeigt), `wishlist` (Wünsche fürs
-Losverfahren), `my_bookings` (eigene Buchungen + Storno; je Buchung „wer ist
-gleichzeitig da“ + Wechselwunsch an andere Mitglieder, die zustimmen/ablehnen
-können), `transfer`. Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
+eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
+Eignung und Mindestaufenthalt werden vorab angezeigt), `book_confirm`
+(**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
+angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
+„Verbindlich buchen“ legt die `Allocation` an; gewählte Dienstleistungen werden
+als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
+bleiben bewusst änderbar), `my_bookings` (eigene Buchungen + Storno **mit
+Rückfrage**; je Buchung „wer ist gleichzeitig da“ + Wechselwunsch an andere
+Mitglieder, die zustimmen/ablehnen können), `transfer` (**zweistufig**: Vorschau
+mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
+des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
+Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
+`unavailable_weekdays` sperrt Wochentage (geprüft am Abreisetag, z.B.
+Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` (E-Mail-Versand folgt
 in einer späteren Stufe). Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile`. Eine `help`-Seite erklärt Abläufe und die

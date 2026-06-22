@@ -56,5 +56,8 @@ class Command(BaseCommand):
                 group=groups[gname], name=name,
                 defaults=dict(price=price, unit=unit, vat_rate=vat, kind=kind,
                               needs_date=needs))
+        # Endreinigung: beim Buchen anbieten; Demo: sonntags nicht möglich.
+        Product.objects.filter(name="Endreinigung").update(
+            book_with_stay=True, needs_date=True, unavailable_weekdays="6")
         self.stdout.write(self.style.SUCCESS(
             f"{len(GROUPS)} Gruppen, {len(PRODUCTS)} Produkte angelegt."))

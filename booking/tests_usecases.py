@@ -680,6 +680,66 @@ class TandemTests(UseCaseBase):
         self.assertEqual([p.id for p in self.alice.tandem_partners], [self.bob.id])
 
 
+class BuchungBestaetigungTests(UseCaseBase):
+    """Buchen ist zweistufig: erst Bestätigungsseite, erst „confirm“ bucht –
+    inklusive Begleitung und optionaler Endreinigung."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+        from shop.models import Product, ProductGroup
+        g = ProductGroup.objects.create(name="Dienstleistungen")
+        self.clean = Product.objects.create(
+            group=g, name="Endreinigung", price="45.00", unit="portion",
+            vat_rate=19, kind="dienstleistung", needs_date=True,
+            book_with_stay=True)
+        self.s = date(NEXT_YEAR, 4, 6)
+        self.e = date(NEXT_YEAR, 4, 13)  # 7 Nächte (über jeden Mindestaufenthalt)
+
+    def _client(self):
+        from django.test import Client
+        c = Client()
+        c.force_login(self.alice.user)
+        return c
+
+    def test_get_zeigt_seite_ohne_zu_buchen(self):
+        c = self._client()
+        r = c.get(reverse("book_confirm"), {
+            "quarter": self.k1.id, "start": self.s.isoformat(),
+            "end": self.e.isoformat(), "persons": 2})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "K1")
+        self.assertEqual(Allocation.objects.count(), 0)  # noch nichts gebucht
+
+    def test_confirm_bucht_mit_begleitung_und_endreinigung(self):
+        from shop.models import LineItem
+        c = self._client()
+        r = c.post(reverse("book_confirm"), {
+            "action": "confirm", "quarter": self.k1.id,
+            "start": self.s.isoformat(), "end": self.e.isoformat(),
+            "persons": 2, "companions": "Familie Muster",
+            f"service_{self.clean.id}": "on"})
+        a = Allocation.objects.get()
+        self.assertEqual(a.companions, "Familie Muster")
+        self.assertEqual(a.persons, 2)
+        # Endreinigung als offene Hofladen-Position mit Abreise-Termin
+        li = LineItem.objects.get(member=self.alice, product=self.clean)
+        self.assertEqual(li.service_date, self.e)
+
+    def test_endreinigung_an_gesperrtem_abreisetag_nicht_mitgebucht(self):
+        from shop.models import LineItem
+        self.clean.unavailable_weekdays = str(self.e.weekday())
+        self.clean.save()
+        c = self._client()
+        c.post(reverse("book_confirm"), {
+            "action": "confirm", "quarter": self.k1.id,
+            "start": self.s.isoformat(), "end": self.e.isoformat(),
+            "persons": 2, f"service_{self.clean.id}": "on"})
+        # Buchung entsteht, Endreinigung aber NICHT (Wochentag gesperrt)
+        self.assertEqual(Allocation.objects.count(), 1)
+        self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 0)
+
+
 class WunschSaisonTests(UseCaseBase):
     """Der GESAMTE Wunschzeitraum muss innerhalb der Quartier-Saison liegen –
     sonst könnte ein Losgewinn eine Buchung außerhalb der Saison erzeugen."""

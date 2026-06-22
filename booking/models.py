@@ -365,6 +365,9 @@ class Allocation(models.Model):
     start = models.DateField("Anreise")
     end = models.DateField("Abreise (exkl.)")
     persons = models.PositiveIntegerField("Personen", default=1)
+    companions = models.CharField(
+        "Begleitung", max_length=255, blank=True,
+        help_text="Mit wem reise ich an (frei eintragbar).")
     source = models.CharField("Quelle", max_length=12, choices=SOURCE)
     period = models.ForeignKey(
         BookingPeriod, on_delete=models.SET_NULL, null=True, blank=True,

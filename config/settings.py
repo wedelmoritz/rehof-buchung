@@ -166,7 +166,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        # In Produktion gehashte, langfristig cachebare Dateien (Manifest). In
+        # DEBUG/Tests die einfache Storage, damit {% static %} ohne vorheriges
+        # collectstatic auflösbar bleibt (sonst „Missing staticfiles manifest“).
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        )
     },
 }
 # WhiteNoise: PWA-Manifest mit korrektem MIME-Typ ausliefern.
