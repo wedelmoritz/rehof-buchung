@@ -17,7 +17,8 @@ from . import lottery as L
 from . import rules as R
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, LotteryRun, Member, NightTransfer,
-    Notification, Quarter, SchoolHoliday, SeasonRule, WaitlistEntry, Wish,
+    Notification, Quarter, SchoolHoliday, SeasonRule, SwapRequest, WaitlistEntry,
+    Wish,
 )
 
 
@@ -241,6 +242,16 @@ def schedule_blocker(
     if remaining < nights:
         return f"Nicht genügend Tage ({remaining} übrig, {nights} benötigt)."
     return check_booking_rules(member, start, end)
+
+
+def min_nights_for_range(start: date, end: date) -> int:
+    """Effektiver Mindestaufenthalt für [start, end): Standard-Mindestnächte,
+    verschärft durch überlappende Saison-/Schulferien-Regeln."""
+    required = BookingPolicy.get_solo().default_min_nights or 0
+    for s in _materialized_seasons(start, end):
+        if s.min_nights and s.start < end and s.end > start:
+            required = max(required, s.min_nights)
+    return required
 
 
 # --------------------------------------------------------------------------- #
@@ -498,6 +509,88 @@ def mark_notifications_read(member) -> int:
     if not member:
         return 0
     return member.notifications.filter(read=False).update(read=True)
+
+
+# --------------------------------------------------------------------------- #
+# Tages-Detail (Übersicht) & Wechselwünsche
+# --------------------------------------------------------------------------- #
+
+def day_detail(member, day: date) -> dict:
+    """Wer ist an `day` in welchem Quartier (mit Personenzahl) – und welche
+    Quartiere sind an dem Tag noch frei?"""
+    nxt = day + timedelta(days=1)
+    occupied = [
+        {
+            "quarter": a.quarter.name,
+            "who": a.member.display_name,
+            "persons": a.persons,
+            "mine": bool(member) and a.member_id == member.id,
+        }
+        for a in Allocation.objects.select_related("quarter", "member")
+        .filter(start__lte=day, end__gt=day).order_by("quarter__name")
+    ]
+    free, _occ = split_quarters_for_range(day, nxt)
+    return {"day": day, "occupied": occupied, "free": [q.name for q in free]}
+
+
+def concurrent_allocations(allocation: Allocation):
+    """Andere Buchungen (anderer Mitglieder), die zeitlich mit `allocation`
+    überlappen – „wer ist zur gleichen Zeit da“."""
+    return list(
+        Allocation.objects.select_related("quarter", "member").filter(
+            start__lt=allocation.end, end__gt=allocation.start,
+        ).exclude(member_id=allocation.member_id).order_by("start", "quarter__name")
+    )
+
+
+@transaction.atomic
+def create_swap_request(from_member, from_allocation, to_allocation, message=""):
+    """Legt einen Wechselwunsch an und benachrichtigt das Gegenüber."""
+    if to_allocation.member_id == from_member.id:
+        return None, "Das ist deine eigene Buchung."
+    sr = SwapRequest.objects.create(
+        from_member=from_member, to_member=to_allocation.member,
+        from_allocation=from_allocation, to_allocation=to_allocation,
+        message=message,
+    )
+    Notification.objects.create(
+        member=to_allocation.member,
+        message=(f"{from_member.display_name} fragt nach einem Quartier-Tausch "
+                 f"({from_allocation.quarter.name} ↔ {to_allocation.quarter.name})."),
+        url="/meine-buchungen/",
+    )
+    return sr, None
+
+
+@transaction.atomic
+def respond_swap_request(member, swap_id, accept: bool) -> tuple[bool, str | None]:
+    """Nimmt einen eingegangenen Wechselwunsch an oder lehnt ihn ab und
+    benachrichtigt die anfragende Person."""
+    try:
+        sr = SwapRequest.objects.select_related("from_allocation", "to_allocation") \
+            .get(id=swap_id, to_member=member, status=SwapRequest.PENDING)
+    except SwapRequest.DoesNotExist:
+        return False, "Wechselwunsch nicht gefunden."
+    sr.status = SwapRequest.ACCEPTED if accept else SwapRequest.DECLINED
+    sr.responded_at = timezone.now()
+    sr.save(update_fields=["status", "responded_at"])
+    verb = "angenommen" if accept else "abgelehnt"
+    Notification.objects.create(
+        member=sr.from_member,
+        message=(f"{member.display_name} hat deinen Wechselwunsch {verb} "
+                 f"({sr.from_allocation.quarter.name} ↔ {sr.to_allocation.quarter.name})."),
+        url="/meine-buchungen/",
+    )
+    return True, None
+
+
+def pending_swaps_for(member):
+    """Offene, an `member` gerichtete Wechselwünsche."""
+    return list(
+        SwapRequest.objects.filter(to_member=member, status=SwapRequest.PENDING)
+        .select_related("from_member", "from_allocation__quarter",
+                        "to_allocation__quarter")
+    )
 
 
 # --------------------------------------------------------------------------- #

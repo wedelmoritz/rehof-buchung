@@ -358,6 +358,49 @@ class Notification(models.Model):
         return f"{self.member}: {self.message}"
 
 
+class SwapRequest(models.Model):
+    """Wechselwunsch: ein Mitglied möchte mit einem anderen, das im selben
+    Zeitraum da ist, das Quartier tauschen. Das Gegenüber kann zustimmen oder
+    ablehnen; beide werden per Notification informiert. Die tatsächliche
+    Umbuchung stimmen die Beteiligten anschließend miteinander/mit der
+    Verwaltung ab."""
+    PENDING, ACCEPTED, DECLINED = "pending", "accepted", "declined"
+    STATUS = [
+        (PENDING, "Offen"),
+        (ACCEPTED, "Angenommen"),
+        (DECLINED, "Abgelehnt"),
+    ]
+    from_member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="swap_requests_sent",
+        verbose_name="Von Mitglied",
+    )
+    to_member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="swap_requests_received",
+        verbose_name="An Mitglied",
+    )
+    from_allocation = models.ForeignKey(
+        "Allocation", on_delete=models.CASCADE, related_name="swap_from",
+        verbose_name="Eigene Buchung",
+    )
+    to_allocation = models.ForeignKey(
+        "Allocation", on_delete=models.CASCADE, related_name="swap_to",
+        verbose_name="Gewünschte Buchung",
+    )
+    message = models.TextField("Nachricht", blank=True)
+    status = models.CharField("Status", max_length=10, choices=STATUS, default=PENDING)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    responded_at = models.DateTimeField("Beantwortet am", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Wechselwunsch"
+        verbose_name_plural = "Wechselwünsche"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return (f"{self.from_member} → {self.to_member} "
+                f"({self.get_status_display()})")
+
+
 class BookingPolicy(models.Model):
     """Globale Buchungsregeln (eine Zeile). Saisonale Verschärfungen siehe
     SeasonRule."""

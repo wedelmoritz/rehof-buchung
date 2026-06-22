@@ -456,3 +456,54 @@ class JahresregelnUndQuartierSaisonTests(UseCaseBase):
                 self.alice, self.k1, date(year, 7, 10), date(year, 7, 14))  # 4 < 7
             self.assertIsNone(a, f"{year}: sollte an Mindestnächten scheitern")
             self.assertIn("7 Nächte", err)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case 10: Tages-Detail, Mindestnächte-Anzeige, Wechselwunsch
+# --------------------------------------------------------------------------- #
+
+class DetailUndWechselwunschTests(UseCaseBase):
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+
+    def test_min_nights_for_range(self):
+        SeasonRule.objects.create(
+            name="Hochsaison", start_month=7, start_day=1, end_month=9, end_day=1,
+            min_nights=7, active=True)
+        # Standard (außerhalb Saison): 3 Nächte
+        self.assertEqual(
+            svc.min_nights_for_range(date(NEXT_YEAR, 3, 1), date(NEXT_YEAR, 3, 4)), 3)
+        # In der Hochsaison: 7
+        self.assertEqual(
+            svc.min_nights_for_range(date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 14)), 7)
+
+    def test_day_detail_zeigt_belegt_und_frei(self):
+        d = date(NEXT_YEAR, 4, 10)
+        svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3), persons=2)
+        detail = svc.day_detail(self.bob, d)
+        belegte = [o["quarter"] for o in detail["occupied"]]
+        self.assertIn("K1", belegte)
+        self.assertEqual(detail["occupied"][0]["persons"], 2)
+        # K2/K3 sind an dem Tag noch frei
+        self.assertIn("K2", detail["free"])
+        self.assertNotIn("K1", detail["free"])
+
+    def test_wechselwunsch_anlegen_und_beantworten(self):
+        d = date(NEXT_YEAR, 4, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        b, _ = svc.book_spontaneous(self.bob, self.k2, d, d + timedelta(days=3))
+        sr, err = svc.create_swap_request(self.alice, a, b, "Tauschen?")
+        self.assertIsNotNone(sr, err)
+        # Bob ist benachrichtigt und sieht den offenen Wunsch
+        self.assertEqual(self.bob.notifications.filter(read=False).count(), 1)
+        self.assertEqual(len(svc.pending_swaps_for(self.bob)), 1)
+        # Bob stimmt zu -> Status gesetzt, Alice benachrichtigt
+        ok, err = svc.respond_swap_request(self.bob, sr.id, accept=True)
+        self.assertTrue(ok, err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "accepted")
+        self.assertEqual(self.alice.notifications.filter(read=False).count(), 1)
+        # Kein doppeltes Beantworten
+        ok2, _ = svc.respond_swap_request(self.bob, sr.id, accept=False)
+        self.assertFalse(ok2)

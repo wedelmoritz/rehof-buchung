@@ -63,16 +63,20 @@ Modelle in `models.py`: `EquivalenceClass`, `Quarter`, `Member`,
 gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `LotteryRun`, `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
-Warteliste), `Notification` (In-App-Benachrichtigung), `BookingPolicy`
+Warteliste), `Notification` (In-App-Benachrichtigung), `SwapRequest`
+(Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
 `SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
-farbcodiert je Mitglied mit Name + Personenzahl), `book` (Ampel-Kalender →
-Personen/Barrierefrei oben einstellen, Anreise/Abreise klicken, passende
-Quartiere buchen bzw. Warteliste; Eignung wird vorab angezeigt), `wishlist`
-(Wünsche fürs Losverfahren), `my_bookings` (eigene Buchungen + Storno),
-`transfer`. Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
+farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
+unten, wer da ist und was noch frei ist), `book` (Ampel-Kalender → Personen/
+Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
+eingeben – auch über Monatsgrenzen –, passende Quartiere buchen bzw. Warteliste;
+Eignung und Mindestaufenthalt werden vorab angezeigt), `wishlist` (Wünsche fürs
+Losverfahren), `my_bookings` (eigene Buchungen + Storno; je Buchung „wer ist
+gleichzeitig da“ + Wechselwunsch an andere Mitglieder, die zustimmen/ablehnen
+können), `transfer`. Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` (E-Mail-Versand folgt
 in einer späteren Stufe).
 

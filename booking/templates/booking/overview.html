@@ -42,9 +42,11 @@
       {% for week in cal.weeks %}
       <tr>
         {% for d in week %}
-        <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %}"
+        <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %} {% if sel_day and d.date == sel_day %}sel-day{% endif %}"
             {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
-          <div class="d-num">{{ d.day }}</div>
+          {% if d.in_month %}
+          <a class="d-num daylink" href="?year={{ cal.year }}&month={{ cal.month }}&day={{ d.date|date:'Y-m-d' }}#tag">{{ d.day }}</a>
+          {% else %}<div class="d-num">{{ d.day }}</div>{% endif %}
           {% for b in d.bookings %}
             <div class="d-book person {% if b.mine %}mine{% endif %}"
                  style="background:{{ b.color }}"
@@ -75,7 +77,30 @@
     {% for h in cal.holidays %}{{ h.name }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
   </p>
   {% endif %}
+  <p class="muted" style="margin:.5rem 0 0">Tipp: Auf einen Tag klicken zeigt unten, wer da ist und was noch frei ist.</p>
 </div>
+
+{% if sel_day %}
+<div class="card" id="tag">
+  <h2 style="margin-top:0">{{ sel_day|date:"l, d.m.Y" }}</h2>
+  {% if detail.occupied %}
+  <h3>Wer ist da</h3>
+  <table>
+    <tr><th>Quartier</th><th>Wer</th><th>Personen</th></tr>
+    {% for o in detail.occupied %}
+    <tr><td>{{ o.quarter }}</td><td>{{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %}</td><td>{{ o.persons }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">An diesem Tag ist niemand eingebucht.</p>{% endif %}
+
+  <h3>Noch frei</h3>
+  {% if detail.free %}
+  <p>{% for q in detail.free %}<span class="tag">{{ q }}</span> {% endfor %}</p>
+  {% else %}<p class="muted">Keine freien Quartiere an diesem Tag.</p>{% endif %}
+
+  <p class="muted" style="margin-bottom:0"><a href="{% url 'book' %}?start={{ sel_day|date:'Y-m-d' }}">Im Buchen-Kalender öffnen →</a></p>
+</div>
+{% endif %}
 
 {% if member %}
 <p class="muted">
@@ -87,6 +112,9 @@
 {% endif %}
 
 <style>
+  .daylink { text-decoration:none; color:var(--muted); font-weight:600; }
+  .daylink:hover { color:var(--accent-deep); }
+  td.sel-day { outline:2px solid var(--accent-deep); outline-offset:-2px; }
   .d-book.person { color:#3c352f; }
   .d-book.person.mine { box-shadow: inset 0 0 0 2px var(--accent-deep); font-weight:600; }
   .who-legend { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin-top:.6rem;
