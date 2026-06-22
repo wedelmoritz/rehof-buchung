@@ -9,6 +9,7 @@ urlpatterns = [
         template_name="booking/offline.html"), name="offline"),
     path("", views.overview, name="overview"),
     path("buchen/", views.book, name="book"),
+    path("buchen/bestaetigen/", views.book_confirm, name="book_confirm"),
     path("wunschliste/", views.wishlist, name="wishlist"),
     path("meine-buchungen/", views.my_bookings, name="my_bookings"),
     path("tage-uebertragen/", views.transfer, name="transfer"),

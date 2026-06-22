@@ -41,6 +41,11 @@ def add_item(member, product: Product, quantity, service_date=None):
         return None, "Dieses Produkt ist nicht verfügbar."
     if product.needs_date and not service_date:
         return None, "Für diese Dienstleistung bitte ein Datum angeben."
+    if service_date and not product.available_on(service_date):
+        WT = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag",
+              "Samstag", "Sonntag"]
+        return None, (f"{product.name} ist am {WT[service_date.weekday()]} nicht "
+                      "möglich. Bitte einen anderen Termin wählen.")
     item = LineItem.objects.create(
         member=member, product=product, name=product.name, unit=product.unit,
         unit_price=product.price, vat_rate=product.vat_rate, quantity=qty,

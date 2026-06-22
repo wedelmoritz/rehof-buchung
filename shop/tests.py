@@ -78,6 +78,21 @@ class MengenRasterTests(ShopBase):
         self.assertIsNone(item)
         self.assertIn("ganzen Schritten", err)
 
+
+class WochentagSperreTests(ShopBase):
+    def test_dienstleistung_an_gesperrtem_wochentag_abgelehnt(self):
+        clean = Product.objects.create(
+            group=self.group, name="Endreinigung", price=Decimal("45.00"),
+            unit="portion", vat_rate=19, kind="dienstleistung",
+            needs_date=True, unavailable_weekdays="6")  # Sonntag gesperrt
+        sunday = date(2024, 1, 7)   # weekday() == 6
+        monday = date(2024, 1, 8)   # weekday() == 0
+        item, err = svc.add_item(self.alice, clean, "1", service_date=sunday)
+        self.assertIsNone(item)
+        self.assertIn("Sonntag", err)
+        item2, err2 = svc.add_item(self.alice, clean, "1", service_date=monday)
+        self.assertIsNotNone(item2, err2)
+
     def test_dienstleistung_braucht_datum(self):
         item, err = svc.add_item(self.alice, self.sauna, "1")
         self.assertIsNone(item)

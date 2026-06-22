@@ -81,6 +81,15 @@ class Product(models.Model):
     needs_date = models.BooleanField(
         "Termin nötig", default=False,
         help_text="z.B. Sauna: Mitglied gibt beim Kauf ein Datum an.")
+    book_with_stay = models.BooleanField(
+        "Beim Buchen einer Unterkunft anbieten", default=False,
+        help_text="z.B. Endreinigung: erscheint im Bestätigungsschritt der Buchung "
+                  "und kann gleich mitgebucht werden.")
+    unavailable_weekdays = models.CharField(
+        "Nicht möglich an Wochentagen", max_length=20, blank=True, default="",
+        help_text="Komma-getrennt 0=Mo … 6=So. An diesen Wochentagen (Abreisetag) "
+                  "ist die Dienstleistung nicht buchbar – z.B. Endreinigung am "
+                  "Wochenende.")
     sort_order = models.PositiveIntegerField("Sortierung", default=100)
     active = models.BooleanField("Aktiv", default=True)
 
@@ -91,6 +100,15 @@ class Product(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.price} € / {self.get_unit_display()})"
+
+    @property
+    def unavailable_weekday_set(self) -> set[int]:
+        return {int(x) for x in self.unavailable_weekdays.split(",")
+                if x.strip().isdigit()}
+
+    def available_on(self, day) -> bool:
+        """Ist die Dienstleistung am `day` (Wochentag) gewährleistbar?"""
+        return day.weekday() not in self.unavailable_weekday_set
 
     # Einheiten, die in Zehntel-Schritten zählbar sind (z.B. 0,1 kg). Alle
     # anderen (Stück, Liter, Bund, Glas, Portion) werden nur in ganzen Schritten

@@ -208,7 +208,7 @@ def find_gaps(
 @transaction.atomic
 def book_spontaneous(
     member: Member, quarter: Quarter, start: date, end: date,
-    persons: int = 1, source: str = "spontaneous",
+    persons: int = 1, source: str = "spontaneous", companions: str = "",
 ) -> tuple[Allocation | None, str | None]:
     """Bucht eine freie Lücke mit den verfügbaren Tagen. Gibt
     (Allocation, None) bei Erfolg zurück bzw. (None, Fehlermeldung) sonst.
@@ -248,7 +248,7 @@ def book_spontaneous(
         return None, rule_error
     alloc = Allocation.objects.create(
         member=member, quarter=quarter, start=start, end=end,
-        persons=persons, source=source,
+        persons=persons, source=source, companions=companions.strip()[:255],
     )
     return alloc, None
 
