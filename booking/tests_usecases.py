@@ -608,6 +608,17 @@ class TerminierteLosungTests(UseCaseBase):
         period.refresh_from_db()
         self.assertEqual(period.status, BookingPeriod.SUSPENDED)
 
+    def test_scheduler_once_laeuft_durch(self):
+        """Der Scheduler-Einzeldurchlauf (Cron) führt fällige Losungen aus und
+        ruft die Monatsrechnung – ohne zu crashen, auch ohne Daten."""
+        period = self._period(timezone.now() - timedelta(hours=1))
+        s = date(NEXT_YEAR, 5, 24)
+        svc.add_wish(self.alice, period, self.qa, s, s + timedelta(days=5))
+        svc.submit_wishlist(self.alice, period)
+        call_command("run_scheduler", once=True)
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_DONE)
+
     def test_buchbar_ab_oeffnet_freie_buchung(self):
         """Ist „buchbar ab“ erreicht (und die Losung gelaufen), steht die Periode
         auf „Freie Bebuchbarkeit“."""

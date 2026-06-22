@@ -165,6 +165,17 @@ class InvoiceTests(ShopBase):
         self.assertEqual(svc.open_items(self.alice).count(), 0)
         self.assertTrue(inv_a.number.startswith("HL-"))
 
+    def test_run_monthly_invoices_command_idempotent(self):
+        from django.core.management import call_command
+        svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
+        today = date.today()
+        call_command("run_monthly_invoices", year=today.year, month=today.month)
+        self.assertEqual(Invoice.objects.filter(member=self.alice).count(), 1)
+        # Zweiter Lauf erzeugt keine Doppel-Rechnung
+        call_command("run_monthly_invoices", year=today.year, month=today.month)
+        self.assertEqual(Invoice.objects.filter(member=self.alice).count(), 1)
+
     def test_status_offen_bezahlt_bestaetigt(self):
         svc.add_item(self.alice, self.apple, "2")
         svc.checkout(self.alice)
