@@ -197,8 +197,8 @@ if [ "$DO_START" = "1" ]; then
   echo "       $( [ -n \"$SUDO\" ] && echo sudo )docker compose exec web python manage.py createsuperuser"
   echo "  2) Domain in .env (ALLOWED_HOSTS / CSRF_TRUSTED_ORIGINS) eintragen, dann:"
   echo "       $( [ -n \"$SUDO\" ] && echo sudo )docker compose up -d"
-  echo "  3) Caddy auf dem Host konfigurieren (siehe caddy/Caddyfile.snippet)"
-  echo "       und neu laden:  $( [ -n \"$SUDO\" ] && echo sudo )systemctl reload caddy"
+  echo "  3) Caddy konfigurieren (siehe caddy/Caddyfile.snippet) und neu laden."
+  echo "       Caddy muss am selben Docker-Netz hängen wie 'web' (networks.caddy)."
 else
   echo
   info "Voraussetzungen geprüft und .env vorbereitet."
