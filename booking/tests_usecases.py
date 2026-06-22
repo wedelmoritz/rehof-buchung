@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from booking.models import (
@@ -247,6 +248,42 @@ class LosungPrioritaetTests(UseCaseBase):
             }
             self.assertEqual(allocs.get("alice"), "QA", f"seed={seed}")
             self.assertEqual(allocs.get("bob"), "QB", f"seed={seed}")
+
+
+class LosungTransparenzTests(UseCaseBase):
+    def test_benachrichtigung_zeigt_gewinn_verlust_und_karma(self):
+        """Zwei Mitglieder wollen dasselbe Einzelquartier im selben Zeitraum:
+        eine:r gewinnt, die:der andere verliert echt. Beide bekommen eine
+        Benachrichtigung; der Verlierer sieht den Karma-Anstieg, der Gewinner
+        seinen Gewinn."""
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+        s = date(NEXT_YEAR, 5, 24)
+        e = s + timedelta(days=5)
+        svc.add_wish(self.alice, period, self.qa, s, e)
+        svc.add_wish(self.bob, period, self.qa, s, e)
+        svc.submit_wishlist(self.alice, period)
+        svc.submit_wishlist(self.bob, period)
+
+        svc.run_period_lottery(period, seed=1)
+
+        url = reverse("period_result", args=[period.id])
+        notes = list(Notification.objects.filter(url=url))
+        self.assertEqual(len(notes), 2)  # beide Teilnehmer benachrichtigt
+
+        losers = [n for n in notes if "nicht erfüllbar" in n.detail]
+        winners = [n for n in notes if "Du hast bekommen" in n.detail]
+        self.assertEqual(len(losers), 1)
+        self.assertEqual(len(winners), 1)
+
+        loser_note = losers[0]
+        self.assertIn("Ausgleichsfaktor um +0.1", loser_note.detail)
+        loser = loser_note.member
+        loser.refresh_from_db()
+        self.assertGreater(loser.factor, 1.0)
 
 
 # --------------------------------------------------------------------------- #

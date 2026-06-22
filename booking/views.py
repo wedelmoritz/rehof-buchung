@@ -359,6 +359,12 @@ def wishlist(request):
     dm = period.start.month if period else None
     year, month = _month_from_request(request, today, dy, dm)
 
+    if request.method == "POST" and member and \
+            request.POST.get("action") == "read_notifications":
+        svc.mark_notifications_read(member)
+        return _redirect_month("wishlist", request.POST.get("year", year),
+                               request.POST.get("month", month))
+
     if request.method == "POST" and member and period:
         action = request.POST.get("action", "")
         p_year = request.POST.get("year", year)
@@ -462,6 +468,7 @@ def wishlist(request):
         "wishlist_submitted": wishlist_submitted,
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
+        "notifications": svc.unread_notifications(member),
     })
 
 
@@ -529,11 +536,21 @@ def transfer(request):
 @login_required
 def period_result(request, period_id: int):
     period = get_object_or_404(BookingPeriod, id=period_id)
+    member = _current_member(request)
     run = period.runs.first()
     allocations = (
         Allocation.objects.filter(period=period, source="lottery")
         .select_related("member", "quarter").order_by("start", "quarter__name")
     )
+    # Eigenes Ergebnis hervorheben; die ausführliche Auslosungs-Erklärung steht
+    # in der zugehörigen Benachrichtigung (Gewinne/Verluste/Karma).
+    my_allocations = [a for a in allocations if member and a.member_id == member.id]
+    my_note = None
+    if member:
+        my_note = member.notifications.filter(
+            url=reverse("period_result", args=[period.id])
+        ).order_by("-created_at").first()
     return render(request, "booking/result.html", {
         "period": period, "run": run, "allocations": allocations,
+        "member": member, "my_allocations": my_allocations, "my_note": my_note,
     })

@@ -10,6 +10,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from . import availability as A
@@ -85,7 +86,8 @@ def run_period_lottery(
             via_substitution=a.via_substitution, contested=a.contested,
         )
 
-    # Faktoren aktualisieren
+    # Faktoren aktualisieren (alte Werte für die Transparenz-Meldung merken)
+    old_factors = {str(m.id): m.factor for m in members}
     for m in members:
         new_f = result.new_factors.get(str(m.id))
         if new_f is not None and new_f != m.factor:
@@ -98,6 +100,12 @@ def run_period_lottery(
 
     party_names = {str(m.id): m.display_name for m in members}
     quarter_names = {str(q.id): q.name for q in quarters}
+
+    # Transparenz: jedem Teilnehmer (mit eingereichten Wünschen) eine
+    # Benachrichtigung mit Gewinnen, Verlusten und Karma-Änderung schicken.
+    _notify_lottery_results(
+        period, members, result, old_factors, quarter_names)
+
     log_text = L.render_log_text(result, party_names, quarter_names)
     summary = (
         f"{len(result.allocations)} Zuteilungen, "
@@ -106,6 +114,59 @@ def run_period_lottery(
     return LotteryRun.objects.create(
         period=period, seed=seed, log_text=log_text, summary=summary,
     )
+
+
+def _notify_lottery_results(period, members, result, old_factors, quarter_names):
+    """Schreibt jedem Teilnehmer (eingereichte Wünsche) eine Benachrichtigung mit
+    seinen Gewinnen, Verlusten und der Karma-Änderung – für Nachvollziehbarkeit."""
+    wins_by: dict[str, list] = defaultdict(list)
+    losses_by: dict[str, list] = defaultdict(list)
+    for a in result.allocations:
+        wins_by[a.party_id].append(a)
+    for w in result.losses:
+        losses_by[w.party_id].append(w)
+
+    participant_ids = {
+        str(mid) for mid in Wish.objects.filter(period=period, submitted=True)
+        .values_list("member_id", flat=True).distinct()
+    }
+    url = reverse("period_result", args=[period.id])
+    year = period.target_year
+
+    for m in members:
+        pid = str(m.id)
+        if pid not in participant_ids:
+            continue
+        wins = wins_by.get(pid, [])
+        losses = losses_by.get(pid, [])
+        old_f = old_factors.get(pid, m.factor)
+        new_f = result.new_factors.get(pid, old_f)
+
+        msg = (f"Auslosung {year}: {len(wins)} Wunsch/Wünsche bekommen, "
+               f"{len(losses)} leider nicht.")
+        lines: list[str] = []
+        if wins:
+            lines.append("Du hast bekommen:")
+            for a in wins:
+                qn = quarter_names.get(a.quarter_id, a.quarter_id)
+                sub = " (gleichwertiges Ausweichquartier)" if a.via_substitution else ""
+                lines.append(f"  ✓ {qn} {a.start:%d.%m.%Y}–{a.end:%d.%m.%Y}{sub}")
+        if losses:
+            lines.append("Es tut uns leid – diese Wünsche waren nicht erfüllbar:")
+            for w in losses:
+                qn = quarter_names.get(w.quarter_id, w.quarter_id)
+                lines.append(f"  ✗ {qn} {w.start:%d.%m.%Y}–{w.end:%d.%m.%Y}")
+        if new_f > old_f:
+            lines.append(
+                f"Als Ausgleich steigt dein Ausgleichsfaktor um "
+                f"+{round(new_f - old_f, 1)} auf {round(new_f, 1)} – damit hast du "
+                f"bei der nächsten Auslosung bessere Chancen auf einen vorderen Platz.")
+        elif new_f < old_f:
+            lines.append(
+                f"Dein Ausgleichsfaktor wurde nach dem Gewinn eines umkämpften "
+                f"Wunsches auf {round(new_f, 1)} zurückgesetzt.")
+        Notification.objects.create(
+            member=m, message=msg, detail="\n".join(lines), url=url)
 
 
 def quarter_is_free(quarter: Quarter, start: date, end: date) -> bool:

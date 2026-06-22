@@ -453,6 +453,7 @@ class Notification(models.Model):
         verbose_name="Mitglied",
     )
     message = models.CharField("Nachricht", max_length=255)
+    detail = models.TextField("Details", blank=True)
     url = models.CharField("Link", max_length=200, blank=True)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
     read = models.BooleanField("Gelesen", default=False)

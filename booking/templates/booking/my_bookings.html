@@ -7,21 +7,7 @@
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% else %}
 
-{% if notifications %}
-<div class="card notif">
-  <strong>Benachrichtigungen</strong>
-  <ul style="margin:.4rem 0 .6rem; padding-left:1.1rem">
-    {% for n in notifications %}
-    <li>{% if n.url %}<a href="{{ n.url }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
-      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span></li>
-    {% endfor %}
-  </ul>
-  <form method="post" class="inline">{% csrf_token %}
-    <input type="hidden" name="action" value="read_notifications">
-    <button class="btn small ghost" type="submit">Als gelesen markieren</button>
-  </form>
-</div>
-{% endif %}
+{% include "booking/_notifications.html" %}
 
 {% if incoming_swaps %}
 <div class="card" style="border-color:var(--sage)">
