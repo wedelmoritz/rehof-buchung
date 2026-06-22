@@ -40,6 +40,7 @@ services:
       DEMO_WIPE: ${DEMO_WIPE:-0}     # 1 = NUR ALLES löschen (Vorsicht!)
       SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      TZ: ${TZ:-Europe/Berlin}
       # Optional: nur wirksam, wenn gesetzt UND der redis-Dienst läuft
       # (docker compose --profile cache up -d).
       REDIS_URL: ${REDIS_URL:-}
@@ -63,6 +64,29 @@ services:
         ipv4_address: 10.42.42.20
       internal: {}
     # gunicorn bindet 0.0.0.0:8000 (siehe entrypoint.sh)
+
+  # Hintergrund-Scheduler (ersetzt klassischen Cron): führt regelmäßig fällige
+  # Losungen aus (run_due_lotteries) und erstellt am Monatsanfang die Hofladen-
+  # Rechnungen (run_monthly_invoices). Gleiches Image, eigener Container; wartet
+  # via depends_on, bis web (und damit die Migrationen) bereit ist. Überschreibt
+  # den Entrypoint, läuft also NICHT als Webserver.
+  cron:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      DEBUG: "0"
+      SECRET_KEY: ${SECRET_KEY}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: ${REDIS_URL:-}
+      TZ: ${TZ:-Europe/Berlin}
+      CRON_INTERVAL_SECONDS: ${CRON_INTERVAL_SECONDS:-900}   # alle 15 Min
+    entrypoint: ["python", "manage.py", "run_scheduler"]
+    networks:
+      - internal
 
   # Optionaler Cache/Session-Store. Standardmäßig AUS – erst mit
   # `docker compose --profile cache up -d` starten und REDIS_URL setzen
