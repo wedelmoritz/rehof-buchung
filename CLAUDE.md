@@ -110,10 +110,17 @@ Alle Admin-Bereiche tragen erklärende `description`-Texte.
 Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),
 Re:Hof-Logo/Icons (`booking/static/booking/icons/`), Service Worker (`/sw.js`,
 Template `booking/sw.js`, Root-Scope) mit network-first + Offline-Fallback
-(`/offline/`). Registrierung am Ende von `base.html`. **Navigation:** vertikale
-Leiste rechts (`.sidenav`), standardmäßig sichtbar, per ☰ (`#navToggle`)
-einklappbar – Zustand in `localStorage`; auf dem Smartphone als horizontale
-Scroll-Leiste oberhalb des Inhalts (Toggle ausgeblendet). Das Layout ist responsiv
+(`/offline/`). Registrierung am Ende von `base.html`. **Navigation:** Icons als
+einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
+**Desktop** vertikale Leiste rechts (`.sidenav`) mit Umschalter IN der Leiste
+(Kopf „Menü“ + Chevron `#navToggle`), die zur schmalen Icon-Leiste einklappt –
+Zustand in `localStorage`, schon im `<head>` gesetzt (kein FOUC). Auf dem
+**Smartphone** stattdessen eine feste **untere Tab-Leiste** (`.tabbar`,
+daumenfreundlich) mit 4 Hauptpunkten (Übersicht, Buchen, Meine Buchungen,
+Hofladen) + Knopf „Mehr“ (`#moreBtn`), der ein **Bottom-Sheet** (`.sheet` +
+`.sheet-backdrop`) mit den übrigen Punkten öffnet (Wunschliste, Tage übertragen,
+Rechnungen, Profil, Hilfe, Verwaltung). Die Navigation erscheint für Mitglieder
+UND für Verwaltungs-/Superuser (auch ohne Mitglieds-Profil). Das Layout ist responsiv
 (Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
 `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das Manifest liegt
