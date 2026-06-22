@@ -50,6 +50,34 @@ class PriceSnapshotTests(ShopBase):
         self.assertIsNone(item)
         self.assertIn("größer als 0", err)
 
+
+class MengenRasterTests(ShopBase):
+    def test_kg_in_zehntel_schritten_erlaubt(self):
+        item, err = svc.add_item(self.alice, self.apple, "0.1")
+        self.assertIsNotNone(item, err)
+        item, err = svc.add_item(self.alice, self.apple, "1.3")
+        self.assertIsNotNone(item, err)
+
+    def test_kg_kleiner_als_zehntel_abgelehnt(self):
+        item, err = svc.add_item(self.alice, self.apple, "0.15")
+        self.assertIsNone(item)
+        self.assertIn("0,1-Schritten", err)
+
+    def test_liter_nur_ganzzahlig(self):
+        item, err = svc.add_item(self.alice, self.juice, "2")
+        self.assertIsNotNone(item, err)
+        item, err = svc.add_item(self.alice, self.juice, "1.5")
+        self.assertIsNone(item)
+        self.assertIn("ganzen Schritten", err)
+
+    def test_stueck_nur_ganzzahlig(self):
+        piece = Product.objects.create(
+            group=self.group, name="Ei", price=Decimal("0.40"),
+            unit="stueck", vat_rate=7)
+        item, err = svc.add_item(self.alice, piece, "1.5")
+        self.assertIsNone(item)
+        self.assertIn("ganzen Schritten", err)
+
     def test_dienstleistung_braucht_datum(self):
         item, err = svc.add_item(self.alice, self.sauna, "1")
         self.assertIsNone(item)

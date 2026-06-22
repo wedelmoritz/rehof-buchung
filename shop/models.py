@@ -92,6 +92,16 @@ class Product(models.Model):
     def __str__(self) -> str:
         return f"{self.name} ({self.price} € / {self.get_unit_display()})"
 
+    # Einheiten, die in Zehntel-Schritten zählbar sind (z.B. 0,1 kg). Alle
+    # anderen (Stück, Liter, Bund, Glas, Portion) werden nur in ganzen Schritten
+    # gezählt.
+    FRACTIONAL_UNITS = {"kg"}
+
+    @property
+    def quantity_step(self) -> Decimal:
+        """Kleinste erlaubte Mengen-Schrittweite für dieses Produkt."""
+        return Decimal("0.1") if self.unit in self.FRACTIONAL_UNITS else Decimal("1")
+
 
 class LineItem(models.Model):
     """Eine Einkaufsposition eines Mitglieds. Preis/MwSt/Name werden als
