@@ -11,11 +11,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from .forms import ProfileForm, TransferForm, WishForm
+from .forms import ProfileForm, RegistrationForm, TransferForm, WishForm
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
 
@@ -475,6 +476,31 @@ def wishlist(request):
 # --------------------------------------------------------------------------- #
 # Tage übertragen
 # --------------------------------------------------------------------------- #
+
+def register(request):
+    """Selbstregistrierung. Legt nur ein Login-Konto an; das Buchungs-Profil
+    (Member) vergibt anschließend die Verwaltung. Bis dahin: Warte-Seite."""
+    if request.user.is_authenticated:
+        return redirect("overview")
+    if request.method == "POST":
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user,
+                  backend="booking.auth.EmailOrUsernameModelBackend")
+            return redirect("pending")
+    else:
+        form = RegistrationForm()
+    return render(request, "registration/register.html", {"form": form})
+
+
+@login_required
+def pending(request):
+    """Warte-Seite für noch nicht freigeschaltete Konten (kein Mitglieds-Profil)."""
+    if _current_member(request) or request.user.is_staff:
+        return redirect("overview")
+    return render(request, "registration/pending.html", {})
+
 
 @login_required
 def help_page(request):

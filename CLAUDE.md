@@ -187,8 +187,18 @@ python manage.py runserver
 
 Ohne `DATABASE_URL` nutzt `settings.py` SQLite (Dev/Test). In Produktion setzt
 `docker-compose.yml` `DATABASE_URL` auf PostgreSQL; TLS macht Caddy auf dem Host,
-der Web-Container bindet nur an `127.0.0.1`. Auth ist Standard-Django mit
-markierter OIDC/Keycloak-Naht in `settings.py`.
+der Web-Container bindet nur an `127.0.0.1`.
+
+**Auth & Zugang:** Login per **E-Mail oder Benutzername**
+(`booking/auth.py::EmailOrUsernameModelBackend`), Brute-Force-Schutz über
+**django-axes** (Sperre nach 5 Fehlversuchen je Benutzer+IP, 1 h; Settings im
+Axes-Block). Nutzer können sich **selbst registrieren** (`register` →
+`registration/register.html`); dabei entsteht NUR ein Login-Konto. Bis die
+Verwaltung ein **Mitglieds-Profil** (`Member`) zuordnet, sperrt
+`booking/middleware.py::ActivationGateMiddleware` alles und leitet auf die
+Warte-Seite `pending` um (Verwaltungs-/Superuser ausgenommen). Cookies/Sessions
+sind gehärtet (HttpOnly, SameSite=Lax, Secure in Prod). OIDC/Keycloak-Naht
+bleibt in `settings.py` markiert.
 
 ---
 

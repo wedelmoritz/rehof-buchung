@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "booking",
     "shop",
+    "axes",  # Brute-Force-Schutz für Anmeldungen
 ]
 
 MIDDLEWARE = [
@@ -47,6 +48,10 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Sperrt eingeloggte Nutzer ohne Mitglieds-Profil aus (Freischaltung nötig).
+    "booking.middleware.ActivationGateMiddleware",
+    # django-axes MUSS als letztes stehen (verarbeitet Login-Versuche).
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -91,12 +96,32 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # --- Authentifizierung -----------------------------------------------------
-# Für die PoC: klassischer Django-Login (E-Mail/Passwort, sauber gehasht).
-# NAHTSTELLE für später: Hier kann ein OIDC-Backend (z.B. Keycloak via
-# mozilla-django-oidc) ergänzt werden, ohne die übrige App zu ändern.
+# Klassischer Django-Login mit sauber gehashtem Passwort. Angemeldet wird mit
+# E-Mail ODER Benutzername (eigenes Backend). django-axes sperrt nach zu vielen
+# Fehlversuchen. NAHTSTELLE für später: Hier ließe sich ein OIDC-Backend (z.B.
+# Keycloak via mozilla-django-oidc) ergänzen, ohne die übrige App zu ändern.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",          # muss zuerst stehen
+    "booking.auth.EmailOrUsernameModelBackend",     # Login per E-Mail/Benutzername
+]
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "overview"
 LOGOUT_REDIRECT_URL = "login"
+
+# --- Brute-Force-Schutz (django-axes) --------------------------------------
+AXES_FAILURE_LIMIT = 5            # so viele Fehlversuche …
+AXES_COOLOFF_TIME = 1            # … dann 1 Stunde gesperrt
+AXES_RESET_ON_SUCCESS = True
+# Gesperrt wird die Kombination aus Benutzer UND IP – schützt das Zielkonto,
+# ohne dass ein Angreifer fremde Konten flächendeckend aussperren kann.
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+
+# --- Sitzungs-/Cookie-Härtung ----------------------------------------------
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SECURE_REFERRER_POLICY = "same-origin"
 
 # --- Lokalisierung ---------------------------------------------------------
 LANGUAGE_CODE = "de"
@@ -132,3 +157,6 @@ if not DEBUG:
     # öffentlichen Domain (statt der internen Container-Adresse).
     USE_X_FORWARDED_HOST = True
     X_FRAME_OPTIONS = "DENY"
+    # Hinter genau einem Proxy (Caddy): echte Client-IP aus X-Forwarded-For, damit
+    # django-axes nicht alle Anfragen unter der Proxy-IP zusammenfasst.
+    AXES_IPWARE_PROXY_COUNT = 1

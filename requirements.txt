@@ -3,6 +3,7 @@ psycopg[binary]>=3.1
 dj-database-url>=2.1
 gunicorn>=22.0
 whitenoise>=6.6
+django-axes>=8.0
 # Tests
 pytest>=8.0
 pytest-django>=4.8

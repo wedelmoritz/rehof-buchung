@@ -1,0 +1,14 @@
+{% extends "booking/base.html" %}
+{% block title %}Freischaltung ausstehend{% endblock %}
+{% block content %}
+<h1>Fast geschafft!</h1>
+<div class="card" style="max-width:520px">
+  <p>Danke für deine Registrierung. Dein Konto muss noch von der Verwaltung
+    <strong>freigeschaltet</strong> und deinem Anteil zugeordnet werden.</p>
+  <p class="muted">Sobald das erledigt ist, siehst du hier die Übersicht und kannst
+    Wünsche eintragen bzw. buchen. Bei Fragen wende dich an die Verwaltung.</p>
+  <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+    <button class="btn ghost" type="submit">Abmelden</button>
+  </form>
+</div>
+{% endblock %}
