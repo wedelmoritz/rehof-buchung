@@ -32,6 +32,19 @@ class Quarter(models.Model):
     )
     description = models.TextField("Beschreibung", blank=True)
     active = models.BooleanField("Aktiv", default=True)
+    accessible = models.BooleanField(
+        "Barrierearm/-frei", default=False,
+        help_text="Quartier ist barrierearm bzw. barrierefrei erreichbar.",
+    )
+    # Jährlich wiederkehrender Buchbarkeitszeitraum (ohne Jahr). Leer = ganzjährig.
+    season_start_month = models.PositiveSmallIntegerField(
+        "Buchbar ab (Monat)", null=True, blank=True)
+    season_start_day = models.PositiveSmallIntegerField(
+        "Buchbar ab (Tag)", null=True, blank=True)
+    season_end_month = models.PositiveSmallIntegerField(
+        "Buchbar bis einschl. (Monat)", null=True, blank=True)
+    season_end_day = models.PositiveSmallIntegerField(
+        "Buchbar bis einschl. (Tag)", null=True, blank=True)
 
     class Meta:
         verbose_name = "Quartier"
@@ -40,6 +53,24 @@ class Quarter(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def has_season(self) -> bool:
+        return bool(self.season_start_month and self.season_start_day
+                    and self.season_end_month and self.season_end_day)
+
+    def bookable_on(self, day) -> bool:
+        """Ist das Quartier am `day` grundsätzlich (saisonal) buchbar?
+        Ohne gesetzte Saison: ganzjährig. Die Saison gilt jedes Jahr;
+        läuft sie über den Jahreswechsel, wird das berücksichtigt."""
+        if not self.has_season:
+            return True
+        md = (day.month, day.day)
+        s = (self.season_start_month, self.season_start_day)
+        e = (self.season_end_month, self.season_end_day)
+        if s <= e:
+            return s <= md <= e
+        return md >= s or md <= e
 
 
 class Member(models.Model):
@@ -361,8 +392,10 @@ class SeasonRule(models.Model):
         related_name="season_rules", verbose_name="Regelwerk",
     )
     name = models.CharField("Bezeichnung", max_length=140)
-    start = models.DateField("Von")
-    end = models.DateField("Bis (exkl.)")
+    start_month = models.PositiveSmallIntegerField("Von (Monat)")
+    start_day = models.PositiveSmallIntegerField("Von (Tag)")
+    end_month = models.PositiveSmallIntegerField("Bis exkl. (Monat)")
+    end_day = models.PositiveSmallIntegerField("Bis exkl. (Tag)")
     min_nights = models.PositiveIntegerField(
         "Mindestnächte", null=True, blank=True,
         help_text="z.B. 7 für Juli/August. Leer = Standard.",
@@ -381,7 +414,7 @@ class SeasonRule(models.Model):
     class Meta:
         verbose_name = "Saison-Regel"
         verbose_name_plural = "Saison-Regeln"
-        ordering = ["start"]
+        ordering = ["start_month", "start_day"]
 
     def __str__(self) -> str:
         parts = []
@@ -392,26 +425,43 @@ class SeasonRule(models.Model):
         if self.max_stay_nights is not None:
             parts.append(f"Deckel {self.max_stay_nights} N")
         flag = "" if self.active else " [inaktiv]"
-        return f"{self.name} ({self.start}–{self.end}; {', '.join(parts)}){flag}"
+        return (f"{self.name} ({self.start_day}.{self.start_month}.–"
+                f"{self.end_day}.{self.end_month}.; {', '.join(parts)}){flag}")
 
 
 class SchoolHoliday(models.Model):
-    """Schulferien zur Anzeige im Kalender (z.B. Berlin). Rein informativ –
-    beeinflusst die Buchungsregeln nicht (die liegen in SeasonRule)."""
+    """Schulferien (z.B. Berlin) – jährlich wiederkehrend. Werden im Kalender
+    angezeigt UND können, wenn aktiv, in ihrem Zeitraum Buchungsregeln
+    durchsetzen (wie eine Saison-Regel). Leere Regelfelder = nur Anzeige."""
     policy = models.ForeignKey(
         BookingPolicy, on_delete=models.CASCADE, null=True, blank=True,
         related_name="school_holidays", verbose_name="Regelwerk",
     )
     name = models.CharField("Bezeichnung", max_length=140)
-    start = models.DateField("Von")
-    end = models.DateField("Bis (exkl.)")
+    start_month = models.PositiveSmallIntegerField("Von (Monat)")
+    start_day = models.PositiveSmallIntegerField("Von (Tag)")
+    end_month = models.PositiveSmallIntegerField("Bis exkl. (Monat)")
+    end_day = models.PositiveSmallIntegerField("Bis exkl. (Tag)")
     region = models.CharField("Region", max_length=40, default="Berlin")
+    min_nights = models.PositiveIntegerField(
+        "Mindestnächte", null=True, blank=True,
+        help_text="Leer = keine Mindestnächte-Regel in diesem Zeitraum.",
+    )
+    max_parallel_units = models.PositiveIntegerField(
+        "Max. gleichzeitige Wohneinheiten", null=True, blank=True,
+        help_text="Leer = unbegrenzt.",
+    )
+    max_stay_nights = models.PositiveIntegerField(
+        "Max. Nächte je Partei (Deckel)", null=True, blank=True,
+        help_text="Leer = kein Deckel.",
+    )
     active = models.BooleanField("Aktiv", default=True)
 
     class Meta:
         verbose_name = "Schulferien"
         verbose_name_plural = "Schulferien"
-        ordering = ["start"]
+        ordering = ["start_month", "start_day"]
 
     def __str__(self) -> str:
-        return f"{self.name} ({self.start}–{self.end}, {self.region})"
+        return (f"{self.name} ({self.start_day}.{self.start_month}.–"
+                f"{self.end_day}.{self.end_month}., {self.region})")

@@ -185,33 +185,62 @@ def book_spontaneous(
 # Saison-/Sonderregeln (Mindestnächte, Parallel-Limit, Aufenthaltsdeckel)
 # --------------------------------------------------------------------------- #
 
-def _seasons() -> list[R.Season]:
+def _materialized_seasons(span_start: date, span_end: date) -> list[R.Season]:
+    """Materialisiert die jährlich wiederkehrenden Regeln (Saison-Regeln und
+    aktive Schulferien mit Regelfeldern) zu konkreten Zeiträumen, die [span_start,
+    span_end) berühren. So bleibt die reine Logik in rules.py datumsbasiert."""
     out: list[R.Season] = []
-    for s in SeasonRule.objects.filter(active=True):
-        out.append(R.Season(
-            name=s.name, start=s.start, end=s.end,
-            min_nights=s.min_nights,
-            max_parallel_units=s.max_parallel_units,
-            max_stay_nights=s.max_stay_nights,
-            active=True,
-        ))
+    years = range(span_start.year - 1, span_end.year + 1)
+
+    def add(name, sm, sd, em, ed, mn, mp, ms):
+        for y in years:
+            s, e = A.recurring_range(sm, sd, em, ed, y)
+            if s < span_end and e > span_start:
+                out.append(R.Season(
+                    name=name, start=s, end=e, min_nights=mn,
+                    max_parallel_units=mp, max_stay_nights=ms, active=True,
+                ))
+
+    for r in SeasonRule.objects.filter(active=True):
+        add(r.name, r.start_month, r.start_day, r.end_month, r.end_day,
+            r.min_nights, r.max_parallel_units, r.max_stay_nights)
+    for h in SchoolHoliday.objects.filter(active=True):
+        # Nur Schulferien mit mindestens einer gesetzten Regel wirken sich aus.
+        if h.min_nights is None and h.max_parallel_units is None \
+                and h.max_stay_nights is None:
+            continue
+        add(h.name, h.start_month, h.start_day, h.end_month, h.end_day,
+            h.min_nights, h.max_parallel_units, h.max_stay_nights)
     return out
 
 
 def check_booking_rules(
     member: Member, start: date, end: date,
 ) -> str | None:
-    """Prüft eine geplante Buchung gegen die globalen + saisonalen Regeln.
-    Gibt einen Fehlertext zurück oder None, wenn alles passt."""
+    """Prüft eine geplante Buchung gegen die globalen + saisonalen Regeln
+    (inkl. regelsetzender Schulferien). Gibt einen Fehlertext zurück oder None."""
     policy = BookingPolicy.get_solo()
-    # Alle bestehenden Buchungen des Mitglieds (Jahresgrenzen-sicher: die reine
-    # Prüflogik zählt ohnehin nur die Überlappungen mit den jeweiligen Saisons).
     existing = [
         R.Stay(start=a.start, end=a.end) for a in member.allocations.all()
     ]
     return R.validate_booking(
-        _seasons(), policy.default_min_nights, start, end, existing,
+        _materialized_seasons(start, end), policy.default_min_nights,
+        start, end, existing,
     )
+
+
+def schedule_blocker(
+    member: Member, quarter: Quarter, start: date, end: date,
+) -> str | None:
+    """Grund, warum der Zeitraum (Termin/Regeln/Budget) NICHT buchbar ist –
+    ohne Personenzahl- und Belegungsprüfung. Für die Vorab-Anzeige im Kalender."""
+    nights = (end - start).days
+    if nights <= 0:
+        return "Ungültiger Zeitraum."
+    remaining = member.nights_remaining_in_year(start.year)
+    if remaining < nights:
+        return f"Nicht genügend Tage ({remaining} übrig, {nights} benötigt)."
+    return check_booking_rules(member, start, end)
 
 
 # --------------------------------------------------------------------------- #
@@ -235,9 +264,23 @@ def _active_windows() -> list[A.Window]:
     return out
 
 
+def _in_season_range(quarter: Quarter, start: date, end: date) -> bool:
+    """Ist das Quartier über den ganzen Zeitraum saisonal buchbar?"""
+    d = start
+    while d < end:
+        if not quarter.bookable_on(d):
+            return False
+        d += timedelta(days=1)
+    return True
+
+
 def range_is_released(quarter: Quarter, start: date, end: date) -> bool:
-    """Ist der Zeitraum [start, end) für das Quartier freigeschaltet?"""
-    return A.range_released(_active_windows(), str(quarter.id), start, end)
+    """Ist der Zeitraum [start, end) für das Quartier freigeschaltet UND liegt er
+    im (jährlichen) Buchbarkeitszeitraum des Quartiers?"""
+    return (
+        A.range_released(_active_windows(), str(quarter.id), start, end)
+        and _in_season_range(quarter, start, end)
+    )
 
 
 def find_bookable_gaps(
@@ -271,6 +314,8 @@ def split_quarters_for_range(
         return free, occupied
     for q in Quarter.objects.filter(active=True).order_by("name"):
         if not A.range_released(windows, str(q.id), start, end):
+            continue
+        if not _in_season_range(q, start, end):
             continue
         (free if quarter_is_free(q, start, end) else occupied).append(q)
     return free, occupied
@@ -308,7 +353,8 @@ def build_booking_calendar(
 
     windows = _active_windows()
     quarters = list(Quarter.objects.filter(active=True))
-    qids = [str(q.id) for q in quarters]
+    qmap = {str(q.id): q for q in quarters}
+    qids = list(qmap)
     occupied = _occupied_days_by_quarter(first, last)
     hols = school_holidays_in_range(first, last + timedelta(days=1))
     own_days: set[date] = set()
@@ -325,7 +371,10 @@ def build_booking_calendar(
     for week in weeks:
         row = []
         for d in week:
-            released = [qid for qid in qids if A.is_released(windows, qid, d)]
+            released = [
+                qid for qid in qids
+                if A.is_released(windows, qid, d) and qmap[qid].bookable_on(d)
+            ]
             total = len(released)
             free = sum(1 for qid in released if d not in occupied[qid])
             if total == 0:
@@ -481,11 +530,27 @@ def transfer_nights(
 # Schulferien (Anzeige) & Mitglieder-Kalender
 # --------------------------------------------------------------------------- #
 
-def school_holidays_in_range(start: date, end: date) -> list[SchoolHoliday]:
-    return list(
-        SchoolHoliday.objects.filter(active=True, start__lt=end, end__gt=start)
-        .order_by("start")
-    )
+class _Holiday:
+    """Materialisierte (konkrete) Schulferien-Instanz für die Kalender-Anzeige."""
+    __slots__ = ("name", "start", "end", "region")
+
+    def __init__(self, name, start, end, region):
+        self.name, self.start, self.end, self.region = name, start, end, region
+
+
+def school_holidays_in_range(start: date, end: date) -> list:
+    """Materialisiert die jährlich wiederkehrenden Schulferien zu konkreten
+    Zeiträumen, die [start, end) berühren (für die Kalender-Anzeige)."""
+    out: list[_Holiday] = []
+    years = range(start.year - 1, end.year + 1)
+    for h in SchoolHoliday.objects.filter(active=True):
+        for y in years:
+            s, e = A.recurring_range(h.start_month, h.start_day,
+                                     h.end_month, h.end_day, y)
+            if s < end and e > start:
+                out.append(_Holiday(h.name, s, e, h.region))
+    out.sort(key=lambda x: x.start)
+    return out
 
 
 GERMAN_MONTHS = [
@@ -569,6 +634,8 @@ def build_community_calendar(member, year, month) -> dict:
                 {
                     "quarter": a.quarter.name,
                     "who": a.member.display_name,
+                    "persons": a.persons,
+                    "member_id": a.member_id,
                     "mine": a.member_id == own_id,
                 }
                 for a in allocs if a.start <= d < a.end

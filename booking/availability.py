@@ -108,6 +108,20 @@ def released_gaps(
 # 2) Verfügbare Tage (ohne Übertrag ins Folgejahr, mit Übertrag an Mitglieder)
 # --------------------------------------------------------------------------- #
 
+def recurring_range(
+    start_month: int, start_day: int, end_month: int, end_day: int, year: int,
+) -> tuple[date, date]:
+    """Konkrete [start, end) eines jährlich wiederkehrenden Zeitraums im `year`
+    (Ende exklusiv). Liegt das Ende (Monat/Tag) am oder vor dem Start, läuft der
+    Zeitraum über den Jahreswechsel ins Folgejahr (z.B. Weihnachten/Silvester)."""
+    start = date(year, start_month, start_day)
+    if (end_month, end_day) <= (start_month, start_day):
+        end = date(year + 1, end_month, end_day)
+    else:
+        end = date(year, end_month, end_day)
+    return start, end
+
+
 def remaining_nights(
     annual_budget: int, used: int, received: int = 0, given: int = 0
 ) -> int:
