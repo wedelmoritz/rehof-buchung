@@ -41,6 +41,15 @@ services:
       SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       TZ: ${TZ:-Europe/Berlin}
+      # E-Mail (leer = Konsole/Log). Für echten Versand in der .env ausfüllen.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Re:Hof <noreply@localhost>}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
       # Optional: nur wirksam, wenn gesetzt UND der redis-Dienst läuft
       # (docker compose --profile cache up -d).
       REDIS_URL: ${REDIS_URL:-}
@@ -84,6 +93,15 @@ services:
       REDIS_URL: ${REDIS_URL:-}
       TZ: ${TZ:-Europe/Berlin}
       CRON_INTERVAL_SECONDS: ${CRON_INTERVAL_SECONDS:-900}   # alle 15 Min
+      # E-Mail-Versand läuft im Scheduler (send_outbox) – dieselben Variablen.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Re:Hof <noreply@localhost>}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
     entrypoint: ["python", "manage.py", "run_scheduler"]
     networks:
       - internal

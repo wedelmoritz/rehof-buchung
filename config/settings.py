@@ -136,6 +136,26 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
 
+# --- E-Mail (provider-neutral über die Umgebung) ---------------------------
+# Ohne EMAIL_HOST landet alles im Container-Log (Konsole) – so läuft
+# Entwicklung/Tests ohne Zugangsdaten. In Produktion EMAIL_* in der .env setzen.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", "Re:Hof <noreply@localhost>")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Öffentliche Basis-URL für Links in E-Mails (z.B. https://rehof.example.de).
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+    EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+    EMAIL_TIMEOUT = 20
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 # --- Optionales Redis (Cache + Sessions + Axes-Lockout) --------------------
 # Standardmäßig AUS (DB-Sessions, lokaler Cache). Wird REDIS_URL gesetzt UND der
 # redis-Dienst gestartet (docker compose --profile cache), entlastet das die DB

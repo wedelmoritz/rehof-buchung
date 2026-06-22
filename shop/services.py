@@ -177,6 +177,15 @@ def _invoice_items(member, items, year: int, month: int) -> Invoice | None:
         tax_number=cfg.tax_number, iban=cfg.iban, bic=cfg.bic,
     )
     LineItem.objects.filter(id__in=[i.id for i in items]).update(invoice=inv)
+    # Benachrichtigung per E-Mail (Outbox). Lazy-Import vermeidet Zirkularität.
+    from booking.services import email_member, absolute_url
+    url = absolute_url(f"/hofladen/rechnung/{inv.id}/")
+    email_member(
+        member, f"Neue Rechnung {inv.number}",
+        f"Hallo {member.display_name},\n\ndeine Hofladen-Rechnung {inv.number} "
+        f"über {inv.total_gross} € ist da.\n\n{url}\n\n"
+        f"Bitte mit der Rechnungsnummer als Verwendungszweck überweisen.\n\n"
+        f"Viele Grüße\nRe:Hof")
     return inv
 
 
