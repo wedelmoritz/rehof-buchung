@@ -11,8 +11,8 @@ from django.urls import reverse
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
     LotteryRun, Member, Membership, NightTransfer, Notification, Quarter,
-    SchoolHoliday, SeasonRule, SwapRequest, UpcomingAllocation, WaitlistEntry,
-    Wish,
+    SchoolHoliday, SeasonRule, Share, SwapRequest, UpcomingAllocation,
+    WaitlistEntry, Wish,
 )
 from .services import run_period_lottery
 
@@ -48,41 +48,56 @@ class QuarterAdmin(admin.ModelAdmin):
     )
 
 
+class MemberShareInline(admin.TabularInline):
+    """Anteile, denen dieser Nutzer angehört (für die Sicht vom Nutzer aus)."""
+    model = Share
+    extra = 0
+    autocomplete_fields = ("membership",)
+    fields = ("membership", "night_budget", "wish_night_budget")
+    verbose_name = "Mitglieds-Anteil dieses Nutzers"
+    verbose_name_plural = "Mitglieds-Anteile dieses Nutzers (Budget = Summe)"
+
+
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ("display_name", "user", "membership", "factor",
-                    "annual_night_budget", "wish_night_budget", "is_external")
-    list_filter = ("is_external", "membership")
-    search_fields = ("display_name", "user__username", "user__email",
-                     "membership__eg_number")
+    list_display = ("display_name", "user", "factor", "annual_night_budget",
+                    "wish_night_budget", "is_external")
+    list_filter = ("is_external",)
+    search_fields = ("display_name", "user__username", "user__email")
     list_editable = ("factor",)
-    list_select_related = ("user", "membership")
+    list_select_related = ("user",)
+    inlines = [MemberShareInline]
 
 
-class MemberInline(admin.TabularInline):
+class ShareInline(admin.TabularInline):
     """Die einem Anteil zugeordneten Nutzer mit ihrem festen Tage-Anteil.
     Voll-Mitglied = ein Nutzer (voller Anteil); Tandem = mehrere Nutzer, deren
-    Tage-Anteile zusammen das Gesamtbudget ergeben."""
-    model = Member
-    extra = 0
-    fields = ("user", "display_name", "annual_night_budget", "wish_night_budget",
-              "factor", "is_external")
-    autocomplete_fields = ("user",)
+    Tage-Anteile zusammen das Gesamtbudget ergeben. Leer gelassene Anteile (0)
+    werden beim Speichern gleichmäßig (abgerundet) vorgeschlagen."""
+    model = Share
+    extra = 1
+    autocomplete_fields = ("member",)
+    fields = ("member", "night_budget", "wish_night_budget")
     verbose_name = "Nutzer (Tage-Anteil)"
     verbose_name_plural = "Zugeordnete Nutzer (je fester Tage-Anteil)"
 
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "eg_number", "annual_night_budget",
-                    "allocated_display", "is_tandem", "created_on")
-    search_fields = ("eg_number", "label", "members__display_name")
-    inlines = [MemberInline]
+    list_display = ("__str__", "eg_number", "kind", "annual_night_budget",
+                    "allocated_display", "is_tandem_display", "created_on")
+    list_filter = ("kind",)
+    search_fields = ("eg_number", "label", "shares__member__display_name")
+    inlines = [ShareInline]
     fieldsets = (
         (None, {
-            "fields": ("eg_number", "label", "annual_night_budget", "created_on"),
-            "description": "Bei Anlage mitten im Jahr ist das Gesamtbudget bereits "
-                           "anteilig vorgeschlagen (Rest des Kalenderjahres).",
+            "fields": ("eg_number", "label", "kind", "annual_night_budget",
+                       "wish_night_budget", "created_on"),
+            "description": "Ein „Mitglied“ = ein Anteil mit eG-Nummer. Voll- oder "
+                           "Teil-Mitglied (Tandem) über die Art wählen; Nutzer unten "
+                           "zuordnen. Bei Anlage mitten im Jahr ist das Gesamtbudget "
+                           "bereits anteilig vorgeschlagen. Leere Tage-Anteile (0) "
+                           "werden beim Speichern gleichmäßig abgerundet aufgeteilt.",
         }),
     )
 
@@ -91,12 +106,29 @@ class MembershipAdmin(admin.ModelAdmin):
         return f"{obj.allocated_budget}/{obj.annual_night_budget}"
 
     @admin.display(boolean=True, description="Tandem")
-    def is_tandem(self, obj):
+    def is_tandem_display(self, obj):
         return obj.is_tandem
 
     def get_changeform_initial_data(self, request):
-        # Beim Anlegen das anteilige Tagebudget vorschlagen.
         return {"annual_night_budget": Membership.suggest_budget()}
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        # Vorschlag: noch nicht gesetzte Tage-Anteile (0) gleichmäßig abrunden.
+        obj = form.instance
+        shares = list(obj.shares.all())
+        if not shares:
+            return
+        per = obj.annual_night_budget // len(shares)
+        per_wish = obj.wish_night_budget // len(shares)
+        for s in shares:
+            changed = False
+            if s.night_budget == 0:
+                s.night_budget, changed = per, True
+            if s.wish_night_budget == 0:
+                s.wish_night_budget, changed = per_wish, True
+            if changed:
+                s.save()
 
 
 class WishInline(admin.TabularInline):
