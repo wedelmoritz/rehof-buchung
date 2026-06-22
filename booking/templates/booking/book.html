@@ -7,6 +7,24 @@
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% else %}
 
+{% if notifications %}
+<div class="card notif">
+  <strong>Benachrichtigungen</strong>
+  <ul>
+    {% for n in notifications %}
+    <li>{% if n.url %}<a href="{{ n.url }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
+      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span></li>
+    {% endfor %}
+  </ul>
+  <form method="post" class="inline">{% csrf_token %}
+    <input type="hidden" name="action" value="read_notifications">
+    <input type="hidden" name="year" value="{{ cal.year }}">
+    <input type="hidden" name="month" value="{{ cal.month }}">
+    <button class="btn small ghost" type="submit">Als gelesen markieren</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="card">
   <div class="stat-row">
     <div class="stat"><div class="num">{{ nights_remaining }}</div>
@@ -26,7 +44,7 @@
     <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}">Heute</a>
   </div>
 
-  <table class="cal">
+  <table class="cal book-cal">
     <thead><tr>
       <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
     </tr></thead>
@@ -34,12 +52,16 @@
       {% for week in cal.weeks %}
       <tr>
         {% for d in week %}
-        <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %}"
+        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %}"
             {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
-          <div class="d-num">{{ d.day }}</div>
-          {% for a in d.allocations %}
-            <div class="d-book mine" title="{{ a.quarter.name }} ({{ a.get_source_display }})">{{ a.quarter.name }}</div>
-          {% endfor %}
+          {% if d.in_month and not d.is_past and d.level != 'none' %}
+            <a class="dlink" href="{% if sel_start and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}">
+              <span class="d-num">{{ d.day }}{% if d.mine %} <span class="mine-dot" title="eigene Buchung">●</span>{% endif %}</span>
+              <span class="free-badge">{{ d.free }}/{{ d.total }}</span>
+            </a>
+          {% else %}
+            <span class="d-num">{{ d.day }}{% if d.mine %} <span class="mine-dot">●</span>{% endif %}</span>
+          {% endif %}
         </td>
         {% endfor %}
       </tr>
@@ -48,51 +70,86 @@
   </table>
 
   <div class="legend">
-    <span><i class="sw today"></i> heute</span>
-    <span><i class="sw holiday"></i> Berliner Ferien</span>
-    <span><i class="sw mine"></i> eigene Buchung</span>
+    <span><i class="sw lvl-free"></i> alles frei</span>
+    <span><i class="sw lvl-many"></i> viele frei</span>
+    <span><i class="sw lvl-few"></i> wenige frei</span>
+    <span><i class="sw lvl-full"></i> nichts frei</span>
+    <span><i class="sw lvl-none"></i> nicht freigeschaltet</span>
+    <span><span class="mine-dot">●</span> eigene Buchung</span>
   </div>
   {% if cal.holidays %}
-  <p class="muted" style="margin:.4rem 0 0">
-    Ferien in diesem Monat:
+  <p class="muted" style="margin:.4rem 0 0">Ferien:
     {% for h in cal.holidays %}{{ h.name }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
   </p>
   {% endif %}
 </div>
 
+{% if sel_start %}
 <div class="card">
-  <h2>Tage buchen</h2>
-  {% if released_windows %}
-  <p class="muted" style="margin-top:0">Freigeschaltet:
-    {% for w in released_windows %}{{ w.start }}&ndash;{{ w.end }}{% if not w.applies_to_all %} (Teilmenge){% endif %}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
-  </p>
-  {% else %}
-  <div class="msg warning">Zurzeit ist kein Buchungszeitraum freigeschaltet.</div>
-  {% endif %}
-  <form method="post">{% csrf_token %}
+  <div style="display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap">
+    <h2 style="margin:0">Auswahl</h2>
+    <span>Anreise <strong>{{ eff_start }}</strong>
+      {% if sel_end %}&ndash; Abreise <strong>{{ eff_end }}</strong> ({{ nights_selected }} Nächte){% else %}
+      &ndash; <span class="muted">jetzt den Abreisetag (Check-out) im Kalender wählen, oder direkt 1 Nacht buchen</span>{% endif %}</span>
+    <a class="muted" style="margin-left:auto" href="{% url 'book' %}?year={{ cal.year }}&month={{ cal.month }}">Auswahl zurücksetzen</a>
+  </div>
+
+  {% if free_quarters %}
+  <h3>Frei &amp; buchbar</h3>
+  {% for q in free_quarters %}
+  <form class="qrow" method="post">{% csrf_token %}
     <input type="hidden" name="action" value="book">
-    <input type="hidden" name="year" value="{{ cal.year }}">
-    <input type="hidden" name="month" value="{{ cal.month }}">
-    <div class="form-row">
-      {% for f in booking_form %}
-        <div class="field">{{ f.label_tag }} {{ f }}</div>
-      {% endfor %}
-    </div>
-    <button class="btn" type="submit" style="margin-top:.6rem">Buchen</button>
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    <input type="hidden" name="quarter" value="{{ q.id }}">
+    <input type="hidden" name="start" value="{{ eff_start|date:'Y-m-d' }}">
+    <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
+    <span class="qname">{{ q.name }}</span>
+    <span class="muted qmeta">{{ q.size_sqm }} m² · {{ q.min_occupancy }}–{{ q.max_occupancy }} Pers.</span>
+    <label class="pers">Personen
+      <input type="number" name="persons" value="{{ q.min_occupancy }}" min="{{ q.min_occupancy }}" max="{{ q.max_occupancy }}"></label>
+    <button class="btn small" type="submit">Buchen</button>
   </form>
+  {% endfor %}
+  {% else %}
+  <p class="muted">Für diesen Zeitraum ist aktuell kein Quartier frei.</p>
+  {% endif %}
+
+  {% if occ_quarters %}
+  <h3>Belegt &ndash; auf die Warteliste</h3>
+  <p class="muted" style="margin-top:0">Du wirst benachrichtigt, sobald der Zeitraum frei wird.</p>
+  {% for q in occ_quarters %}
+  <form class="qrow" method="post">{% csrf_token %}
+    <input type="hidden" name="action" value="waitlist">
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    <input type="hidden" name="quarter" value="{{ q.id }}">
+    <input type="hidden" name="start" value="{{ eff_start|date:'Y-m-d' }}">
+    <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
+    <span class="qname">{{ q.name }}</span>
+    <span class="muted qmeta">{{ q.size_sqm }} m² · belegt</span>
+    <label class="pers">Personen
+      <input type="number" name="persons" value="{{ q.min_occupancy }}" min="{{ q.min_occupancy }}" max="{{ q.max_occupancy }}"></label>
+    <button class="btn small ghost" type="submit">Auf Warteliste</button>
+  </form>
+  {% endfor %}
+  {% endif %}
 </div>
+{% else %}
+<div class="msg info">Klicke einen Tag im Kalender, um die freien Quartiere zu sehen. Grün = frei, Rot = belegt.</div>
+{% endif %}
 
 <div class="card">
   <h2>Meine Buchungen</h2>
   {% if upcoming %}
   <table>
-    <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Quelle</th><th></th></tr>
+    <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Pers.</th><th>Quelle</th><th></th></tr>
     {% for a in upcoming %}
     <tr>
       <td>{{ a.quarter.name }}
         {% if a.via_substitution %}<span class="tag sub">Ausweich</span>{% endif %}
-        {% if a.contested %}<span class="tag con">umk&auml;mpft</span>{% endif %}</td>
-      <td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td>
+        {% if a.contested %}<span class="tag con">umk&auml;mpft</span>{% endif %}
+        {% if a.waiters %}<span class="tag mine" title="{% for w in a.waiters %}{{ w.member.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}">{{ a.waiters|length }} wartet</span>{% endif %}
+      </td>
+      <td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td><td>{{ a.persons }}</td>
       <td>{{ a.get_source_display }}</td>
       <td>
         <form method="post" onsubmit="return confirm('Diese Buchung wirklich stornieren?');">{% csrf_token %}
@@ -113,11 +170,44 @@
     <summary class="muted">Vergangene Buchungen ({{ past|length }})</summary>
     <table style="margin-top:.5rem">
       {% for a in past %}
-      <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }} N</td></tr>
+      <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }} N</td><td>{{ a.persons }} P</td></tr>
       {% endfor %}
     </table>
   </details>
   {% endif %}
 </div>
 {% endif %}
+
+<style>
+  .notif ul { margin:.4rem 0 .6rem; padding-left:1.1rem; }
+  .notif li { margin:.15rem 0; }
+  table.book-cal td { padding:0; }
+  table.book-cal td.out { background:#f6f0e6; }
+  td.lvl-free { background:#d9efce; }
+  td.lvl-many { background:#e8f3dc; }
+  td.lvl-few  { background:#f9efc9; }
+  td.lvl-full { background:#f6ddd6; }
+  td.lvl-none { background:transparent; }
+  td.out.lvl-free, td.out.lvl-many, td.out.lvl-few, td.out.lvl-full { opacity:.45; }
+  table.book-cal td.today { outline:2px solid var(--accent); outline-offset:-2px; }
+  td.in-range { box-shadow: inset 0 0 0 2px var(--sage); }
+  td.is-start { box-shadow: inset 0 0 0 2px var(--accent-deep); }
+  .dlink { display:flex; flex-direction:column; justify-content:space-between;
+    height:100%; min-height:72px; padding:3px 5px; text-decoration:none; color:var(--ink); }
+  .dlink:hover { background:rgba(255,255,255,.35); }
+  .book-cal .d-num { font-size:.8rem; color:var(--ink); }
+  td.out .d-num { color:#bdb4a4; }
+  .mine-dot { color:var(--sage); font-size:.7rem; }
+  .free-badge { font-size:.66rem; color:#5b5347; align-self:flex-end;
+    background:rgba(255,255,255,.6); border-radius:5px; padding:0 4px; }
+  .legend .sw.lvl-free{background:#d9efce}.legend .sw.lvl-many{background:#e8f3dc}
+  .legend .sw.lvl-few{background:#f9efc9}.legend .sw.lvl-full{background:#f6ddd6}
+  .legend .sw.lvl-none{background:#efe7da;border:1px solid var(--line)}
+  .qrow { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.45rem; }
+  .qrow .qname { font-weight:600; }
+  .qrow .qmeta { font-size:.85rem; }
+  .qrow .pers { font-size:.8rem; color:var(--muted); display:flex; align-items:center; gap:.35rem; margin-left:auto; }
+  .qrow .pers input { min-width:4.5rem; width:4.5rem; }
+</style>
 {% endblock %}

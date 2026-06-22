@@ -16,7 +16,7 @@ from django.test import TestCase
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    Member, Quarter, SeasonRule, Wish,
+    Member, Notification, Quarter, SeasonRule, WaitlistEntry, Wish,
 )
 from booking import services as svc
 
@@ -323,3 +323,85 @@ class KarmaPersistenzTests(UseCaseBase):
             self.assertLessEqual(m.factor, 1.5)
         # Mindestens ein Verlierer hat nun einen Faktor > 1.1 (Karma akkumuliert)
         self.assertTrue(any(m.factor > 1.1 + 1e-9 for m in members))
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case 8: Klick-Buchung – Personenzahl, Ampel-Kalender, Warteliste
+# --------------------------------------------------------------------------- #
+
+class BuchungsFlowTests(UseCaseBase):
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+
+    def test_personenzahl_wird_geprueft_und_gespeichert(self):
+        s = date(NEXT_YEAR, 4, 1)
+        e = s + timedelta(days=3)
+        # k1 ist für 1–4 Personen ausgelegt -> 10 Personen werden abgelehnt
+        a, err = svc.book_spontaneous(self.alice, self.k1, s, e, persons=10)
+        self.assertIsNone(a)
+        self.assertIn("Personen", err)
+        # gültige Personenzahl wird übernommen
+        a, err = svc.book_spontaneous(self.alice, self.k1, s, e, persons=3)
+        self.assertIsNotNone(a, err)
+        self.assertEqual(a.persons, 3)
+
+    def test_warteliste_nur_bei_belegtem_quartier(self):
+        s = date(NEXT_YEAR, 4, 10)
+        e = s + timedelta(days=3)
+        # frei -> Warteliste nicht nötig
+        entry, err = svc.add_waitlist_entry(self.bob, self.k1, s, e, persons=2)
+        self.assertIsNone(entry)
+        self.assertIn("frei", err)
+
+    def test_warteliste_benachrichtigt_bei_storno(self):
+        s = date(NEXT_YEAR, 5, 5)
+        e = s + timedelta(days=4)
+        a, err = svc.book_spontaneous(self.alice, self.k1, s, e, persons=2)
+        self.assertIsNotNone(a, err)
+        # Bob möchte denselben (belegten) Zeitraum -> Warteliste
+        entry, err = svc.add_waitlist_entry(self.bob, self.k1, s, e, persons=2)
+        self.assertIsNotNone(entry, err)
+        # Die Buchenden (Alice) sehen, dass jemand wartet
+        waiters = svc.waiters_for_allocation(a)
+        self.assertEqual([w.member for w in waiters], [self.bob])
+        # Alice storniert -> Bob wird benachrichtigt, Eintrag erledigt
+        ok, err = svc.cancel_allocation(self.alice, a.id)
+        self.assertTrue(ok, err)
+        entry.refresh_from_db()
+        self.assertTrue(entry.fulfilled)
+        self.assertEqual(
+            Notification.objects.filter(member=self.bob, read=False).count(), 1)
+        # … und Bob kann nun buchen
+        b, err = svc.book_spontaneous(self.bob, self.k1, s, e, persons=2)
+        self.assertIsNotNone(b, err)
+
+    def test_ampel_kalender_zeigt_belegung(self):
+        quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
+        d = date(NEXT_YEAR, 6, 15)
+
+        def level_for(day):
+            cal = svc.build_booking_calendar(self.alice, day.year, day.month)
+            for week in cal["weeks"]:
+                for cell in week:
+                    if cell["date"] == day:
+                        return cell
+            return None
+
+        # Anfangs ist alles frei -> grün ("free"), free == total
+        cell = level_for(d)
+        self.assertEqual(cell["level"], "free")
+        self.assertEqual(cell["free"], len(quarters))
+
+        # Ein Quartier belegt (3 Nächte = Standard-Mindestbuchung) -> "many"
+        a1, e1 = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        self.assertIsNotNone(a1, e1)
+        self.assertEqual(level_for(d)["level"], "many")
+
+        # Alle Quartiere am Tag d belegt -> nichts frei ("full")
+        for q in quarters[1:]:
+            ax, ex = svc.book_spontaneous(self.alice, q, d, d + timedelta(days=3))
+            self.assertIsNotNone(ax, ex)
+        cell = level_for(d)
+        self.assertEqual(cell["level"], "full")
+        self.assertEqual(cell["free"], 0)

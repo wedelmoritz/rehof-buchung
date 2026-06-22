@@ -10,8 +10,8 @@ from django.urls import reverse
 
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    LotteryRun, Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule,
-    UpcomingAllocation, Wish,
+    LotteryRun, Member, NightTransfer, Notification, Quarter, SchoolHoliday,
+    SeasonRule, UpcomingAllocation, WaitlistEntry, Wish,
 )
 from .services import run_period_lottery
 
@@ -103,7 +103,7 @@ class WishAdmin(admin.ModelAdmin):
 
 @admin.register(Allocation)
 class AllocationAdmin(admin.ModelAdmin):
-    list_display = ("member", "quarter", "start", "end", "source",
+    list_display = ("member", "quarter", "start", "end", "persons", "source",
                     "via_substitution", "contested")
     list_filter = ("source", "quarter", "contested")
     search_fields = ("member__display_name",)
@@ -113,7 +113,8 @@ class AllocationAdmin(admin.ModelAdmin):
 class UpcomingAllocationAdmin(admin.ModelAdmin):
     """Anstehende Buchungen – für die Vorbereitung der Verwaltung. Zeigt nur
     Buchungen mit Abreise ab heute, chronologisch nach Anreise."""
-    list_display = ("start", "end", "quarter", "member", "nights_display", "source")
+    list_display = ("start", "end", "quarter", "member", "persons",
+                    "nights_display", "source")
     list_filter = ("quarter", "source")
     search_fields = ("member__display_name", "quarter__name")
     date_hierarchy = "start"
@@ -145,6 +146,22 @@ class NightTransferAdmin(admin.ModelAdmin):
     list_display = ("year", "from_member", "to_member", "nights", "created_at")
     list_filter = ("year",)
     search_fields = ("from_member__display_name", "to_member__display_name")
+
+
+@admin.register(WaitlistEntry)
+class WaitlistEntryAdmin(admin.ModelAdmin):
+    list_display = ("quarter", "start", "end", "persons", "member",
+                    "fulfilled", "created_at")
+    list_filter = ("fulfilled", "quarter")
+    search_fields = ("member__display_name", "quarter__name")
+    date_hierarchy = "start"
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ("member", "message", "read", "created_at")
+    list_filter = ("read",)
+    search_fields = ("member__display_name", "message")
 
 
 class SeasonRuleInline(admin.TabularInline):

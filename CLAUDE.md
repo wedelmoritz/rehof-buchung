@@ -60,10 +60,18 @@ tests/                  # reine pytest-Suite (ohne Django/DB)
 
 Modelle in `models.py`: `EquivalenceClass`, `Quarter`, `Member`,
 `BookingPeriod` (zusammengeführt: Jahres-Losung **und** buchbarer Zeitraum,
-gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`,
-`LotteryRun`, `NightTransfer`, `BookingPolicy` (Regelwerk-Singleton mit
-`SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`, `SchoolHoliday`.
-(`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
+gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
+(mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
+Buchungen“), `LotteryRun`, `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
+Warteliste), `Notification` (In-App-Benachrichtigung), `BookingPolicy`
+(Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
+`SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
+
+Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht),
+`book` (Ampel-Kalender → Klick-Buchung mit Personenzahl bzw. Warteliste),
+`wishlist` (Wünsche fürs Losverfahren), `transfer`. Wird ein Wartelisten-
+Zeitraum durch Storno frei, erzeugt `services.notify_waitlist_if_free` eine
+`Notification` (E-Mail-Versand folgt in einer späteren Stufe).
 
 ---
 

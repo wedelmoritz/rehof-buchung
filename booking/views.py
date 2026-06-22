@@ -8,20 +8,44 @@ Seitenstruktur:
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from .forms import SpontaneousBookingForm, TransferForm, WishForm
-from .models import Allocation, BookingPeriod, Member, Wish
+from .forms import TransferForm, WishForm
+from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
 
 
 def _current_member(request) -> Member | None:
     return getattr(request.user, "member", None)
+
+
+def _parse_date(s):
+    try:
+        return date.fromisoformat(s) if s else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_booking_post(request):
+    """Liest quarter/start/end/persons aus einem Buchungs- oder Warteformular."""
+    try:
+        quarter = Quarter.objects.get(id=request.POST.get("quarter"), active=True)
+    except (Quarter.DoesNotExist, ValueError, TypeError):
+        return None, None, None, None, "Quartier nicht gefunden."
+    start = _parse_date(request.POST.get("start"))
+    end = _parse_date(request.POST.get("end"))
+    if not start or not end:
+        return None, None, None, None, "Ungültiger Zeitraum."
+    try:
+        persons = int(request.POST.get("persons", "1"))
+    except (TypeError, ValueError):
+        persons = 0
+    return quarter, start, end, persons, None
 
 
 def _month_from_request(request, today) -> tuple[int, int]:
@@ -51,6 +75,10 @@ def overview(request):
     über die Navigation lassen sich auch die kommenden Monate ansehen."""
     member = _current_member(request)
     today = date.today()
+    if request.method == "POST" and member and \
+            request.POST.get("action") == "read_notifications":
+        svc.mark_notifications_read(member)
+        return redirect("overview")
     year, month = _month_from_request(request, today)
     cal = svc.build_community_calendar(member, year, month)
     return render(request, "booking/overview.html", {
@@ -61,6 +89,7 @@ def overview(request):
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0
         ),
+        "notifications": svc.unread_notifications(member),
         "open_period": BookingPeriod.objects.filter(
             status=BookingPeriod.WISHES_OPEN).first(),
         "released_windows": BookingPeriod.objects.filter(
@@ -74,7 +103,8 @@ def overview(request):
 
 @login_required
 def book(request):
-    """Eigener Kalender, Spontanbuchung und Übersicht der eigenen Buchungen."""
+    """Klick-Buchung: Ampel-Kalender → Tag wählen → Quartier + Personen buchen
+    (oder bei Belegung auf die Warteliste). Plus eigene Buchungen."""
     member = _current_member(request)
     today = date.today()
     year, month = _month_from_request(request, today)
@@ -85,16 +115,28 @@ def book(request):
         p_month = request.POST.get("month", month)
 
         if action == "book":
-            form = SpontaneousBookingForm(request.POST)
-            if form.is_valid():
-                alloc, err = svc.book_spontaneous(
-                    member, form.cleaned_data["quarter"],
-                    form.cleaned_data["start"], form.cleaned_data["end"],
-                )
-                messages.success(request, f"Gebucht: {alloc}") if alloc \
-                    else messages.error(request, err or "Buchung nicht möglich.")
+            quarter, start, end, persons, err0 = _parse_booking_post(request)
+            if err0:
+                messages.error(request, err0)
             else:
-                messages.error(request, "Bitte eine gültige Buchung eingeben.")
+                alloc, err = svc.book_spontaneous(member, quarter, start, end, persons)
+                messages.success(
+                    request,
+                    f"Gebucht: {quarter.name}, {start} – {end} ({persons} Pers.).") \
+                    if alloc else messages.error(request, err or "Buchung nicht möglich.")
+            return _redirect_month("book", p_year, p_month)
+
+        if action == "waitlist":
+            quarter, start, end, persons, err0 = _parse_booking_post(request)
+            if err0:
+                messages.error(request, err0)
+            else:
+                entry, err = svc.add_waitlist_entry(member, quarter, start, end, persons)
+                messages.success(
+                    request,
+                    f"Auf die Warteliste gesetzt: {quarter.name}, {start} – {end}. "
+                    f"Du wirst benachrichtigt, sobald der Zeitraum frei wird.") \
+                    if entry else messages.error(request, err or "Warteliste nicht möglich.")
             return _redirect_month("book", p_year, p_month)
 
         if action == "cancel":
@@ -103,13 +145,33 @@ def book(request):
                 else messages.error(request, err or "Stornierung nicht möglich.")
             return _redirect_month("book", p_year, p_month)
 
+        if action == "read_notifications":
+            svc.mark_notifications_read(member)
+            return _redirect_month("book", p_year, p_month)
+
         return _redirect_month("book", p_year, p_month)
 
-    cal = svc.build_member_calendar(member, year, month) if member else None
+    # --- GET: Kalender + Auswahl ---
+    sel_start = _parse_date(request.GET.get("start"))
+    sel_end = _parse_date(request.GET.get("end"))
+    if sel_start and sel_end and sel_end <= sel_start:
+        sel_end = None
+    cal = svc.build_booking_calendar(member, year, month, sel_start, sel_end) \
+        if member else None
+
+    eff_start = eff_end = None
+    free_quarters = occ_quarters = []
+    if member and sel_start:
+        eff_start = sel_start
+        eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+        free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
+
     upcoming, past = [], []
     if member:
         for a in member.allocations.select_related("quarter").order_by("start"):
             (upcoming if a.end > today else past).append(a)
+        for a in upcoming:
+            a.waiters = svc.waiters_for_allocation(a)
 
     return render(request, "booking/book.html", {
         "member": member,
@@ -119,9 +181,16 @@ def book(request):
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,
         "nights_used": member.nights_used_in_year(today.year) if member else 0,
         "annual_budget": member.annual_night_budget if member else 0,
+        "sel_start": sel_start,
+        "sel_end": sel_end,
+        "eff_start": eff_start,
+        "eff_end": eff_end,
+        "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
+        "free_quarters": free_quarters,
+        "occ_quarters": occ_quarters,
         "upcoming": upcoming,
         "past": past,
-        "booking_form": SpontaneousBookingForm(),
+        "notifications": svc.unread_notifications(member),
         "released_windows": BookingPeriod.objects.filter(
             status=BookingPeriod.FREE_BOOKING, end__gte=today).order_by("start"),
     })

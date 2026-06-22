@@ -6,6 +6,7 @@ verbindet – die Views bleiben dünn, das Losmodul bleibt rein.
 from __future__ import annotations
 
 import calendar as _calendar
+from collections import defaultdict
 from datetime import date, timedelta
 
 from django.db import transaction
@@ -15,8 +16,8 @@ from . import availability as A
 from . import lottery as L
 from . import rules as R
 from .models import (
-    Allocation, BookingPeriod, BookingPolicy, LotteryRun,
-    Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
+    Allocation, BookingPeriod, BookingPolicy, LotteryRun, Member, NightTransfer,
+    Notification, Quarter, SchoolHoliday, SeasonRule, WaitlistEntry, Wish,
 )
 
 
@@ -140,20 +141,26 @@ def find_gaps(
 @transaction.atomic
 def book_spontaneous(
     member: Member, quarter: Quarter, start: date, end: date,
-    source: str = "spontaneous",
+    persons: int = 1, source: str = "spontaneous",
 ) -> tuple[Allocation | None, str | None]:
     """Bucht eine freie Lücke mit den verfügbaren Tagen. Gibt
     (Allocation, None) bei Erfolg zurück bzw. (None, Fehlermeldung) sonst.
 
     Geprüft wird in dieser Reihenfolge:
       1. gültiger Zeitraum,
-      2. liegt vollständig in einem freigeschalteten Buchungszeitraum,
-      3. Quartier ist frei,
-      4. genügend verfügbare Tage (inkl. erhaltener/abgegebener) im Jahr.
+      2. Personenzahl passt zur Belegung des Quartiers,
+      3. liegt vollständig in einem freigeschalteten Buchungszeitraum,
+      4. Quartier ist frei,
+      5. genügend verfügbare Tage (inkl. erhaltener/abgegebener) im Jahr.
     """
     nights = (end - start).days
     if nights <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+    persons = int(persons or 0)
+    if persons < quarter.min_occupancy or persons > quarter.max_occupancy:
+        return None, (f"{quarter.name} ist für {quarter.min_occupancy}–"
+                      f"{quarter.max_occupancy} Personen ausgelegt "
+                      f"(angegeben: {persons}).")
     if not range_is_released(quarter, start, end):
         return None, ("Dieser Zeitraum ist (noch) nicht zur Buchung "
                       "freigeschaltet.")
@@ -168,7 +175,8 @@ def book_spontaneous(
     if rule_error:
         return None, rule_error
     alloc = Allocation.objects.create(
-        member=member, quarter=quarter, start=start, end=end, source=source,
+        member=member, quarter=quarter, start=start, end=end,
+        persons=persons, source=source,
     )
     return alloc, None
 
@@ -248,6 +256,199 @@ def find_bookable_gaps(
     return A.released_gaps(
         _active_windows(), str(quarter.id), occupied, window_start, window_end,
     )
+
+
+def split_quarters_for_range(
+    start: date, end: date,
+) -> tuple[list[Quarter], list[Quarter]]:
+    """Für den Zeitraum [start, end): teilt die freigeschalteten Quartiere in
+    (frei buchbar, belegt). Quartiere, die im Zeitraum gar nicht freigeschaltet
+    sind, tauchen in keiner der beiden Listen auf."""
+    windows = _active_windows()
+    free: list[Quarter] = []
+    occupied: list[Quarter] = []
+    if end <= start:
+        return free, occupied
+    for q in Quarter.objects.filter(active=True).order_by("name"):
+        if not A.range_released(windows, str(q.id), start, end):
+            continue
+        (free if quarter_is_free(q, start, end) else occupied).append(q)
+    return free, occupied
+
+
+def _occupied_days_by_quarter(first: date, last: date) -> dict[str, set[date]]:
+    """Belegte Tage je Quartier-ID im Bereich [first, last]."""
+    occupied: dict[str, set[date]] = defaultdict(set)
+    for a in Allocation.objects.filter(start__lte=last, end__gt=first):
+        d = max(a.start, first)
+        upper = min(a.end, last + timedelta(days=1))
+        while d < upper:
+            occupied[str(a.quarter_id)].add(d)
+            d += timedelta(days=1)
+    return occupied
+
+
+def build_booking_calendar(
+    member, year: int, month: int,
+    sel_start: date | None = None, sel_end: date | None = None,
+) -> dict:
+    """Monatsmatrix für die Buchung mit Ampel-Färbung je Tag:
+
+      free  (grün)      – noch gar nichts belegt
+      many  (hellgrün)  – noch viele Quartiere frei (> 50 %)
+      few   (gelb)      – nur noch wenige frei
+      full  (rot)       – nichts mehr frei
+      none  (neutral)   – an diesem Tag ist nichts freigeschaltet
+
+    `sel_start`/`sel_end` markieren die aktuelle Auswahl im Kalender.
+    """
+    cal = _calendar.Calendar(firstweekday=0)
+    weeks = cal.monthdatescalendar(year, month)
+    first, last = weeks[0][0], weeks[-1][-1]
+
+    windows = _active_windows()
+    quarters = list(Quarter.objects.filter(active=True))
+    qids = [str(q.id) for q in quarters]
+    occupied = _occupied_days_by_quarter(first, last)
+    hols = school_holidays_in_range(first, last + timedelta(days=1))
+    own_days: set[date] = set()
+    if member:
+        for a in member.allocations.filter(start__lte=last, end__gt=first):
+            d = max(a.start, first)
+            upper = min(a.end, last + timedelta(days=1))
+            while d < upper:
+                own_days.add(d)
+                d += timedelta(days=1)
+    today = date.today()
+
+    grid = []
+    for week in weeks:
+        row = []
+        for d in week:
+            released = [qid for qid in qids if A.is_released(windows, qid, d)]
+            total = len(released)
+            free = sum(1 for qid in released if d not in occupied[qid])
+            if total == 0:
+                level = "none"
+            elif free == total:
+                level = "free"
+            elif free == 0:
+                level = "full"
+            elif free * 2 > total:
+                level = "many"
+            else:
+                level = "few"
+            in_range = bool(
+                sel_start and (
+                    (sel_end and sel_start <= d < sel_end)
+                    or (not sel_end and d == sel_start)
+                )
+            )
+            row.append({
+                "date": d,
+                "iso": d.isoformat(),
+                "day": d.day,
+                "in_month": d.month == month,
+                "is_today": d == today,
+                "is_weekend": d.weekday() >= 5,
+                "is_past": d < today,
+                "holiday": next((h.name for h in hols if h.start <= d < h.end), None),
+                "level": level,
+                "free": free,
+                "total": total,
+                "mine": d in own_days,
+                "in_range": in_range,
+                "is_start": sel_start == d,
+            })
+        grid.append(row)
+
+    prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return {
+        "weeks": grid,
+        "label": f"{GERMAN_MONTHS[month]} {year}",
+        "year": year, "month": month,
+        "prev": {"year": prev_month[0], "month": prev_month[1]},
+        "next": {"year": next_month[0], "month": next_month[1]},
+        "holidays": hols,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Warteliste (Spontanbuchung) & In-App-Benachrichtigungen
+# --------------------------------------------------------------------------- #
+
+@transaction.atomic
+def add_waitlist_entry(
+    member: Member, quarter: Quarter, start: date, end: date, persons: int = 1,
+) -> tuple[WaitlistEntry | None, str | None]:
+    """Trägt einen Wunschzeitraum für ein belegtes Quartier in die Warteliste ein."""
+    if (end - start).days <= 0:
+        return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+    if not A.range_released(_active_windows(), str(quarter.id), start, end):
+        return None, "Dieser Zeitraum ist nicht zur Buchung freigeschaltet."
+    if quarter_is_free(quarter, start, end):
+        return None, "Dieses Quartier ist in dem Zeitraum bereits frei – du kannst direkt buchen."
+    existing = WaitlistEntry.objects.filter(
+        member=member, quarter=quarter, start=start, end=end, fulfilled=False,
+    ).exists()
+    if existing:
+        return None, "Du stehst für diesen Zeitraum bereits auf der Warteliste."
+    entry = WaitlistEntry.objects.create(
+        member=member, quarter=quarter, start=start, end=end,
+        persons=int(persons or 1),
+    )
+    return entry, None
+
+
+def waiters_for_allocation(allocation: Allocation):
+    """Aktive Wartelisten-Einträge, die diese Buchung betreffen (gleiches
+    Quartier, überlappender Zeitraum) – damit die Buchenden sehen, dass jemand
+    wartet."""
+    return list(
+        WaitlistEntry.objects.filter(
+            quarter=allocation.quarter, fulfilled=False,
+            start__lt=allocation.end, end__gt=allocation.start,
+        ).select_related("member").exclude(member=allocation.member)
+    )
+
+
+def notify_waitlist_if_free(quarter: Quarter, start: date, end: date) -> int:
+    """Prüft offene Wartelisten-Einträge für `quarter`, die den freigewordenen
+    Zeitraum [start, end) berühren: Ist ihr Wunschzeitraum jetzt komplett frei
+    (und freigeschaltet), wird das Mitglied benachrichtigt. Gibt die Anzahl der
+    Benachrichtigungen zurück."""
+    count = 0
+    candidates = WaitlistEntry.objects.filter(
+        quarter=quarter, fulfilled=False, start__lt=end, end__gt=start,
+    ).select_related("member", "quarter")
+    for entry in candidates:
+        if not quarter_is_free(quarter, entry.start, entry.end):
+            continue
+        if not A.range_released(_active_windows(), str(quarter.id),
+                                entry.start, entry.end):
+            continue
+        entry.fulfilled = True
+        entry.notified_at = timezone.now()
+        entry.save(update_fields=["fulfilled", "notified_at"])
+        Notification.objects.create(
+            member=entry.member,
+            message=(f"{quarter.name} ist von {entry.start} bis {entry.end} "
+                     f"frei geworden – jetzt buchen."),
+            url=f"/buchen/?start={entry.start}&end={entry.end}",
+        )
+        count += 1
+    return count
+
+
+def unread_notifications(member):
+    return list(member.notifications.filter(read=False)) if member else []
+
+
+def mark_notifications_read(member) -> int:
+    if not member:
+        return 0
+    return member.notifications.filter(read=False).update(read=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -404,14 +605,18 @@ def build_community_calendar(member, year, month) -> dict:
 
 @transaction.atomic
 def cancel_allocation(member: Member, allocation_id) -> tuple[bool, str | None]:
-    """Storniert eine Buchung des Mitglieds. Vergangene Buchungen bleiben."""
+    """Storniert eine Buchung des Mitglieds. Vergangene Buchungen bleiben.
+    Wird dadurch ein Wartelisten-Zeitraum frei, werden die Wartenden
+    benachrichtigt."""
     try:
         a = member.allocations.get(id=allocation_id)
     except Allocation.DoesNotExist:
         return False, "Buchung nicht gefunden."
     if a.end <= date.today():
         return False, "Vergangene Buchungen können nicht storniert werden."
+    quarter, start, end = a.quarter, a.start, a.end
     a.delete()
+    notify_waitlist_if_free(quarter, start, end)
     return True, None
 
 

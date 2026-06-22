@@ -193,6 +193,7 @@ class Allocation(models.Model):
     )
     start = models.DateField("Anreise")
     end = models.DateField("Abreise (exkl.)")
+    persons = models.PositiveIntegerField("Personen", default=1)
     source = models.CharField("Quelle", max_length=12, choices=SOURCE)
     period = models.ForeignKey(
         BookingPeriod, on_delete=models.SET_NULL, null=True, blank=True,
@@ -270,6 +271,60 @@ class NightTransfer(models.Model):
     def __str__(self) -> str:
         return (f"{self.nights} Tage: {self.from_member} → {self.to_member} "
                 f"({self.year})")
+
+
+class WaitlistEntry(models.Model):
+    """Wunschzeitraum für die Spontanbuchung: ein Mitglied möchte ein bestimmtes
+    Quartier in einem Zeitraum, der gerade belegt ist. Wird der Zeitraum frei,
+    erhält das Mitglied eine Benachrichtigung. Die aktuell dort Buchenden sehen,
+    dass jemand wartet."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="waitlist_entries",
+        verbose_name="Mitglied",
+    )
+    quarter = models.ForeignKey(
+        Quarter, on_delete=models.CASCADE, related_name="waitlist_entries",
+        verbose_name="Quartier",
+    )
+    start = models.DateField("Anreise")
+    end = models.DateField("Abreise (exkl.)")
+    persons = models.PositiveIntegerField("Personen", default=1)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    fulfilled = models.BooleanField("Frei geworden / erledigt", default=False)
+    notified_at = models.DateTimeField("Benachrichtigt am", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Wartelisten-Eintrag"
+        verbose_name_plural = "Warteliste (Spontanbuchung)"
+        ordering = ["start"]
+
+    @property
+    def nights(self) -> int:
+        return (self.end - self.start).days
+
+    def __str__(self) -> str:
+        flag = " [erledigt]" if self.fulfilled else ""
+        return f"{self.member} wartet auf {self.quarter} {self.start}–{self.end}{flag}"
+
+
+class Notification(models.Model):
+    """In-App-Benachrichtigung für ein Mitglied (E-Mail-Versand folgt später)."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="notifications",
+        verbose_name="Mitglied",
+    )
+    message = models.CharField("Nachricht", max_length=255)
+    url = models.CharField("Link", max_length=200, blank=True)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    read = models.BooleanField("Gelesen", default=False)
+
+    class Meta:
+        verbose_name = "Benachrichtigung"
+        verbose_name_plural = "Benachrichtigungen"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.member}: {self.message}"
 
 
 class BookingPolicy(models.Model):
