@@ -3,6 +3,8 @@
 {% block content %}
 <h1>Wunschliste fürs nächste Jahr</h1>
 
+{% include "booking/_notifications.html" %}
+
 {% if not member %}
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% elif not period %}

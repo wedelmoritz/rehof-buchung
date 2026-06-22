@@ -4,7 +4,25 @@
 <h1>Ergebnis: {{ period }}</h1>
 {% if run %}<p class="muted">{{ run.summary }} · {{ run.executed_at }}</p>{% endif %}
 
-<h2>Zuteilungen</h2>
+{% if my_note %}
+<div class="card" style="border-color:var(--sage)">
+  <h2 style="margin-top:0">Dein Ergebnis</h2>
+  <p>{{ my_note.message }}</p>
+  {% if my_note.detail %}<div class="muted" style="white-space:pre-line">{{ my_note.detail }}</div>{% endif %}
+</div>
+{% elif my_allocations %}
+<div class="card" style="border-color:var(--sage)">
+  <h2 style="margin-top:0">Dein Ergebnis</h2>
+  <ul>
+    {% for a in my_allocations %}
+    <li>✓ {{ a.quarter.name }} {{ a.start }}–{{ a.end }}
+        {% if a.via_substitution %}<span class="tag sub">Ausweich</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<h2>Zuteilungen (Gemeinschaft)</h2>
 <div class="card">
   <table>
     <tr><th>Quartier</th><th>Mitglied</th><th>Anreise</th><th>Abreise</th><th></th></tr>
@@ -19,8 +37,8 @@
   </table>
 </div>
 
-{% if run %}
-<h2>Ziehungsprotokoll (Audit)</h2>
+{% if run and user.is_staff %}
+<h2>Ziehungsprotokoll (Audit – nur Verwaltung)</h2>
 <pre class="log">{{ run.log_text }}</pre>
 {% endif %}
 {% endblock %}

@@ -37,18 +37,14 @@ def make_member(name, nights=50, wish=25, **kwargs):
     return m
 
 
-def release_period(name, start, end, applies_to_all=True, active=True,
-                   quarters=None):
-    """Legt eine Periode an, die den Zeitraum zur freien Buchung freigibt
-    (Status „Freie Bebuchbarkeit“; bei active=False „Unterbrochen“ = gesperrt)."""
-    p = BookingPeriod.objects.create(
+def release_period(name, start, end, active=True):
+    """Legt die (globale) Periode an, die den Zeitraum zur freien Buchung
+    freigibt (Status „Freie Bebuchbarkeit“; bei active=False „Unterbrochen“ =
+    gesperrt). Pro Jahr gibt es genau eine Periode."""
+    return BookingPeriod.objects.create(
         name=name, target_year=start.year, start=start, end=end,
-        applies_to_all=applies_to_all,
         status=BookingPeriod.FREE_BOOKING if active else BookingPeriod.SUSPENDED,
     )
-    if quarters:
-        p.quarters.set(quarters)
-    return p
 
 
 class BaseData(TestCase):
@@ -82,11 +78,16 @@ class BookingWindowTests(BaseData):
         self.assertEqual(alloc.nights, 3)
 
     def test_teilmengen_einschraenkung(self):
-        """Global Jan–Dez, aber Q1 nur im Juni. Buchung von Q1 im Mai scheitert,
-        im Juni klappt sie; Q2 (nicht eingeschränkt) klappt auch im Mai."""
+        """Global Jan–Dez, aber Q1 hat eine Quartier-Saison (nur Juni). Buchung
+        von Q1 im Mai scheitert, im Juni klappt sie; Q2 (keine Saison) klappt
+        auch im Mai. (Quartiersspezifische Grenzen kommen jetzt aus der
+        Quartier-Saison, nicht mehr aus einer eigenen Periode.)"""
         release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1))
-        release_period("q1-nur-juni", date(YEAR, 6, 1), date(YEAR, 7, 1),
-                       applies_to_all=False, quarters=[self.q1])
+        self.q1.season_start_month = 6
+        self.q1.season_start_day = 1
+        self.q1.season_end_month = 6
+        self.q1.season_end_day = 30
+        self.q1.save()
 
         # Q1 im Mai: gesperrt
         may = date(YEAR, 5, 10)

@@ -31,6 +31,12 @@ def add_item(member, product: Product, quantity, service_date=None):
         return None, "Ungültige Menge."
     if qty <= 0:
         return None, "Die Menge muss größer als 0 sein."
+    # Mengen-Raster erzwingen: kg in 0,1-Schritten, alles andere ganzzahlig.
+    step = product.quantity_step
+    if qty % step != 0:
+        einheit = product.get_unit_display()
+        hinweis = "in 0,1-Schritten" if step == Decimal("0.1") else "in ganzen Schritten"
+        return None, f"{einheit} bitte {hinweis} angeben (Vielfaches von {step})."
     if not product.active:
         return None, "Dieses Produkt ist nicht verfügbar."
     if product.needs_date and not service_date:

@@ -38,7 +38,7 @@
           <label class="muted tile-date">Termin <input type="date" name="service_date" required></label>
           {% endif %}
           <div class="tile-add">
-            <input type="number" name="quantity" value="1" min="0" step="0.001" inputmode="decimal" aria-label="Menge">
+            <input type="number" name="quantity" value="{{ p.quantity_step }}" min="{{ p.quantity_step }}" step="{{ p.quantity_step }}" inputmode="decimal" aria-label="Menge">
             <button class="btn small" type="submit">+ Warenkorb</button>
           </div>
         </form>

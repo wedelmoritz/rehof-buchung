@@ -114,18 +114,22 @@ In-App-HTML, PDF/Mail später.
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
   sich über `BookingPeriod.draw_at` terminieren; das Kommando
   `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
-- **Buchungsperiode/Zeitraum (`BookingPeriod`):** Eine Periode durchläuft den
-  Lebenszyklus über ihren `status`: `draft` (Entwurf) → `wishes_open` (Wunsch-
-  Einträge freigegeben) → `lottery_ready` (zur Auslosung freigegeben) →
-  `lottery_done` (Auslosung beendet) → `free_booking` (freie Bebuchbarkeit im
-  Zeitraum) → `ended` (beendet); `suspended` (unterbrochen) sperrt vorläufig.
-  Die **normale Buchung** ist nur in Perioden mit Status `free_booking` möglich
-  und gilt für den Zeitraum `[start, end)`. Schnittmengen-Semantik bleibt: ein
-  Tag ist buchbar, wenn eine globale `free_booking`-Periode (`applies_to_all`)
-  ihn abdeckt UND (falls für das Quartier eine spezifische Periode existiert)
-  auch diese. Spezifische Perioden können nur weiter einschränken. **Die Losung
-  ist bewusst NICHT durch den Zeitraum begrenzt** (sie vergibt das Folgejahr im
-  Voraus, bevor dessen Zeitraum auf `free_booking` steht).
+- **Buchungsperiode/Zeitraum (`BookingPeriod`):** **Pro Buchungsjahr genau EINE
+  Periode** (`target_year` ist eindeutig). Sie durchläuft den Lebenszyklus über
+  ihren `status`: `draft` (Entwurf) → `wishes_open` (Wunsch-Einträge freigegeben)
+  → `lottery_ready` (zur Auslosung freigegeben) → `lottery_done` (Auslosung
+  beendet) → `free_booking` (freie Bebuchbarkeit im Zeitraum) → `ended`
+  (beendet); `suspended` (unterbrochen) sperrt vorläufig. Der Status wird
+  normalerweise **aus den Terminen abgeleitet** (`BookingPeriod.compute_status`)
+  und vom Cron-Kommando `run_due_lotteries` **vorwärts** geschaltet (nie zurück)
+  — inkl. der fälligen Auslosung. Termine: `wishlist_open/close` (Wünsche),
+  `draw_at` (Losung), `start/end` (buchbar ab/bis; `start` darf vor dem 1.1.
+  liegen). Die **normale Buchung** ist nur im Status `free_booking` möglich und
+  gilt für `[start, end)`. **Quartiersspezifische Grenzen** gibt es NICHT mehr
+  über eigene Perioden, sondern nur über die **Quartier-Saison**
+  (`Quarter.season_*`). **Die Losung ist bewusst NICHT durch den Zeitraum
+  begrenzt** (sie vergibt das Folgejahr im Voraus, bevor dessen Zeitraum auf
+  `free_booking` steht).
 - **Tage:** 50/Jahr je Mitglied, davon max. 25 über die Wunschliste. **Kein
   Übertrag ins Folgejahr** (Kontingent gilt je Kalenderjahr frisch). Tage sind
   **an andere Mitglieder übertragbar** (`NightTransfer`).
@@ -183,8 +187,18 @@ python manage.py runserver
 
 Ohne `DATABASE_URL` nutzt `settings.py` SQLite (Dev/Test). In Produktion setzt
 `docker-compose.yml` `DATABASE_URL` auf PostgreSQL; TLS macht Caddy auf dem Host,
-der Web-Container bindet nur an `127.0.0.1`. Auth ist Standard-Django mit
-markierter OIDC/Keycloak-Naht in `settings.py`.
+der Web-Container bindet nur an `127.0.0.1`.
+
+**Auth & Zugang:** Login per **E-Mail oder Benutzername**
+(`booking/auth.py::EmailOrUsernameModelBackend`), Brute-Force-Schutz über
+**django-axes** (Sperre nach 5 Fehlversuchen je Benutzer+IP, 1 h; Settings im
+Axes-Block). Nutzer können sich **selbst registrieren** (`register` →
+`registration/register.html`); dabei entsteht NUR ein Login-Konto. Bis die
+Verwaltung ein **Mitglieds-Profil** (`Member`) zuordnet, sperrt
+`booking/middleware.py::ActivationGateMiddleware` alles und leitet auf die
+Warte-Seite `pending` um (Verwaltungs-/Superuser ausgenommen). Cookies/Sessions
+sind gehärtet (HttpOnly, SameSite=Lax, Secure in Prod). OIDC/Keycloak-Naht
+bleibt in `settings.py` markiert.
 
 ---
 

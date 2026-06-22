@@ -11,11 +11,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from .forms import ProfileForm, TransferForm, WishForm
+from .forms import ProfileForm, RegistrationForm, TransferForm, WishForm
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
 
@@ -359,6 +360,12 @@ def wishlist(request):
     dm = period.start.month if period else None
     year, month = _month_from_request(request, today, dy, dm)
 
+    if request.method == "POST" and member and \
+            request.POST.get("action") == "read_notifications":
+        svc.mark_notifications_read(member)
+        return _redirect_month("wishlist", request.POST.get("year", year),
+                               request.POST.get("month", month))
+
     if request.method == "POST" and member and period:
         action = request.POST.get("action", "")
         p_year = request.POST.get("year", year)
@@ -462,12 +469,38 @@ def wishlist(request):
         "wishlist_submitted": wishlist_submitted,
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
+        "notifications": svc.unread_notifications(member),
     })
 
 
 # --------------------------------------------------------------------------- #
 # Tage übertragen
 # --------------------------------------------------------------------------- #
+
+def register(request):
+    """Selbstregistrierung. Legt nur ein Login-Konto an; das Buchungs-Profil
+    (Member) vergibt anschließend die Verwaltung. Bis dahin: Warte-Seite."""
+    if request.user.is_authenticated:
+        return redirect("overview")
+    if request.method == "POST":
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user,
+                  backend="booking.auth.EmailOrUsernameModelBackend")
+            return redirect("pending")
+    else:
+        form = RegistrationForm()
+    return render(request, "registration/register.html", {"form": form})
+
+
+@login_required
+def pending(request):
+    """Warte-Seite für noch nicht freigeschaltete Konten (kein Mitglieds-Profil)."""
+    if _current_member(request) or request.user.is_staff:
+        return redirect("overview")
+    return render(request, "registration/pending.html", {})
+
 
 @login_required
 def help_page(request):
@@ -529,11 +562,21 @@ def transfer(request):
 @login_required
 def period_result(request, period_id: int):
     period = get_object_or_404(BookingPeriod, id=period_id)
+    member = _current_member(request)
     run = period.runs.first()
     allocations = (
         Allocation.objects.filter(period=period, source="lottery")
         .select_related("member", "quarter").order_by("start", "quarter__name")
     )
+    # Eigenes Ergebnis hervorheben; die ausführliche Auslosungs-Erklärung steht
+    # in der zugehörigen Benachrichtigung (Gewinne/Verluste/Karma).
+    my_allocations = [a for a in allocations if member and a.member_id == member.id]
+    my_note = None
+    if member:
+        my_note = member.notifications.filter(
+            url=reverse("period_result", args=[period.id])
+        ).order_by("-created_at").first()
     return render(request, "booking/result.html", {
         "period": period, "run": run, "allocations": allocations,
+        "member": member, "my_allocations": my_allocations, "my_note": my_note,
     })

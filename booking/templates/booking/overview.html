@@ -3,21 +3,7 @@
 {% block content %}
 <h1>Übersicht – wer ist wann da</h1>
 
-{% if notifications %}
-<div class="card" style="border-color:var(--sage)">
-  <strong>Benachrichtigungen</strong>
-  <ul style="margin:.4rem 0 .6rem; padding-left:1.1rem">
-    {% for n in notifications %}
-    <li>{% if n.url %}<a href="{{ n.url }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
-      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span></li>
-    {% endfor %}
-  </ul>
-  <form method="post" class="inline">{% csrf_token %}
-    <input type="hidden" name="action" value="read_notifications">
-    <button class="btn small ghost" type="submit">Als gelesen markieren</button>
-  </form>
-</div>
-{% endif %}
+{% include "booking/_notifications.html" %}
 
 {% if open_period %}
 <div class="msg info">
