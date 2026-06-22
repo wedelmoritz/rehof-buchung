@@ -1,0 +1,41 @@
+{% extends "booking/base.html" %}
+{% block title %}Zur Kasse{% endblock %}
+{% block content %}
+<h1>Einkauf bestätigen</h1>
+
+{% if not items %}
+<div class="card">
+  <p class="muted">Dein Warenkorb ist leer.</p>
+  <a class="btn ghost" href="{% url 'shop_index' %}">Zum Hofladen</a>
+</div>
+{% else %}
+<div class="card">
+  <div class="table-wrap"><table>
+    <tr><th>Menge</th><th>Artikel</th><th>Einzel</th><th>Betrag</th></tr>
+    {% for it in items %}
+    <tr>
+      <td>{{ it.quantity|floatformat:"-3" }} {{ it.unit }}</td>
+      <td>{{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %}</td>
+      <td>{{ it.unit_price }} €</td>
+      <td>{{ it.gross }} €</td>
+    </tr>
+    {% endfor %}
+    <tr><td colspan="3" style="text-align:right"><strong>Summe</strong></td><td><strong>{{ total }} €</strong></td></tr>
+  </table></div>
+
+  <form method="post" style="margin-top:1rem">{% csrf_token %}
+    <input type="hidden" name="action" value="confirm">
+    <label style="display:flex; gap:.5rem; align-items:center; margin:.4rem 0 1rem">
+      <input type="checkbox" name="invoice_now" style="width:1.1rem;height:1.1rem;min-width:0">
+      <span>Sofort eine Rechnung erstellen (sonst kommt der Einkauf auf die Monatsrechnung)</span>
+    </label>
+    <div class="confirm-actions" style="display:flex;gap:.8rem;justify-content:flex-end;flex-wrap:wrap">
+      <a class="btn ghost" href="{% url 'shop_index' %}">Zurück zum Korb</a>
+      <button class="btn" type="submit">Verbindlich kaufen</button>
+    </div>
+  </form>
+  <p class="muted" style="margin:.8rem 0 0">Nach der Bestätigung ist der Einkauf
+    erfasst und nicht mehr änderbar.</p>
+</div>
+{% endif %}
+{% endblock %}

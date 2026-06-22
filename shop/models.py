@@ -121,16 +121,44 @@ class Product(models.Model):
         return Decimal("0.1") if self.unit in self.FRACTIONAL_UNITS else Decimal("1")
 
 
+class Purchase(models.Model):
+    """Ein **bestätigter Einkauf** (Checkout). Fasst die beim Bestätigen im
+    Warenkorb liegenden Positionen zu einem Vorgang mit Datum zusammen. Nach der
+    Bestätigung ist er in der Verwaltung sichtbar und nicht mehr änderbar."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="purchases",
+        verbose_name="Mitglied")
+    confirmed_at = models.DateTimeField("Eingekauft am", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Einkauf"
+        verbose_name_plural = "Einkäufe (bestätigt)"
+        ordering = ["-confirmed_at"]
+
+    def __str__(self) -> str:
+        return f"Einkauf {self.member} – {self.confirmed_at:%d.%m.%Y %H:%M}"
+
+    @property
+    def gross(self) -> Decimal:
+        return _q(sum((i.gross for i in self.items.all()), Decimal(0)))
+
+
 class LineItem(models.Model):
     """Eine Einkaufsposition eines Mitglieds. Preis/MwSt/Name werden als
     Snapshot zum Kaufzeitpunkt gespeichert (Produktänderungen wirken nicht
-    rückwirkend). Solange `invoice` leer ist, ist die Position „offen“."""
+    rückwirkend). Lebenszyklus über die Verknüpfungen:
+      * `purchase` leer + `invoice` leer  → im **Warenkorb** (änderbar),
+      * `purchase` gesetzt + `invoice` leer → **bestätigter Einkauf** (gesperrt),
+      * `invoice` gesetzt                  → **abgerechnet**."""
     member = models.ForeignKey(
         Member, on_delete=models.CASCADE, related_name="shop_items",
         verbose_name="Mitglied")
     product = models.ForeignKey(
         Product, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="line_items", verbose_name="Produkt")
+    purchase = models.ForeignKey(
+        "Purchase", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="items", verbose_name="Einkauf")
     name = models.CharField("Bezeichnung", max_length=160)
     unit = models.CharField("Einheit", max_length=10)
     unit_price = models.DecimalField("Einzelpreis (brutto)", max_digits=8,
@@ -229,3 +257,20 @@ class Invoice(models.Model):
         for r in rates.values():
             r["net"], r["vat"], r["gross"] = _q(r["net"]), _q(r["vat"]), _q(r["gross"])
         return [rates[k] for k in sorted(rates)]
+
+    def purchase_groups(self) -> list[dict]:
+        """Positionen nach Einkauf gruppiert (Datum der Bestätigung + die
+        eingekauften Waren/Dienstleistungen darunter)."""
+        groups: dict = {}
+        for it in self.items.select_related("purchase").all():
+            key = it.purchase_id
+            g = groups.setdefault(key, {"purchase": it.purchase, "items": [],
+                                        "gross": Decimal(0)})
+            g["items"].append(it)
+            g["gross"] += it.gross
+        for g in groups.values():
+            g["gross"] = _q(g["gross"])
+        return sorted(
+            groups.values(),
+            key=lambda g: g["purchase"].confirmed_at if g["purchase"] else self.created_at,
+        )

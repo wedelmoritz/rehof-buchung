@@ -25,16 +25,22 @@
   </div>
 
   <div class="table-wrap"><table class="inv-items">
-    <tr><th>Pos.</th><th>Bezeichnung</th><th>Menge</th><th>Einzel</th><th>MwSt</th><th>Betrag</th></tr>
-    {% for it in items %}
+    <tr><th>Bezeichnung</th><th>Menge</th><th>Einzel</th><th>MwSt</th><th>Betrag</th></tr>
+    {% for g in purchase_groups %}
+    <tr class="purchase-head">
+      <td colspan="5">Einkauf vom
+        {% if g.purchase %}{{ g.purchase.confirmed_at|date:"d.m.Y H:i" }}{% else %}{{ invoice.created_at|date:"d.m.Y" }}{% endif %}
+        · {{ g.gross }} €</td>
+    </tr>
+    {% for it in g.items %}
     <tr>
-      <td>{{ forloop.counter }}</td>
       <td>{{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %}</td>
       <td>{{ it.quantity|floatformat:"-3" }} {{ it.get_unit_display|default:it.unit }}</td>
       <td>{{ it.unit_price }} €</td>
       <td>{{ it.vat_rate }} %</td>
       <td>{{ it.gross }} €</td>
     </tr>
+    {% endfor %}
     {% endfor %}
   </table></div>
 
@@ -75,6 +81,8 @@
   .inv-to { margin:1rem 0; }
   table.inv-items { width:100%; margin-top:.5rem; }
   table.inv-items th { text-align:left; color:var(--muted); font-size:.82rem; }
+  table.inv-items tr.purchase-head td { background:var(--bg-2); font-weight:600;
+    color:var(--ink); padding-top:.55rem; }
   .inv-sums { display:flex; justify-content:flex-end; margin-top:.6rem; }
   .inv-sums table { width:auto; }
   .inv-sums td { padding:.2rem .8rem; text-align:right; }

@@ -103,22 +103,32 @@ Alle Admin-Bereiche tragen erklärende `description`-Texte.
 Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),
 Re:Hof-Logo/Icons (`booking/static/booking/icons/`), Service Worker (`/sw.js`,
 Template `booking/sw.js`, Root-Scope) mit network-first + Offline-Fallback
-(`/offline/`). Registrierung am Ende von `base.html`. Das Layout ist responsiv
-(Media-Query in `base.html`, Nav als Scroll-Leiste, Eingaben volle Breite,
-breite Datentabellen in `.table-wrap` → horizontal scrollbar statt überstehend,
-iOS-Safe-Area). `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen
-(das Manifest liegt unter `/static/` und ist damit ohnehin frei).
+(`/offline/`). Registrierung am Ende von `base.html`. **Navigation:** vertikale
+Leiste rechts (`.sidenav`), standardmäßig sichtbar, per ☰ (`#navToggle`)
+einklappbar – Zustand in `localStorage`; auf dem Smartphone als horizontale
+Scroll-Leiste oberhalb des Inhalts (Toggle ausgeblendet). Das Layout ist responsiv
+(Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
+`.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
+`sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das Manifest liegt
+unter `/static/` und ist damit ohnehin frei).
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
-`kind="dienstleistung"` + `needs_date`), Einkauf mit **Preis-Snapshot**
-(`LineItem`; offen = ohne `invoice`), monatliche Sammelrechnung (`Invoice`,
-Nummer `HL-JJJJ-MM-NNN`, Status offen→bezahlt-gemeldet→bestätigt/archiviert,
-§14-Angaben + Steuer-Aufschlüsselung). Stammdaten der Genossenschaft im
-`ShopConfig`-Singleton. Geldlogik/Tests in `shop/services.py` bzw. `shop/tests.py`
-(Preis-Snapshot, Rechnung, Zugriffsrechte). **Cron:** `generate_monthly_invoices`
-(monatlich) und `run_due_lotteries` (terminierte Losungen). Rechnung zunächst als
-In-App-HTML, PDF/Mail später.
+`kind="dienstleistung"` + `needs_date`). **Lebenszyklus einer Position
+(`LineItem`, Preis-Snapshot):** Warenkorb (`purchase`+`invoice` leer; gleiche
+Artikel werden in `add_item` zusammengefasst, Menge per `set_cart_quantity`
+änderbar) → **Checkout** (`services.checkout` legt einen `Purchase`/Einkauf an;
+danach gesperrt, in der Verwaltung als read-only `PurchaseAdmin`) → **Rechnung**
+(`Invoice`, Nummer `HL-JJJJ-MM-NNN`, Status offen→bezahlt-gemeldet→bestätigt/
+archiviert, §14-Angaben + Steuer-Aufschlüsselung; Positionen nach Einkauf
+gruppiert via `Invoice.purchase_groups`). Rechnung **monatlich**
+(`generate_monthly_invoices`, Cron) **oder sofort** (`generate_invoice_now`,
+Button „Jetzt abrechnen“ bzw. „sofort abrechnen“ beim Checkout). Beim Buchen
+mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
+`services.purchase_service` direkt als bestätigter Einkauf. Stammdaten der
+Genossenschaft im `ShopConfig`-Singleton. Geldlogik/Tests in `shop/services.py`
+bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices` (monatlich) und
+`run_due_lotteries` (Perioden/Losungen). Rechnung als In-App-HTML, PDF/Mail später.
 
 ---
 

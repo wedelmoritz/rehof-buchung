@@ -7,7 +7,8 @@ from django.contrib import admin, messages
 from django.http import HttpResponse
 
 from . import services as svc
-from .models import Invoice, LineItem, Product, ProductGroup, ShopConfig
+from .models import (
+    Invoice, LineItem, Product, ProductGroup, Purchase, ShopConfig)
 
 WEEKDAYS = [("0", "Montag"), ("1", "Dienstag"), ("2", "Mittwoch"),
             ("3", "Donnerstag"), ("4", "Freitag"), ("5", "Samstag"),
@@ -101,13 +102,40 @@ class ProductAdmin(admin.ModelAdmin):
 class LineItemInline(admin.TabularInline):
     model = LineItem
     extra = 0
+    # Positionen sind nach der Bestätigung des Einkaufs fix – alles schreibgeschützt.
     fields = ("name", "quantity", "unit", "unit_price", "vat_rate",
               "service_date", "gross")
-    readonly_fields = ("gross",)
+    readonly_fields = fields
     can_delete = False
 
     def has_add_permission(self, request, obj=None):
         return False
+
+
+@admin.register(Purchase)
+class PurchaseAdmin(admin.ModelAdmin):
+    """Bestätigte Einkäufe (Checkout). Read-only – ein Einkauf ist nach der
+    Bestätigung durch das Mitglied nicht mehr änderbar."""
+    list_display = ("id", "member", "confirmed_at", "gross_display", "invoiced")
+    list_filter = ("confirmed_at",)
+    search_fields = ("member__display_name",)
+    date_hierarchy = "confirmed_at"
+    inlines = [LineItemInline]
+    readonly_fields = ("member", "confirmed_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Betrag")
+    def gross_display(self, obj):
+        return f"{obj.gross} €"
+
+    @admin.display(boolean=True, description="abgerechnet")
+    def invoiced(self, obj):
+        return obj.items.filter(invoice__isnull=False).exists()
 
 
 @admin.action(description="Zahlungseingang bestätigen (archivieren)")

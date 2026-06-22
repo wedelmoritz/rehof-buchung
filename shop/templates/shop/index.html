@@ -9,10 +9,10 @@
 
 <details class="explain">
   <summary>Wie funktioniert der Hofladen?</summary>
-  <p class="muted">Produkt wählen, Menge angeben, „+ Warenkorb“. Preise sind brutto;
-    der Preis zum Kaufzeitpunkt zählt. Am Monatsende entsteht automatisch eine
-    Sammelrechnung; du überweist mit der Rechnungsnummer als Verwendungszweck und
-    meldest sie als bezahlt. <a href="{% url 'help' %}#hofladen">Mehr →</a></p>
+  <p class="muted">Produkt wählen, Menge angeben, „+ Warenkorb“ (gleiche Artikel
+    werden zusammengezählt; Menge im Korb änderbar). Mit „Zur Kasse“ bestätigst du
+    den Einkauf verbindlich – erst dann ist er erfasst. Abgerechnet wird monatlich
+    gesammelt oder sofort. <a href="{% url 'help' %}#hofladen">Mehr →</a></p>
 </details>
 
 <div class="shop-layout">
@@ -56,7 +56,14 @@
       {% if items %}
       {% for it in items %}
       <div class="cart-row">
-        <span>{{ it.quantity|floatformat:"-3" }}× {{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %}</span>
+        <span class="cart-name">{{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %}</span>
+        <form method="post" class="cart-qty">{% csrf_token %}
+          <input type="hidden" name="action" value="set_qty">
+          <input type="hidden" name="item_id" value="{{ it.id }}">
+          <input type="number" name="quantity" value="{{ it.quantity|floatformat:'-3' }}"
+                 min="0" step="{% if it.product %}{{ it.product.quantity_step }}{% else %}1{% endif %}" aria-label="Menge für {{ it.name }}">
+          <button class="btn small ghost" title="Menge aktualisieren">✓</button>
+        </form>
         <span class="cart-amount">{{ it.gross }} €</span>
         <form method="post" class="inline">{% csrf_token %}
           <input type="hidden" name="action" value="remove">
@@ -65,11 +72,11 @@
         </form>
       </div>
       {% endfor %}
-      <div class="cart-total">Offener Betrag: <strong>{{ total }} €</strong></div>
-      <p class="muted" style="margin:.4rem 0">Die Sammelrechnung wird automatisch am Monatsende erstellt.</p>
+      <div class="cart-total">Summe: <strong>{{ total }} €</strong></div>
+      <a class="btn" href="{% url 'shop_checkout' %}" style="display:block;text-align:center;margin:.6rem 0 .4rem">Zur Kasse &rarr;</a>
       <a class="btn ghost small" href="{% url 'shop_invoices' %}">Meine Rechnungen &rarr;</a>
       {% else %}
-      <p class="muted">Noch nichts erfasst. Tippe oben auf ein Produkt.</p>
+      <p class="muted">Noch nichts im Korb. Tippe oben auf ein Produkt.</p>
       {% endif %}
     </div>
   </aside>
@@ -90,9 +97,11 @@
   .tile-date { font-size:.78rem; display:flex; flex-direction:column; gap:.2rem; }
   .tile-add { display:flex; gap:.4rem; margin-top:.35rem; }
   .tile-add input { width:5rem; min-width:0; }
-  .cart-row { display:flex; align-items:center; gap:.5rem; padding:.35rem 0; border-bottom:1px solid var(--line); font-size:.9rem; }
-  .cart-row > span:first-child { flex:1 1 auto; }
-  .cart-amount { font-variant-numeric:tabular-nums; }
+  .cart-row { display:flex; align-items:center; gap:.5rem; padding:.45rem 0; border-bottom:1px solid var(--line); font-size:.9rem; flex-wrap:wrap; }
+  .cart-name { flex:1 1 100%; }
+  .cart-qty { display:flex; gap:.3rem; align-items:center; }
+  .cart-qty input { width:4.5rem; min-width:0; padding:.3rem .4rem; }
+  .cart-amount { font-variant-numeric:tabular-nums; margin-left:auto; }
   .cart-total { margin-top:.6rem; font-size:1.05rem; }
   @media (max-width:780px) {
     .shop-layout { flex-direction:column; }

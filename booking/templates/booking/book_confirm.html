@@ -49,11 +49,11 @@
 
   {% if offers %}
   <div class="card">
-    <h2 style="margin-top:0">Dienstleistung dazubuchen</h2>
+    <h2 style="margin-top:0">Dienstleistung dazubuchen <span class="muted" style="font-weight:400;font-size:.9rem">(optional)</span></h2>
     {% for o in offers %}
     <label class="service">
       <input type="checkbox" name="service_{{ o.p.id }}"
-             {% if o.available %}checked{% else %}disabled{% endif %}>
+             {% if not o.available %}disabled{% endif %}>
       <span class="svc-name">{{ o.p.name }}</span>
       <span class="svc-price">{{ o.p.price }} €</span>
       {% if not o.available %}

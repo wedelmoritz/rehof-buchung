@@ -51,18 +51,34 @@
       font-size: 1.08rem; display: inline-flex; align-items: center; gap: .5rem;
     }
     header .brand img { width: 26px; height: 26px; display: block; border-radius: 7px; }
-    header nav { display: flex; gap: .35rem; flex-wrap: wrap; }
-    header nav a {
-      color: var(--muted); text-decoration: none; font-weight: 600;
-      font-size: .92rem; padding: .42rem .7rem; border-radius: 9px; line-height: 1;
-    }
-    header nav a:hover { color: var(--ink); background: rgba(255,255,255,.6); }
-    header nav a.active { color: var(--accent-deep); background: var(--card);
-      box-shadow: var(--shadow); }
     header .spacer { margin-left: auto; }
     header .who { color: var(--muted); font-size: .9rem; }
+    .nav-toggle {
+      font: inherit; cursor: pointer; border: 1px solid var(--line);
+      background: var(--card); color: var(--ink); border-radius: 9px;
+      padding: .3rem .62rem; font-size: 1.1rem; line-height: 1;
+    }
+    .nav-toggle:hover { background: var(--accent-soft); }
 
-    main { max-width: 1000px; margin: 1.6rem auto; padding: 0 1.25rem; }
+    /* Inhalt + rechte Navigationsleiste */
+    .shell {
+      display: flex; gap: 1.4rem; max-width: 1100px; margin: 0 auto;
+      padding: 0 1.25rem; align-items: flex-start;
+    }
+    .sidenav {
+      flex: 0 0 198px; margin: 1.6rem 0; position: sticky; top: 70px;
+      display: flex; flex-direction: column; gap: .18rem;
+    }
+    .sidenav a {
+      color: var(--muted); text-decoration: none; font-weight: 600;
+      font-size: .92rem; padding: .5rem .7rem; border-radius: 9px; line-height: 1.2;
+    }
+    .sidenav a:hover { color: var(--ink); background: rgba(255,255,255,.6); }
+    .sidenav a.active { color: var(--accent-deep); background: var(--card);
+      box-shadow: var(--shadow); }
+    html.nav-collapsed .sidenav { display: none; }
+
+    .shell > main { flex: 1 1 auto; min-width: 0; margin: 1.6rem 0; }
     h1 { font-size: 1.55rem; margin: .2rem 0 1.1rem; letter-spacing: -.01em; }
     h2 { font-size: 1.12rem; margin: 0 0 .7rem; }
     h3 { font-size: 1rem; margin: 1rem 0 .5rem; }
@@ -168,7 +184,9 @@
     header { padding-top: calc(.7rem + env(safe-area-inset-top));
              padding-left: calc(1.4rem + env(safe-area-inset-left));
              padding-right: calc(1.4rem + env(safe-area-inset-right)); }
-    main { padding-bottom: env(safe-area-inset-bottom); }
+    .shell { padding-left: calc(1.25rem + env(safe-area-inset-left));
+             padding-right: calc(1.25rem + env(safe-area-inset-right)); }
+    .shell > main { padding-bottom: env(safe-area-inset-bottom); }
 
     /* -------- Mobil (Smartphone) -------- */
     @media (max-width: 680px) {
@@ -179,13 +197,21 @@
       header .who { order: 2; margin-left: auto; }
       header form.inline { order: 3; }
       header .spacer { display: none; }
-      header nav { order: 5; width: 100%; flex-wrap: nowrap; overflow-x: auto;
-                   -webkit-overflow-scrolling: touch; gap: .3rem;
-                   padding-bottom: 2px; scrollbar-width: none; }
-      header nav::-webkit-scrollbar { display: none; }
-      header nav a { white-space: nowrap; }
+      .nav-toggle { display: none; }   /* auf dem Handy keine Einklapp-Logik */
 
-      main { margin: 1rem auto; padding: 0 .8rem env(safe-area-inset-bottom); }
+      .shell { flex-direction: column; gap: 0;
+               padding-left: calc(.8rem + env(safe-area-inset-left));
+               padding-right: calc(.8rem + env(safe-area-inset-right)); }
+      /* Navigation als horizontale Scroll-Leiste oberhalb des Inhalts */
+      .sidenav { order: -1; position: static; flex-basis: auto; width: 100%;
+                 margin: .6rem 0 0; flex-direction: row; flex-wrap: nowrap;
+                 overflow-x: auto; -webkit-overflow-scrolling: touch; gap: .3rem;
+                 padding-bottom: 2px; scrollbar-width: none; }
+      .sidenav::-webkit-scrollbar { display: none; }
+      .sidenav a { white-space: nowrap; }
+      html.nav-collapsed .sidenav { display: flex; }  /* mobil immer sichtbar */
+
+      .shell > main { margin: 1rem 0; }
       h1 { font-size: 1.3rem; margin-bottom: .8rem; }
       .card { padding: 1rem .9rem; }
       input, select { min-width: 0; width: 100%; max-width: 100%; }
@@ -207,34 +233,55 @@
 <body>
 <header>
   <span class="brand"><img src="{% static 'booking/icons/logo.svg' %}" alt="" width="26" height="26">Re:Hof Quartiere</span>
-  {% if user.is_authenticated %}
-  {% with url_name=request.resolver_match.url_name %}
-  <nav>
-    <a href="{% url 'overview' %}" class="{% if url_name == 'overview' %}active{% endif %}">Übersicht</a>
-    <a href="{% url 'book' %}" class="{% if url_name == 'book' %}active{% endif %}">Buchen</a>
-    <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}">Wunschliste fürs nächste Jahr</a>
-    <a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}">Meine Buchungen</a>
-    <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}">Tage übertragen</a>
-    <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}">Hofladen</a>
-    <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}">Profil</a>
-    <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}">Hilfe</a>
-    {% if user.is_staff %}<a href="/admin/">Verwaltung</a>{% endif %}
-  </nav>
-  {% endwith %}
+  {% if user.is_authenticated and user.member %}
+  <button id="navToggle" class="nav-toggle" type="button" aria-label="Menü ein-/ausklappen" title="Menü ein-/ausklappen">☰</button>
+  {% endif %}
   <span class="spacer"></span>
+  {% if user.is_authenticated %}
   <span class="who">{{ user.member.display_name|default:user.username }}</span>
   <form class="inline" action="{% url 'logout' %}" method="post">{% csrf_token %}
     <button class="btn small ghost" type="submit">Abmelden</button>
   </form>
   {% endif %}
 </header>
-<main>
-  {% if messages %}
-    {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+
+<div class="shell">
+  <main>
+    {% if messages %}
+      {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% if user.is_authenticated and user.member %}
+  {% with url_name=request.resolver_match.url_name %}
+  <nav class="sidenav" aria-label="Hauptnavigation">
+    <a href="{% url 'overview' %}" class="{% if url_name == 'overview' %}active{% endif %}">Übersicht</a>
+    <a href="{% url 'book' %}" class="{% if url_name == 'book' or url_name == 'book_confirm' %}active{% endif %}">Buchen</a>
+    <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}">Wunschliste</a>
+    <a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}">Meine Buchungen</a>
+    <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}">Tage übertragen</a>
+    <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_checkout' %}active{% endif %}">Hofladen</a>
+    <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}">Meine Rechnungen</a>
+    <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}">Profil</a>
+    <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}">Hilfe</a>
+    {% if user.is_staff %}<a href="/admin/">Verwaltung</a>{% endif %}
+  </nav>
+  {% endwith %}
   {% endif %}
-  {% block content %}{% endblock %}
-</main>
+</div>
+
 <script>
+  // Navigation ein-/ausklappen (Desktop). Standard: angezeigt. Zustand merken.
+  (function () {
+    var root = document.documentElement, KEY = "rehofNav";
+    try { if (localStorage.getItem(KEY) === "collapsed") root.classList.add("nav-collapsed"); } catch (e) {}
+    var btn = document.getElementById("navToggle");
+    if (btn) btn.addEventListener("click", function () {
+      root.classList.toggle("nav-collapsed");
+      try { localStorage.setItem(KEY, root.classList.contains("nav-collapsed") ? "collapsed" : "open"); } catch (e) {}
+    });
+  })();
   // Service Worker registrieren (PWA/Offline). Läuft nur über HTTPS bzw. localhost.
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {

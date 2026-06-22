@@ -205,7 +205,9 @@ def book_confirm(request):
             added = []
             for o in offers:
                 if request.POST.get(f"service_{o['p'].id}") and o["available"]:
-                    item, _serr = shop_svc.add_item(member, o["p"], 1, service_date=end)
+                    # Direkt als bestätigter Einkauf (nicht im Warenkorb).
+                    item, _serr = shop_svc.purchase_service(
+                        member, o["p"], 1, service_date=end)
                     if item:
                         added.append(o["p"].name)
             msg = f"Gebucht: {quarter.name}, {start} – {end} ({persons} Pers.)."

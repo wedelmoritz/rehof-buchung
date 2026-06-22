@@ -103,11 +103,56 @@ class WochentagSperreTests(ShopBase):
         self.assertEqual(item.service_date, date(2026, 7, 1))
 
 
+class CheckoutUndEinkaufTests(ShopBase):
+    def test_gleiche_artikel_werden_zusammengefasst(self):
+        svc.add_item(self.alice, self.apple, "2")
+        svc.add_item(self.alice, self.apple, "1.5")
+        items = list(svc.open_items(self.alice))
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].quantity, Decimal("3.5"))
+
+    def test_menge_aendern_und_entfernen(self):
+        svc.add_item(self.alice, self.apple, "2")
+        it = svc.open_items(self.alice).first()
+        ok, err = svc.set_cart_quantity(self.alice, it.id, "0.5")
+        self.assertTrue(ok, err)
+        it.refresh_from_db()
+        self.assertEqual(it.quantity, Decimal("0.5"))
+        ok, _ = svc.set_cart_quantity(self.alice, it.id, "0")  # 0 entfernt
+        self.assertTrue(ok)
+        self.assertEqual(svc.open_items(self.alice).count(), 0)
+
+    def test_checkout_bestaetigt_und_sperrt_warenkorb(self):
+        svc.add_item(self.alice, self.apple, "2")
+        p, err = svc.checkout(self.alice)
+        self.assertIsNotNone(p, err)
+        self.assertEqual(svc.open_items(self.alice).count(), 0)
+        self.assertEqual(p.items.count(), 1)
+        p2, _ = svc.checkout(self.alice)  # leerer Korb
+        self.assertIsNone(p2)
+
+    def test_warenkorb_ohne_checkout_wird_nicht_abgerechnet(self):
+        svc.add_item(self.alice, self.apple, "2")
+        invs = svc.generate_monthly_invoices(date.today().year, date.today().month)
+        self.assertEqual(invs, [])
+
+    def test_sofort_rechnung(self):
+        svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
+        inv, err = svc.generate_invoice_now(self.alice)
+        self.assertIsNotNone(inv, err)
+        self.assertEqual(inv.total_gross, Decimal("6.40"))
+        inv2, _ = svc.generate_invoice_now(self.alice)  # nichts mehr offen
+        self.assertIsNone(inv2)
+
+
 class InvoiceTests(ShopBase):
     def test_monatsrechnung_fasst_zusammen(self):
         svc.add_item(self.alice, self.apple, "2")    # 6.40 (7%)
         svc.add_item(self.alice, self.juice, "1")    # 2.00 (19%)
         svc.add_item(self.bob, self.apple, "1")      # 3.20
+        svc.checkout(self.alice)                     # Warenkorb bestätigen
+        svc.checkout(self.bob)
         invoices = svc.generate_monthly_invoices(date.today().year, date.today().month)
         self.assertEqual(len(invoices), 2)
         inv_a = Invoice.objects.get(member=self.alice)
@@ -122,6 +167,7 @@ class InvoiceTests(ShopBase):
 
     def test_status_offen_bezahlt_bestaetigt(self):
         svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
         inv = svc.generate_monthly_invoices(date.today().year, date.today().month)[0]
         self.assertEqual(inv.status, Invoice.OPEN)
         ok, err = svc.mark_paid(self.alice, inv.id)
@@ -136,6 +182,7 @@ class InvoiceTests(ShopBase):
 class AccessTests(ShopBase):
     def test_nur_eigene_rechnung_sichtbar(self):
         svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
         inv = svc.generate_monthly_invoices(date.today().year, date.today().month)[0]
         self.client.force_login(self.bob.user)
         self.assertEqual(self.client.get(f"/hofladen/rechnung/{inv.id}/").status_code, 404)
@@ -144,6 +191,7 @@ class AccessTests(ShopBase):
 
     def test_fremde_rechnung_nicht_als_bezahlt_meldbar(self):
         svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
         inv = svc.generate_monthly_invoices(date.today().year, date.today().month)[0]
         ok, err = svc.mark_paid(self.bob, inv.id)
         self.assertFalse(ok)
