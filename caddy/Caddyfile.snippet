@@ -5,7 +5,8 @@
 
 rehof.wedelparlow.de {
     encode gzip
-    # Servicename des web-Containers im gemeinsamen Netz
-    # (alternativ die feste IP: 10.42.42.20:8000).
-    reverse_proxy web:8000
+    # Feste Container-IP im gemeinsamen Netz compose_web (Schema: caddy=.10,
+    # web=.20). Deterministisch und unabhängig von DNS-Aliassen anderer Stacks.
+    # Alternativ ginge der Servicename: reverse_proxy web:8000
+    reverse_proxy 10.42.42.20:8000
 }

@@ -43,9 +43,8 @@ services:
       - "8000"               # für Container im selben Netz (Caddy)
     networks:
       caddy:
-        # Feste IP für Caddys reverse_proxy/Health-Check. Setzt voraus, dass das
-        # externe Netz (compose_web) ein Subnetz hat, das 10.42.42.20 abdeckt –
-        # sonst weglassen und per Servicename (web) auflösen.
+        # Feste IP für Caddys reverse_proxy/Health-Check. Schema im Netz
+        # compose_web (10.42.42.0/24): caddy=.10, web=.20.
         ipv4_address: 10.42.42.20
       internal: {}
     # gunicorn bindet 0.0.0.0:8000 (siehe entrypoint.sh)
