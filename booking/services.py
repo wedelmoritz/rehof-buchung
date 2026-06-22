@@ -434,6 +434,87 @@ def build_booking_calendar(
     }
 
 
+def build_wish_calendar(
+    member, period, year: int, month: int,
+    sel_start: date | None = None, sel_end: date | None = None,
+) -> dict:
+    """Monatsmatrix für die Wunschliste mit Ampel nach Wunsch-Nachfrage:
+
+      free  (grün)     – noch keine eingereichten Wünsche
+      many  (hellgrün) – wenig Nachfrage
+      few   (gelb)     – mittlere Nachfrage
+      full  (rot)      – mehr Wünsche als Quartiere → hart umkämpft
+
+    Eigene Wünsche werden markiert (eingereicht vs. Entwurf).
+    """
+    cal = _calendar.Calendar(firstweekday=0)
+    weeks = cal.monthdatescalendar(year, month)
+    first, last = weeks[0][0], weeks[-1][-1]
+
+    n_quarters = max(1, Quarter.objects.filter(active=True).count())
+    submitted, own = [], []
+    if period:
+        submitted = list(Wish.objects.filter(
+            period=period, submitted=True, start__lte=last, end__gt=first))
+        if member:
+            own = list(Wish.objects.filter(
+                period=period, member=member, start__lte=last, end__gt=first))
+    hols = school_holidays_in_range(first, last + timedelta(days=1))
+    today = date.today()
+
+    grid = []
+    for week in weeks:
+        row = []
+        for d in week:
+            demand = sum(1 for w in submitted if w.start <= d < w.end)
+            if demand == 0:
+                level = "free"
+            elif demand <= n_quarters // 2 or demand == 1:
+                level = "many"
+            elif demand <= n_quarters:
+                level = "few"
+            else:
+                level = "full"
+            own_sub = any(w.start <= d < w.end for w in own if w.submitted)
+            own_draft = any(w.start <= d < w.end for w in own if not w.submitted)
+            in_range = bool(
+                sel_start and ((sel_end and sel_start <= d < sel_end)
+                               or (not sel_end and d == sel_start)))
+            row.append({
+                "date": d, "iso": d.isoformat(), "day": d.day,
+                "in_month": d.month == month, "is_today": d == today,
+                "is_weekend": d.weekday() >= 5, "is_past": d < today,
+                "holiday": next((h.name for h in hols if h.start <= d < h.end), None),
+                "level": level, "demand": demand,
+                "own_sub": own_sub, "own_draft": own_draft,
+                "in_range": in_range, "is_start": sel_start == d,
+            })
+        grid.append(row)
+
+    prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return {
+        "weeks": grid, "label": f"{GERMAN_MONTHS[month]} {year}",
+        "year": year, "month": month,
+        "prev": {"year": prev_month[0], "month": prev_month[1]},
+        "next": {"year": next_month[0], "month": next_month[1]},
+        "holidays": hols,
+    }
+
+
+def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
+    """Anzahl eingereichter Wünsche je Quartier, die [start, end) überlappen –
+    zeigt, welche Quartiere im Wunschzeitraum besonders umkämpft sind."""
+    counts: dict[str, int] = defaultdict(int)
+    if not period or end <= start:
+        return counts
+    for w in Wish.objects.filter(
+        period=period, submitted=True, start__lt=end, end__gt=start,
+    ):
+        counts[str(w.quarter_id)] += 1
+    return counts
+
+
 # --------------------------------------------------------------------------- #
 # Warteliste (Spontanbuchung) & In-App-Benachrichtigungen
 # --------------------------------------------------------------------------- #

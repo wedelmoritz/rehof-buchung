@@ -509,6 +509,26 @@ class DetailUndWechselwunschTests(UseCaseBase):
         self.assertFalse(ok2)
 
 
+class WunschKalenderTests(UseCaseBase):
+    def test_wunsch_ampel_und_zaehler(self):
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            status=BookingPeriod.WISHES_OPEN)
+        s, e = date(NEXT_YEAR, 5, 10), date(NEXT_YEAR, 5, 14)
+        for who in (self.alice, self.bob):
+            svc.add_wish(who, period, self.k1, s, e)
+            svc.submit_wishlist(who, period)
+        # Zähler je Quartier
+        counts = svc.quarter_wish_counts(period, s, e)
+        self.assertEqual(counts[str(self.k1.id)], 2)
+        # Ampel-Nachfrage am Tag + eigene Markierung
+        cal = svc.build_wish_calendar(self.alice, period, NEXT_YEAR, 5)
+        cell = next(c for wk in cal["weeks"] for c in wk if c["date"] == s)
+        self.assertEqual(cell["demand"], 2)
+        self.assertTrue(cell["own_sub"])
+
+
 # --------------------------------------------------------------------------- #
 # Use-Case 11: Tandem-Mitgliedschaften (fester Tage-Anteil je Nutzer)
 # --------------------------------------------------------------------------- #

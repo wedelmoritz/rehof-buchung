@@ -11,16 +11,94 @@
 
 <div class="card">
   <p class="muted" style="margin-top:0">
-    Periode <strong>{{ period }}</strong>. Trage deine Wunschzeiträume ein und bring sie per
-    Ziehen (oder mit &#9650; &#9660;) in die gewünschte Reihenfolge &ndash; Priorität 1 oben.
-    Anders als beim Buchen dürfen sich Wünsche überschneiden; das Losverfahren entscheidet später.
-    Solange du nicht bestätigst, ist die Liste nur für dich sichtbar.
+    Periode <strong>{{ period }}</strong>. Im Kalender siehst du per Ampel, wie stark ein Zeitraum
+    schon umkämpft ist (rot = mehr Wünsche als Quartiere). Du kannst trotzdem überall Wünsche eintragen –
+    das Losverfahren entscheidet später. Deine eingereichten Wünsche (&#9679;) und Entwürfe (&#9675;) sind markiert.
   </p>
 
+  <div class="cal-head">
+    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ sel_qs }}">&lsaquo;</a>
+    <strong class="cal-title">{{ cal.label }}</strong>
+    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ sel_qs }}">&rsaquo;</a>
+    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ sel_qs }}">Heute</a>
+  </div>
+
+  <table class="cal wish-cal">
+    <thead><tr><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th></tr></thead>
+    <tbody>
+      {% for week in cal.weeks %}
+      <tr>
+        {% for d in week %}
+        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %}"
+            {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
+          {% if d.is_start %}<span class="start-flag">Start</span>{% endif %}
+          {% if d.in_month and not wishlist_submitted %}
+          <a class="dlink" href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}">
+            <span class="d-num">{{ d.day }}{% if d.own_sub %} <span class="own sub" title="dein eingereichter Wunsch">&#9679;</span>{% elif d.own_draft %} <span class="own draft" title="dein Entwurf">&#9675;</span>{% endif %}</span>
+            <span class="free-badge">{{ d.demand }}&times;</span>
+          </a>
+          {% else %}
+          <span class="d-num">{{ d.day }}{% if d.own_sub %} <span class="own sub">&#9679;</span>{% elif d.own_draft %} <span class="own draft">&#9675;</span>{% endif %}</span>
+          {% if d.in_month %}<span class="free-badge">{{ d.demand }}&times;</span>{% endif %}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="legend">
+    <span><i class="sw lvl-free"></i> keine Wünsche</span>
+    <span><i class="sw lvl-many"></i> wenig</span>
+    <span><i class="sw lvl-few"></i> mittel</span>
+    <span><i class="sw lvl-full"></i> umkämpft</span>
+    <span>&#9679; dein Wunsch · &#9675; dein Entwurf</span>
+  </div>
+</div>
+
+{% if not wishlist_submitted %}
+<div class="card">
+  <strong>Oder Zeitraum direkt eingeben</strong>
+  <form method="get" class="filters" style="margin-top:.5rem">
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    <label class="pers">Anreise <input type="date" name="start" value="{{ sel_start|date:'Y-m-d' }}"></label>
+    <label class="pers">Abreise <input type="date" name="end" value="{{ sel_end|date:'Y-m-d' }}"></label>
+    <button class="btn small" type="submit">Übernehmen</button>
+  </form>
+</div>
+
+{% if sel_start %}
+<div class="card">
+  <div style="display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap">
+    <h2 style="margin:0">Wunsch eintragen</h2>
+    <span>Anreise <strong>{{ eff_start }}</strong>
+      {% if sel_end %}&ndash; Abreise <strong>{{ eff_end }}</strong> ({{ nights_selected }} Nächte){% else %}
+      &ndash; <span class="muted">Abreisetag wählen (oder 1 Nacht)</span>{% endif %}</span>
+    <a class="muted" style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}">Auswahl zurücksetzen</a>
+  </div>
+  <p class="muted" style="margin-top:.2rem">Die Zahl zeigt, wie oft das Quartier in dem Zeitraum schon gewünscht ist.</p>
+  {% for c in candidates %}
+  <form class="qrow" method="post">{% csrf_token %}
+    <input type="hidden" name="action" value="add_wish">
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    <input type="hidden" name="quarter" value="{{ c.q.id }}">
+    <input type="hidden" name="start" value="{{ eff_start|date:'Y-m-d' }}">
+    <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
+    <span class="qname">{{ c.q.name }}</span>
+    <span class="muted qmeta">{{ c.q.size_sqm }} m² · {{ c.q.min_occupancy }}–{{ c.q.max_occupancy }} Pers.</span>
+    {% if c.count %}<span class="tag con">{{ c.count }}× gewünscht</span>{% else %}<span class="tag">frei</span>{% endif %}
+    <span class="spacer"></span>
+    <button class="btn small" type="submit">Wunsch eintragen</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+<div class="card" id="wunschliste">
+  <h2>Meine Wünsche</h2>
   {% if wishlist_submitted %}
-    <div class="msg success">
-      Deine Wünsche sind im Lostopf eingereicht. Zum Bearbeiten erst zurückziehen.
-    </div>
+    <div class="msg success">Deine Wünsche sind im Lostopf eingereicht. Zum Bearbeiten erst zurückziehen.</div>
     <table>
       <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
       {% for w in wishes %}
@@ -32,9 +110,9 @@
       <input type="hidden" name="action" value="withdraw_wishlist">
       <button class="btn ghost" type="submit">Zurückziehen &amp; bearbeiten</button>
     </form>
-
   {% else %}
     {% if wishes %}
+    <p class="muted" style="margin-top:0">Reihenfolge per Ziehen (oder &#9650;&#9660;) – Priorität 1 oben.</p>
     <ul class="wishlist" id="wishlist">
       {% for w in wishes %}
       <li class="wish" draggable="true" data-id="{{ w.id }}">
@@ -44,74 +122,70 @@
           <span class="muted">{{ w.start }} &ndash; {{ w.end }} &middot; {{ w.nights }} Nächte</span></span>
         <span class="wish-actions">
           <form method="post" class="inline">{% csrf_token %}
-            <input type="hidden" name="action" value="move_wish">
-            <input type="hidden" name="wish_id" value="{{ w.id }}">
+            <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
             <input type="hidden" name="direction" value="up">
             <button class="btn small ghost" type="submit" {% if forloop.first %}disabled{% endif %}>&#9650;</button>
           </form>
           <form method="post" class="inline">{% csrf_token %}
-            <input type="hidden" name="action" value="move_wish">
-            <input type="hidden" name="wish_id" value="{{ w.id }}">
+            <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
             <input type="hidden" name="direction" value="down">
             <button class="btn small ghost" type="submit" {% if forloop.last %}disabled{% endif %}>&#9660;</button>
           </form>
           <form method="post" class="inline" onsubmit="return confirm('Wunsch löschen?');">{% csrf_token %}
-            <input type="hidden" name="action" value="delete_wish">
-            <input type="hidden" name="wish_id" value="{{ w.id }}">
+            <input type="hidden" name="action" value="delete_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
             <button class="btn small ghost danger" type="submit">&#10005;</button>
           </form>
         </span>
       </li>
       {% endfor %}
     </ul>
-
     <form method="post" id="reorder-form">{% csrf_token %}
-      <input type="hidden" name="action" value="reorder">
-      <input type="hidden" name="order" id="reorder-order">
+      <input type="hidden" name="action" value="reorder"><input type="hidden" name="order" id="reorder-order">
     </form>
-
-    <p class="muted" style="margin:.6rem 0">
-      Summe: {{ wish_nights }} Nächte gewünscht (Losung-Budget bis {{ wish_budget }} Nächte).
-    </p>
-
-    <form method="post" style="margin-bottom:1rem">{% csrf_token %}
+    <p class="muted" style="margin:.6rem 0">Summe: {{ wish_nights }} Nächte gewünscht (Losung-Budget bis {{ wish_budget }} Nächte).</p>
+    <form method="post">{% csrf_token %}
       <input type="hidden" name="action" value="submit_wishlist">
-      <button class="btn sage" type="submit"
-        onclick="return confirm('Wunschliste verbindlich in den Lostopf geben?');">
-        &#10003; Bestätigen &ndash; in den Lostopf
-      </button>
+      <button class="btn sage" type="submit" onclick="return confirm('Wunschliste verbindlich in den Lostopf geben?');">
+        &#10003; Bestätigen &ndash; in den Lostopf</button>
     </form>
     {% else %}
-    <p class="muted">Noch keine Wünsche eingetragen.</p>
+    <p class="muted">Noch keine Wünsche eingetragen – wähle oben im Kalender einen Zeitraum.</p>
     {% endif %}
-
-    <h3 style="margin-top:1rem">Wunsch hinzufügen</h3>
-    <form method="post">{% csrf_token %}
-      <input type="hidden" name="action" value="add_wish">
-      <div class="form-row">
-        {% for f in wish_form %}
-          <div class="field">{{ f.label_tag }} {{ f }}</div>
-        {% endfor %}
-      </div>
-      <button class="btn" type="submit" style="margin-top:.6rem">Hinzufügen</button>
-    </form>
   {% endif %}
 </div>
 
 <style>
+  table.wish-cal td { padding:0; position:relative; }
+  td.lvl-free { background:#d9efce; } td.lvl-many { background:#e8f3dc; }
+  td.lvl-few { background:#f9efc9; } td.lvl-full { background:#f6ddd6; }
+  table.wish-cal td.out { background:#f6f0e6; opacity:.5; }
+  table.wish-cal td.today { outline:2px dotted #9d958a; outline-offset:-2px; }
+  td.in-range { background-image:linear-gradient(rgba(138,169,127,.18),rgba(138,169,127,.18)); }
+  td.is-start { box-shadow: inset 0 0 0 3px var(--accent-deep); }
+  .wish-cal .dlink { display:flex; flex-direction:column; justify-content:space-between;
+    height:100%; min-height:64px; padding:3px 5px; text-decoration:none; color:var(--ink); }
+  .wish-cal .dlink:hover { background:rgba(255,255,255,.4); }
+  .wish-cal .d-num { font-size:.8rem; }
+  .wish-cal .free-badge { font-size:.66rem; color:#5b5347; align-self:flex-end;
+    background:rgba(255,255,255,.6); border-radius:5px; padding:0 4px; }
+  .own.sub { color:var(--sage); } .own.draft { color:var(--muted); }
+  .start-flag { position:absolute; top:0; right:0; background:var(--accent-deep); color:#fff;
+    font-size:.6rem; line-height:1; padding:2px 4px; border-bottom-left-radius:5px; z-index:1; }
+  .legend .sw.lvl-free{background:#d9efce}.legend .sw.lvl-many{background:#e8f3dc}
+  .legend .sw.lvl-few{background:#f9efc9}.legend .sw.lvl-full{background:#f6ddd6}
+  .filters { display:flex; gap:1.2rem; align-items:center; flex-wrap:wrap; }
+  .filters .pers { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.9rem; }
+  .qrow { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.45rem; }
+  .qrow .qname { font-weight:600; } .qrow .qmeta { font-size:.85rem; } .qrow .spacer { margin-left:auto; }
   ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
-  li.wish {
-    display:flex; align-items:center; gap:.7rem; background:var(--card);
-    border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem;
-  }
+  li.wish { display:flex; align-items:center; gap:.7rem; background:var(--card);
+    border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem; }
   li.wish.dragover { border-color:var(--accent); background:var(--accent-soft); }
   li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; }
-  .wish-prio {
-    background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
-    display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto;
-  }
-  .wish-main { flex:1 1 auto; }
-  .wish-actions { display:flex; gap:.25rem; align-items:center; }
+  .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
+    display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto; }
+  .wish-main { flex:1 1 auto; } .wish-actions { display:flex; gap:.25rem; align-items:center; }
 </style>
 
 <script>
@@ -120,28 +194,19 @@
   if (!list) return;
   var dragEl = null;
   list.querySelectorAll('li.wish').forEach(function (li) {
-    li.addEventListener('dragstart', function (e) {
-      dragEl = li; li.style.opacity = '0.5'; e.dataTransfer.effectAllowed = 'move';
-    });
-    li.addEventListener('dragend', function () {
-      li.style.opacity = ''; dragEl = null;
-      list.querySelectorAll('li.wish').forEach(function (x){ x.classList.remove('dragover'); });
-    });
+    li.addEventListener('dragstart', function (e) { dragEl = li; li.style.opacity = '0.5'; e.dataTransfer.effectAllowed = 'move'; });
+    li.addEventListener('dragend', function () { li.style.opacity = ''; dragEl = null;
+      list.querySelectorAll('li.wish').forEach(function (x){ x.classList.remove('dragover'); }); });
     li.addEventListener('dragover', function (e) {
-      e.preventDefault();
-      if (li === dragEl) return;
-      li.classList.add('dragover');
+      e.preventDefault(); if (li === dragEl) return; li.classList.add('dragover');
       var rect = li.getBoundingClientRect();
-      var after = (e.clientY - rect.top) > rect.height / 2;
-      if (after) { li.parentNode.insertBefore(dragEl, li.nextSibling); }
-      else { li.parentNode.insertBefore(dragEl, li); }
-    });
+      if ((e.clientY - rect.top) > rect.height / 2) { li.parentNode.insertBefore(dragEl, li.nextSibling); }
+      else { li.parentNode.insertBefore(dragEl, li); } });
     li.addEventListener('dragleave', function () { li.classList.remove('dragover'); });
   });
   list.addEventListener('drop', function (e) {
     e.preventDefault();
-    var ids = Array.prototype.map.call(
-      list.querySelectorAll('li.wish'), function (x) { return x.getAttribute('data-id'); });
+    var ids = Array.prototype.map.call(list.querySelectorAll('li.wish'), function (x) { return x.getAttribute('data-id'); });
     document.getElementById('reorder-order').value = ids.join(',');
     document.getElementById('reorder-form').submit();
   });
