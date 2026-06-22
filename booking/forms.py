@@ -6,6 +6,31 @@ from django import forms
 from .models import Member, Wish
 
 
+def validate_iban(value: str) -> str:
+    """Einfache IBAN-Prüfung (Format + Mod-97). Leer ist erlaubt."""
+    iban = (value or "").replace(" ", "").upper()
+    if not iban:
+        return ""
+    if not (15 <= len(iban) <= 34) or not iban[:2].isalpha() or not iban[2:4].isdigit():
+        raise forms.ValidationError("Ungültige IBAN.")
+    rearr = iban[4:] + iban[:4]
+    digits = "".join(str(int(c, 36)) for c in rearr)
+    if int(digits) % 97 != 1:
+        raise forms.ValidationError("Ungültige IBAN (Prüfsumme).")
+    return iban
+
+
+class ProfileForm(forms.ModelForm):
+    """Selbstpflege der Profil-/Rechnungsdaten durch das Mitglied."""
+    class Meta:
+        model = Member
+        fields = ["legal_name", "street", "zip_code", "city", "iban",
+                  "membership_number"]
+
+    def clean_iban(self):
+        return validate_iban(self.cleaned_data.get("iban", ""))
+
+
 class WishForm(forms.ModelForm):
     class Meta:
         model = Wish

@@ -9,5 +9,6 @@ urlpatterns = [
     path("wunschliste/", views.wishlist, name="wishlist"),
     path("meine-buchungen/", views.my_bookings, name="my_bookings"),
     path("tage-uebertragen/", views.transfer, name="transfer"),
+    path("profil/", views.profile, name="profile"),
     path("ergebnis/<int:period_id>/", views.period_result, name="period_result"),
 ]

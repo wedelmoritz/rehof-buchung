@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from .forms import TransferForm, WishForm
+from .forms import ProfileForm, TransferForm, WishForm
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
 
@@ -468,6 +468,24 @@ def wishlist(request):
 # --------------------------------------------------------------------------- #
 # Tage übertragen
 # --------------------------------------------------------------------------- #
+
+@login_required
+def profile(request):
+    """Eigene Profil-/Rechnungsdaten (Name, Anschrift, IBAN) selbst pflegen.
+    Nur die eigenen Daten – `member` stammt aus request.user."""
+    member = _current_member(request)
+    if not member:
+        return redirect("overview")
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=member)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profil gespeichert.")
+            return redirect("profile")
+    else:
+        form = ProfileForm(instance=member)
+    return render(request, "booking/profile.html", {"member": member, "form": form})
+
 
 @login_required
 def transfer(request):

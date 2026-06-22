@@ -162,6 +162,8 @@
     <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}">Wunschliste fürs nächste Jahr</a>
     <a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}">Meine Buchungen</a>
     <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}">Tage übertragen</a>
+    <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}">Hofladen</a>
+    <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}">Profil</a>
     {% if user.is_staff %}<a href="/admin/">Verwaltung</a>{% endif %}
   </nav>
   {% endwith %}

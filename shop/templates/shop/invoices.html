@@ -1,0 +1,46 @@
+{% extends "booking/base.html" %}
+{% block title %}Meine Rechnungen{% endblock %}
+{% block content %}
+<h1>Meine Rechnungen</h1>
+
+{% if not member %}
+<div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt.</p></div>
+{% else %}
+
+<div class="card">
+  <p style="margin-top:0">Offener Warenkorb: <strong>{{ open_count }}</strong> Position(en),
+    <strong>{{ open_total }} €</strong>. <a href="{% url 'shop_index' %}">Zum Hofladen →</a></p>
+  <p class="muted" style="margin-bottom:0">Die Sammelrechnung über die offenen Positionen wird automatisch am Monatsende erstellt.</p>
+</div>
+
+<div class="card">
+  <h2>Rechnungen</h2>
+  {% if invoices %}
+  <table>
+    <tr><th>Nummer</th><th>Monat</th><th>Betrag</th><th>Status</th><th></th></tr>
+    {% for inv in invoices %}
+    <tr>
+      <td><a href="{% url 'shop_invoice' inv.id %}">{{ inv.number }}</a></td>
+      <td>{{ inv.month }}/{{ inv.year }}</td>
+      <td>{{ inv.total_gross }} €</td>
+      <td>
+        {% if inv.status == 'open' %}<span class="tag sub">offen</span>
+        {% elif inv.status == 'paid' %}<span class="tag con">bezahlt gemeldet</span>
+        {% else %}<span class="tag mine">bestätigt</span>{% endif %}
+      </td>
+      <td>
+        {% if inv.status == 'open' %}
+        <form method="post" onsubmit="return confirm('Rechnung {{ inv.number }} als bezahlt melden?');">{% csrf_token %}
+          <input type="hidden" name="action" value="mark_paid">
+          <input type="hidden" name="invoice_id" value="{{ inv.id }}">
+          <button class="btn small" type="submit">Habe ich bezahlt</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Noch keine Rechnungen.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

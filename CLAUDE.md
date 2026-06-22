@@ -82,7 +82,19 @@ Losverfahren), `my_bookings` (eigene Buchungen + Storno; je Buchung „wer ist
 gleichzeitig da“ + Wechselwunsch an andere Mitglieder, die zustimmen/ablehnen
 können), `transfer`. Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` (E-Mail-Versand folgt
-in einer späteren Stufe).
+in einer späteren Stufe). Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
+das Mitglied selbst unter `profile`.
+
+**Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
+(`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
+`kind="dienstleistung"` + `needs_date`), Einkauf mit **Preis-Snapshot**
+(`LineItem`; offen = ohne `invoice`), monatliche Sammelrechnung (`Invoice`,
+Nummer `HL-JJJJ-MM-NNN`, Status offen→bezahlt-gemeldet→bestätigt/archiviert,
+§14-Angaben + Steuer-Aufschlüsselung). Stammdaten der Genossenschaft im
+`ShopConfig`-Singleton. Geldlogik/Tests in `shop/services.py` bzw. `shop/tests.py`
+(Preis-Snapshot, Rechnung, Zugriffsrechte). **Cron:** `generate_monthly_invoices`
+(monatlich) und `run_due_lotteries` (terminierte Losungen). Rechnung zunächst als
+In-App-HTML, PDF/Mail später.
 
 ---
 
