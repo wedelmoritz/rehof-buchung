@@ -12,8 +12,8 @@ from django.urls import reverse
 
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    LotteryRun, Member, Membership, NightTransfer, Notification, Quarter,
-    SchoolHoliday, SeasonRule, Share, SwapRequest, UpcomingAllocation,
+    LotteryRun, Member, Membership, NightTransfer, Notification, OutboxEmail,
+    Quarter, SchoolHoliday, SeasonRule, Share, SwapRequest, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
 from .services import run_period_lottery
@@ -304,6 +304,21 @@ class SwapRequestAdmin(admin.ModelAdmin):
                     "to_allocation", "status", "created_at")
     list_filter = ("status",)
     search_fields = ("from_member__display_name", "to_member__display_name")
+
+
+@admin.register(OutboxEmail)
+class OutboxEmailAdmin(admin.ModelAdmin):
+    """Einsicht in die E-Mail-Warteschlange (versendet der Scheduler via
+    send_outbox). Read-only – Inhalte werden vom System erzeugt."""
+    list_display = ("to_email", "subject", "created_at", "sent_at", "attempts")
+    list_filter = ("sent_at",)
+    search_fields = ("to_email", "subject")
+    date_hierarchy = "created_at"
+    readonly_fields = ("to_email", "subject", "body", "html_body", "member",
+                       "created_at", "sent_at", "attempts", "last_error")
+
+    def has_add_permission(self, request):
+        return False
 
 
 class SeasonRuleInline(admin.TabularInline):

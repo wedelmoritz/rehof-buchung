@@ -57,7 +57,7 @@ class ProfileForm(forms.ModelForm):
     class Meta:
         model = Member
         fields = ["legal_name", "street", "zip_code", "city", "iban",
-                  "membership_number"]
+                  "membership_number", "email_opt_in"]
 
     def clean_iban(self):
         return validate_iban(self.cleaned_data.get("iban", ""))

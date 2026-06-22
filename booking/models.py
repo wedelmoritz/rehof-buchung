@@ -134,6 +134,10 @@ class Member(models.Model):
     display_name = models.CharField("Anzeigename", max_length=120)
     factor = models.FloatField("Ausgleichsfaktor", default=1.0)
     is_external = models.BooleanField("Externer Gast", default=False)
+    email_opt_in = models.BooleanField(
+        "E-Mail-Benachrichtigungen", default=True,
+        help_text="Wenn aus, bekommt das Mitglied keine E-Mails (In-App-Hinweise "
+                  "bleiben).")
     # Profil-/Rechnungsdaten (vom Nutzer selbst pflegbar; nur eigene Sicht)
     legal_name = models.CharField("Vollständiger Name", max_length=160, blank=True)
     street = models.CharField("Straße & Nr.", max_length=160, blank=True)
@@ -514,6 +518,32 @@ class Notification(models.Model):
 
     def __str__(self) -> str:
         return f"{self.member}: {self.message}"
+
+
+class OutboxEmail(models.Model):
+    """Ausgehende E-Mail in der Warteschlange. Das Versenden ist vom Request
+    entkoppelt (wichtig für Massenmails): das Kommando `send_outbox` – vom
+    Scheduler regelmäßig aufgerufen – arbeitet die offenen Mails ab."""
+    to_email = models.EmailField("Empfänger")
+    subject = models.CharField("Betreff", max_length=200)
+    body = models.TextField("Text")
+    html_body = models.TextField("HTML", blank=True)
+    member = models.ForeignKey(
+        Member, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="emails", verbose_name="Mitglied")
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    sent_at = models.DateTimeField("Versendet am", null=True, blank=True)
+    attempts = models.PositiveIntegerField("Versuche", default=0)
+    last_error = models.CharField("Letzter Fehler", max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = "E-Mail (Ausgang)"
+        verbose_name_plural = "E-Mails (Ausgang)"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["sent_at", "attempts"])]
+
+    def __str__(self) -> str:
+        return f"{self.to_email}: {self.subject}"
 
 
 class SwapRequest(models.Model):

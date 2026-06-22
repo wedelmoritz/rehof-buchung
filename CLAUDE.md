@@ -90,8 +90,15 @@ des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“
 Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
 `unavailable_weekdays` sperrt Wochentage (geprüft am Abreisetag, z.B.
 Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
-`services.notify_waitlist_if_free` eine `Notification` (E-Mail-Versand folgt
-in einer späteren Stufe). Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
+`services.notify_waitlist_if_free` eine `Notification` **und** (über die Outbox)
+eine E-Mail. **E-Mail-Benachrichtigungen:** In-App-`Notification` bleibt; parallel
+stellt `services.email_member` (Opt-out je Mitglied via `Member.email_opt_in`)
+eine `OutboxEmail` in die Warteschlange, die das Kommando `send_outbox` (vom
+`run_scheduler` regelmäßig aufgerufen) verschickt – entkoppelt vom Request, gut
+für Massenmails. Provider-neutral über `EMAIL_*`/`PUBLIC_BASE_URL` (ohne
+`EMAIL_HOST` → Konsole). Ereignisse: Losergebnis, Wartelisten-Platz frei,
+Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
+Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile`. Eine `help`-Seite erklärt Abläufe und die
 Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Verwaltung
 vereinfacht:** ein Benutzer trägt Login **und** Mitglieds-Profil in einem
@@ -262,7 +269,8 @@ bleibt in `settings.py` markiert.
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
 - Externe Buchungen sicher ausbauen (Modell-Flag `Member.is_external`,
   `Allocation.source="external"` vorhanden).
-- E-Mail-Benachrichtigungen (Anmeldeschluss, Losergebnis).
+- E-Mail-Fundament steht (Outbox + `send_outbox`); offen: PDF-Rechnungen
+  (WeasyPrint), Losergebnis-PDF + Massenmail, Web-Push (mobil).
 - Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
 
 ---

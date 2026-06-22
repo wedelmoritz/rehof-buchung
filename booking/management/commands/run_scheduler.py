@@ -3,6 +3,7 @@
 Läuft als eigener Dienst im selben Image und führt regelmäßig aus:
   * `run_due_lotteries` – schaltet Perioden weiter und führt fällige Losungen aus
     (jedes Intervall, Standard alle 15 Min),
+  * `send_outbox` – verschickt wartende E-Mails (jedes Intervall),
   * `run_monthly_invoices` – erstellt am Monatsanfang die Hofladen-Rechnungen
     (einmal pro Tag; idempotent, rechnet den Vormonat ab).
 
@@ -39,6 +40,7 @@ class Command(BaseCommand):
         if opts["once"]:
             self._safe("run_due_lotteries")
             self._safe("run_monthly_invoices")
+            self._safe("send_outbox")
             return
 
         interval = opts["interval"] or int(os.environ.get("CRON_INTERVAL_SECONDS", "900"))
@@ -46,6 +48,7 @@ class Command(BaseCommand):
         last_invoice_day: date | None = None
         while True:
             self._safe("run_due_lotteries")
+            self._safe("send_outbox")           # wartende E-Mails verschicken
             today = date.today()
             if today != last_invoice_day:
                 self._safe("run_monthly_invoices")

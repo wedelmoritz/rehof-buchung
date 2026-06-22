@@ -18,8 +18,8 @@ from . import lottery as L
 from . import rules as R
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, LotteryRun, Member, NightTransfer,
-    Notification, Quarter, SchoolHoliday, SeasonRule, SwapRequest, WaitlistEntry,
-    Wish,
+    Notification, OutboxEmail, Quarter, SchoolHoliday, SeasonRule, SwapRequest,
+    WaitlistEntry, Wish,
 )
 
 
@@ -172,6 +172,10 @@ def _notify_lottery_results(period, members, result, old_factors, quarter_names)
                 f"Wunsches auf {round(new_f, 1)} zurückgesetzt.")
         Notification.objects.create(
             member=m, message=msg, detail="\n".join(lines), url=url)
+        # Zusätzlich per E-Mail (Outbox), falls gewünscht/möglich.
+        body = (f"Hallo {m.display_name},\n\n{msg}\n\n" + "\n".join(lines)
+                + f"\n\nDetails: {absolute_url(url)}\n\nViele Grüße\nRe:Hof")
+        email_member(m, f"Auslosung {year}: dein Ergebnis", body)
 
 
 def quarter_is_free(quarter: Quarter, start: date, end: date) -> bool:
@@ -640,12 +644,14 @@ def notify_waitlist_if_free(quarter: Quarter, start: date, end: date) -> int:
         entry.fulfilled = True
         entry.notified_at = timezone.now()
         entry.save(update_fields=["fulfilled", "notified_at"])
-        Notification.objects.create(
-            member=entry.member,
-            message=(f"{quarter.name} ist von {entry.start} bis {entry.end} "
-                     f"frei geworden – jetzt buchen."),
-            url=f"/buchen/?start={entry.start}&end={entry.end}",
-        )
+        msg = (f"{quarter.name} ist von {entry.start} bis {entry.end} "
+               f"frei geworden – jetzt buchen.")
+        url = f"/buchen/?start={entry.start}&end={entry.end}"
+        Notification.objects.create(member=entry.member, message=msg, url=url)
+        email_member(
+            entry.member, "Wartelisten-Platz frei",
+            f"Hallo {entry.member.display_name},\n\n{msg}\n\n"
+            f"{absolute_url(url)}\n\nViele Grüße\nRe:Hof")
         count += 1
     return count
 
@@ -658,6 +664,39 @@ def mark_notifications_read(member) -> int:
     if not member:
         return 0
     return member.notifications.filter(read=False).update(read=True)
+
+
+# --------------------------------------------------------------------------- #
+# E-Mail-Outbox (Versand entkoppelt vom Request; send_outbox versendet)
+# --------------------------------------------------------------------------- #
+
+def absolute_url(path: str) -> str:
+    """Baut aus einem Pfad eine absolute URL für E-Mails (PUBLIC_BASE_URL)."""
+    from django.conf import settings
+    base = getattr(settings, "PUBLIC_BASE_URL", "") or ""
+    return f"{base}{path}" if base else path
+
+
+def queue_email(to_email: str, subject: str, body: str, html_body: str = "",
+                member=None) -> "OutboxEmail | None":
+    """Stellt eine E-Mail in die Warteschlange (versendet wird sie vom Scheduler)."""
+    to_email = (to_email or "").strip()
+    if not to_email:
+        return None
+    return OutboxEmail.objects.create(
+        to_email=to_email, subject=subject, body=body,
+        html_body=html_body, member=member)
+
+
+def email_member(member, subject: str, body: str, html_body: str = ""):
+    """Mail an ein Mitglied – nur wenn eine Adresse hinterlegt ist UND das
+    Mitglied E-Mails nicht abbestellt hat (In-App-Hinweise bleiben unberührt)."""
+    if not member or not getattr(member, "email_opt_in", True):
+        return None
+    email = (getattr(member.user, "email", "") or "").strip()
+    if not email:
+        return None
+    return queue_email(email, subject, body, html_body, member)
 
 
 # --------------------------------------------------------------------------- #
