@@ -67,11 +67,14 @@ Warteliste), `Notification` (In-App-Benachrichtigung), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
 `SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 
-Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht),
-`book` (Ampel-Kalender → Klick-Buchung mit Personenzahl bzw. Warteliste),
-`wishlist` (Wünsche fürs Losverfahren), `transfer`. Wird ein Wartelisten-
-Zeitraum durch Storno frei, erzeugt `services.notify_waitlist_if_free` eine
-`Notification` (E-Mail-Versand folgt in einer späteren Stufe).
+Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
+farbcodiert je Mitglied mit Name + Personenzahl), `book` (Ampel-Kalender →
+Personen/Barrierefrei oben einstellen, Anreise/Abreise klicken, passende
+Quartiere buchen bzw. Warteliste; Eignung wird vorab angezeigt), `wishlist`
+(Wünsche fürs Losverfahren), `my_bookings` (eigene Buchungen + Storno),
+`transfer`. Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
+`services.notify_waitlist_if_free` eine `Notification` (E-Mail-Versand folgt
+in einer späteren Stufe).
 
 ---
 
@@ -99,13 +102,21 @@ Zeitraum durch Storno frei, erzeugt `services.notify_waitlist_if_free` eine
 - **Tage:** 50/Jahr je Mitglied, davon max. 25 über die Wunschliste. **Kein
   Übertrag ins Folgejahr** (Kontingent gilt je Kalenderjahr frisch). Tage sind
   **an andere Mitglieder übertragbar** (`NightTransfer`).
-- **Saison-Regeln (`SeasonRule`):** je Zeitraum optional `min_nights`,
-  `max_parallel_units` (gleichzeitige Wohneinheiten), `max_stay_nights`
-  (Einheiten-Nächte-Deckel, z.B. Sommerferien = 14). Geprüft in `services.
-  book_spontaneous` über `rules.validate_booking`. **Aktuell nur bei der
-  normalen Buchung erzwungen, NICHT in der Losung** (offener Punkt, s.u.).
-- **Schulferien (`SchoolHoliday`):** rein informativ (Kalender-Anzeige, Berlin),
-  ohne Einfluss auf die Buchungsregeln.
+- **Saison-Regeln (`SeasonRule`):** **jährlich wiederkehrend** (Monat/Tag, ohne
+  Jahr); je Zeitraum optional `min_nights`, `max_parallel_units` (gleichzeitige
+  Wohneinheiten), `max_stay_nights` (Einheiten-Nächte-Deckel). Der Service
+  materialisiert sie pro Jahr zu konkreten Daten (`services._materialized_seasons`,
+  Helfer `availability.recurring_range`), die reine Logik in `rules.py` bleibt
+  datumsbasiert. **Aktuell nur bei der normalen Buchung erzwungen, NICHT in der
+  Losung** (offener Punkt, s.u.).
+- **Schulferien (`SchoolHoliday`):** ebenfalls **jährlich wiederkehrend**;
+  werden im Kalender angezeigt UND setzen, wenn aktiv und mit Regelfeldern
+  versehen, im Zeitraum dieselben Regeln durch wie eine Saison-Regel (leere
+  Regelfelder = nur Anzeige).
+- **Quartiere (`Quarter`):** Merkmal `accessible` (barrierearm/-frei) und ein
+  optionaler **jährlicher Buchbarkeitszeitraum** (`season_*_month/day`, leer =
+  ganzjährig). Außerhalb der Quartier-Saison ist nicht buchbar (geprüft in
+  `services.range_is_released`).
 
 ---
 

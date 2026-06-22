@@ -1,0 +1,15 @@
+<form class="qrow {% if not info.bookable %}blocked{% endif %}" method="post">{% csrf_token %}
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+  <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
+  <input type="hidden" name="quarter" value="{{ info.q.id }}">
+  <input type="hidden" name="start" value="{{ eff_start|date:'Y-m-d' }}">
+  <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
+  <span class="qname">{{ info.q.name }}</span>
+  <span class="muted qmeta">{{ info.q.size_sqm }} m² · {{ info.q.min_occupancy }}–{{ info.q.max_occupancy }} Pers.{% if info.q.accessible %} · barrierearm/-frei{% endif %}</span>
+  {% if not info.fits_persons %}<span class="reason">für {{ persons }} Pers. nicht geeignet</span>{% endif %}
+  {% if not info.fits_access %}<span class="reason">nicht barrierearm/-frei</span>{% endif %}
+  {% if info.reason %}<span class="reason">{{ info.reason }}</span>{% endif %}
+  <span class="spacer"></span>
+  <button class="btn small" type="submit" {% if not info.bookable %}disabled{% endif %}>Buchen</button>
+</form>

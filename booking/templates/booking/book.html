@@ -18,36 +18,38 @@
   </ul>
   <form method="post" class="inline">{% csrf_token %}
     <input type="hidden" name="action" value="read_notifications">
-    <input type="hidden" name="year" value="{{ cal.year }}">
-    <input type="hidden" name="month" value="{{ cal.month }}">
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
     <button class="btn small ghost" type="submit">Als gelesen markieren</button>
   </form>
 </div>
 {% endif %}
 
 <div class="card">
-  <div class="stat-row">
-    <div class="stat"><div class="num">{{ nights_remaining }}</div>
-      <div class="lbl">Tage verfügbar ({{ booking_year }}, von {{ annual_budget }})</div></div>
-    <div class="stat"><div class="num">{{ nights_used }}</div>
-      <div class="lbl">Tage gebucht ({{ booking_year }})</div></div>
-    <div class="stat"><div class="num">{{ member.factor }}</div>
-      <div class="lbl">Ausgleichsfaktor</div></div>
-  </div>
+  <p class="muted" style="margin-top:0">Du hast <strong>{{ nights_remaining }}</strong> Tage verfügbar.
+    Stelle Personenzahl und Merkmale ein, wähle dann im Kalender Anreise (1. Klick) und Abreise (2. Klick).</p>
+  <form method="get" class="filters">
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    {% if sel_start %}<input type="hidden" name="start" value="{{ sel_start|date:'Y-m-d' }}">{% endif %}
+    {% if sel_end %}<input type="hidden" name="end" value="{{ sel_end|date:'Y-m-d' }}">{% endif %}
+    <label class="pers">Personen
+      <input type="number" name="persons" value="{{ persons }}" min="1" max="12"></label>
+    <label class="chk"><input type="checkbox" name="accessible" value="1" {% if need_accessible %}checked{% endif %}>
+      nur barrierearm/-frei</label>
+    <button class="btn small" type="submit">Anwenden</button>
+  </form>
 </div>
 
 <div class="card">
   <div class="cal-head">
-    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}">&lsaquo;</a>
+    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">&lsaquo;</a>
     <strong class="cal-title">{{ cal.label }}</strong>
-    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}">&rsaquo;</a>
-    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}">Heute</a>
+    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">&rsaquo;</a>
+    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Heute</a>
   </div>
 
   <table class="cal book-cal">
-    <thead><tr>
-      <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
-    </tr></thead>
+    <thead><tr><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th></tr></thead>
     <tbody>
       {% for week in cal.weeks %}
       <tr>
@@ -55,8 +57,8 @@
         <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %}"
             {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
           {% if d.in_month and not d.is_past and d.level != 'none' %}
-            <a class="dlink" href="{% if sel_start and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}">
-              <span class="d-num">{{ d.day }}{% if d.mine %} <span class="mine-dot" title="eigene Buchung">●</span>{% endif %}</span>
+            <a class="dlink" href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">
+              <span class="d-num">{{ d.day }}{% if d.mine %} <span class="mine-dot">●</span>{% endif %}</span>
               <span class="free-badge">{{ d.free }}/{{ d.total }}</span>
             </a>
           {% else %}
@@ -74,7 +76,7 @@
     <span><i class="sw lvl-many"></i> viele frei</span>
     <span><i class="sw lvl-few"></i> wenige frei</span>
     <span><i class="sw lvl-full"></i> nichts frei</span>
-    <span><i class="sw lvl-none"></i> nicht freigeschaltet</span>
+    <span><i class="sw lvl-none"></i> nicht buchbar</span>
     <span><span class="mine-dot">●</span> eigene Buchung</span>
   </div>
   {% if cal.holidays %}
@@ -90,28 +92,23 @@
     <h2 style="margin:0">Auswahl</h2>
     <span>Anreise <strong>{{ eff_start }}</strong>
       {% if sel_end %}&ndash; Abreise <strong>{{ eff_end }}</strong> ({{ nights_selected }} Nächte){% else %}
-      &ndash; <span class="muted">jetzt den Abreisetag (Check-out) im Kalender wählen, oder direkt 1 Nacht buchen</span>{% endif %}</span>
-    <a class="muted" style="margin-left:auto" href="{% url 'book' %}?year={{ cal.year }}&month={{ cal.month }}">Auswahl zurücksetzen</a>
+      &ndash; <span class="muted">jetzt Abreisetag wählen (oder 1 Nacht buchen)</span>{% endif %}
+      · {{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}</span>
+    <a class="muted" style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
   </div>
 
-  {% if free_quarters %}
-  <h3>Frei &amp; buchbar</h3>
-  {% for q in free_quarters %}
-  <form class="qrow" method="post">{% csrf_token %}
-    <input type="hidden" name="action" value="book">
-    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-    <input type="hidden" name="quarter" value="{{ q.id }}">
-    <input type="hidden" name="start" value="{{ eff_start|date:'Y-m-d' }}">
-    <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
-    <span class="qname">{{ q.name }}</span>
-    <span class="muted qmeta">{{ q.size_sqm }} m² · {{ q.min_occupancy }}–{{ q.max_occupancy }} Pers.</span>
-    <label class="pers">Personen
-      <input type="number" name="persons" value="{{ q.min_occupancy }}" min="{{ q.min_occupancy }}" max="{{ q.max_occupancy }}"></label>
-    <button class="btn small" type="submit">Buchen</button>
-  </form>
-  {% endfor %}
-  {% else %}
-  <p class="muted">Für diesen Zeitraum ist aktuell kein Quartier frei.</p>
+  {% if suitable %}
+  <h3>Passend &amp; buchbar</h3>
+  {% for info in suitable %}{% include "booking/_quarter_row.html" with info=info action="book" %}{% endfor %}
+  {% endif %}
+
+  {% if maybe_unsuitable %}
+  <h3>Anhand der Merkmale ggf. nicht geeignet</h3>
+  {% for info in maybe_unsuitable %}{% include "booking/_quarter_row.html" with info=info action="book" %}{% endfor %}
+  {% endif %}
+
+  {% if not suitable and not maybe_unsuitable %}
+  <p class="muted">Für diesen Zeitraum ist kein Quartier frei.</p>
   {% endif %}
 
   {% if occ_quarters %}
@@ -121,13 +118,12 @@
   <form class="qrow" method="post">{% csrf_token %}
     <input type="hidden" name="action" value="waitlist">
     <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+    <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
     <input type="hidden" name="quarter" value="{{ q.id }}">
     <input type="hidden" name="start" value="{{ eff_start|date:'Y-m-d' }}">
     <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
     <span class="qname">{{ q.name }}</span>
-    <span class="muted qmeta">{{ q.size_sqm }} m² · belegt</span>
-    <label class="pers">Personen
-      <input type="number" name="persons" value="{{ q.min_occupancy }}" min="{{ q.min_occupancy }}" max="{{ q.max_occupancy }}"></label>
+    <span class="muted qmeta">{{ q.size_sqm }} m² · {{ q.min_occupancy }}–{{ q.max_occupancy }} Pers.{% if q.accessible %} · barrierearm/-frei{% endif %} · belegt</span>
     <button class="btn small ghost" type="submit">Auf Warteliste</button>
   </form>
   {% endfor %}
@@ -137,50 +133,13 @@
 <div class="msg info">Klicke einen Tag im Kalender, um die freien Quartiere zu sehen. Grün = frei, Rot = belegt.</div>
 {% endif %}
 
-<div class="card">
-  <h2>Meine Buchungen</h2>
-  {% if upcoming %}
-  <table>
-    <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Pers.</th><th>Quelle</th><th></th></tr>
-    {% for a in upcoming %}
-    <tr>
-      <td>{{ a.quarter.name }}
-        {% if a.via_substitution %}<span class="tag sub">Ausweich</span>{% endif %}
-        {% if a.contested %}<span class="tag con">umk&auml;mpft</span>{% endif %}
-        {% if a.waiters %}<span class="tag mine" title="{% for w in a.waiters %}{{ w.member.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}">{{ a.waiters|length }} wartet</span>{% endif %}
-      </td>
-      <td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td><td>{{ a.persons }}</td>
-      <td>{{ a.get_source_display }}</td>
-      <td>
-        <form method="post" onsubmit="return confirm('Diese Buchung wirklich stornieren?');">{% csrf_token %}
-          <input type="hidden" name="action" value="cancel">
-          <input type="hidden" name="allocation_id" value="{{ a.id }}">
-          <input type="hidden" name="year" value="{{ cal.year }}">
-          <input type="hidden" name="month" value="{{ cal.month }}">
-          <button class="btn ghost small danger" type="submit">stornieren</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}<p class="muted">Keine bevorstehenden Buchungen.</p>{% endif %}
-
-  {% if past %}
-  <details style="margin-top:.8rem">
-    <summary class="muted">Vergangene Buchungen ({{ past|length }})</summary>
-    <table style="margin-top:.5rem">
-      {% for a in past %}
-      <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }} N</td><td>{{ a.persons }} P</td></tr>
-      {% endfor %}
-    </table>
-  </details>
-  {% endif %}
-</div>
-{% endif %}
-
 <style>
+  .filters { display:flex; gap:1.2rem; align-items:center; flex-wrap:wrap; }
+  .filters .pers { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.9rem; }
+  .filters .pers input { min-width:5rem; width:5rem; }
+  .filters .chk { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.9rem; }
+  .filters .chk input { min-width:auto; }
   .notif ul { margin:.4rem 0 .6rem; padding-left:1.1rem; }
-  .notif li { margin:.15rem 0; }
   table.book-cal td { padding:0; }
   table.book-cal td.out { background:#f6f0e6; }
   td.lvl-free { background:#d9efce; }
@@ -205,9 +164,11 @@
   .legend .sw.lvl-none{background:#efe7da;border:1px solid var(--line)}
   .qrow { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.45rem; }
+  .qrow.blocked { opacity:.75; }
   .qrow .qname { font-weight:600; }
   .qrow .qmeta { font-size:.85rem; }
-  .qrow .pers { font-size:.8rem; color:var(--muted); display:flex; align-items:center; gap:.35rem; margin-left:auto; }
-  .qrow .pers input { min-width:4.5rem; width:4.5rem; }
+  .qrow .reason { color:var(--bad); font-size:.82rem; }
+  .qrow .spacer { margin-left:auto; }
 </style>
+{% endif %}
 {% endblock %}

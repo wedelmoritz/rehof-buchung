@@ -141,11 +141,11 @@ class SommerRegelnZusammenTests(UseCaseBase):
         self.open_full_year_window(NEXT_YEAR)
         BookingPolicy.get_solo()  # Standard-Mindestnächte 3
         SeasonRule.objects.create(
-            name="Hochsaison Juli/August", start=date(NEXT_YEAR, 7, 1),
-            end=date(NEXT_YEAR, 9, 1), min_nights=7, active=True)
+            name="Hochsaison Juli/August", start_month=7, start_day=1,
+            end_month=9, end_day=1, min_nights=7, active=True)
         SeasonRule.objects.create(
-            name="Sommerferien BB", start=date(NEXT_YEAR, 7, 9),
-            end=date(NEXT_YEAR, 8, 23), max_parallel_units=2, max_stay_nights=14,
+            name="Sommerferien BB", start_month=7, start_day=9,
+            end_month=8, end_day=23, max_parallel_units=2, max_stay_nights=14,
             active=True)
 
     def test_eine_woche_zwei_einheiten_ok_dritte_nicht(self):
@@ -191,8 +191,8 @@ class JahreswechselTests(UseCaseBase):
             applies_to_all=True, status=BookingPeriod.FREE_BOOKING)
         BookingPolicy.get_solo()
         SeasonRule.objects.create(
-            name="Weihnachten/Silvester", start=date(NEXT_YEAR, 12, 23),
-            end=date(NEXT_YEAR + 1, 1, 3), max_parallel_units=2, active=True)
+            name="Weihnachten/Silvester", start_month=12, start_day=23,
+            end_month=1, end_day=3, max_parallel_units=2, active=True)
 
         s, e = date(NEXT_YEAR, 12, 28), date(NEXT_YEAR + 1, 1, 2)  # über den Jahreswechsel
         a1, e1 = svc.book_spontaneous(self.alice, self.k1, s, e)
@@ -405,3 +405,54 @@ class BuchungsFlowTests(UseCaseBase):
         cell = level_for(d)
         self.assertEqual(cell["level"], "full")
         self.assertEqual(cell["free"], 0)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case 9: Jährliche Regeln (Monat/Tag) und Quartier-Saison
+# --------------------------------------------------------------------------- #
+
+class JahresregelnUndQuartierSaisonTests(UseCaseBase):
+    def test_quartier_saison_begrenzt_buchbarkeit(self):
+        # k1 nur Mai–September buchbar (jährlich, ohne Jahr)
+        self.k1.season_start_month, self.k1.season_start_day = 5, 1
+        self.k1.season_end_month, self.k1.season_end_day = 9, 30
+        self.k1.save()
+        self.open_full_year_window(NEXT_YEAR)
+        # Januar: außerhalb der Saison -> nicht buchbar
+        a, err = svc.book_spontaneous(
+            self.alice, self.k1, date(NEXT_YEAR, 1, 10),
+            date(NEXT_YEAR, 1, 13))
+        self.assertIsNone(a)
+        self.assertIn("freigeschaltet", err)
+        # Juni: innerhalb der Saison -> buchbar
+        a, err = svc.book_spontaneous(
+            self.alice, self.k1, date(NEXT_YEAR, 6, 10),
+            date(NEXT_YEAR, 6, 13))
+        self.assertIsNotNone(a, err)
+
+    def test_schulferien_setzen_regel_durch(self):
+        # Schulferien mit Parallel-Limit 2 (jährlich) wirken wie eine Saison-Regel
+        from booking.models import SchoolHoliday
+        SchoolHoliday.objects.create(
+            name="Testferien", start_month=3, start_day=1, end_month=3, end_day=15,
+            max_parallel_units=2, active=True)
+        self.open_full_year_window(NEXT_YEAR)
+        s, e = date(NEXT_YEAR, 3, 3), date(NEXT_YEAR, 3, 6)
+        self.assertIsNotNone(svc.book_spontaneous(self.alice, self.k1, s, e)[0])
+        self.assertIsNotNone(svc.book_spontaneous(self.alice, self.k2, s, e)[0])
+        a3, err = svc.book_spontaneous(self.alice, self.k3, s, e)
+        self.assertIsNone(a3)
+        self.assertIn("gleichzeitig", err)
+
+    def test_regel_gilt_jedes_jahr(self):
+        # Eine Juli-Regel (min 7 Nächte) greift in mehreren Jahren gleich
+        SeasonRule.objects.create(
+            name="Hochsaison", start_month=7, start_day=1, end_month=9, end_day=1,
+            min_nights=7, active=True)
+        self.open_full_year_window(NEXT_YEAR)
+        self.open_full_year_window(NEXT_YEAR + 1)
+        for year in (NEXT_YEAR, NEXT_YEAR + 1):
+            a, err = svc.book_spontaneous(
+                self.alice, self.k1, date(year, 7, 10), date(year, 7, 14))  # 4 < 7
+            self.assertIsNone(a, f"{year}: sollte an Mindestnächten scheitern")
+            self.assertIn("7 Nächte", err)

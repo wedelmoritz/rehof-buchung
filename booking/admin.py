@@ -29,9 +29,22 @@ class EquivalenceClassAdmin(admin.ModelAdmin):
 @admin.register(Quarter)
 class QuarterAdmin(admin.ModelAdmin):
     list_display = ("name", "eq_class", "size_sqm", "min_occupancy",
-                    "max_occupancy", "active")
-    list_filter = ("eq_class", "active")
+                    "max_occupancy", "accessible", "active")
+    list_filter = ("eq_class", "active", "accessible")
+    list_editable = ("accessible",)
     search_fields = ("name",)
+    fieldsets = (
+        (None, {"fields": ("name", "eq_class", "description", "active")}),
+        ("Belegung & Merkmale", {
+            "fields": ("size_sqm", "min_occupancy", "max_occupancy", "accessible"),
+        }),
+        ("Buchbarkeitszeitraum (jährlich, ohne Jahr – leer = ganzjährig)", {
+            "fields": ("season_start_month", "season_start_day",
+                       "season_end_month", "season_end_day"),
+            "description": "Manche Quartiere sind nicht das ganze Jahr buchbar. "
+                           "Beispiel: 1.4. bis 31.10.",
+        }),
+    )
 
 
 @admin.register(Member)
@@ -173,21 +186,24 @@ class SeasonRuleInline(admin.TabularInline):
     """
     model = SeasonRule
     extra = 0
-    ordering = ("start",)
-    fields = ("name", "start", "end", "min_nights", "max_parallel_units",
-              "max_stay_nights", "active")
-    verbose_name = "Saison-Regel"
-    verbose_name_plural = "Saison-Regeln (verschärfen die globalen Regeln je Zeitraum)"
+    ordering = ("start_month", "start_day")
+    fields = ("name", "start_month", "start_day", "end_month", "end_day",
+              "min_nights", "max_parallel_units", "max_stay_nights", "active")
+    verbose_name = "Saison-Regel (gilt jedes Jahr)"
+    verbose_name_plural = "Saison-Regeln (gelten jedes Jahr, verschärfen die globalen Regeln)"
 
 
 class SchoolHolidayInline(admin.TabularInline):
-    """Schulferien – rein informativ (Kalender-Anzeige), ohne Regelwirkung."""
+    """Schulferien – jährlich wiederkehrend. Anzeige im Kalender; gesetzte
+    Regelfelder werden im Zeitraum durchgesetzt (leer = nur Anzeige)."""
     model = SchoolHoliday
     extra = 0
-    ordering = ("start",)
-    fields = ("name", "start", "end", "region", "active")
-    verbose_name = "Schulferien"
-    verbose_name_plural = "Schulferien (nur Kalender-Anzeige, keine Regelwirkung)"
+    ordering = ("start_month", "start_day")
+    fields = ("name", "start_month", "start_day", "end_month", "end_day",
+              "region", "min_nights", "max_parallel_units", "max_stay_nights",
+              "active")
+    verbose_name = "Schulferien (gilt jedes Jahr)"
+    verbose_name_plural = "Schulferien (gelten jedes Jahr; Regelfelder optional)"
 
 
 @admin.register(BookingPolicy)

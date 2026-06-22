@@ -1,0 +1,77 @@
+{% extends "booking/base.html" %}
+{% block title %}Meine Buchungen{% endblock %}
+{% block content %}
+<h1>Meine Buchungen</h1>
+
+{% if not member %}
+<div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
+{% else %}
+
+{% if notifications %}
+<div class="card notif">
+  <strong>Benachrichtigungen</strong>
+  <ul style="margin:.4rem 0 .6rem; padding-left:1.1rem">
+    {% for n in notifications %}
+    <li>{% if n.url %}<a href="{{ n.url }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
+      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span></li>
+    {% endfor %}
+  </ul>
+  <form method="post" class="inline">{% csrf_token %}
+    <input type="hidden" name="action" value="read_notifications">
+    <button class="btn small ghost" type="submit">Als gelesen markieren</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="stat-row">
+    <div class="stat"><div class="num">{{ nights_remaining }}</div>
+      <div class="lbl">Tage verfügbar ({{ booking_year }}, von {{ annual_budget }})</div></div>
+    <div class="stat"><div class="num">{{ nights_used }}</div>
+      <div class="lbl">Tage gebucht ({{ booking_year }})</div></div>
+    <div class="stat"><div class="num">{{ member.factor }}</div>
+      <div class="lbl">Ausgleichsfaktor</div></div>
+  </div>
+  <p class="muted" style="margin:.7rem 0 0"><a href="{% url 'book' %}">Neue Buchung →</a></p>
+</div>
+
+<div class="card">
+  <h2>Bevorstehende Buchungen</h2>
+  {% if upcoming %}
+  <table>
+    <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Pers.</th><th>Quelle</th><th></th></tr>
+    {% for a in upcoming %}
+    <tr>
+      <td>{{ a.quarter.name }}
+        {% if a.via_substitution %}<span class="tag sub">Ausweich</span>{% endif %}
+        {% if a.contested %}<span class="tag con">umk&auml;mpft</span>{% endif %}
+        {% if a.waiters %}<span class="tag mine" title="{% for w in a.waiters %}{{ w.member.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}">{{ a.waiters|length }} wartet</span>{% endif %}
+      </td>
+      <td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td><td>{{ a.persons }}</td>
+      <td>{{ a.get_source_display }}</td>
+      <td>
+        <form method="post" onsubmit="return confirm('Diese Buchung wirklich stornieren?');">{% csrf_token %}
+          <input type="hidden" name="action" value="cancel">
+          <input type="hidden" name="allocation_id" value="{{ a.id }}">
+          <button class="btn ghost small danger" type="submit">stornieren</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Keine bevorstehenden Buchungen. <a href="{% url 'book' %}">Jetzt buchen →</a></p>{% endif %}
+</div>
+
+{% if past %}
+<div class="card">
+  <h2>Vergangene Buchungen</h2>
+  <table>
+    <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Pers.</th></tr>
+    {% for a in past %}
+    <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td><td>{{ a.persons }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

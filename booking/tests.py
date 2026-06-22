@@ -218,7 +218,7 @@ class SeasonRuleTests(BaseData):
 
     def test_juli_mindestens_7_naechte(self):
         SeasonRule.objects.create(
-            name="Hochsaison", start=date(YEAR, 7, 1), end=date(YEAR, 9, 1),
+            name="Hochsaison", start_month=7, start_day=1, end_month=9, end_day=1,
             min_nights=7, active=True)
         start = date(YEAR, 7, 10)
         a, err = book_spontaneous(self.alice, self.q1, start,
@@ -231,7 +231,7 @@ class SeasonRuleTests(BaseData):
 
     def test_max_zwei_parallele_einheiten_in_pfingsten(self):
         SeasonRule.objects.create(
-            name="Pfingsten", start=date(YEAR, 5, 22), end=date(YEAR, 5, 27),
+            name="Pfingsten", start_month=5, start_day=22, end_month=5, end_day=27,
             max_parallel_units=2, active=True)
         s, e = date(YEAR, 5, 23), date(YEAR, 5, 26)
         a1, _ = book_spontaneous(self.alice, self.q1, s, e)
@@ -244,8 +244,8 @@ class SeasonRuleTests(BaseData):
 
     def test_sommerferien_deckel_14(self):
         SeasonRule.objects.create(
-            name="Sommerferien BB", start=date(YEAR, 7, 9),
-            end=date(YEAR, 8, 23), max_parallel_units=2, max_stay_nights=14,
+            name="Sommerferien BB", start_month=7, start_day=9,
+            end_month=8, end_day=23, max_parallel_units=2, max_stay_nights=14,
             active=True)
         # 14 Nächte am Stück: ok
         a, err = book_spontaneous(self.alice, self.q1, date(YEAR, 7, 10),
@@ -259,8 +259,8 @@ class SeasonRuleTests(BaseData):
 
     def test_sommerferien_eine_woche_zwei_einheiten(self):
         SeasonRule.objects.create(
-            name="Sommerferien BB", start=date(YEAR, 7, 9),
-            end=date(YEAR, 8, 23), max_parallel_units=2, max_stay_nights=14,
+            name="Sommerferien BB", start_month=7, start_day=9,
+            end_month=8, end_day=23, max_parallel_units=2, max_stay_nights=14,
             active=True)
         # Woche 1 in Q1 (7 Nächte) + Woche 1 in Q2 parallel (7 Nächte) = 14: ok
         s, e = date(YEAR, 7, 10), date(YEAR, 7, 17)
@@ -344,7 +344,7 @@ class CalendarAndWishlistTests(BaseData):
     def test_kalender_zeigt_ferien_und_buchung(self):
         from booking.models import SchoolHoliday
         SchoolHoliday.objects.create(
-            name="Sommerferien", start=date(YEAR, 7, 9), end=date(YEAR, 8, 23))
+            name="Sommerferien", start_month=7, start_day=9, end_month=8, end_day=23)
         start = date(YEAR, 7, 15)
         book_spontaneous(self.alice, self.q1, start, start + timedelta(days=4))
         cal = svc.build_member_calendar(self.alice, YEAR, 7)

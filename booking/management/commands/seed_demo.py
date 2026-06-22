@@ -224,68 +224,51 @@ class Command(BaseCommand):
         policy.default_min_nights = 3
         policy.save()
 
-        # Saison-Regeln für das LAUFENDE Jahr (Berlin/Brandenburg, real).
-        # Hinweis: Termine verschieben sich jährlich und werden im Admin
-        # gepflegt. Berlin und Brandenburg sind nahezu identisch.
+        # Saison-Regeln – jährlich wiederkehrend (ohne Jahr), Monat/Tag.
         season_defs = [
-            # (Name, von, bis(exkl.), min_nights, max_parallel, max_stay)
-            (f"Hochsaison Juli/August {this_year}",
-             date(this_year, 7, 1), date(this_year, 9, 1), 7, None, None),
-            (f"Sommerferien Berlin/Brandenburg {this_year}",
-             date(this_year, 7, 9), date(this_year, 8, 23), None, 2, 14),
-            (f"Winterferien {this_year}",
-             date(this_year, 2, 2), date(this_year, 2, 8), None, 2, None),
-            (f"Osterferien/Ostern {this_year}",
-             date(this_year, 3, 30), date(this_year, 4, 11), None, 2, None),
-            (f"Himmelfahrt + Brückentag {this_year}",
-             date(this_year, 5, 14), date(this_year, 5, 18), None, 2, None),
-            (f"Pfingsten {this_year}",
-             date(this_year, 5, 22), date(this_year, 5, 27), None, 2, None),
-            (f"Herbstferien {this_year}",
-             date(this_year, 10, 19), date(this_year, 11, 1), None, 2, None),
-            (f"Weihnachten/Silvester {this_year}/{this_year + 1}",
-             date(this_year, 12, 23), date(this_year + 1, 1, 3), None, 2, None),
+            # (Name, von(M,T), bis exkl.(M,T), min_nights, max_parallel, max_stay)
+            ("Hochsaison Juli/August", (7, 1), (9, 1), 7, None, None),
+            ("Sommerferien Berlin/Brandenburg", (7, 9), (8, 23), None, 2, 14),
+            ("Himmelfahrt + Brückentag", (5, 14), (5, 18), None, 2, None),
+            ("Pfingsten", (5, 22), (5, 27), None, 2, None),
+            ("Weihnachten/Silvester", (12, 23), (1, 3), None, 2, None),
         ]
-        for name, s_from, s_to, mn, mp, ms in season_defs:
+        for name, (sm, sd), (em, ed), mn, mp, ms in season_defs:
             SeasonRule.objects.get_or_create(
                 name=name,
                 defaults=dict(
                     policy=policy,
-                    start=s_from, end=s_to, min_nights=mn,
-                    max_parallel_units=mp, max_stay_nights=ms, active=True,
+                    start_month=sm, start_day=sd, end_month=em, end_day=ed,
+                    min_nights=mn, max_parallel_units=mp, max_stay_nights=ms,
+                    active=True,
                 ),
             )
         self.stdout.write(self.style.SUCCESS(
             f"Buchungsregeln angelegt: Standard-Mindestnächte 3, "
-            f"{len(season_defs)} Saison-Regeln (Juli/Aug 7 Nächte, "
-            f"Ferien/Feiertage max. 2 Einheiten, Sommerferien Deckel 14)."
+            f"{len(season_defs)} jährliche Saison-Regeln."
         ))
 
-        # Berliner Schulferien (Anzeige im Kalender) – 2026 und 2027, real.
-        # end ist exklusiv (= erster Tag NACH den Ferien).
+        # Berliner Schulferien – jährlich wiederkehrend (Monat/Tag). Einige
+        # tragen zugleich eine Regel (max. 2 parallele Einheiten in der Zeit).
         holidays = [
-            ("Winterferien", date(2026, 2, 2), date(2026, 2, 8)),
-            ("Osterferien", date(2026, 3, 30), date(2026, 4, 11)),
-            ("Pfingstferien (variabler Tag)", date(2026, 5, 15), date(2026, 5, 16)),
-            ("Pfingstferien", date(2026, 5, 26), date(2026, 5, 27)),
-            ("Sommerferien", date(2026, 7, 9), date(2026, 8, 23)),
-            ("Herbstferien", date(2026, 10, 19), date(2026, 11, 1)),
-            ("Weihnachtsferien", date(2026, 12, 23), date(2027, 1, 3)),
-            ("Winterferien", date(2027, 2, 1), date(2027, 2, 7)),
-            ("Osterferien", date(2027, 3, 22), date(2027, 4, 3)),
-            ("Pfingstferien (variabler Tag)", date(2027, 5, 7), date(2027, 5, 8)),
-            ("Pfingstferien", date(2027, 5, 18), date(2027, 5, 19)),
-            ("Sommerferien", date(2027, 7, 1), date(2027, 8, 15)),
-            ("Herbstferien", date(2027, 10, 11), date(2027, 10, 24)),
-            ("Weihnachtsferien", date(2027, 12, 22), date(2028, 1, 1)),
+            # (Name, von(M,T), bis exkl.(M,T), max_parallel)
+            ("Winterferien", (2, 2), (2, 8), 2),
+            ("Osterferien", (3, 30), (4, 11), 2),
+            ("Sommerferien", (7, 9), (8, 23), 2),
+            ("Herbstferien", (10, 19), (11, 1), 2),
+            ("Weihnachtsferien", (12, 23), (1, 3), 2),
         ]
-        for name, h_from, h_to in holidays:
+        for name, (sm, sd), (em, ed), mp in holidays:
             SchoolHoliday.objects.get_or_create(
-                name=f"{name} {h_from.year}", start=h_from, end=h_to,
-                defaults=dict(policy=policy, region="Berlin", active=True),
+                name=name,
+                defaults=dict(
+                    policy=policy, region="Berlin", active=True,
+                    start_month=sm, start_day=sd, end_month=em, end_day=ed,
+                    max_parallel_units=mp,
+                ),
             )
         self.stdout.write(self.style.SUCCESS(
-            f"{len(holidays)} Berliner Schulferien-Zeiträume (2026/2027) angelegt."
+            f"{len(holidays)} jährliche Berliner Schulferien angelegt."
         ))
 
         self.stdout.write(self.style.WARNING(
