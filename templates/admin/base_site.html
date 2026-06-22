@@ -1,0 +1,63 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ title }}{% if title %} | {% endif %}ReHof-Verwaltung{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">ReHof-Verwaltung</a></div>
+{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  /* Warmes Pastell-Theme für die ReHof-Verwaltung (überschreibt die
+     CSS-Variablen des Django-Admins). */
+  :root {
+    --primary: #c9805d;
+    --secondary: #b06a48;
+    --accent: #8aa97f;
+    --primary-fg: #ffffff;
+
+    --body-bg: #faf5ee;
+    --body-fg: #3c352f;
+    --body-quiet-color: #8c8175;
+    --body-loud-color: #2f2a25;
+
+    --header-bg: #f1e4d4;
+    --header-color: #4a4038;
+    --header-branding-color: #b06a48;
+    --header-link-color: #4a4038;
+
+    --breadcrumbs-bg: #f3e9dc;
+    --breadcrumbs-fg: #6b5d4f;
+    --breadcrumbs-link-fg: #7a5a3f;
+
+    --link-fg: #b06a48;
+    --link-hover-color: #8a4f30;
+    --link-selected-fg: #8a4f30;
+
+    --button-bg: #c9805d;
+    --button-fg: #ffffff;
+    --button-hover-bg: #b06a48;
+    --default-button-bg: #8aa97f;
+    --default-button-hover-bg: #6f8e64;
+    --close-button-bg: #8c8175;
+    --close-button-hover-bg: #6f665b;
+    --object-tools-bg: #b06a48;
+    --object-tools-hover-bg: #8a4f30;
+
+    --selected-bg: #f7e7dc;
+    --selected-row: #f7e7dc;
+    --darkened-bg: #f3e9dc;
+    --message-success-bg: #e6efe1;
+    --message-warning-bg: #f8edd6;
+    --message-error-bg: #f7e1de;
+
+    --link-fg: #b06a48;
+  }
+  /* Kopfzeile abrunden/auflockern */
+  #header { border-bottom: 1px solid #e6d8c6; }
+  #branding h1, #branding h1 a:link, #branding h1 a:visited { color: var(--header-branding-color); font-weight: 800; }
+  div.breadcrumbs { border-bottom: 1px solid #e6d8c6; }
+  .module h2, .module caption, .inline-group h2 { border-radius: 6px 6px 0 0; }
+  .button, input[type=submit], input[type=button], .submit-row input, a.button { border-radius: 8px; }
+</style>
+{% endblock %}

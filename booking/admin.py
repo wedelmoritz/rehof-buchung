@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+from datetime import date
 
 from django.contrib import admin, messages
 from django.shortcuts import redirect
@@ -9,9 +10,15 @@ from django.urls import reverse
 
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    LotteryRun, Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule, Wish,
+    LotteryRun, Member, NightTransfer, Quarter, SchoolHoliday, SeasonRule,
+    UpcomingAllocation, Wish,
 )
 from .services import run_period_lottery
+
+# Branding der Verwaltung
+admin.site.site_header = "ReHof-Verwaltung"
+admin.site.site_title = "ReHof-Verwaltung"
+admin.site.index_title = "Verwaltung"
 
 
 @admin.register(EquivalenceClass)
@@ -100,6 +107,31 @@ class AllocationAdmin(admin.ModelAdmin):
                     "via_substitution", "contested")
     list_filter = ("source", "quarter", "contested")
     search_fields = ("member__display_name",)
+
+
+@admin.register(UpcomingAllocation)
+class UpcomingAllocationAdmin(admin.ModelAdmin):
+    """Anstehende Buchungen – für die Vorbereitung der Verwaltung. Zeigt nur
+    Buchungen mit Abreise ab heute, chronologisch nach Anreise."""
+    list_display = ("start", "end", "quarter", "member", "nights_display", "source")
+    list_filter = ("quarter", "source")
+    search_fields = ("member__display_name", "quarter__name")
+    date_hierarchy = "start"
+    ordering = ("start",)
+
+    @admin.display(description="Nächte")
+    def nights_display(self, obj):
+        return obj.nights
+
+    def get_queryset(self, request):
+        return (
+            super().get_queryset(request)
+            .filter(end__gte=date.today())
+            .select_related("quarter", "member")
+        )
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(LotteryRun)

@@ -1,41 +1,151 @@
 {% extends "booking/base.html" %}
-{% block title %}Meine Wünsche{% endblock %}
+{% block title %}Wunschliste fürs nächste Jahr{% endblock %}
 {% block content %}
-<h1>Wünsche für {{ period }}</h1>
-<p class="muted">Trage deine Wunschzeiträume mit Priorität ein (1 = höchste).
-  Tipp: Gib einfach deine <em>echten</em> Wünsche in echter Reihenfolge an –
-  Tricksen bringt im Verfahren keinen Vorteil.</p>
+<h1>Wunschliste fürs nächste Jahr</h1>
+
+{% if not member %}
+<div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
+{% elif not period %}
+<div class="card"><p class="muted">Zurzeit ist kein Losverfahren zur Anmeldung geöffnet.</p></div>
+{% else %}
 
 <div class="card">
-  <h2>Neuer Wunsch</h2>
-  <form method="post">{% csrf_token %}
-    {% for f in form %}
-      <div class="field">{{ f.label_tag }} {{ f }}
-        {% if f.errors %}<div class="msg error">{{ f.errors|striptags }}</div>{% endif %}
+  <p class="muted" style="margin-top:0">
+    Periode <strong>{{ period }}</strong>. Trage deine Wunschzeiträume ein und bring sie per
+    Ziehen (oder mit &#9650; &#9660;) in die gewünschte Reihenfolge &ndash; Priorität 1 oben.
+    Anders als beim Buchen dürfen sich Wünsche überschneiden; das Losverfahren entscheidet später.
+    Solange du nicht bestätigst, ist die Liste nur für dich sichtbar.
+  </p>
+
+  {% if wishlist_submitted %}
+    <div class="msg success">
+      Deine Wünsche sind im Lostopf eingereicht. Zum Bearbeiten erst zurückziehen.
+    </div>
+    <table>
+      <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
+      {% for w in wishes %}
+      <tr><td>{{ forloop.counter }}</td><td>{{ w.quarter.name }}</td>
+          <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td></tr>
+      {% endfor %}
+    </table>
+    <form method="post" style="margin-top:.8rem">{% csrf_token %}
+      <input type="hidden" name="action" value="withdraw_wishlist">
+      <button class="btn ghost" type="submit">Zurückziehen &amp; bearbeiten</button>
+    </form>
+
+  {% else %}
+    {% if wishes %}
+    <ul class="wishlist" id="wishlist">
+      {% for w in wishes %}
+      <li class="wish" draggable="true" data-id="{{ w.id }}">
+        <span class="drag" title="Ziehen zum Sortieren">&#10287;</span>
+        <span class="wish-prio">{{ forloop.counter }}</span>
+        <span class="wish-main">{{ w.quarter.name }}<br>
+          <span class="muted">{{ w.start }} &ndash; {{ w.end }} &middot; {{ w.nights }} Nächte</span></span>
+        <span class="wish-actions">
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="action" value="move_wish">
+            <input type="hidden" name="wish_id" value="{{ w.id }}">
+            <input type="hidden" name="direction" value="up">
+            <button class="btn small ghost" type="submit" {% if forloop.first %}disabled{% endif %}>&#9650;</button>
+          </form>
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="action" value="move_wish">
+            <input type="hidden" name="wish_id" value="{{ w.id }}">
+            <input type="hidden" name="direction" value="down">
+            <button class="btn small ghost" type="submit" {% if forloop.last %}disabled{% endif %}>&#9660;</button>
+          </form>
+          <form method="post" class="inline" onsubmit="return confirm('Wunsch löschen?');">{% csrf_token %}
+            <input type="hidden" name="action" value="delete_wish">
+            <input type="hidden" name="wish_id" value="{{ w.id }}">
+            <button class="btn small ghost danger" type="submit">&#10005;</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <form method="post" id="reorder-form">{% csrf_token %}
+      <input type="hidden" name="action" value="reorder">
+      <input type="hidden" name="order" id="reorder-order">
+    </form>
+
+    <p class="muted" style="margin:.6rem 0">
+      Summe: {{ wish_nights }} Nächte gewünscht (Losung-Budget bis {{ wish_budget }} Nächte).
+    </p>
+
+    <form method="post" style="margin-bottom:1rem">{% csrf_token %}
+      <input type="hidden" name="action" value="submit_wishlist">
+      <button class="btn sage" type="submit"
+        onclick="return confirm('Wunschliste verbindlich in den Lostopf geben?');">
+        &#10003; Bestätigen &ndash; in den Lostopf
+      </button>
+    </form>
+    {% else %}
+    <p class="muted">Noch keine Wünsche eingetragen.</p>
+    {% endif %}
+
+    <h3 style="margin-top:1rem">Wunsch hinzufügen</h3>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="add_wish">
+      <div class="form-row">
+        {% for f in wish_form %}
+          <div class="field">{{ f.label_tag }} {{ f }}</div>
+        {% endfor %}
       </div>
-    {% endfor %}
-    <button class="btn" type="submit">Wunsch hinzufügen</button>
-  </form>
+      <button class="btn" type="submit" style="margin-top:.6rem">Hinzufügen</button>
+    </form>
+  {% endif %}
 </div>
 
-<h2>Eingetragene Wünsche</h2>
-<div class="card">
-  {% if wishes %}
-  <table>
-    <tr><th>Prio</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th><th></th></tr>
-    {% for w in wishes %}
-    <tr>
-      <td>{{ w.priority }}</td><td>{{ w.quarter.name }}</td>
-      <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td>
-      <td>
-        <form class="inline" method="post">{% csrf_token %}
-          <input type="hidden" name="delete" value="{{ w.id }}">
-          <button class="btn ghost small" type="submit">löschen</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}<p class="muted">Noch keine Wünsche eingetragen.</p>{% endif %}
-</div>
+<style>
+  ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
+  li.wish {
+    display:flex; align-items:center; gap:.7rem; background:var(--card);
+    border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem;
+  }
+  li.wish.dragover { border-color:var(--accent); background:var(--accent-soft); }
+  li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; }
+  .wish-prio {
+    background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
+    display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto;
+  }
+  .wish-main { flex:1 1 auto; }
+  .wish-actions { display:flex; gap:.25rem; align-items:center; }
+</style>
+
+<script>
+(function () {
+  var list = document.getElementById('wishlist');
+  if (!list) return;
+  var dragEl = null;
+  list.querySelectorAll('li.wish').forEach(function (li) {
+    li.addEventListener('dragstart', function (e) {
+      dragEl = li; li.style.opacity = '0.5'; e.dataTransfer.effectAllowed = 'move';
+    });
+    li.addEventListener('dragend', function () {
+      li.style.opacity = ''; dragEl = null;
+      list.querySelectorAll('li.wish').forEach(function (x){ x.classList.remove('dragover'); });
+    });
+    li.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (li === dragEl) return;
+      li.classList.add('dragover');
+      var rect = li.getBoundingClientRect();
+      var after = (e.clientY - rect.top) > rect.height / 2;
+      if (after) { li.parentNode.insertBefore(dragEl, li.nextSibling); }
+      else { li.parentNode.insertBefore(dragEl, li); }
+    });
+    li.addEventListener('dragleave', function () { li.classList.remove('dragover'); });
+  });
+  list.addEventListener('drop', function (e) {
+    e.preventDefault();
+    var ids = Array.prototype.map.call(
+      list.querySelectorAll('li.wish'), function (x) { return x.getAttribute('data-id'); });
+    document.getElementById('reorder-order').value = ids.join(',');
+    document.getElementById('reorder-form').submit();
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

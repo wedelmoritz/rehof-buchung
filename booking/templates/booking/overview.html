@@ -1,0 +1,65 @@
+{% extends "booking/base.html" %}
+{% block title %}Übersicht{% endblock %}
+{% block content %}
+<h1>Übersicht – wer ist wann da</h1>
+
+{% if open_period %}
+<div class="msg info">
+  Anmeldung fürs Losverfahren offen: <strong>{{ open_period }}</strong>{% if open_period.wishlist_close %} (bis {{ open_period.wishlist_close }}){% endif %}.
+  <a href="{% url 'wishlist' %}">Wünsche fürs nächste Jahr eintragen →</a>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="cal-head">
+    <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}">&lsaquo;</a>
+    <strong class="cal-title">{{ cal.label }}</strong>
+    <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}">&rsaquo;</a>
+    <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}">Heute</a>
+  </div>
+
+  <table class="cal">
+    <thead><tr>
+      <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
+    </tr></thead>
+    <tbody>
+      {% for week in cal.weeks %}
+      <tr>
+        {% for d in week %}
+        <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %}"
+            {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
+          <div class="d-num">{{ d.day }}</div>
+          {% for b in d.bookings %}
+            <div class="d-book {% if b.mine %}mine{% else %}other{% endif %}"
+                 title="{{ b.quarter }} – {{ b.who }}">{{ b.quarter }} · {{ b.who }}</div>
+          {% endfor %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="legend">
+    <span><i class="sw today"></i> heute</span>
+    <span><i class="sw mine"></i> eigene Buchung</span>
+    <span><i class="sw book" style="background:var(--accent-soft)"></i> andere Mitglieder</span>
+    <span><i class="sw holiday"></i> Berliner Ferien</span>
+  </div>
+  {% if cal.holidays %}
+  <p class="muted" style="margin:.5rem 0 0">
+    Ferien in diesem Monat:
+    {% for h in cal.holidays %}{{ h.name }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+</div>
+
+{% if member %}
+<p class="muted">
+  Du hast {{ nights_remaining }} Tage in {{ year }} verfügbar.
+  <a href="{% url 'book' %}">Selbst buchen →</a>
+</p>
+{% else %}
+<div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
+{% endif %}
+{% endblock %}

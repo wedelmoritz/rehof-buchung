@@ -49,7 +49,7 @@ booking/
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
   views.py / urls.py / forms.py
-  templates/booking/    # base, dashboard, calendar, result, transfer
+  templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html
   tests.py              # Django-Integrationstests (DB-Ebene)
   management/commands/seed_demo.py   # Demo-Daten + reale BB-Termine

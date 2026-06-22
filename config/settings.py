@@ -94,7 +94,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # NAHTSTELLE für später: Hier kann ein OIDC-Backend (z.B. Keycloak via
 # mozilla-django-oidc) ergänzt werden, ohne die übrige App zu ändern.
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "dashboard"
+LOGIN_REDIRECT_URL = "overview"
 LOGOUT_REDIRECT_URL = "login"
 
 # --- Lokalisierung ---------------------------------------------------------

@@ -215,6 +215,17 @@ class Allocation(models.Model):
         return f"{self.member} @ {self.quarter} {self.start}–{self.end}"
 
 
+class UpcomingAllocation(Allocation):
+    """Proxy auf Allocation für die Verwaltung: zeigt nur die anstehenden
+    Buchungen (Abreise heute oder später), damit sich die Verwaltung darauf
+    vorbereiten kann."""
+
+    class Meta:
+        proxy = True
+        verbose_name = "Anstehende Buchung"
+        verbose_name_plural = "Anstehende Buchungen"
+
+
 class LotteryRun(models.Model):
     """Ein protokollierter Losdurchlauf (Audit)."""
     period = models.ForeignKey(
