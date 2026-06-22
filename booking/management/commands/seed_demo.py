@@ -16,6 +16,7 @@ from datetime import date, timedelta
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
@@ -160,6 +161,7 @@ class Command(BaseCommand):
                 end=date(next_year + 1, 1, 1),
                 wishlist_open=date.today() - timedelta(days=3),
                 wishlist_close=date.today() + timedelta(days=14),
+                draw_at=timezone.now() + timedelta(days=15),
                 status=BookingPeriod.WISHES_OPEN,
             ),
         )

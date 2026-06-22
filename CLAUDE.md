@@ -94,7 +94,9 @@ in einer späteren Stufe).
   Deckel 1,5, Reset auf 1,0 bei Gewinn eines umkämpften Slots. **Nur
   eingereichte Wünsche (`submitted=True`) nehmen teil.** Die Strategiesicherheit
   ist deterministisch getestet (`test_strategieproof_ueber_alle_reihenfolgen`) —
-  bei Änderungen am Algorithmus muss dieser Test grün bleiben.
+  bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
+  sich über `BookingPeriod.draw_at` terminieren; das Kommando
+  `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
 - **Buchungsperiode/Zeitraum (`BookingPeriod`):** Eine Periode durchläuft den
   Lebenszyklus über ihren `status`: `draft` (Entwurf) → `wishes_open` (Wunsch-
   Einträge freigegeben) → `lottery_ready` (zur Auslosung freigegeben) →

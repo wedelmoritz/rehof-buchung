@@ -251,6 +251,11 @@ class BookingPeriod(models.Model):
     end = models.DateField("Zeitraum buchbar bis (exkl.)")
     wishlist_open = models.DateField("Anmeldung ab", null=True, blank=True)
     wishlist_close = models.DateField("Anmeldung bis", null=True, blank=True)
+    draw_at = models.DateTimeField(
+        "Losung am", null=True, blank=True,
+        help_text="Terminierte Auslosung; läuft per Cron automatisch (siehe "
+                  "Management-Kommando run_due_lotteries).",
+    )
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
     applies_to_all = models.BooleanField("Gilt für alle Quartiere", default=True)
     quarters = models.ManyToManyField(

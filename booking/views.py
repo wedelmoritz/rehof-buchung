@@ -55,17 +55,29 @@ def _parse_booking_post(request):
     return quarter, start, end, persons, None
 
 
-def _month_from_request(request, today) -> tuple[int, int]:
-    """Liest year/month aus GET (oder POST) und fällt auf den aktuellen Monat zurück."""
+def _month_from_request(request, today, default_year=None, default_month=None):
+    """Liest year/month aus GET (oder POST); Fallback auf den angegebenen
+    Standardmonat bzw. den aktuellen Monat."""
+    dy = default_year or today.year
+    dm = default_month or today.month
     src = request.POST if request.method == "POST" else request.GET
     try:
-        year = int(src.get("year", today.year))
-        month = int(src.get("month", today.month))
+        year = int(src.get("year", dy))
+        month = int(src.get("month", dm))
         if not (1 <= month <= 12):
-            year, month = today.year, today.month
+            year, month = dy, dm
     except (TypeError, ValueError):
-        year, month = today.year, today.month
+        year, month = dy, dm
     return year, month
+
+
+def _cal_nav(cal) -> dict:
+    """Monats-/Jahres-Listen für das einheitliche Kalender-Navigations-Dropdown."""
+    if not cal:
+        return {"months": [], "years": []}
+    months = [{"num": i, "name": svc.GERMAN_MONTHS[i]} for i in range(1, 13)]
+    yr = cal["year"]
+    return {"months": months, "years": list(range(yr - 2, yr + 3))}
 
 
 def _redirect_month(name: str, year, month):
@@ -111,6 +123,9 @@ def overview(request):
         "legend": legend,
         "sel_day": sel_day,
         "detail": detail,
+        "nav_qs": "",
+        "show_today": True,
+        **_cal_nav(cal),
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0
         ),
@@ -238,6 +253,9 @@ def book(request):
         "persons": persons,
         "need_accessible": need_accessible,
         "sel_qs": sel_qs,
+        "nav_qs": sel_qs,
+        "show_today": True,
+        **_cal_nav(cal),
         "sel_start": sel_start,
         "sel_end": sel_end,
         "eff_start": eff_start,
@@ -293,6 +311,8 @@ def my_bookings(request):
 
     upcoming, past = [], []
     incoming_swaps = []
+    submitted_wishes = []
+    wish_period = None
     if member:
         for a in member.allocations.select_related("quarter").order_by("start"):
             (upcoming if a.end > today else past).append(a)
@@ -300,6 +320,12 @@ def my_bookings(request):
             a.waiters = svc.waiters_for_allocation(a)
             a.concurrent = svc.concurrent_allocations(a)
         incoming_swaps = svc.pending_swaps_for(member)
+        wish_period = BookingPeriod.objects.filter(status__in=[
+            BookingPeriod.WISHES_OPEN, BookingPeriod.LOTTERY_READY]).first()
+        if wish_period:
+            submitted_wishes = list(
+                Wish.objects.filter(member=member, period=wish_period, submitted=True)
+                .select_related("quarter").order_by("priority", "id"))
 
     return render(request, "booking/my_bookings.html", {
         "member": member,
@@ -311,6 +337,8 @@ def my_bookings(request):
         "upcoming": upcoming,
         "past": past,
         "incoming_swaps": incoming_swaps,
+        "submitted_wishes": submitted_wishes,
+        "wish_period": wish_period,
         "notifications": svc.unread_notifications(member),
     })
 
@@ -325,8 +353,11 @@ def wishlist(request):
     Buchen dürfen Wünsche bewusst miteinander kollidieren."""
     member = _current_member(request)
     today = date.today()
-    year, month = _month_from_request(request, today)
     period = BookingPeriod.objects.filter(status=BookingPeriod.WISHES_OPEN).first()
+    # Der Wunsch-Kalender startet beim Zeitraum der Periode (nicht „heute“).
+    dy = period.start.year if period else None
+    dm = period.start.month if period else None
+    year, month = _month_from_request(request, today, dy, dm)
 
     if request.method == "POST" and member and period:
         action = request.POST.get("action", "")
@@ -417,6 +448,9 @@ def wishlist(request):
         "period": period,
         "cal": cal,
         "sel_qs": sel_qs,
+        "nav_qs": sel_qs,
+        "show_today": False,
+        **_cal_nav(cal),
         "sel_start": sel_start,
         "sel_end": sel_end,
         "eff_start": eff_start,

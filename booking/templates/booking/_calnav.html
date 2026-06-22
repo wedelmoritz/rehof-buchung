@@ -1,0 +1,23 @@
+{% comment %}
+Einheitliche Kalender-Navigation: Pfeile, Monats-/Jahres-Dropdown, optional Heute.
+Erwartet: cal, months, years, nav_qs (Query-Suffix zum Erhalten der Auswahl),
+show_today (bool).
+{% endcomment %}
+<div class="cal-head">
+  <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ nav_qs }}" title="Vormonat">&lsaquo;</a>
+  <span class="cal-jump">
+    <select aria-label="Monat" onchange="location.href='?year={{ cal.year }}&month='+this.value+'{{ nav_qs }}'">
+      {% for m in months %}<option value="{{ m.num }}" {% if m.num == cal.month %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+    </select>
+    <select aria-label="Jahr" onchange="location.href='?year='+this.value+'&month={{ cal.month }}{{ nav_qs }}'">
+      {% for y in years %}<option value="{{ y }}" {% if y == cal.year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+  </span>
+  <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ nav_qs }}" title="Folgemonat">&rsaquo;</a>
+  {% if show_today %}<a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ nav_qs }}">Heute</a>{% endif %}
+</div>
+<style>
+  .cal-jump { display:inline-flex; gap:.4rem; }
+  .cal-jump select { min-width:auto; padding:.35rem .5rem; border-radius:9px; border:1px solid var(--line);
+    background:#fff; font:inherit; color:var(--ink); }
+</style>

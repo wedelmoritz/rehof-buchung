@@ -139,7 +139,7 @@ class WishInline(admin.TabularInline):
 @admin.register(BookingPeriod)
 class BookingPeriodAdmin(admin.ModelAdmin):
     list_display = ("name", "target_year", "status", "start", "end",
-                    "wishlist_open", "wishlist_close")
+                    "wishlist_open", "wishlist_close", "draw_at")
     list_filter = ("status", "target_year")
     filter_horizontal = ("quarters",)
     actions = ["action_run_lottery"]
@@ -154,11 +154,12 @@ class BookingPeriodAdmin(admin.ModelAdmin):
             ),
         }),
         ("Wunsch- & Losphase", {
-            "fields": ("wishlist_open", "wishlist_close", "seed"),
+            "fields": ("wishlist_open", "wishlist_close", "draw_at", "seed"),
             "description": (
                 "Anmeldezeitraum für die Wunschliste (relevant im Status „Für "
-                "Wunsch-Einträge freigegeben“). Der Seed macht die Auslosung "
-                "reproduzierbar; leer = zufällig bei Durchführung."
+                "Wunsch-Einträge freigegeben“). „Losung am“ terminiert die "
+                "automatische Auslosung (Cron: run_due_lotteries). Der Seed macht "
+                "die Auslosung reproduzierbar; leer = zufällig bei Durchführung."
             ),
         }),
         ("Geltungsbereich der freien Bebuchbarkeit", {
