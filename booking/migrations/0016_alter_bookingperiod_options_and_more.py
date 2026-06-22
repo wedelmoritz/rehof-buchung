@@ -3,6 +3,25 @@
 from django.db import migrations, models
 
 
+def dedup_target_year(apps, schema_editor):
+    """Bevor `target_year` eindeutig wird: pro Jahr nur EINE Periode behalten.
+    Ältere Datenbestände konnten mehrere Perioden je Jahr haben (z.B. eine
+    globale + eine quartiersspezifische). Bevorzugt bleibt die zur freien
+    Buchung freigegebene Periode erhalten, sonst die älteste; der Rest wird
+    entfernt. Ohne Duplikate ist das ein No-Op."""
+    BookingPeriod = apps.get_model("booking", "BookingPeriod")
+    by_year = {}
+    for p in BookingPeriod.objects.order_by("id"):
+        by_year.setdefault(p.target_year, []).append(p)
+    for periods in by_year.values():
+        if len(periods) < 2:
+            continue
+        keep = next((p for p in periods if p.status == "free_booking"), periods[0])
+        for p in periods:
+            if p.pk != keep.pk:
+                p.delete()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,6 +29,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Zuerst evtl. vorhandene Duplikate je Jahr auflösen, sonst scheitert
+        # der Unique-Index auf target_year (war die Ursache des 502).
+        migrations.RunPython(dedup_target_year, migrations.RunPython.noop),
         migrations.AlterModelOptions(
             name="bookingperiod",
             options={
