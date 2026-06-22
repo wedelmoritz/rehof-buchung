@@ -206,11 +206,16 @@ def book(request):
     suitable, maybe_unsuitable, occ_quarters = [], [], []
     range_min_nights = 0
     too_short = False
+    not_enough_days = False
+    days_remaining_year = 0
     if member and sel_start:
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+        nights = (eff_end - eff_start).days
         range_min_nights = svc.min_nights_for_range(eff_start, eff_end)
-        too_short = (eff_end - eff_start).days < range_min_nights
+        too_short = nights < range_min_nights
+        days_remaining_year = member.nights_remaining_in_year(eff_start.year)
+        not_enough_days = nights > days_remaining_year
         free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
         for q in free_quarters:
             reason = svc.schedule_blocker(member, q, eff_start, eff_end)
@@ -240,6 +245,8 @@ def book(request):
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
         "range_min_nights": range_min_nights,
         "too_short": too_short,
+        "not_enough_days": not_enough_days,
+        "days_remaining_year": days_remaining_year,
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,
         "occ_quarters": occ_quarters,
@@ -336,7 +343,13 @@ def wishlist(request):
                     form.cleaned_data["start"], form.cleaned_data["end"])
             else:
                 messages.error(request, "Bitte einen gültigen Wunsch eingeben.")
-            return _redirect_month("wishlist", p_year, p_month)
+            # Auswahl im Kalender erhalten, damit man weitere Wünsche eintragen kann
+            url = f"{reverse('wishlist')}?year={p_year}&month={p_month}"
+            if request.POST.get("start"):
+                url += f"&start={request.POST['start']}"
+            if request.POST.get("end"):
+                url += f"&end={request.POST['end']}"
+            return redirect(url)
 
         if action == "delete_wish" and not is_submitted:
             svc.delete_wish(member, period, request.POST.get("wish_id"))
@@ -376,10 +389,40 @@ def wishlist(request):
         wishlist_submitted = any(w.submitted for w in wishes) and len(wishes) > 0
         wish_nights = sum(w.nights for w in wishes)
 
+    # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
+    sel_start = _parse_date(request.GET.get("start"))
+    sel_end = _parse_date(request.GET.get("end"))
+    if sel_start and sel_end and sel_end <= sel_start:
+        sel_end = None
+    cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end) \
+        if (member and period) else None
+    sel_qs = ""
+    if sel_start:
+        sel_qs += f"&start={sel_start.isoformat()}"
+    if sel_end:
+        sel_qs += f"&end={sel_end.isoformat()}"
+
+    eff_start = eff_end = None
+    candidates = []
+    if member and period and sel_start:
+        eff_start = sel_start
+        eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+        counts = svc.quarter_wish_counts(period, eff_start, eff_end)
+        for q in Quarter.objects.filter(active=True).order_by("name"):
+            candidates.append({"q": q, "count": counts.get(str(q.id), 0)})
+
     return render(request, "booking/wishlist.html", {
         "member": member,
         "today": today,
         "period": period,
+        "cal": cal,
+        "sel_qs": sel_qs,
+        "sel_start": sel_start,
+        "sel_end": sel_end,
+        "eff_start": eff_start,
+        "eff_end": eff_end,
+        "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
+        "candidates": candidates,
         "wish_form": WishForm(),
         "wishes": wishes,
         "wishlist_submitted": wishlist_submitted,

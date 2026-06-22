@@ -34,7 +34,7 @@
     <a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}">Heute</a>
   </div>
 
-  <table class="cal">
+  <table class="cal community-cal">
     <thead><tr>
       <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
     </tr></thead>
@@ -45,13 +45,14 @@
         <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %} {% if sel_day and d.date == sel_day %}sel-day{% endif %}"
             {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
           {% if d.in_month %}
-          <a class="d-num daylink" href="?year={{ cal.year }}&month={{ cal.month }}&day={{ d.date|date:'Y-m-d' }}#tag">{{ d.day }}</a>
+          <a class="cell-link" href="?year={{ cal.year }}&month={{ cal.month }}&day={{ d.date|date:'Y-m-d' }}#tag">
+            <span class="d-num">{{ d.day }}</span>
+            {% for b in d.bookings %}
+            <span class="d-book person {% if b.mine %}mine{% endif %}" style="background:{{ b.color }}"
+                  title="{{ b.quarter }} – {{ b.who }} ({{ b.persons }} Pers.)">{{ b.quarter }}: {{ b.who }} ({{ b.persons }})</span>
+            {% endfor %}
+          </a>
           {% else %}<div class="d-num">{{ d.day }}</div>{% endif %}
-          {% for b in d.bookings %}
-            <div class="d-book person {% if b.mine %}mine{% endif %}"
-                 style="background:{{ b.color }}"
-                 title="{{ b.quarter }} – {{ b.who }} ({{ b.persons }} Pers.)">{{ b.quarter }}: {{ b.who }} ({{ b.persons }})</div>
-          {% endfor %}
         </td>
         {% endfor %}
       </tr>
@@ -112,10 +113,14 @@
 {% endif %}
 
 <style>
-  .daylink { text-decoration:none; color:var(--muted); font-weight:600; }
-  .daylink:hover { color:var(--accent-deep); }
+  table.community-cal td { padding:0; }
+  .cell-link { display:block; min-height:78px; height:100%; padding:3px 4px;
+    text-decoration:none; color:var(--ink); }
+  .cell-link:hover { background:rgba(255,255,255,.45); }
+  td.sel-day .cell-link { background:rgba(255,255,255,.55); }
+  .community-cal .d-num { font-size:.8rem; color:var(--muted); display:block; }
   td.sel-day { outline:2px solid var(--accent-deep); outline-offset:-2px; }
-  .d-book.person { color:#3c352f; }
+  .d-book.person { display:block; color:#3c352f; }
   .d-book.person.mine { box-shadow: inset 0 0 0 2px var(--accent-deep); font-weight:600; }
   .who-legend { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin-top:.6rem;
     font-size:.82rem; color:var(--muted); }
