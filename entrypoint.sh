@@ -26,9 +26,21 @@ PY
 echo "[entrypoint] Führe Migrationen aus …"
 python manage.py migrate --noinput
 
-if [ "${SEED_DEMO:-0}" = "1" ]; then
-  echo "[entrypoint] Lege Demo-Daten an …"
-  python manage.py seed_demo || true
+# --- Test-/Demo-Daten (für Docker, da kein Python auf dem Host) ---------------
+# Genau EINE Option setzen, Container neu starten – DANACH wieder auf 0 setzen,
+# sonst läuft die Aktion bei JEDEM Neustart erneut!
+#   SEED_DEMO=1   -> Demo-/Testdaten anlegen (additiv, idempotent)
+#   DEMO_RESET=1  -> ALLE Daten löschen UND Demo-Daten neu anlegen
+#   DEMO_WIPE=1   -> NUR ALLE Daten löschen
+if [ "${DEMO_RESET:-0}" = "1" ]; then
+  echo "[entrypoint] !!! DEMO_RESET=1: lösche ALLE Daten und lege Demo-Daten neu an !!!"
+  python manage.py seed_demo --reset --yes || true
+elif [ "${DEMO_WIPE:-0}" = "1" ]; then
+  echo "[entrypoint] !!! DEMO_WIPE=1: lösche ALLE Daten !!!"
+  python manage.py seed_demo --wipe --yes || true
+elif [ "${SEED_DEMO:-0}" = "1" ]; then
+  echo "[entrypoint] Lege Demo-/Testdaten an …"
+  python manage.py seed_demo --yes || true
 fi
 
 echo "[entrypoint] Starte Gunicorn …"
