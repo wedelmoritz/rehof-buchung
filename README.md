@@ -135,23 +135,92 @@ Brandenburg sind nahezu identisch).
 Verfahren: **gewichtete Zufallsreihenfolge im Runden-Prinzip** (fachlich eine
 „weighted random serial dictatorship" mit Ausweich-Logik und Mehrjahres-Ausgleich).
 
-- **Reihenfolge** wird je Losung gewichtet ausgelost; ein höherer
-  Ausgleichsfaktor (aus früheren Verlusten) bringt tendenziell einen vorderen
-  Platz. Über einen Seed ist jede Ziehung reproduzierbar.
-- **Runden-Prinzip:** Pro Runde bekommt jede Partei höchstens **einen** Wunsch
-  erfüllt, bevor die nächste Prioritätsstufe vergeben wird. So werden knappe
-  Premium-Termine (z.B. Pfingsten) gleichmäßiger verteilt als bei „alles am Stück".
+- **Reihenfolge – genau einmal:** Zu Beginn wird *eine* gewichtete Reihenfolge
+  aller Teilnehmenden gezogen. Sie gilt für **alle Runden** und wird **nicht**
+  jede Runde neu gezogen. Über einen Seed ist jede Ziehung reproduzierbar.
+- **Karma als Gewicht:** Ein höherer Ausgleichsfaktor (aus früheren Verlusten)
+  bringt in *dieser einen Ziehung* tendenziell einen vorderen Platz. Karma fließt
+  also als **Gewicht in die Ziehung** ein – und wird **erst am Ende neu
+  berechnet**, für die *nächste* Losung (nicht zwischen den Runden).
+- **Runden-Prinzip:** In Runde 1 bekommt jede Partei – in der gelosten Reihenfolge
+  – ihren *höchsten noch möglichen* Wunsch, in Runde 2 mit *derselben* Reihenfolge
+  den nächsten, usw. Pro Runde höchstens **eine** Buchung je Partei – so werden
+  knappe Premium-Termine (z.B. Pfingsten) gleichmäßiger verteilt.
 - **Ausweichen:** Ist das konkrete Wunschquartier belegt, wird ein
   **gleichwertiges** Quartier derselben Äquivalenzklasse zugeteilt, bevor ein
   echter Verlust entsteht.
-- **Karma:** Wer einen Zeitraum *echt* verliert (in der ganzen Klasse nichts
-  frei), bekommt für die nächste Losung einen Faktor-Bonus (Standard +0,1,
-  gedeckelt auf 1,5). Wer einen *umkämpften* Slot gewinnt, dessen Faktor wird auf
-  1,0 zurückgesetzt. Budget-bedingtes Aussetzen zählt **nicht** als Verlust.
+- **Karma-Update (am Ende):** Wer einen Zeitraum *echt* verliert (in der ganzen
+  Klasse nichts frei), bekommt für die nächste Losung +0,1 (gedeckelt 1,5). Wer
+  einen *umkämpften* Slot gewinnt, wird auf 1,0 zurückgesetzt. Budget-bedingtes
+  Aussetzen zählt **nicht** als Verlust.
 - **Strategiesicher:** Die Wunschliste bestimmt nur, *was* man nimmt, wenn man
   dran ist – nicht *wann*. Ehrliches Angeben ist nachweislich nie schlechter als
-  Tricksen (siehe Test `test_strategieproof_ueber_alle_reihenfolgen`, der das
-  über *alle* möglichen Reihenfolgen deterministisch belegt).
+  Tricksen (siehe Test `test_strategieproof_ueber_alle_reihenfolgen`).
+
+### Ablauf
+
+```mermaid
+flowchart TD
+    A["① Wünsche eintragen & einreichen (Prio 1…n)"] --> B["② Reihenfolge EINMAL auslosen<br/>Karma (Vorjahr) = Gewicht"]
+    B --> C["③ Neue Runde – Reihenfolge bleibt gleich"]
+    C --> D{"Partei: höchster noch<br/>möglicher Wunsch"}
+    D -->|"Wunschquartier frei"| E["✓ zuteilen"]
+    D -->|"sonst gleichwertiges frei"| F["✓ Ausweichquartier"]
+    D -->|"Budget voll"| H["übersprungen – kein Verlust"]
+    D -->|"nichts frei"| G["✗ echter Verlust<br/>Karma +0,1 (nächstes Jahr)"]
+    H -->|"nächster Wunsch"| D
+    G -->|"nächster Wunsch"| D
+    E --> I["höchstens EINE Buchung pro Partei & Runde"]
+    F --> I
+    I --> J{"noch offene Wünsche?"}
+    J -->|"ja: nächste Runde, gleiche Reihenfolge"| C
+    J -->|"nein"| K["④ Karma neu berechnen<br/>Verlust → +0,1 (max 1,5) · umkämpfter Gewinn → 1,0"]
+    K --> L["⑤ Ergebnis veröffentlicht → Benachrichtigung"]
+```
+
+### Beispiel: 5 Mitglieder, je 2 Wünsche
+
+*Salix* und *Lupulus* sind **gleichwertig** (Gruppe „Gartenhäuser“), das
+*Pfarrhaus* steht allein. Begehrt: **Pfingsten** (3 Nächte) und eine
+**Sommerwoche** (7 Nächte). **Karma vorab:** Dora 1,2 (ging letztes Jahr leer
+aus), alle anderen 1,0.
+
+| Mitglied | ① Erstwunsch        | ② Zweitwunsch        |
+|----------|---------------------|----------------------|
+| Anna     | Salix · Pfingsten   | Pfarrhaus · Sommer   |
+| Ben      | Lupulus · Pfingsten | Salix · Sommer       |
+| Cem      | Salix · Pfingsten   | Pfarrhaus · Sommer   |
+| Dora     | Pfarrhaus · Pfingsten | Salix · Sommer     |
+| Eva      | Salix · Pfingsten   | Lupulus · Pfingsten  |
+
+Dank Karma landet Dora wahrscheinlich vorn. Angenommen, die (eine!) Ziehung
+ergibt **Dora ▸ Anna ▸ Ben ▸ Cem ▸ Eva**.
+
+**Runde 1** – höchster noch möglicher Wunsch je Partei:
+- **Dora** → Pfarrhaus · Pfingsten ✓ (kein anderer will Pfarrhaus zu Pfingsten → nicht umkämpft)
+- **Anna** → Salix · Pfingsten ✓ (umkämpft)
+- **Ben** → Lupulus · Pfingsten ✓ (umkämpft)
+- **Cem** → Salix & Lupulus belegt → *Verlust*; Zweitwunsch Pfarrhaus · Sommer ✓ (umkämpft mit Anna)
+- **Eva** → Salix & Lupulus belegt → *Verlust*; Zweitwunsch Lupulus · Pfingsten ebenfalls belegt → *Verlust*; keine Buchung
+
+**Runde 2** – gleiche Reihenfolge; nur Dora, Anna, Ben haben offene Wünsche:
+- **Dora** → Salix · Sommer ✓ (umkämpft mit Ben)
+- **Anna** → Pfarrhaus · Sommer belegt (Cem) → *Verlust*
+- **Ben** → Salix · Sommer belegt (Dora) → Ausweich **Lupulus · Sommer** ✓
+
+**Ergebnis & neues Karma** (fürs *nächste* Jahr):
+
+| Mitglied | Bekommen                                   | Karma neu                                  |
+|----------|--------------------------------------------|--------------------------------------------|
+| Anna     | Salix · Pfingsten                          | 1,0 → **1,1** (Verlust Sommer)             |
+| Ben      | Lupulus · Pfingsten + Lupulus · Sommer     | 1,0 (umkämpft gewonnen)                    |
+| Cem      | Pfarrhaus · Sommer                         | 1,0 → **1,1** (Verlust Pfingsten)          |
+| Dora     | Pfarrhaus · Pfingsten + Salix · Sommer     | 1,2 → **1,0** (umkämpft gewonnen → Reset)  |
+| Eva      | — (leer ausgegangen)                       | 1,0 → **1,1** (Verlust)                     |
+
+Eva geht dieses Jahr leer aus, bekommt aber +0,1 Karma und damit nächstes Jahr
+eine bessere Ausgangsposition; Dora hat ihren Vorsprung „eingelöst“ und startet
+wieder bei 1,0. So bleibt es über die Jahre fair.
 
 Das Verfahren ist im Detail in `Losverfahren-Spezifikation.md` beschrieben
 (Genossenschafts-Vorlage und Bauplan zugleich).
