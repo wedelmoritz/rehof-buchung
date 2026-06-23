@@ -3,6 +3,26 @@
 {% block content %}
 <h1>Verwaltung</h1>
 
+<details class="card help-note">
+  <summary><strong>Was du hier tun kannst</strong></summary>
+  <ul>
+    <li><strong>Kennzahlen</strong> des gewählten Monats (Anreisen, Endreinigungen,
+      offene/überfällige Rechnungen).</li>
+    <li><strong>Reinigungsliste</strong>: alle Abreisen des Monats (= Reinigungstage),
+      Filter „nur mit Endreinigung“, Export (Excel/CSV) und <strong>Versand ans
+      Reinigungsteam</strong> per Knopf.</li>
+    <li><strong>Anstehende Buchungen</strong>: Übersicht des Monats, Export und
+      <strong>Versand an die Verwaltung</strong>. (Zusätzlich geht monatlich
+      automatisch eine Mail mit den Buchungen des Folgemonats raus.)</li>
+    <li><strong>Rechnungen</strong>: filterbar (offen / überfällig / bezahlt gemeldet /
+      alle), Export, und <strong>überfällige per Knopf anschreiben &amp; erinnern</strong>.</li>
+    <li><strong>Kontoabgleich</strong>: Kontoauszug (CSV/CAMT) hochladen – passende
+      Rechnungen werden automatisch als bezahlt verbucht, das Mitglied benachrichtigt.</li>
+    <li>Empfänger der Verwaltungs-Mails und das Zahlungsziel stellst du im
+      <strong>Backend</strong> ein (Betriebs-Einstellungen / Hofladen-Einstellungen).</li>
+  </ul>
+</details>
+
 {# --- Kennzahlen ----------------------------------------------------------- #}
 <div class="kpis">
   <div class="card kpi"><span class="num">{{ arrivals|length }}</span>
@@ -200,6 +220,9 @@
   .import-form input[type=file] { flex:1 1 220px; }
   .import-form label { font-size:.8rem; color:var(--muted); display:flex; flex-direction:column; gap:.2rem; }
   .import-form select { padding:.4rem .55rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); }
+  .help-note { margin-bottom:1rem; }
+  .help-note summary { cursor:pointer; }
+  .help-note ul { margin:.6rem 0 0; line-height:1.6; }
   .kpis { display:flex; gap:.8rem; flex-wrap:wrap; margin-bottom:1rem; }
   .kpi { flex:1 1 140px; display:flex; align-items:center; gap:.7rem; padding:.9rem 1rem; }
   .kpi .num { font-size:1.9rem; font-weight:700; line-height:1; color:var(--accent-deep); }
