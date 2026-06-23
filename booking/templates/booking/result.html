@@ -4,6 +4,20 @@
 <h1>Ergebnis: {{ period }}</h1>
 {% if run %}<p class="muted">{{ run.summary }} · {{ run.executed_at }}</p>{% endif %}
 
+{% if not_published %}
+<div class="card" style="border-color:var(--line)">
+  <p style="margin:0">Das Losergebnis ist <strong>noch nicht veröffentlicht</strong>.
+    Die Verwaltung prüft die Auslosung – sobald sie bestätigt ist, siehst du hier
+    dein Ergebnis und wirst benachrichtigt.</p>
+</div>
+{% endif %}
+
+{% if preview %}
+<div class="msg info">Vorschau für die Verwaltung – diese Auslosung ist
+  <strong>noch nicht bestätigt</strong> und für Mitglieder unsichtbar. Bestätigen
+  bzw. Zurücknehmen unter „Losdurchläufe“ im Backend.</div>
+{% endif %}
+
 {% if my_note %}
 <div class="card" style="border-color:var(--sage)">
   <h2 style="margin-top:0">Dein Ergebnis</h2>
@@ -22,6 +36,7 @@
 </div>
 {% endif %}
 
+{% if not not_published %}
 <h2>Zuteilungen (Gemeinschaft)</h2>
 <div class="card">
   <div class="table-wrap"><table>
@@ -40,5 +55,6 @@
 {% if run and user.is_staff %}
 <h2>Ziehungsprotokoll (Audit – nur Verwaltung)</h2>
 <pre class="log">{{ run.log_text }}</pre>
+{% endif %}
 {% endif %}
 {% endblock %}

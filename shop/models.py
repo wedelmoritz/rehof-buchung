@@ -29,6 +29,10 @@ class ShopConfig(models.Model):
     iban = models.CharField("IBAN (Zahlungsempfang)", max_length=34, blank=True)
     bic = models.CharField("BIC", max_length=11, blank=True)
     invoice_prefix = models.CharField("Rechnungs-Präfix", max_length=8, default="HL")
+    payment_term_days = models.PositiveSmallIntegerField(
+        "Zahlungsziel (Tage)", default=14,
+        help_text="Nach so vielen Tagen ohne Zahlungseingang gilt eine Rechnung "
+                  "als überfällig (für die Zahlungserinnerung).")
 
     class Meta:
         verbose_name = "Hofladen-Einstellungen"
@@ -85,6 +89,11 @@ class Product(models.Model):
         "Beim Buchen einer Unterkunft anbieten", default=False,
         help_text="z.B. Endreinigung: erscheint im Bestätigungsschritt der Buchung "
                   "und kann gleich mitgebucht werden.")
+    counts_as_cleaning = models.BooleanField(
+        "Zählt als Endreinigung", default=False,
+        help_text="Wenn aktiv, gilt diese Dienstleistung als Endreinigung und "
+                  "erscheint in der Reinigungsliste fürs Team (Markierung an der "
+                  "betroffenen Buchung).")
     unavailable_weekdays = models.CharField(
         "Nicht möglich an Wochentagen", max_length=20, blank=True, default="",
         help_text="Komma-getrennt 0=Mo … 6=So. An diesen Wochentagen (Abreisetag) "
@@ -159,6 +168,11 @@ class LineItem(models.Model):
     purchase = models.ForeignKey(
         "Purchase", on_delete=models.CASCADE, null=True, blank=True,
         related_name="items", verbose_name="Einkauf")
+    allocation = models.ForeignKey(
+        "booking.Allocation", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="service_items", verbose_name="Zugehörige Buchung",
+        help_text="Gesetzt, wenn die Dienstleistung beim Buchen mitgebucht wurde "
+                  "(z.B. Endreinigung) – verknüpft sie mit Quartier und Abreisetag.")
     name = models.CharField("Bezeichnung", max_length=160)
     unit = models.CharField("Einheit", max_length=10)
     unit_price = models.DecimalField("Einzelpreis (brutto)", max_digits=8,
@@ -209,8 +223,10 @@ class Invoice(models.Model):
     month = models.PositiveSmallIntegerField("Monat")
     status = models.CharField("Status", max_length=10, choices=STATUS, default=OPEN)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    due_date = models.DateField("Fällig am", null=True, blank=True)
     paid_reported_at = models.DateTimeField("Bezahlt gemeldet am", null=True, blank=True)
     confirmed_at = models.DateTimeField("Bestätigt am", null=True, blank=True)
+    reminded_at = models.DateTimeField("Zuletzt erinnert am", null=True, blank=True)
     # Snapshots (Empfänger + Genossenschaft) für §14 UStG
     recipient_name = models.CharField("Empfänger", max_length=160, blank=True)
     recipient_address = models.TextField("Empfänger-Anschrift", blank=True)
@@ -231,6 +247,13 @@ class Invoice(models.Model):
     @property
     def archived(self) -> bool:
         return self.status == self.CONFIRMED
+
+    @property
+    def is_overdue(self) -> bool:
+        """Offen UND Zahlungsziel überschritten (für die Erinnerung)."""
+        from datetime import date as _date
+        return (self.status == self.OPEN and self.due_date is not None
+                and self.due_date < _date.today())
 
     @property
     def total_gross(self) -> Decimal:
@@ -274,3 +297,54 @@ class Invoice(models.Model):
             groups.values(),
             key=lambda g: g["purchase"].confirmed_at if g["purchase"] else self.created_at,
         )
+
+
+class BankImport(models.Model):
+    """Ein Import eines Kontoauszugs (für den Abgleich offener Rechnungen).
+    Hält nur Eckdaten fürs Protokoll – die Zeilen stehen in BankTransaction."""
+    created_at = models.DateTimeField("Importiert am", auto_now_add=True)
+    filename = models.CharField("Datei", max_length=200, blank=True)
+    fmt = models.CharField("Format", max_length=16, default="csv")
+    n_total = models.PositiveIntegerField("Zeilen gesamt", default=0)
+    n_imported = models.PositiveIntegerField("Neu übernommen", default=0)
+    n_matched = models.PositiveIntegerField("Automatisch zugeordnet", default=0)
+
+    class Meta:
+        verbose_name = "Kontoauszug-Import"
+        verbose_name_plural = "Kontoauszug-Importe"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Import {self.filename or self.fmt} – {self.created_at:%d.%m.%Y %H:%M}"
+
+
+class BankTransaction(models.Model):
+    """Eine eingegangene Zahlung aus einem Kontoauszug. Wird – wenn eindeutig –
+    automatisch einer Rechnung zugeordnet (Betrag + Rechnungsnummer im
+    Verwendungszweck) und verbucht."""
+    batch = models.ForeignKey(
+        BankImport, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="transactions", verbose_name="Import")
+    booked_on = models.DateField("Buchungstag", null=True, blank=True)
+    amount = models.DecimalField("Betrag", max_digits=12, decimal_places=2)
+    purpose = models.TextField("Verwendungszweck", blank=True)
+    counterparty_name = models.CharField("Zahlungsbeteiligte:r", max_length=200, blank=True)
+    counterparty_iban = models.CharField("IBAN", max_length=40, blank=True)
+    # Fingerabdruck (Datum+Betrag+Zweck+Konto) gegen Doppel-Import desselben Auszugs.
+    fingerprint = models.CharField("Fingerabdruck", max_length=64, unique=True)
+    raw = models.TextField("Rohzeile", blank=True)
+    imported_at = models.DateTimeField("Übernommen am", auto_now_add=True)
+    matched_invoice = models.ForeignKey(
+        "Invoice", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="bank_transactions", verbose_name="Zugeordnete Rechnung")
+    matched_at = models.DateTimeField("Zugeordnet am", null=True, blank=True)
+    note = models.CharField("Hinweis", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "Zahlungseingang"
+        verbose_name_plural = "Zahlungseingänge (Kontoauszug)"
+        ordering = ["-booked_on", "-imported_at"]
+        indexes = [models.Index(fields=["matched_invoice"])]
+
+    def __str__(self) -> str:
+        return f"{self.booked_on} {self.amount} € {self.counterparty_name}".strip()

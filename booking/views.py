@@ -205,9 +205,10 @@ def book_confirm(request):
             added = []
             for o in offers:
                 if request.POST.get(f"service_{o['p'].id}") and o["available"]:
-                    # Direkt als bestätigter Einkauf (nicht im Warenkorb).
+                    # Direkt als bestätigter Einkauf (nicht im Warenkorb),
+                    # verknüpft mit der Buchung (für die Reinigungsliste).
                     item, _serr = shop_svc.purchase_service(
-                        member, o["p"], 1, service_date=end)
+                        member, o["p"], 1, service_date=end, allocation=alloc)
                     if item:
                         added.append(o["p"].name)
             msg = f"Gebucht: {quarter.name}, {start} – {end} ({persons} Pers.)."
@@ -395,7 +396,8 @@ def my_bookings(request):
     submitted_wishes = []
     wish_period = None
     if member:
-        for a in member.allocations.select_related("quarter").order_by("start"):
+        for a in member.allocations.select_related("quarter").filter(
+                provisional=False).order_by("start"):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
             a.waiters = svc.waiters_for_allocation(a)
@@ -651,11 +653,183 @@ def transfer(request):
     })
 
 
+# --------------------------------------------------------------------------- #
+# Verwaltungs-Dashboard (nur Staff): anstehende Buchungen, Reinigung, Rechnungen
+# --------------------------------------------------------------------------- #
+
+def _staff_required(request):
+    return bool(request.user.is_authenticated and request.user.is_staff)
+
+
+@login_required
+def dashboard(request):
+    """Operatives Verwaltungs-Dashboard für das (kleine) Team: was steht an, was
+    muss geputzt werden, welche Rechnungen sind offen/überfällig – mit Export
+    und Versand per Knopfdruck. Nur für Verwaltungs-/Superuser."""
+    if not _staff_required(request):
+        messages.error(request, "Dieser Bereich ist der Verwaltung vorbehalten.")
+        return redirect("overview")
+
+    from shop import services as shop_svc
+    from shop.models import Invoice
+    from decimal import Decimal
+
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    m_from, m_to = svc.month_bounds(year, month)
+    only_cleaning = (request.GET.get("only_cleaning") == "1"
+                     or request.POST.get("only_cleaning") == "1")
+
+    # Aktionen (POST): Listen versenden bzw. überfällige erinnern.
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "send_cleaning":
+            deps = list(svc.departures_in_range(m_from, m_to))
+            text = svc.cleaning_text(deps, only_cleaning=only_cleaning)
+            body = (f"Reinigungsliste {svc.month_label(year, month)}\n"
+                    f"(Abreisetag = Reinigungstag)\n\n{text}\n")
+            recips = svc.email_cleaning(
+                f"Re:Hof – Reinigungsliste {month:02d}/{year}", body)
+            messages.success(
+                request, f"Reinigungsliste an {len(recips)} Empfänger gesendet."
+                if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
+        elif action == "send_upcoming":
+            allocs = list(svc.arrivals_in_range(m_from, m_to))
+            body = (f"Anstehende Buchungen {svc.month_label(year, month)}\n\n"
+                    f"{svc.bookings_text(allocs)}\n")
+            recips = svc.email_admins(
+                f"Re:Hof – Buchungen {month:02d}/{year}", body)
+            messages.success(
+                request, f"Übersicht an {len(recips)} Empfänger gesendet."
+                if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
+        elif action == "remind_overdue":
+            n = shop_svc.remind_overdue()
+            messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
+        elif action == "import_bank":
+            from shop import reconcile
+            f = request.FILES.get("statement")
+            fmt = request.POST.get("fmt", "csv")
+            if not f:
+                messages.error(request, "Bitte eine Datei auswählen.")
+            else:
+                try:
+                    batch = reconcile.import_bank_statement(f.read(), fmt, f.name)
+                    messages.success(
+                        request, f"Kontoauszug „{batch.filename}“: "
+                        f"{batch.n_imported} neue Eingänge übernommen, "
+                        f"{batch.n_matched} Rechnung(en) automatisch als bezahlt "
+                        f"verbucht.")
+                except Exception as exc:  # noqa: BLE001 – Nutzerfehler freundlich melden
+                    messages.error(request, f"Import nicht möglich: {exc}")
+        return redirect(f"{reverse('dashboard')}?year={year}&month={month}"
+                        + ("&only_cleaning=1" if only_cleaning else ""))
+
+    arrivals = list(svc.arrivals_in_range(m_from, m_to))
+    departures = list(svc.departures_in_range(m_from, m_to))
+    cleaning = [a for a in departures if getattr(a, "has_cleaning", False)]
+    cleaning_view = cleaning if only_cleaning else departures
+
+    open_inv = list(shop_svc.open_invoices().order_by("due_date", "number"))
+    overdue = [i for i in open_inv if i.is_overdue]
+    open_sum = sum((i.total_gross for i in open_inv), Decimal(0))
+    overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
+
+    # Rechnungssicht: filterbar (offen / überfällig / bezahlt gemeldet / alle).
+    inv_filter = request.GET.get("inv", "open")
+    if inv_filter == "overdue":
+        invoices_view = sorted(overdue, key=lambda i: (i.due_date or today, i.number))
+    elif inv_filter == "paid":
+        invoices_view = list(Invoice.objects.filter(status=Invoice.PAID)
+                             .select_related("member").order_by("-paid_reported_at"))
+    elif inv_filter == "all":
+        invoices_view = list(Invoice.objects.select_related("member")
+                             .order_by("-year", "-month", "number"))
+    else:
+        inv_filter = "open"
+        invoices_view = open_inv
+    inv_view_sum = sum((i.total_gross for i in invoices_view), Decimal(0))
+
+    from shop.models import BankImport, BankTransaction
+    recent_imports = list(BankImport.objects.all()[:5])
+    unmatched_count = BankTransaction.objects.filter(
+        matched_invoice__isnull=True, amount__gt=0).count()
+
+    months = [{"num": i, "name": svc.MONTHS_DE[i]} for i in range(1, 13)]
+    return render(request, "booking/dashboard.html", {
+        "today": today, "year": year, "month": month,
+        "month_label": svc.month_label(year, month),
+        "months": months, "years": list(range(today.year - 1, today.year + 3)),
+        "arrivals": arrivals, "departures": departures,
+        "cleaning_view": cleaning_view, "only_cleaning": only_cleaning,
+        "n_cleaning": len(cleaning),
+        "open_invoices": open_inv, "overdue": overdue,
+        "open_sum": open_sum, "overdue_sum": overdue_sum,
+        "invoices_view": invoices_view, "inv_filter": inv_filter,
+        "inv_view_sum": inv_view_sum,
+        "recent_imports": recent_imports, "unmatched_count": unmatched_count,
+    })
+
+
+@login_required
+def dashboard_export(request, kind: str, fmt: str):
+    """Export der Dashboard-Listen als xlsx oder CSV (Buchungen, Reinigung,
+    Rechnungen)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from . import exports
+    from shop import services as shop_svc
+    from shop.models import Invoice
+
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    m_from, m_to = svc.month_bounds(year, month)
+    tag = f"{year}-{month:02d}"
+
+    if kind == "buchungen":
+        allocs = svc.arrivals_in_range(m_from, m_to)
+        return exports.table_response(
+            fmt, f"buchungen-{tag}", f"Buchungen {tag}",
+            svc.BOOKING_COLUMNS, svc.booking_rows(allocs))
+    if kind == "reinigung":
+        only = request.GET.get("only_cleaning") == "1"
+        deps = svc.departures_in_range(m_from, m_to)
+        return exports.table_response(
+            fmt, f"reinigung-{tag}", f"Reinigung {tag}",
+            svc.CLEANING_COLUMNS, svc.cleaning_rows(deps, only_cleaning=only))
+    if kind == "rechnungen":
+        status = request.GET.get("status", "open")
+        if status == "overdue":
+            qs = shop_svc.overdue_invoices()
+        elif status == "paid":
+            qs = Invoice.objects.filter(status=Invoice.PAID).select_related("member")
+        elif status == "all":
+            qs = Invoice.objects.select_related("member")
+        else:
+            status, qs = "open", shop_svc.open_invoices()
+        qs = qs.order_by("due_date", "number")
+        return exports.table_response(
+            fmt, f"rechnungen-{status}", f"Rechnungen {status}",
+            shop_svc.INVOICE_COLUMNS, shop_svc.invoice_export_rows(qs))
+    return redirect("dashboard")
+
+
 @login_required
 def period_result(request, period_id: int):
     period = get_object_or_404(BookingPeriod, id=period_id)
     member = _current_member(request)
     run = period.runs.first()
+    confirmed = bool(run and run.confirmed)
+    is_staff = request.user.is_staff
+    # Vor der Bestätigung ist das Ergebnis für Mitglieder nicht sichtbar; nur die
+    # Verwaltung sieht eine Vorschau.
+    if not confirmed and not is_staff:
+        return render(request, "booking/result.html", {
+            "period": period, "run": run, "not_published": True,
+            "member": member, "allocations": [], "my_allocations": [],
+            "my_note": None,
+        })
     allocations = (
         Allocation.objects.filter(period=period, source="lottery")
         .select_related("member", "quarter").order_by("start", "quarter__name")
@@ -671,4 +845,5 @@ def period_result(request, period_id: int):
     return render(request, "booking/result.html", {
         "period": period, "run": run, "allocations": allocations,
         "member": member, "my_allocations": my_allocations, "my_note": my_note,
+        "not_published": False, "preview": not confirmed and is_staff,
     })

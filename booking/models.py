@@ -250,6 +250,7 @@ class BookingPeriod(models.Model):
     DRAFT = "draft"
     WISHES_OPEN = "wishes_open"
     LOTTERY_READY = "lottery_ready"
+    LOTTERY_REVIEW = "lottery_review"
     LOTTERY_DONE = "lottery_done"
     FREE_BOOKING = "free_booking"
     ENDED = "ended"
@@ -258,14 +259,17 @@ class BookingPeriod(models.Model):
         (DRAFT, "Entwurf"),
         (WISHES_OPEN, "Für Wunsch-Einträge freigegeben"),
         (LOTTERY_READY, "Zur Auslosung freigegeben"),
-        (LOTTERY_DONE, "Auslosung beendet"),
+        (LOTTERY_REVIEW, "Auslosung zur Prüfung (unbestätigt)"),
+        (LOTTERY_DONE, "Auslosung bestätigt/veröffentlicht"),
         (FREE_BOOKING, "Freie Bebuchbarkeit innerhalb Zeitraum"),
         (ENDED, "Beendet"),
         (SUSPENDED, "Unterbrochen"),
     ]
     # Reihenfolge des Lebenszyklus (für die automatische Vorwärts-Schaltung).
-    LIFECYCLE = [DRAFT, WISHES_OPEN, LOTTERY_READY, LOTTERY_DONE,
-                 FREE_BOOKING, ENDED]
+    # LOTTERY_REVIEW → LOTTERY_DONE ist bewusst MANUELL (Bestätigung), siehe
+    # services.confirm_lottery / run_due_lotteries.
+    LIFECYCLE = [DRAFT, WISHES_OPEN, LOTTERY_READY, LOTTERY_REVIEW,
+                 LOTTERY_DONE, FREE_BOOKING, ENDED]
 
     name = models.CharField("Bezeichnung", max_length=120)
     target_year = models.PositiveIntegerField("Buchungsjahr", unique=True)
@@ -301,7 +305,9 @@ class BookingPeriod(models.Model):
         if self.start and today >= self.start:
             return self.FREE_BOOKING
         if self.draw_at and now >= self.draw_at:
-            return self.LOTTERY_DONE
+            # Nach dem Losungstermin nur bis „zur Prüfung“ – die Veröffentlichung
+            # (LOTTERY_DONE) erfolgt manuell über die Bestätigung.
+            return self.LOTTERY_REVIEW
         if self.wishlist_close and today >= self.wishlist_close:
             return self.LOTTERY_READY
         if self.wishlist_open and today >= self.wishlist_open:
@@ -379,6 +385,9 @@ class Allocation(models.Model):
     )
     via_substitution = models.BooleanField("Ausweichquartier", default=False)
     contested = models.BooleanField("Umkämpft", default=False)
+    # Provisorische Los-Zuteilung: existiert (blockiert die Verfügbarkeit), ist
+    # aber für Mitglieder unsichtbar, bis die Losung bestätigt wird.
+    provisional = models.BooleanField("Vorläufig (unbestätigt)", default=False)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
 
     class Meta:
@@ -422,6 +431,15 @@ class LotteryRun(models.Model):
     seed = models.BigIntegerField("Seed")
     log_text = models.TextField("Protokoll", blank=True)
     summary = models.CharField("Zusammenfassung", max_length=255, blank=True)
+    # Bestätigungs-Workflow: ein Lauf ist zunächst unbestätigt (Ergebnis für
+    # Mitglieder unsichtbar, keine Benachrichtigungen). Erst die Bestätigung
+    # veröffentlicht ihn; danach ist er nicht mehr rücknehmbar.
+    confirmed = models.BooleanField("Bestätigt/veröffentlicht", default=False)
+    confirmed_at = models.DateTimeField("Bestätigt am", null=True, blank=True)
+    # Faktor-Stände VOR dem Lauf (für ein sauberes Rückgängigmachen) und die
+    # vorbereiteten, noch nicht zugestellten Benachrichtigungen.
+    karma_snapshot = models.JSONField("Karma vor dem Lauf", default=dict, blank=True)
+    notices = models.JSONField("Vorbereitete Benachrichtigungen", default=list, blank=True)
 
     class Meta:
         verbose_name = "Losdurchlauf"
@@ -520,6 +538,46 @@ class Notification(models.Model):
         return f"{self.member}: {self.message}"
 
 
+class OpsConfig(models.Model):
+    """Betriebs-Einstellungen der Verwaltung (Singleton): Empfänger der
+    Verwaltungs-Mails (anstehende Buchungen) und der Reinigungsliste."""
+    admin_emails = models.CharField(
+        "Verwaltung – E-Mail(s)", max_length=400, blank=True,
+        help_text="Komma-getrennt. Empfänger der Übersicht über anstehende "
+                  "Buchungen.")
+    cleaning_emails = models.CharField(
+        "Reinigungsteam – E-Mail(s)", max_length=400, blank=True,
+        help_text="Komma-getrennt. Empfänger der Putzliste. Leer = wie Verwaltung.")
+    notify_day = models.PositiveSmallIntegerField(
+        "Monats-Mail am Tag", default=25,
+        help_text="An diesem Tag des Monats geht die Übersicht der Buchungen des "
+                  "Folgemonats automatisch an die Verwaltung.")
+    last_admin_notice = models.DateField(
+        "Zuletzt benachrichtigt am", null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "Betriebs-Einstellungen"
+        verbose_name_plural = "Betriebs-Einstellungen"
+
+    def __str__(self) -> str:
+        return "Betriebs-Einstellungen"
+
+    @classmethod
+    def get_solo(cls) -> "OpsConfig":
+        return cls.objects.first() or cls.objects.create()
+
+    @staticmethod
+    def _parse(raw: str) -> list[str]:
+        import re
+        return [e for e in re.split(r"[,;\s]+", raw or "") if "@" in e]
+
+    def admin_list(self) -> list[str]:
+        return self._parse(self.admin_emails)
+
+    def cleaning_list(self) -> list[str]:
+        return self._parse(self.cleaning_emails) or self.admin_list()
+
+
 class OutboxEmail(models.Model):
     """Ausgehende E-Mail in der Warteschlange. Das Versenden ist vom Request
     entkoppelt (wichtig für Massenmails): das Kommando `send_outbox` – vom
@@ -535,6 +593,12 @@ class OutboxEmail(models.Model):
     sent_at = models.DateTimeField("Versendet am", null=True, blank=True)
     attempts = models.PositiveIntegerField("Versuche", default=0)
     last_error = models.CharField("Letzter Fehler", max_length=300, blank=True)
+    # Optionaler Datei-Anhang (z.B. Rechnungs-PDF). Inhalt liegt in der DB –
+    # für kleine Dateien (PDFs) völlig ausreichend.
+    attachment = models.BinaryField("Anhang", null=True, blank=True, editable=False)
+    attachment_name = models.CharField("Anhang-Dateiname", max_length=120, blank=True)
+    attachment_mime = models.CharField(
+        "Anhang-Typ", max_length=80, blank=True, default="application/octet-stream")
 
     class Meta:
         verbose_name = "E-Mail (Ausgang)"

@@ -54,33 +54,179 @@
 <div class="card" id="losung">
   <h2>So funktioniert die Auslosung</h2>
   <p>Für das nächste Jahr werden begehrte Zeiträume nicht „wer zuerst klickt“,
-    sondern <strong>fair per Los</strong> vergeben.</p>
+    sondern <strong>fair per Los</strong> vergeben. Das Verfahren ist eine
+    <em>gewichtete Zufallsreihenfolge im Runden-Prinzip</em> – unten Schritt für
+    Schritt und an einem Beispiel erklärt.</p>
+
   <ol>
-    <li><strong>Wünsche eintragen:</strong> In der <a href="{% url 'wishlist' %}">Wunschliste</a>
-      trägst du deine Wunsch-Zeiträume mit Quartier ein und bringst sie in deine
-      <strong>Prioritäts-Reihenfolge</strong> (Priorität 1 = wichtigster Wunsch).
-      Wünsche dürfen sich mit denen anderer überschneiden; die Ampel zeigt, wie
-      umkämpft ein Zeitraum ist.</li>
-    <li><strong>Einreichen:</strong> Nur <strong>eingereichte</strong> Wünsche („im
-      Lostopf“) nehmen teil. Bis zum Stichtag kannst du sie zurückziehen und ändern.</li>
-    <li><strong>Runden-Prinzip:</strong> Die Auslosung geht in Runden. In Runde 1
-      bekommt jede:r möglichst den Erstwunsch, in Runde 2 den Zweitwunsch usw. So
-      schlägt der Erstwunsch einer Person den Zweitwunsch einer anderen.</li>
-    <li><strong>Faire Reihenfolge (Ausgleichsfaktor/„Karma“):</strong> Die Reihenfolge
-      innerhalb einer Runde ist eine <em>gewichtete Zufallsreihenfolge</em>. Wer in der
-      Vergangenheit einen umkämpften Wunsch <em>verloren</em> hat, bekommt etwas mehr
-      Gewicht (Karma steigt); wer einen umkämpften Slot gewinnt, wird zurückgesetzt.
-      So gleicht sich Pech über die Jahre aus.</li>
-    <li><strong>Ausweichquartiere:</strong> Ist dein Wunschquartier vergeben, kann die
-      Losung auf ein <em>gleichwertiges</em> Quartier derselben Gruppe (Äquivalenzklasse)
-      ausweichen, statt dich leer ausgehen zu lassen.</li>
+    <li><strong>Wünsche eintragen &amp; einreichen:</strong> In der
+      <a href="{% url 'wishlist' %}">Wunschliste</a> trägst du deine Wunsch-Zeiträume
+      mit Quartier ein und bringst sie in deine <strong>Prioritäts-Reihenfolge</strong>
+      (Priorität 1 = wichtigster Wunsch). Nur <strong>eingereichte</strong> Wünsche
+      („im Lostopf“) nehmen teil; bis zum Stichtag änderbar. Wünsche dürfen sich mit
+      denen anderer überschneiden.</li>
+    <li><strong>Reihenfolge auslosen – genau einmal:</strong> Zu Beginn wird <em>eine</em>
+      Reihenfolge aller Teilnehmenden gewichtet gezogen (über einen Seed
+      reproduzierbar). Diese Reihenfolge <strong>gilt für die ganze Auslosung</strong> –
+      sie wird <strong>nicht</strong> jede Runde neu gezogen.</li>
+    <li><strong>Karma als Gewicht:</strong> Wer in den Vorjahren Pech hatte, hat einen
+      höheren <em>Ausgleichsfaktor</em> („Karma“) und damit eine bessere Chance auf einen
+      vorderen Platz <em>in genau dieser Ziehung</em>. Das Karma fließt also als
+      <strong>Gewicht in die eine Ziehung</strong> ein.</li>
+    <li><strong>Runden-Prinzip:</strong> Dann geht es reihum: In <strong>Runde 1</strong>
+      bekommt jede Partei – in der gelosten Reihenfolge – ihren <em>höchsten noch
+      möglichen</em> Wunsch. In <strong>Runde 2</strong> folgt mit <em>derselben</em>
+      Reihenfolge der nächste Wunsch, usw. Pro Runde also höchstens <strong>eine</strong>
+      Buchung je Partei – so schlägt der Erstwunsch einer Person den Zweitwunsch einer
+      anderen.</li>
+    <li><strong>Ausweichquartiere:</strong> Ist dein Wunschquartier belegt, weicht die
+      Losung auf ein <em>gleichwertiges</em> Quartier derselben Gruppe
+      (Äquivalenzklasse) aus, bevor du leer ausgehst.</li>
+    <li><strong>Karma neu berechnen – am Ende, fürs nächste Jahr:</strong> Erst wenn alle
+      Runden durch sind, wird das Karma aktualisiert: ein <em>echter</em> Verlust (in der
+      ganzen Gruppe nichts frei) gibt +0,1 (max. 1,5); wer einen <em>umkämpften</em> Slot
+      gewinnt, wird auf 1,0 zurückgesetzt. Aussetzen, weil das eigene Tage-Budget voll
+      ist, zählt <strong>nicht</strong> als Verlust. So gleicht sich Pech über die Jahre aus.</li>
     <li><strong>Ehrlich angeben lohnt sich:</strong> Das Verfahren ist
-      <em>strategiesicher</em> – du fährst am besten, wenn du deine echten Wünsche in
-      echter Reihenfolge einträgst. Taktieren bringt keinen Vorteil.</li>
-    <li><strong>Termin:</strong> Die Verwaltung legt einen Losungstermin fest; die
-      Auslosung läuft dann automatisch. Das Ergebnis siehst du anschließend in
-      <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</li>
+      <em>strategiesicher</em> – die Wunschliste bestimmt nur, <em>was</em> du bekommst,
+      wenn du dran bist, nicht <em>wann</em>. Taktieren bringt keinen Vorteil.</li>
   </ol>
+
+  <div class="qa">
+    <strong>Kurz beantwortet</strong>
+    <p><em>Wird nach Runde 1 die Reihenfolge neu gelost?</em> — Nein. Die Reihenfolge
+      wird einmal gezogen und gilt für alle Runden.</p>
+    <p><em>Kommen die Karma-Punkte schon während der Auslosung zur Anwendung?</em> —
+      Ja, aber nur als <strong>Gewicht für die eine Ziehung der Reihenfolge</strong>
+      (aus den Vorjahreswerten). <strong>Neu berechnet</strong> wird Karma erst ganz am
+      Ende – für die <em>nächste</em> Auslosung, nicht zwischen den Runden.</p>
+  </div>
+
+  <h3>Ablauf auf einen Blick</h3>
+  <svg class="flow" viewBox="0 0 600 600" role="img"
+       aria-label="Ablaufdiagramm der Auslosung: Wünsche einreichen, Reihenfolge einmal
+       auslosen, in Runden den höchsten möglichen Wunsch zuteilen (oder Ausweichquartier
+       oder Verlust), höchstens eine Buchung pro Runde, bei offenen Wünschen nächste
+       Runde mit gleicher Reihenfolge, am Ende Karma neu berechnen und Ergebnis
+       veröffentlichen.">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3"
+              orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L7,3 L0,6 z" fill="#8a8076"/>
+      </marker>
+    </defs>
+    <g class="ln">
+      <line x1="300" y1="46"  x2="300" y2="64"  marker-end="url(#arr)"/>
+      <line x1="300" y1="112" x2="300" y2="130" marker-end="url(#arr)"/>
+      <line x1="300" y1="168" x2="300" y2="186" marker-end="url(#arr)"/>
+      <line x1="300" y1="224" x2="124" y2="244" marker-end="url(#arr)"/>
+      <line x1="300" y1="224" x2="300" y2="244" marker-end="url(#arr)"/>
+      <line x1="300" y1="224" x2="478" y2="244" marker-end="url(#arr)"/>
+      <line x1="124" y1="292" x2="298" y2="330" marker-end="url(#arr)"/>
+      <line x1="300" y1="292" x2="300" y2="330" marker-end="url(#arr)"/>
+      <line x1="478" y1="292" x2="302" y2="330" marker-end="url(#arr)"/>
+      <line x1="300" y1="366" x2="300" y2="378" marker-end="url(#arr)"/>
+      <line x1="300" y1="434" x2="300" y2="456" marker-end="url(#arr)"/>
+      <polyline points="186,406 90,406 90,148 158,148" marker-end="url(#arr)"/>
+      <line x1="300" y1="502" x2="300" y2="522" marker-end="url(#arr)"/>
+    </g>
+    <g class="bx">
+      <rect x="150" y="10"  width="300" height="36" rx="9"/>
+      <rect x="100" y="64"  width="400" height="48" rx="9"/>
+      <rect x="158" y="130" width="284" height="36" rx="9"/>
+      <rect x="100" y="186" width="400" height="38" rx="9"/>
+      <rect x="150" y="330" width="300" height="36" rx="9"/>
+      <rect x="100" y="456" width="400" height="46" rx="9"/>
+    </g>
+    <rect class="acc" x="100" y="522" width="400" height="40" rx="9"/>
+    <rect class="win" x="36"  y="246" width="172" height="46" rx="9"/>
+    <rect class="win" x="214" y="246" width="172" height="46" rx="9"/>
+    <rect class="loss" x="392" y="246" width="172" height="46" rx="9"/>
+    <polygon class="dec" points="186,406 300,378 414,406 300,434"/>
+    <g class="tx">
+      <text x="300" y="33">① Wünsche eintragen &amp; einreichen</text>
+      <text x="300" y="84">② Reihenfolge EINMAL auslosen</text>
+      <text x="300" y="100" class="sm">Karma (Vorjahr) = Gewicht für vordere Plätze</text>
+      <text x="300" y="153">③ Runde: Parteien der Reihe nach</text>
+      <text x="300" y="209">höchster noch möglicher Wunsch der Partei</text>
+      <text x="122" y="266">Wunschquartier frei</text>
+      <text x="122" y="282" class="b">✓ zuteilen</text>
+      <text x="300" y="266">gleichwertiges frei</text>
+      <text x="300" y="282" class="b">✓ Ausweichquartier</text>
+      <text x="478" y="266">nichts frei</text>
+      <text x="478" y="282" class="b">✗ Verlust (Karma +0,1)</text>
+      <text x="300" y="313" class="sm">Budget voll? Wunsch wird übersprungen – kein Verlust.</text>
+      <text x="300" y="352">höchstens EINE Buchung pro Partei &amp; Runde</text>
+      <text x="300" y="404">offene</text>
+      <text x="300" y="418">Wünsche?</text>
+      <text x="300" y="450" class="sm">nein</text>
+      <text x="120" y="120" class="sm">ja · nächste Runde</text>
+      <text x="300" y="475">④ Karma neu berechnen (fürs nächste Jahr):</text>
+      <text x="300" y="491" class="sm">Verlust → +0,1 (max 1,5) · umkämpfter Gewinn → 1,0</text>
+      <text x="300" y="546">⑤ Ergebnis veröffentlicht → Benachrichtigung</text>
+    </g>
+  </svg>
+
+  <h3 id="losung-beispiel">Beispiel: 5 Mitglieder, je 2 Wünsche</h3>
+  <p><strong>Quartiere:</strong> <em>Salix</em> und <em>Lupulus</em> sind
+    <strong>gleichwertig</strong> (Gruppe „Gartenhäuser“), das <em>Pfarrhaus</em> steht
+    allein. Es gibt zwei begehrte Zeiträume: <strong>Pfingsten</strong> (3 Nächte) und
+    eine <strong>Sommerwoche</strong> (7 Nächte). <strong>Karma vorab:</strong> Dora hat
+    aus dem Vorjahr 1,2 (sie ging damals leer aus), alle anderen 1,0.</p>
+
+  <table class="ex">
+    <thead><tr><th>Mitglied</th><th>① Erstwunsch</th><th>② Zweitwunsch</th></tr></thead>
+    <tbody>
+      <tr><td>Anna</td><td>Salix · Pfingsten</td><td>Pfarrhaus · Sommer</td></tr>
+      <tr><td>Ben</td><td>Lupulus · Pfingsten</td><td>Salix · Sommer</td></tr>
+      <tr><td>Cem</td><td>Salix · Pfingsten</td><td>Pfarrhaus · Sommer</td></tr>
+      <tr><td>Dora</td><td>Pfarrhaus · Pfingsten</td><td>Salix · Sommer</td></tr>
+      <tr><td>Eva</td><td>Salix · Pfingsten</td><td>Lupulus · Pfingsten</td></tr>
+    </tbody>
+  </table>
+
+  <p>Dank ihres Karmas landet Dora wahrscheinlich vorn. Angenommen, die (eine!) Ziehung
+    ergibt die Reihenfolge <strong>Dora ▸ Anna ▸ Ben ▸ Cem ▸ Eva</strong>.</p>
+
+  <p><strong>Runde 1</strong> – jede Partei nimmt ihren höchsten noch möglichen Wunsch:</p>
+  <ul class="trace">
+    <li><strong>Dora</strong> → Pfarrhaus · Pfingsten ✓ <span class="sm">(kein anderer
+      will Pfarrhaus zu Pfingsten → nicht umkämpft)</span></li>
+    <li><strong>Anna</strong> → Salix · Pfingsten ✓ <span class="sm">(umkämpft)</span></li>
+    <li><strong>Ben</strong> → Lupulus · Pfingsten ✓ <span class="sm">(umkämpft)</span></li>
+    <li><strong>Cem</strong> → Salix belegt, Lupulus belegt → <em>Verlust</em>; weiter
+      zum Zweitwunsch: Pfarrhaus · Sommer ✓ <span class="sm">(umkämpft mit Anna)</span></li>
+    <li><strong>Eva</strong> → Salix belegt, Lupulus belegt → <em>Verlust</em>; Zweitwunsch
+      Lupulus · Pfingsten ebenfalls belegt → <em>Verlust</em>; diese Runde keine Buchung</li>
+  </ul>
+
+  <p><strong>Runde 2</strong> – gleiche Reihenfolge; nur wer noch offene Wünsche hat
+    (Dora, Anna, Ben):</p>
+  <ul class="trace">
+    <li><strong>Dora</strong> → Salix · Sommer ✓ <span class="sm">(umkämpft mit Ben)</span></li>
+    <li><strong>Anna</strong> → Pfarrhaus · Sommer belegt (Cem) → <em>Verlust</em></li>
+    <li><strong>Ben</strong> → Salix · Sommer belegt (Dora) → Ausweich auf
+      <strong>Lupulus · Sommer</strong> ✓ <span class="sm">(gleichwertig, umkämpft)</span></li>
+  </ul>
+
+  <p><strong>Ergebnis &amp; neues Karma</strong> (gilt fürs <em>nächste</em> Jahr):</p>
+  <table class="ex">
+    <thead><tr><th>Mitglied</th><th>Bekommen</th><th>Karma neu</th></tr></thead>
+    <tbody>
+      <tr><td>Anna</td><td>Salix · Pfingsten</td><td>1,0 → <strong>1,1</strong> (Verlust Sommer)</td></tr>
+      <tr><td>Ben</td><td>Lupulus · Pfingsten + Lupulus · Sommer</td><td>1,0 (umkämpft gewonnen)</td></tr>
+      <tr><td>Cem</td><td>Pfarrhaus · Sommer</td><td>1,0 → <strong>1,1</strong> (Verlust Pfingsten)</td></tr>
+      <tr><td>Dora</td><td>Pfarrhaus · Pfingsten + Salix · Sommer</td><td>1,2 → <strong>1,0</strong> (umkämpft gewonnen → Reset)</td></tr>
+      <tr><td>Eva</td><td>— (leer ausgegangen)</td><td>1,0 → <strong>1,1</strong> (Verlust)</td></tr>
+    </tbody>
+  </table>
+  <p class="sm">Eva geht dieses Jahr leer aus, bekommt aber +0,1 Karma und damit nächstes
+    Jahr eine bessere Ausgangsposition. Dora hat ihren Karma-Vorsprung „eingelöst“ und
+    startet wieder bei 1,0. So bleibt es über die Jahre fair.</p>
+
+  <p><strong>Termin:</strong> Die Verwaltung legt einen Losungstermin fest; die Auslosung
+    läuft dann automatisch. Das Ergebnis siehst du anschließend in
+    <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</p>
 </div>
 
 <div class="card" id="hofladen">
@@ -103,6 +249,24 @@
 <style>
   .toc ul { margin:.4rem 0 0; padding-left:1.1rem; }
   .card h2 { margin-top:0; }
+  .card h3 { margin:1.2rem 0 .5rem; }
   .card ol, .card ul { line-height:1.6; }
+  .qa { background:var(--accent-soft); border-radius:12px; padding:.7rem .9rem; margin:.8rem 0; }
+  .qa p { margin:.4rem 0 0; }
+  .flow { display:block; width:100%; max-width:560px; height:auto; margin:.4rem auto .2rem; }
+  .flow .bx rect { fill:#fff; stroke:var(--line); }
+  .flow .acc { fill:var(--accent-soft); stroke:var(--accent); }
+  .flow .win { fill:#e8f3e1; stroke:#6aa84f; }
+  .flow .loss { fill:#fbe7e4; stroke:#c0563f; }
+  .flow .dec { fill:#fff; stroke:var(--muted); }
+  .flow .ln line, .flow .ln polyline { stroke:#8a8076; stroke-width:1.4; fill:none; }
+  .flow .tx text { font:600 12px/1.2 system-ui,sans-serif; fill:var(--ink); text-anchor:middle; }
+  .flow .tx text.sm { font-weight:500; font-size:10.5px; fill:var(--muted); }
+  .flow .tx text.b { font-weight:700; }
+  table.ex { width:100%; border-collapse:collapse; margin:.4rem 0 .8rem; font-size:.92rem; }
+  table.ex th, table.ex td { text-align:left; padding:.42rem .55rem; border-bottom:1px solid var(--line); }
+  table.ex th { font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  ul.trace { line-height:1.7; }
+  ul.trace .sm, p .sm, td .sm, .card .sm { color:var(--muted); font-size:.86rem; }
 </style>
 {% endblock %}

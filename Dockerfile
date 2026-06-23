@@ -7,8 +7,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Systemabhängigkeiten (psycopg[binary] braucht i.d.R. nichts extra)
+# Systemabhängigkeiten. psycopg[binary] braucht nichts extra; WeasyPrint
+# (Rechnungs-PDF) braucht Pango/Cairo/GDK-Pixbuf + Schriften zur Laufzeit.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 \
+    libffi8 shared-mime-info fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

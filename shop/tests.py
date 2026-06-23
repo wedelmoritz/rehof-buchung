@@ -5,7 +5,10 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from unittest import skipUnless
+
 from django.test import TestCase
+from django.urls import reverse
 
 from booking.models import Member
 from shop.models import Invoice, LineItem, Product, ProductGroup, ShopConfig
@@ -206,3 +209,131 @@ class AccessTests(ShopBase):
         inv = svc.generate_monthly_invoices(date.today().year, date.today().month)[0]
         ok, err = svc.mark_paid(self.bob, inv.id)
         self.assertFalse(ok)
+
+
+class InvoicePdfTests(ShopBase):
+    """Rechnungs-PDF: HTML-Erzeugung, Endpoint-Zugriff, E-Mail-Anhang."""
+
+    def setUp(self):
+        super().setUp()
+        ShopConfig.objects.create(payment_term_days=14)
+        self.alice.user.email = "alice@example.org"
+        self.alice.user.save(update_fields=["email"])
+        svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
+        from booking.models import OutboxEmail
+        OutboxEmail.objects.all().delete()
+        self.inv, _ = svc.generate_invoice_now(self.alice)
+
+    def test_invoice_html_enthaelt_kernfelder(self):
+        from shop import pdf
+        html = pdf.invoice_html(self.inv)
+        self.assertIn(self.inv.number, html)
+        self.assertIn(self.alice.display_name, html)  # recipient_name default
+        self.assertIn("Gesamtbetrag", html)
+
+    def test_pdf_endpoint_zugriff(self):
+        from shop import pdf
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("shop_invoice_pdf", args=[self.inv.id]))
+        if pdf.weasyprint_available():
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r["Content-Type"], "application/pdf")
+            self.assertTrue(r.content.startswith(b"%PDF"))
+        else:
+            self.assertEqual(r.status_code, 503)
+        # fremde Rechnung ist für Nicht-Staff nicht erreichbar
+        self.client.force_login(self.bob.user)
+        self.assertEqual(
+            self.client.get(reverse("shop_invoice_pdf", args=[self.inv.id])).status_code,
+            404)
+
+    @skipUnless(__import__("shop.pdf", fromlist=["x"]).weasyprint_available(),
+                "WeasyPrint/native Libs nicht verfügbar")
+    def test_pdf_bytes_und_email_anhang(self):
+        from shop import pdf
+        from booking.models import OutboxEmail
+        self.assertTrue(pdf.invoice_pdf_bytes(self.inv).startswith(b"%PDF"))
+        em = OutboxEmail.objects.get(to_email="alice@example.org")
+        self.assertEqual(em.attachment_name, f"{self.inv.number}.pdf")
+        self.assertEqual(em.attachment_mime, "application/pdf")
+        self.assertTrue(bytes(em.attachment).startswith(b"%PDF"))
+
+
+class KontoabgleichTests(ShopBase):
+    """Kontoauszug-Import: Parsen (CSV/CAMT), automatischer Abgleich, Dedup."""
+
+    def setUp(self):
+        super().setUp()
+        ShopConfig.objects.create(payment_term_days=14)
+        self.alice.user.email = "alice@example.org"
+        self.alice.user.save(update_fields=["email"])
+        svc.add_item(self.alice, self.apple, "2")   # 2 × 3,20 = 6,40 brutto
+        svc.checkout(self.alice)
+        from booking.models import OutboxEmail
+        OutboxEmail.objects.all().delete()
+        self.inv, _ = svc.generate_invoice_now(self.alice)
+        self.assertEqual(self.inv.total_gross, Decimal("6.40"))
+
+    def _csv(self, number, betrag="6,40"):
+        return (
+            "Buchungstag;Beguenstigter/Zahlungspflichtiger;Verwendungszweck;"
+            "Kontonummer/IBAN;Betrag\n"
+            f"15.04.2026;Anna Beispiel;Zahlung Rechnung {number};DE12;{betrag}\n"
+        ).encode("utf-8")
+
+    def test_csv_parsen_nur_eingaenge(self):
+        from shop import bankimport
+        data = (self._csv(self.inv.number).decode()
+                + "16.04.2026;Laden;Einkauf;DE9;-20,00\n").encode("utf-8")
+        txns = bankimport.parse_csv(data)
+        self.assertEqual(len(txns), 1)               # Belastung ignoriert
+        self.assertEqual(txns[0].amount, Decimal("6.40"))
+
+    def test_import_verbucht_und_benachrichtigt(self):
+        from shop import reconcile
+        from booking.models import Notification, OutboxEmail
+        batch = reconcile.import_bank_statement(
+            self._csv(self.inv.number), "csv", "auszug.csv")
+        self.assertEqual(batch.n_imported, 1)
+        self.assertEqual(batch.n_matched, 1)
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.status, Invoice.CONFIRMED)
+        self.assertTrue(Notification.objects.filter(
+            member=self.alice, message__contains=self.inv.number).exists())
+        self.assertTrue(OutboxEmail.objects.filter(
+            to_email="alice@example.org").exists())
+
+    def test_falscher_betrag_bleibt_offen(self):
+        from shop import reconcile
+        batch = reconcile.import_bank_statement(
+            self._csv(self.inv.number, betrag="5,00"), "csv", "a.csv")
+        self.assertEqual(batch.n_matched, 0)
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.status, Invoice.OPEN)
+
+    def test_doppelimport_wird_dedupliziert(self):
+        from shop import reconcile
+        data = self._csv(self.inv.number)
+        reconcile.import_bank_statement(data, "csv", "a.csv")
+        batch2 = reconcile.import_bank_statement(data, "csv", "a.csv")
+        self.assertEqual(batch2.n_imported, 0)       # nichts Neues
+
+    def test_camt_parsen_und_abgleich(self):
+        from shop import reconcile
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">'
+            '<BkToCstmrStmt><Stmt><Ntry>'
+            '<Amt Ccy="EUR">6.40</Amt><CdtDbtInd>CRDT</CdtDbtInd>'
+            '<BookgDt><Dt>2026-04-15</Dt></BookgDt>'
+            '<NtryDtls><TxDtls>'
+            '<RltdPties><Dbtr><Nm>Anna</Nm></Dbtr>'
+            '<DbtrAcct><Id><IBAN>DE12</IBAN></Id></DbtrAcct></RltdPties>'
+            f'<RmtInf><Ustrd>Rechnung {self.inv.number}</Ustrd></RmtInf>'
+            '</TxDtls></NtryDtls></Ntry></Stmt></BkToCstmrStmt></Document>'
+        ).encode("utf-8")
+        batch = reconcile.import_bank_statement(xml, "camt", "auszug.xml")
+        self.assertEqual(batch.n_matched, 1)
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.status, Invoice.CONFIRMED)

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from django import forms
 from django.contrib import admin, messages
-from django.http import HttpResponse
 
-from . import services as svc
+from . import reconcile, services as svc
 from .models import (
-    Invoice, LineItem, Product, ProductGroup, Purchase, ShopConfig)
+    BankImport, BankTransaction, Invoice, LineItem, Product, ProductGroup,
+    Purchase, ShopConfig)
 
 WEEKDAYS = [("0", "Montag"), ("1", "Dienstag"), ("2", "Mittwoch"),
             ("3", "Donnerstag"), ("4", "Freitag"), ("5", "Samstag"),
@@ -44,9 +44,11 @@ class ShopConfigAdmin(admin.ModelAdmin):
             "description": "Diese Angaben erscheinen als Absender auf jeder "
                            "Hofladen-Rechnung (§14 UStG). Einmalig pflegen."}),
         ("Zahlung", {
-            "fields": ("iban", "bic", "invoice_prefix"),
+            "fields": ("iban", "bic", "invoice_prefix", "payment_term_days"),
             "description": "IBAN/BIC, auf die Mitglieder überweisen. Das Präfix "
-                           "bildet die Rechnungsnummer (z. B. HL-2026-04-001)."}),
+                           "bildet die Rechnungsnummer (z. B. HL-2026-04-001). Das "
+                           "Zahlungsziel bestimmt, ab wann eine Rechnung als "
+                           "überfällig gilt (für die Zahlungserinnerung)."}),
     )
 
     def has_add_permission(self, request):
@@ -90,12 +92,14 @@ class ProductAdmin(admin.ModelAdmin):
                            "abgerechnet. „Termin nötig“ = Mitglied gibt beim Kauf "
                            "ein Datum an."}),
         ("Beim Buchen anbieten (z. B. Endreinigung)", {
-            "fields": ("book_with_stay", "unavailable_weekdays"),
+            "fields": ("book_with_stay", "counts_as_cleaning", "unavailable_weekdays"),
             "description": "Ist „Beim Buchen anbieten“ aktiv, erscheint die "
                            "Dienstleistung im Bestätigungsschritt der Unterkunfts-"
-                           "Buchung und kann gleich mitgebucht werden. Über die "
-                           "Wochentage lässt sich steuern, an welchen Abreisetagen "
-                           "die Leistung NICHT gewährleistet werden kann."}),
+                           "Buchung und kann gleich mitgebucht werden. „Zählt als "
+                           "Endreinigung“ markiert die betroffenen Buchungen in der "
+                           "Reinigungsliste fürs Team. Über die Wochentage lässt sich "
+                           "steuern, an welchen Abreisetagen die Leistung NICHT "
+                           "gewährleistet werden kann."}),
     )
 
 
@@ -149,37 +153,54 @@ def confirm_payment(modeladmin, request, queryset):
 
 @admin.action(description="Excel-Export der ausgewählten Rechnungen")
 def export_excel(modeladmin, request, queryset):
-    import openpyxl
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Rechnungen"
-    ws.append(["Nummer", "Mitglied", "Jahr", "Monat", "Status",
-               "Netto", "MwSt", "Brutto", "IBAN-Mitglied"])
-    for inv in queryset.select_related("member"):
-        ws.append([
-            inv.number, inv.member.display_name, inv.year, inv.month,
-            inv.get_status_display(),
-            float(inv.total_net), float(inv.total_vat), float(inv.total_gross),
-            inv.member.iban,
-        ])
-    resp = HttpResponse(
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    resp["Content-Disposition"] = "attachment; filename=rechnungen.xlsx"
-    wb.save(resp)
-    return resp
+    from booking import exports
+    return exports.xlsx_response(
+        "rechnungen", "Rechnungen", svc.INVOICE_COLUMNS,
+        svc.invoice_export_rows(queryset))
+
+
+@admin.action(description="CSV-Export der ausgewählten Rechnungen")
+def export_csv(modeladmin, request, queryset):
+    from booking import exports
+    return exports.csv_response(
+        "rechnungen", svc.INVOICE_COLUMNS, svc.invoice_export_rows(queryset))
+
+
+@admin.action(description="Zahlungserinnerung senden (nur offene/überfällige)")
+def send_reminders(modeladmin, request, queryset):
+    n = sum(1 for inv in queryset if svc.send_payment_reminder(inv))
+    messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
+
+
+class OverdueFilter(admin.SimpleListFilter):
+    """Filter „überfällig“: offene Rechnungen mit überschrittenem Zahlungsziel."""
+    title = "Fälligkeit"
+    parameter_name = "overdue"
+
+    def lookups(self, request, model_admin):
+        return [("1", "überfällig (offen)"), ("open", "offen")]
+
+    def queryset(self, request, queryset):
+        from datetime import date as _date
+        if self.value() == "1":
+            return queryset.filter(status=Invoice.OPEN, due_date__lt=_date.today())
+        if self.value() == "open":
+            return queryset.filter(status=Invoice.OPEN)
+        return queryset
 
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     list_display = ("number", "member", "year", "month", "status",
-                    "total_gross", "created_at")
-    list_filter = ("status", "year", "month")
+                    "total_gross", "due_date", "overdue_display", "reminded_at")
+    list_filter = (OverdueFilter, "status", "year", "month")
     search_fields = ("number", "member__display_name")
     date_hierarchy = "created_at"
     inlines = [LineItemInline]
-    actions = [confirm_payment, export_excel]
-    readonly_fields = ("number", "year", "month", "created_at", "paid_reported_at",
-                       "confirmed_at", "recipient_name", "recipient_address",
+    actions = [confirm_payment, send_reminders, export_excel, export_csv]
+    readonly_fields = ("number", "year", "month", "created_at", "due_date",
+                       "paid_reported_at", "confirmed_at", "reminded_at",
+                       "recipient_name", "recipient_address",
                        "coop_name", "coop_address", "tax_number", "iban", "bic",
                        "total_net", "total_vat", "total_gross")
     fieldsets = (
@@ -190,11 +211,14 @@ class InvoiceAdmin(admin.ModelAdmin):
                 "(Kommando <code>generate_monthly_invoices</code>, per Cron). "
                 "Ablauf: <b>offen</b> → das Mitglied meldet „bezahlt“ → hier mit "
                 "der Aktion <b>„Zahlungseingang bestätigen“</b> bestätigen "
-                "(→ archiviert). Mit der Aktion <b>„Excel-Export“</b> lassen sich "
-                "ausgewählte Rechnungen exportieren."),
+                "(→ archiviert). Überfällige offene Rechnungen lassen sich mit "
+                "<b>„Zahlungserinnerung senden“</b> anmahnen; Export als "
+                "<b>Excel/CSV</b>. Den schnellen Überblick gibt das "
+                "<b>Verwaltungs-Dashboard</b>."),
         }),
         ("Beträge", {"fields": ("total_net", "total_vat", "total_gross")}),
-        ("Zeitstempel", {"fields": ("created_at", "paid_reported_at", "confirmed_at")}),
+        ("Zeitstempel", {"fields": ("created_at", "due_date", "paid_reported_at",
+                                    "confirmed_at", "reminded_at")}),
         ("Rechnungs-Snapshots (§14 UStG)", {
             "classes": ("collapse",),
             "fields": ("recipient_name", "recipient_address", "coop_name",
@@ -205,6 +229,10 @@ class InvoiceAdmin(admin.ModelAdmin):
     def total_gross(self, obj):
         return f"{obj.total_gross} €"
 
+    @admin.display(boolean=True, description="überfällig")
+    def overdue_display(self, obj):
+        return obj.is_overdue
+
 
 @admin.register(LineItem)
 class LineItemAdmin(admin.ModelAdmin):
@@ -213,3 +241,71 @@ class LineItemAdmin(admin.ModelAdmin):
     list_filter = ("invoice__status", "vat_rate")
     search_fields = ("name", "member__display_name")
     date_hierarchy = "created_at"
+
+
+class MatchedFilter(admin.SimpleListFilter):
+    """Filter: zugeordnet / nicht zugeordnet."""
+    title = "Zuordnung"
+    parameter_name = "matched"
+
+    def lookups(self, request, model_admin):
+        return [("yes", "zugeordnet"), ("no", "nicht zugeordnet")]
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(matched_invoice__isnull=False)
+        if self.value() == "no":
+            return queryset.filter(matched_invoice__isnull=True, amount__gt=0)
+        return queryset
+
+
+@admin.action(description="Automatisch abgleichen (offene zuordnen)")
+def reconcile_action(modeladmin, request, queryset):
+    n = reconcile.reconcile_unmatched(queryset)
+    messages.success(request, f"{n} Zahlung(en) automatisch verbucht.")
+
+
+@admin.action(description="Verknüpfte Rechnung als bezahlt verbuchen")
+def book_linked(modeladmin, request, queryset):
+    n = 0
+    for txn in queryset:
+        if txn.matched_invoice and not txn.matched_at:
+            reconcile.book_payment(txn, txn.matched_invoice, note="manuell zugeordnet")
+            n += 1
+    messages.success(request, f"{n} Zahlung(en) verbucht.")
+
+
+@admin.register(BankTransaction)
+class BankTransactionAdmin(admin.ModelAdmin):
+    """Zahlungseingänge aus Kontoauszügen. Eindeutige (Betrag + Rechnungsnummer
+    im Verwendungszweck) werden automatisch verbucht; den Rest hier von Hand
+    einer Rechnung zuordnen (Feld „Zugeordnete Rechnung“) und „verbuchen“."""
+    list_display = ("booked_on", "amount", "counterparty_name", "short_purpose",
+                    "matched_invoice", "matched_at")
+    list_filter = (MatchedFilter, "booked_on")
+    search_fields = ("purpose", "counterparty_name", "counterparty_iban",
+                     "matched_invoice__number")
+    date_hierarchy = "booked_on"
+    autocomplete_fields = ("matched_invoice",)
+    actions = [reconcile_action, book_linked]
+    readonly_fields = ("batch", "booked_on", "amount", "purpose",
+                       "counterparty_name", "counterparty_iban", "fingerprint",
+                       "raw", "imported_at", "matched_at", "note")
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="Verwendungszweck")
+    def short_purpose(self, obj):
+        return (obj.purpose[:60] + "…") if len(obj.purpose) > 60 else obj.purpose
+
+
+@admin.register(BankImport)
+class BankImportAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "filename", "fmt", "n_total", "n_imported",
+                    "n_matched")
+    readonly_fields = ("created_at", "filename", "fmt", "n_total", "n_imported",
+                       "n_matched")
+
+    def has_add_permission(self, request):
+        return False

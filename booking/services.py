@@ -39,8 +39,22 @@ def run_period_lottery(
     factor_cap: float = 1.5,
     reset_on_contested_win: bool = True,
 ) -> LotteryRun:
-    """Führt die Losung für eine Periode aus, schreibt Zuteilungen, aktualisiert
-    die Ausgleichsfaktoren und legt ein Audit-Protokoll an."""
+    """Führt die Losung für eine Periode aus, schreibt (vorläufige) Zuteilungen,
+    aktualisiert die Ausgleichsfaktoren und legt einen unbestätigten Losdurchlauf
+    an. Veröffentlicht wird erst über `confirm_lottery`."""
+    # Bestehenden Lauf behandeln, BEVOR die Faktoren gelesen werden: ein
+    # bestätigter Lauf ist tabu; ein unbestätigter wird zurückgerollt (Faktoren
+    # wiederhergestellt), damit ein erneuter Lauf das Karma nicht aufsummiert.
+    existing = period.runs.first()
+    if existing and existing.confirmed:
+        raise ValueError(
+            "Die Losung dieser Periode ist bereits bestätigt und kann nicht "
+            "erneut ausgeführt werden – erst zurücknehmen ist nicht möglich.")
+    if existing:
+        _restore_factors(existing)
+        existing.delete()
+    Allocation.objects.filter(period=period, source="lottery").delete()
+
     members = list(Member.objects.filter(is_external=False))
     quarters = list(Quarter.objects.filter(active=True))
     # Nur eingereichte Wünsche ("im Lostopf") nehmen an der Losung teil – und nur,
@@ -77,9 +91,11 @@ def run_period_lottery(
         reset_on_contested_win=reset_on_contested_win,
     )
 
-    # Alte Los-Zuteilungen dieser Periode entfernen (Idempotenz bei Re-Run)
-    Allocation.objects.filter(period=period, source="lottery").delete()
+    # Faktor-Stände VOR dem Lauf festhalten (für ein sauberes Rückgängigmachen).
+    old_factors = {str(m.id): m.factor for m in members}
 
+    # Vorläufige Zuteilungen (provisional=True): blockieren die Verfügbarkeit,
+    # bleiben aber für Mitglieder unsichtbar, bis bestätigt wird.
     for a in result.allocations:
         Allocation.objects.create(
             member_id=int(a.party_id),
@@ -87,26 +103,27 @@ def run_period_lottery(
             start=a.start, end=a.end,
             source="lottery", period=period,
             via_substitution=a.via_substitution, contested=a.contested,
+            provisional=True,
         )
 
-    # Faktoren aktualisieren (alte Werte für die Transparenz-Meldung merken)
-    old_factors = {str(m.id): m.factor for m in members}
+    # Faktoren aktualisieren
     for m in members:
         new_f = result.new_factors.get(str(m.id))
         if new_f is not None and new_f != m.factor:
             m.factor = new_f
             m.save(update_fields=["factor"])
 
-    period.status = BookingPeriod.LOTTERY_DONE
+    # Status zunächst nur „zur Prüfung“ – Veröffentlichung erst per Bestätigung.
+    period.status = BookingPeriod.LOTTERY_REVIEW
     period.seed = seed
     period.save(update_fields=["status", "seed"])
 
     party_names = {str(m.id): m.display_name for m in members}
     quarter_names = {str(q.id): q.name for q in quarters}
 
-    # Transparenz: jedem Teilnehmer (mit eingereichten Wünschen) eine
-    # Benachrichtigung mit Gewinnen, Verlusten und Karma-Änderung schicken.
-    _notify_lottery_results(
+    # Benachrichtigungen NUR vorbereiten (nicht zustellen) – das übernimmt erst
+    # confirm_lottery. So bekommen Mitglieder vor der Bestätigung nichts zu sehen.
+    notices = _build_lottery_notices(
         period, members, result, old_factors, quarter_names)
 
     log_text = L.render_log_text(result, party_names, quarter_names)
@@ -116,12 +133,67 @@ def run_period_lottery(
     )
     return LotteryRun.objects.create(
         period=period, seed=seed, log_text=log_text, summary=summary,
+        karma_snapshot=old_factors, notices=notices, confirmed=False,
     )
 
 
-def _notify_lottery_results(period, members, result, old_factors, quarter_names):
-    """Schreibt jedem Teilnehmer (eingereichte Wünsche) eine Benachrichtigung mit
-    seinen Gewinnen, Verlusten und der Karma-Änderung – für Nachvollziehbarkeit."""
+def _restore_factors(run) -> None:
+    """Setzt die Ausgleichsfaktoren auf den vor dem Lauf gemerkten Stand zurück."""
+    for mid, factor in (run.karma_snapshot or {}).items():
+        Member.objects.filter(id=int(mid)).update(factor=factor)
+
+
+def confirm_lottery(run) -> None:
+    """Bestätigt einen Losdurchlauf: macht die Zuteilungen sichtbar und stellt
+    die vorbereiteten Benachrichtigungen (In-App + E-Mail) zu. Danach ist der
+    Lauf nicht mehr rücknehmbar. Idempotent."""
+    if run.confirmed:
+        return
+    period = run.period
+    Allocation.objects.filter(
+        period=period, source="lottery").update(provisional=False)
+
+    url = reverse("period_result", args=[period.id])
+    Notification.objects.filter(url=url).delete()  # Idempotenz
+    year = period.target_year
+    for n in (run.notices or []):
+        member = Member.objects.filter(id=n["member_id"]).first()
+        if not member:
+            continue
+        Notification.objects.create(
+            member=member, message=n["message"], detail=n["detail"], url=url)
+        body = (f"Hallo {member.display_name},\n\n{n['message']}\n\n{n['detail']}"
+                f"\n\nDetails: {absolute_url(url)}\n\nViele Grüße\nRe:Hof")
+        email_member(member, f"Auslosung {year}: dein Ergebnis", body)
+
+    run.confirmed = True
+    run.confirmed_at = timezone.now()
+    run.save(update_fields=["confirmed", "confirmed_at"])
+    period.status = BookingPeriod.LOTTERY_DONE
+    period.save(update_fields=["status"])
+
+
+def rollback_lottery(run) -> tuple[bool, str | None]:
+    """Macht einen UNbestätigten Losdurchlauf rückgängig: löscht die vorläufigen
+    Zuteilungen, stellt das Karma wieder her, setzt die Periode zurück auf
+    „zur Auslosung freigegeben“ und entfernt den Lauf. Bestätigte Läufe sind
+    gesperrt."""
+    if run.confirmed:
+        return False, "Diese Losung ist bereits bestätigt und kann nicht mehr zurückgenommen werden."
+    period = run.period
+    Allocation.objects.filter(
+        period=period, source="lottery", provisional=True).delete()
+    _restore_factors(run)
+    period.status = BookingPeriod.LOTTERY_READY
+    period.save(update_fields=["status"])
+    run.delete()
+    return True, None
+
+
+def _build_lottery_notices(period, members, result, old_factors, quarter_names):
+    """Baut je Teilnehmer (mit eingereichten Wünschen) den Benachrichtigungstext
+    mit Gewinnen, Verlusten und Karma-Änderung – als serialisierbare Liste, die
+    am Losdurchlauf gespeichert und erst bei der Bestätigung zugestellt wird."""
     wins_by: dict[str, list] = defaultdict(list)
     losses_by: dict[str, list] = defaultdict(list)
     for a in result.allocations:
@@ -133,10 +205,8 @@ def _notify_lottery_results(period, members, result, old_factors, quarter_names)
         str(mid) for mid in Wish.objects.filter(period=period, submitted=True)
         .values_list("member_id", flat=True).distinct()
     }
-    url = reverse("period_result", args=[period.id])
     year = period.target_year
-    # Idempotenz: bei einem Re-Run alte Losungs-Benachrichtigungen ersetzen.
-    Notification.objects.filter(url=url).delete()
+    notices: list[dict] = []
 
     for m in members:
         pid = str(m.id)
@@ -170,12 +240,10 @@ def _notify_lottery_results(period, members, result, old_factors, quarter_names)
             lines.append(
                 f"Dein Ausgleichsfaktor wurde nach dem Gewinn eines umkämpften "
                 f"Wunsches auf {round(new_f, 1)} zurückgesetzt.")
-        Notification.objects.create(
-            member=m, message=msg, detail="\n".join(lines), url=url)
-        # Zusätzlich per E-Mail (Outbox), falls gewünscht/möglich.
-        body = (f"Hallo {m.display_name},\n\n{msg}\n\n" + "\n".join(lines)
-                + f"\n\nDetails: {absolute_url(url)}\n\nViele Grüße\nRe:Hof")
-        email_member(m, f"Auslosung {year}: dein Ergebnis", body)
+        notices.append({
+            "member_id": m.id, "message": msg, "detail": "\n".join(lines),
+        })
+    return notices
 
 
 def quarter_is_free(quarter: Quarter, start: date, end: date) -> bool:
@@ -443,7 +511,8 @@ def build_booking_calendar(
     hols = school_holidays_in_range(first, last + timedelta(days=1))
     own_days: set[date] = set()
     if member:
-        for a in member.allocations.filter(start__lte=last, end__gt=first):
+        for a in member.allocations.filter(
+                start__lte=last, end__gt=first, provisional=False):
             d = max(a.start, first)
             upper = min(a.end, last + timedelta(days=1))
             while d < upper:
@@ -678,17 +747,26 @@ def absolute_url(path: str) -> str:
 
 
 def queue_email(to_email: str, subject: str, body: str, html_body: str = "",
-                member=None) -> "OutboxEmail | None":
-    """Stellt eine E-Mail in die Warteschlange (versendet wird sie vom Scheduler)."""
+                member=None, attachment: bytes | None = None,
+                attachment_name: str = "",
+                attachment_mime: str = "application/octet-stream"
+                ) -> "OutboxEmail | None":
+    """Stellt eine E-Mail in die Warteschlange (versendet wird sie vom Scheduler).
+    Optional mit einem Datei-Anhang (z.B. Rechnungs-PDF)."""
     to_email = (to_email or "").strip()
     if not to_email:
         return None
     return OutboxEmail.objects.create(
-        to_email=to_email, subject=subject, body=body,
-        html_body=html_body, member=member)
+        to_email=to_email, subject=subject, body=body, html_body=html_body,
+        member=member,
+        attachment=attachment if attachment else None,
+        attachment_name=attachment_name if attachment else "",
+        attachment_mime=attachment_mime if attachment else "")
 
 
-def email_member(member, subject: str, body: str, html_body: str = ""):
+def email_member(member, subject: str, body: str, html_body: str = "",
+                 attachment: bytes | None = None, attachment_name: str = "",
+                 attachment_mime: str = "application/octet-stream"):
     """Mail an ein Mitglied – nur wenn eine Adresse hinterlegt ist UND das
     Mitglied E-Mails nicht abbestellt hat (In-App-Hinweise bleiben unberührt)."""
     if not member or not getattr(member, "email_opt_in", True):
@@ -696,7 +774,150 @@ def email_member(member, subject: str, body: str, html_body: str = ""):
     email = (getattr(member.user, "email", "") or "").strip()
     if not email:
         return None
-    return queue_email(email, subject, body, html_body, member)
+    return queue_email(email, subject, body, html_body, member,
+                       attachment, attachment_name, attachment_mime)
+
+
+def queue_email_many(recipients, subject: str, body: str, html_body: str = ""):
+    """Stellt dieselbe Mail an mehrere Adressen ein (für Verwaltungs-Mails)."""
+    return [em for to in recipients
+            if (em := queue_email(to, subject, body, html_body))]
+
+
+def email_admins(subject: str, body: str, html_body: str = ""):
+    from .models import OpsConfig
+    return queue_email_many(OpsConfig.get_solo().admin_list(), subject, body, html_body)
+
+
+def email_cleaning(subject: str, body: str, html_body: str = ""):
+    from .models import OpsConfig
+    return queue_email_many(OpsConfig.get_solo().cleaning_list(), subject, body, html_body)
+
+
+# --------------------------------------------------------------------------- #
+# Verwaltungs-Dashboard: anstehende Buchungen, Reinigung, Exporte, Monats-Mail
+# --------------------------------------------------------------------------- #
+
+MONTHS_DE = ["", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+             "August", "September", "Oktober", "November", "Dezember"]
+WEEKDAYS_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def month_label(year: int, month: int) -> str:
+    return f"{MONTHS_DE[month]} {year}"
+
+
+def month_bounds(year: int, month: int) -> tuple[date, date]:
+    """Erster Tag des Monats und erster Tag des Folgemonats (exklusiv)."""
+    start = date(year, month, 1)
+    end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    return start, end
+
+
+def next_month(today: date | None = None) -> tuple[int, int]:
+    today = today or date.today()
+    return (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+
+
+def _annotate_cleaning(qs):
+    """Markiert je Buchung, ob eine Endreinigung mitgebucht wurde."""
+    from django.db.models import Exists, OuterRef
+    from shop.models import LineItem
+    sq = LineItem.objects.filter(
+        allocation=OuterRef("pk"), product__counts_as_cleaning=True)
+    return qs.annotate(has_cleaning=Exists(sq))
+
+
+def arrivals_in_range(d_from: date, d_to: date):
+    """Buchungen mit Anreise in [d_from, d_to), inkl. Endreinigung-Markierung."""
+    qs = Allocation.objects.filter(start__gte=d_from, start__lt=d_to)
+    return (_annotate_cleaning(qs).select_related("quarter", "member")
+            .order_by("start", "quarter__name"))
+
+
+def departures_in_range(d_from: date, d_to: date):
+    """Abreisen in [d_from, d_to) – Basis der Reinigungsliste (Abreisetag =
+    Reinigungstag), inkl. Endreinigung-Markierung."""
+    qs = Allocation.objects.filter(end__gte=d_from, end__lt=d_to)
+    return (_annotate_cleaning(qs).select_related("quarter", "member")
+            .order_by("end", "quarter__name"))
+
+
+BOOKING_COLUMNS = ["Anreise", "Abreise", "Nächte", "Quartier", "Mitglied",
+                   "Personen", "Begleitung", "Endreinigung", "Quelle"]
+
+
+def booking_rows(allocs):
+    for a in allocs:
+        yield [a.start.isoformat(), a.end.isoformat(), a.nights, a.quarter.name,
+               a.member.display_name, a.persons, a.companions,
+               "ja" if getattr(a, "has_cleaning", False) else "nein",
+               a.get_source_display()]
+
+
+CLEANING_COLUMNS = ["Reinigung am", "Wochentag", "Quartier", "Mitglied",
+                    "Personen", "Endreinigung gebucht"]
+
+
+def cleaning_rows(deps, only_cleaning: bool = False):
+    for a in deps:
+        has = getattr(a, "has_cleaning", False)
+        if only_cleaning and not has:
+            continue
+        yield [a.end.isoformat(), WEEKDAYS_DE[a.end.weekday()], a.quarter.name,
+               a.member.display_name, a.persons, "ja" if has else "nein"]
+
+
+def bookings_text(allocs) -> str:
+    lines = []
+    for a in allocs:
+        clean = " · inkl. Endreinigung" if getattr(a, "has_cleaning", False) else ""
+        lines.append(f"{a.start:%d.%m.}–{a.end:%d.%m.%Y}  {a.quarter.name}  "
+                     f"{a.member.display_name} ({a.persons} Pers.){clean}")
+    return "\n".join(lines) if lines else "— keine —"
+
+
+def cleaning_text(deps, only_cleaning: bool = False) -> str:
+    lines = []
+    for a in deps:
+        has = getattr(a, "has_cleaning", False)
+        if only_cleaning and not has:
+            continue
+        mark = "ENDREINIGUNG" if has else "(keine Endreinigung gebucht)"
+        lines.append(f"{WEEKDAYS_DE[a.end.weekday()]} {a.end:%d.%m.%Y}  "
+                     f"{a.quarter.name}  – {mark}  "
+                     f"({a.member.display_name}, {a.persons} Pers.)")
+    return "\n".join(lines) if lines else "— keine Abreisen —"
+
+
+def notify_admins_upcoming(force: bool = False) -> int:
+    """Schickt der Verwaltung die Buchungen des Folgemonats. Vom Scheduler täglich
+    aufgerufen; sendet idempotent nur am eingestellten Tag, einmal pro Monat.
+    Gibt die Zahl der Empfänger zurück (0 = nichts gesendet)."""
+    from .models import OpsConfig
+    cfg = OpsConfig.get_solo()
+    today = date.today()
+    if not force:
+        if today.day != cfg.notify_day:
+            return 0
+        if (cfg.last_admin_notice and cfg.last_admin_notice.year == today.year
+                and cfg.last_admin_notice.month == today.month):
+            return 0
+    recipients = cfg.admin_list()
+    if not recipients:
+        return 0
+    y, m = next_month(today)
+    d_from, d_to = month_bounds(y, m)
+    arrivals = list(arrivals_in_range(d_from, d_to))
+    deps = list(departures_in_range(d_from, d_to))
+    body = (f"Anstehende Buchungen – {month_label(y, m)}\n\n"
+            f"ANREISEN / AUFENTHALTE ({len(arrivals)}):\n{bookings_text(arrivals)}\n\n"
+            f"REINIGUNG / ABREISEN ({len(deps)}):\n{cleaning_text(deps)}\n\n"
+            f"Details im Verwaltungs-Dashboard: {absolute_url('/verwaltung/')}\n")
+    queue_email_many(recipients, f"Re:Hof – Buchungen {m:02d}/{y}", body)
+    cfg.last_admin_notice = today
+    cfg.save(update_fields=["last_admin_notice"])
+    return len(recipients)
 
 
 # --------------------------------------------------------------------------- #
@@ -715,7 +936,8 @@ def day_detail(member, day: date) -> dict:
             "mine": bool(member) and a.member_id == member.id,
         }
         for a in Allocation.objects.select_related("quarter", "member")
-        .filter(start__lte=day, end__gt=day).order_by("quarter__name")
+        .filter(start__lte=day, end__gt=day, provisional=False)
+        .order_by("quarter__name")
     ]
     free, _occ = split_quarters_for_range(day, nxt)
     return {"day": day, "occupied": occupied, "free": [q.name for q in free]}
@@ -726,7 +948,7 @@ def concurrent_allocations(allocation: Allocation):
     überlappen – „wer ist zur gleichen Zeit da“."""
     return list(
         Allocation.objects.select_related("quarter", "member").filter(
-            start__lt=allocation.end, end__gt=allocation.start,
+            start__lt=allocation.end, end__gt=allocation.start, provisional=False,
         ).exclude(member_id=allocation.member_id).order_by("start", "quarter__name")
     )
 
@@ -899,7 +1121,7 @@ def build_community_calendar(member, year, month) -> dict:
 
     allocs = list(
         Allocation.objects.select_related("quarter", "member").filter(
-            start__lte=last, end__gt=first,
+            start__lte=last, end__gt=first, provisional=False,
         ).order_by("quarter__name")
     )
     hols = school_holidays_in_range(first, last + timedelta(days=1))

@@ -84,6 +84,13 @@ jobs:
       - name: Code auschecken
         uses: actions/checkout@v4
 
+      - name: Native Libs für WeasyPrint (Rechnungs-PDF)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 \
+            libffi8 shared-mime-info fonts-dejavu-core
+
       - name: Python einrichten
         uses: actions/setup-python@v5
         with:
@@ -103,7 +110,7 @@ jobs:
         run: python manage.py makemigrations --check --dry-run
 
       - name: Integrationstests (inkl. Use-Cases)
-        run: python manage.py test booking -v2
+        run: python manage.py test booking shop -v2
 
   # --------------------------------------------------------------------------
   # 3) Migrations-Resilienz: Vorwärts-Migration auf einer BEFÜLLTEN Alt-DB.

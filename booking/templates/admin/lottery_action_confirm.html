@@ -1,0 +1,21 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>{{ intro }}</p>
+<ul>
+  {% for run in runs %}
+  <li><strong>{{ run.period }}</strong> — {{ run.summary }}
+      {% if run.confirmed %}<em>(bereits bestätigt)</em>{% endif %}</li>
+  {% endfor %}
+</ul>
+<form method="post">{% csrf_token %}
+  {% for run in runs %}
+  <input type="hidden" name="{{ checkbox_name }}" value="{{ run.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="confirm" value="1">
+  <div class="submit-row">
+    <input type="submit" value="{{ button_label }}" class="default">
+    <a href="{% url 'admin:booking_lotteryrun_changelist' %}" class="button cancel-link">Abbrechen</a>
+  </div>
+</form>
+{% endblock %}

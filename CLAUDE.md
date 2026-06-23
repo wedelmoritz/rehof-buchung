@@ -67,8 +67,10 @@ sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `LotteryRun`, `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
-Warteliste), `Notification` (In-App-Benachrichtigung), `SwapRequest`
-(Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
+Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
+(E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
+Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag),
+`SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
 `SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 
@@ -87,7 +89,8 @@ Rückfrage**; je Buchung „wer ist gleichzeitig da“ + Wechselwunsch an andere
 Mitglieder, die zustimmen/ablehnen können), `transfer` (**zweistufig**: Vorschau
 mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
 des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
-Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
+`dashboard` (nur Staff, `/verwaltung/`) ist das operative Verwaltungs-Dashboard
+(s.u. „Verwaltungs-Dashboard“). Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
 `unavailable_weekdays` sperrt Wochentage (geprüft am Abreisetag, z.B.
 Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` **und** (über die Outbox)
@@ -139,10 +142,45 @@ gruppiert via `Invoice.purchase_groups`). Rechnung **monatlich**
 (`generate_monthly_invoices`, Cron) **oder sofort** (`generate_invoice_now`,
 Button „Jetzt abrechnen“ bzw. „sofort abrechnen“ beim Checkout). Beim Buchen
 mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
-`services.purchase_service` direkt als bestätigter Einkauf. Stammdaten der
-Genossenschaft im `ShopConfig`-Singleton. Geldlogik/Tests in `shop/services.py`
-bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices` (monatlich) und
-`run_due_lotteries` (Perioden/Losungen). Rechnung als In-App-HTML, PDF/Mail später.
+`services.purchase_service` direkt als bestätigter Einkauf – dabei wird
+`LineItem.allocation` gesetzt (verknüpft die Reinigung mit Quartier + Abreisetag).
+`Product.counts_as_cleaning` markiert die Endreinigung für die Reinigungsliste.
+**Offene Posten:** `Invoice.due_date` (aus `ShopConfig.payment_term_days`) +
+`is_overdue`; **Zahlungserinnerung** idempotent über `services.send_payment_reminder`
+/ `remind_overdue` (Aktion im Admin + Dashboard, „zuletzt erinnert am“).
+Stammdaten der Genossenschaft im `ShopConfig`-Singleton. Geldlogik/Tests in
+`shop/services.py` bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices`
+(monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
+(Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
+`OpsConfig.notify_day`). Rechnung als In-App-HTML **und PDF** (WeasyPrint):
+`shop/pdf.py` (`invoice_html` rein/testbar getrennt von `invoice_pdf_bytes`),
+Druckvorlage `shop/templates/shop/invoice_pdf.html`, Endpoint `shop_invoice_pdf`
+(eigene; Staff alle). Das PDF hängt als Anhang an der „Rechnung erstellt“-Mail
+(`OutboxEmail` um `attachment*`-Felder erweitert, `send_outbox` schickt es mit).
+Native Libs (Pango/Cairo) im `Dockerfile`; CI-Integrationsjob testet `booking shop`.
+**Kontoabgleich:** Kontoauszug im Dashboard hochladen (`reconcile.import_bank_statement`);
+Parser je Format in `shop/bankimport.py` (normalisierte `ParsedTxn`; `csv` flexibel
+über Header-Stichwörter, `camt` = CAMT.053-XML; MT940 später trivial ergänzbar).
+`shop/reconcile.py` legt `BankTransaction`/`BankImport` an (Dedup über
+`fingerprint`) und verbucht **eindeutige** Treffer (Rechnungsnummer im
+Verwendungszweck + exakter Betrag) automatisch: `confirm_invoice` → `confirmed`,
+Verknüpfung + In-App-/E-Mail-Benachrichtigung ans Mitglied. Nicht eindeutige
+Eingänge bleiben offen (in `BankTransactionAdmin` manuell zuzuordnen + Aktion
+„verbuchen“); Rechnungsstatus bleibt manuell änderbar.
+**Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
+`docs/BETRIEB-SICHERHEIT.md`.
+
+**Verwaltungs-Dashboard (`dashboard`, nur Staff, `/verwaltung/`):** operative
+Seite fürs kleine Team – Kennzahlen, **Reinigungsliste** (alle Abreisen des
+gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
+**anstehende Buchungen** und **offene/überfällige Rechnungen**. Je Liste
+**Export** als xlsx **und** CSV (`booking/exports.py`) und **Versand per Knopf**
+(Reinigungsliste ans Reinigungsteam, Buchungen an die Verwaltung,
+Zahlungserinnerung an überfällige). Empfänger in `OpsConfig`
+(`email_admins`/`email_cleaning`; Reinigungsteam leer = Verwaltungs-Adresse).
+Die Nav „Verwaltung“ zeigt aufs Dashboard; von dort Link ins Django-Backend.
+Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
+`departures_in_range`, `_annotate_cleaning`, `*_rows`, `*_text`).
 
 ---
 
@@ -157,15 +195,30 @@ bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices` (monatlich) und
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
   sich über `BookingPeriod.draw_at` terminieren; das Kommando
   `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
+- **Losung-Bestätigung (Review-Workflow):** Ein Lauf landet zunächst im Status
+  `lottery_review` – die Zuteilungen sind `Allocation.provisional=True`
+  (blockieren die Verfügbarkeit, sind aber für Mitglieder **unsichtbar**;
+  `period_result`/`my_bookings`/Übersicht/`day_detail` filtern `provisional=False`),
+  und es werden **keine** Benachrichtigungen zugestellt (nur am `LotteryRun`
+  vorbereitet: `notices`). Erst `services.confirm_lottery` veröffentlicht
+  (Zuteilungen sichtbar, Benachrichtigungen + Mails raus, Status `lottery_done`) –
+  danach **kein Undo**. `services.rollback_lottery` (nur unbestätigt) löscht die
+  vorläufigen Zuteilungen, stellt das Karma aus `LotteryRun.karma_snapshot`
+  wieder her und setzt zurück auf `lottery_ready`. Admin-Aktionen mit Rückfrage
+  an `LotteryRunAdmin` (Bestätigen/Zurücknehmen); der Cron schaltet NIE
+  automatisch aus `lottery_review` heraus. Ein erneuter `run_period_lottery`
+  rollt einen vorhandenen unbestätigten Lauf erst zurück (kein Karma-Aufsummieren).
 - **Buchungsperiode/Zeitraum (`BookingPeriod`):** **Pro Buchungsjahr genau EINE
   Periode** (`target_year` ist eindeutig). Sie durchläuft den Lebenszyklus über
   ihren `status`: `draft` (Entwurf) → `wishes_open` (Wunsch-Einträge freigegeben)
-  → `lottery_ready` (zur Auslosung freigegeben) → `lottery_done` (Auslosung
-  beendet) → `free_booking` (freie Bebuchbarkeit im Zeitraum) → `ended`
+  → `lottery_ready` (zur Auslosung freigegeben) → `lottery_review` (Auslosung
+  gelaufen, **unbestätigt**) → `lottery_done` (bestätigt/veröffentlicht) →
+  `free_booking` (freie Bebuchbarkeit im Zeitraum) → `ended`
   (beendet); `suspended` (unterbrochen) sperrt vorläufig. Der Status wird
-  normalerweise **aus den Terminen abgeleitet** (`BookingPeriod.compute_status`)
-  und vom Cron-Kommando `run_due_lotteries` **vorwärts** geschaltet (nie zurück)
-  — inkl. der fälligen Auslosung. Termine: `wishlist_open/close` (Wünsche),
+  normalerweise **aus den Terminen abgeleitet** (`BookingPeriod.compute_status`,
+  die nur bis `lottery_review` führt) und vom Cron-Kommando `run_due_lotteries`
+  **vorwärts** geschaltet (nie zurück, nie aus `lottery_review` heraus). Termine:
+  `wishlist_open/close` (Wünsche),
   `draw_at` (Losung), `start/end` (buchbar ab/bis; `start` darf vor dem 1.1.
   liegen). Die **normale Buchung** ist nur im Status `free_booking` möglich und
   gilt für `[start, end)`. **Quartiersspezifische Grenzen** gibt es NICHT mehr
@@ -276,8 +329,16 @@ bleibt in `settings.py` markiert.
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
 - Externe Buchungen sicher ausbauen (Modell-Flag `Member.is_external`,
   `Allocation.source="external"` vorhanden).
-- E-Mail-Fundament steht (Outbox + `send_outbox`); offen: PDF-Rechnungen
-  (WeasyPrint), Losergebnis-PDF + Massenmail, Web-Push (mobil).
+- E-Mail-Fundament steht (Outbox + `send_outbox`, mit Datei-Anhängen);
+  **Rechnungs-PDF (WeasyPrint) erledigt**. Offen: Losergebnis-PDF + Massenmail,
+  Web-Push (mobil).
+- **Losung rückgängig/bestätigen** – **erledigt** (Review-Workflow, s.o.).
+- **Kontoabgleich** – **erledigt** (CSV + CAMT.053; MT940 als Parser leicht
+  ergänzbar in `shop/bankimport.py`).
+- **Backup & Hardening** (geplant, nicht umgesetzt): Blueprints in
+  `docs/BETRIEB-SICHERHEIT.md`.
+- Verwaltungs-Mails/Putzliste später optional als **Datei-Anhang** (xlsx/CSV)
+  statt nur inline (OutboxEmail um Anhang erweitern).
 - Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
 
 ---

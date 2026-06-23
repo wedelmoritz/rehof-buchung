@@ -58,6 +58,7 @@ class Command(BaseCommand):
                               needs_date=needs))
         # Endreinigung: beim Buchen anbieten; Demo: sonntags nicht möglich.
         Product.objects.filter(name="Endreinigung").update(
-            book_with_stay=True, needs_date=True, unavailable_weekdays="6")
+            book_with_stay=True, counts_as_cleaning=True, needs_date=True,
+            unavailable_weekdays="6")
         self.stdout.write(self.style.SUCCESS(
             f"{len(GROUPS)} Gruppen, {len(PRODUCTS)} Produkte angelegt."))

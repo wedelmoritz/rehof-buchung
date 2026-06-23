@@ -1,7 +1,11 @@
 {% extends "booking/base.html" %}
 {% block title %}Rechnung {{ invoice.number }}{% endblock %}
 {% block content %}
-<p class="muted"><a href="{% url 'shop_invoices' %}">&larr; Meine Rechnungen</a></p>
+<div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+  <p class="muted" style="margin:0"><a href="{% url 'shop_invoices' %}">&larr; Meine Rechnungen</a></p>
+  <span style="margin-left:auto"></span>
+  <a class="btn small ghost" href="{% url 'shop_invoice_pdf' invoice.id %}" target="_blank" rel="noopener">PDF herunterladen</a>
+</div>
 
 <div class="card invoice">
   <div class="inv-head">

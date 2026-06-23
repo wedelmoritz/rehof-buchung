@@ -357,7 +357,7 @@
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}" title="Meine Rechnungen"><svg class="nav-ic"><use href="#ic-invoices"/></svg><span class="nav-label">Meine Rechnungen</span></a>
       <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}" title="Profil"><svg class="nav-ic"><use href="#ic-profile"/></svg><span class="nav-label">Profil</span></a>
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}" title="Hilfe"><svg class="nav-ic"><use href="#ic-help"/></svg><span class="nav-label">Hilfe</span></a>
-      {% if user.is_staff %}<a href="/admin/" title="Verwaltung"><svg class="nav-ic"><use href="#ic-admin"/></svg><span class="nav-label">Verwaltung</span></a>{% endif %}
+      {% if user.is_staff %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}" title="Verwaltung"><svg class="nav-ic"><use href="#ic-admin"/></svg><span class="nav-label">Verwaltung</span></a>{% endif %}
     </nav>
   </aside>
 
@@ -379,7 +379,7 @@
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Meine Rechnungen</a>
       <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-profile"/></svg>Profil</a>
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-help"/></svg>Hilfe</a>
-      {% if user.is_staff %}<a href="/admin/"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>{% endif %}
+      {% if user.is_staff %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>{% endif %}
     </div>
   </div>
   {% endwith %}

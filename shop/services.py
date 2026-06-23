@@ -123,9 +123,11 @@ def checkout(member) -> tuple[Purchase | None, str | None]:
 
 
 @transaction.atomic
-def purchase_service(member, product: Product, quantity=1, service_date=None):
+def purchase_service(member, product: Product, quantity=1, service_date=None,
+                     allocation=None):
     """Direkt bestätigter Einkauf einer einzelnen Dienstleistung (z.B.
-    Endreinigung beim Buchen) – ohne Umweg über den Warenkorb."""
+    Endreinigung beim Buchen) – ohne Umweg über den Warenkorb. `allocation`
+    verknüpft die Leistung mit der Buchung (Quartier + Abreisetag)."""
     qty, err = _check_purchasable(product, quantity, service_date)
     if err:
         return None, err
@@ -134,7 +136,7 @@ def purchase_service(member, product: Product, quantity=1, service_date=None):
         member=member, product=product, name=product.name, unit=product.unit,
         unit_price=product.price, vat_rate=product.vat_rate, quantity=qty,
         service_date=service_date if product.needs_date else None,
-        purchase=purchase,
+        purchase=purchase, allocation=allocation,
     )
     return item, None
 
@@ -168,9 +170,11 @@ def _invoice_items(member, items, year: int, month: int) -> Invoice | None:
     cfg = ShopConfig.get_solo()
     addr = "\n".join(p for p in [
         member.street, f"{member.zip_code} {member.city}".strip()] if p.strip())
+    from datetime import timedelta
+    due = date.today() + timedelta(days=int(cfg.payment_term_days or 14))
     inv = Invoice.objects.create(
         member=member, number=_next_number(cfg.invoice_prefix, year, month),
-        year=year, month=month,
+        year=year, month=month, due_date=due,
         recipient_name=member.legal_name or member.display_name,
         recipient_address=addr,
         coop_name=cfg.coop_name, coop_address=cfg.coop_address,
@@ -180,12 +184,23 @@ def _invoice_items(member, items, year: int, month: int) -> Invoice | None:
     # Benachrichtigung per E-Mail (Outbox). Lazy-Import vermeidet Zirkularität.
     from booking.services import email_member, absolute_url
     url = absolute_url(f"/hofladen/rechnung/{inv.id}/")
+    # Rechnungs-PDF als Anhang (best effort – fehlt WeasyPrint, geht die Mail
+    # trotzdem raus, nur ohne Anhang).
+    pdf_bytes = None
+    try:
+        from . import pdf as pdf_mod
+        if pdf_mod.weasyprint_available():
+            pdf_bytes = pdf_mod.invoice_pdf_bytes(inv)
+    except Exception:
+        pdf_bytes = None
     email_member(
         member, f"Neue Rechnung {inv.number}",
         f"Hallo {member.display_name},\n\ndeine Hofladen-Rechnung {inv.number} "
-        f"über {inv.total_gross} € ist da.\n\n{url}\n\n"
+        f"über {inv.total_gross} € ist da{' (PDF im Anhang)' if pdf_bytes else ''}.\n\n{url}\n\n"
         f"Bitte mit der Rechnungsnummer als Verwendungszweck überweisen.\n\n"
-        f"Viele Grüße\nRe:Hof")
+        f"Viele Grüße\nRe:Hof",
+        attachment=pdf_bytes, attachment_name=f"{inv.number}.pdf",
+        attachment_mime="application/pdf")
     return inv
 
 
@@ -249,3 +264,76 @@ def confirm_invoice(invoice: Invoice) -> None:
     invoice.status = Invoice.CONFIRMED
     invoice.confirmed_at = timezone.now()
     invoice.save(update_fields=["status", "confirmed_at"])
+
+
+# --------------------------------------------------------------------------- #
+# Offene Posten / Zahlungserinnerung (Mahnwesen, idempotent)
+# --------------------------------------------------------------------------- #
+
+def open_invoices(qs=None):
+    """Alle offenen (noch nicht als bezahlt gemeldeten) Rechnungen."""
+    qs = qs if qs is not None else Invoice.objects.all()
+    return qs.filter(status=Invoice.OPEN).select_related("member")
+
+
+def overdue_invoices(qs=None):
+    """Offene Rechnungen, deren Zahlungsziel überschritten ist."""
+    return open_invoices(qs).filter(due_date__lt=date.today())
+
+
+def send_payment_reminder(invoice: Invoice) -> bool:
+    """Stellt eine Zahlungserinnerung in die Outbox (idempotent: pro Tag nur
+    einmal). Gibt True zurück, wenn eine Erinnerung erzeugt wurde."""
+    if invoice.status != Invoice.OPEN:
+        return False
+    now = timezone.now()
+    if invoice.reminded_at and invoice.reminded_at.date() == now.date():
+        return False  # heute schon erinnert
+    from booking.services import email_member, absolute_url
+    url = absolute_url(f"/hofladen/rechnung/{invoice.id}/")
+    faellig = (f" (fällig am {invoice.due_date:%d.%m.%Y})"
+               if invoice.due_date else "")
+    sent = email_member(
+        invoice.member, f"Zahlungserinnerung zu Rechnung {invoice.number}",
+        f"Hallo {invoice.member.display_name},\n\nzu deiner Hofladen-Rechnung "
+        f"{invoice.number} über {invoice.total_gross} €{faellig} haben wir noch "
+        f"keinen Zahlungseingang verbucht. Bitte überweise mit der "
+        f"Rechnungsnummer als Verwendungszweck.\n\n{url}\n\n"
+        f"Falls sich das überschnitten hat, ignoriere diese Nachricht bitte.\n\n"
+        f"Viele Grüße\nRe:Hof")
+    invoice.reminded_at = now
+    invoice.save(update_fields=["reminded_at"])
+    return bool(sent) or True  # auch ohne Opt-in als „erinnert“ markieren
+
+
+def remind_overdue(qs=None) -> int:
+    """Schickt allen überfälligen Rechnungen eine Erinnerung. Anzahl zurück."""
+    n = 0
+    for inv in overdue_invoices(qs):
+        if send_payment_reminder(inv):
+            n += 1
+    return n
+
+
+# --------------------------------------------------------------------------- #
+# Export (xlsx / CSV) – abgleichfreundlich
+# --------------------------------------------------------------------------- #
+
+INVOICE_COLUMNS = [
+    "Nummer", "Mitglied", "Jahr", "Monat", "Status", "Erstellt", "Fällig am",
+    "Netto", "MwSt", "Brutto", "Überfällig", "Zuletzt erinnert", "IBAN-Mitglied",
+]
+
+
+def invoice_export_rows(qs):
+    for inv in qs.select_related("member"):
+        yield [
+            inv.number, inv.member.display_name, inv.year, inv.month,
+            inv.get_status_display(),
+            inv.created_at.date().isoformat(),
+            inv.due_date.isoformat() if inv.due_date else "",
+            float(inv.total_net), float(inv.total_vat), float(inv.total_gross),
+            "ja" if inv.is_overdue else "nein",
+            inv.reminded_at.date().isoformat() if inv.reminded_at else "",
+            inv.member.iban,
+        ]
