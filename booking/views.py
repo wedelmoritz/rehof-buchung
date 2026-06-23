@@ -986,8 +986,26 @@ def lottery_fairness(request):
 
 
 # Inline-SVG-Geometrie (server-seitig berechnet, ohne JS-Abhängigkeit).
+# WICHTIG: alle Koordinaten als Strings mit PUNKT-Dezimaltrenner ausgeben –
+# Djangos deutsche L10N würde Floats sonst mit Komma rendern (x="44,0"), was in
+# SVG ungültig ist und dazu führt, dass Balken/Linien gar nicht gezeichnet werden.
 _CHART_W, _CHART_H = 560, 230
 _PAD_L, _PAD_B, _PAD_T, _PAD_R = 44, 28, 12, 12
+
+
+def _n(v) -> str:
+    """SVG-sichere Zahl (Punkt als Dezimaltrenner, unabhängig von der Locale)."""
+    return f"{float(v):.1f}"
+
+
+def _yticks(vmax: float, y_of) -> list[dict]:
+    """Vier Y-Achsen-Markierungen (0 … vmax) als Prozent für das Gitternetz."""
+    ticks = []
+    for i in range(5):
+        v = vmax * i / 4
+        ticks.append({"y": _n(y_of(v)),
+                      "label": f"{v * 100:.0f} %".replace(".", ",")})
+    return ticks
 
 
 def _fairness_eq_chart(eq: dict) -> dict:
@@ -1008,19 +1026,20 @@ def _fairness_eq_chart(eq: dict) -> dict:
         x = _PAD_L + i * (bw + gap)
         y = y_of(u["rate"])
         bars.append({
-            "x": round(x, 1), "y": round(y, 1), "w": round(bw, 1),
-            "h": round(_PAD_T + plot_h - y, 1),
-            "cx": round(x + bw / 2, 1),
-            "ci_top": round(y_of(u["ci_high"]), 1),
-            "ci_bot": round(y_of(u["ci_low"]), 1),
+            "x": _n(x), "y": _n(y), "w": _n(bw),
+            "h": _n(_PAD_T + plot_h - y),
+            "cx": _n(x + bw / 2),
+            "ci_top": _n(y_of(u["ci_high"])),
+            "ci_bot": _n(y_of(u["ci_low"])),
             "label": u["index"], "rate": round(u["rate"] * 100, 1),
         })
     return {
         "w": _CHART_W, "h": _CHART_H, "bars": bars,
-        "exp_y": round(y_of(eq["expected_rate"]), 1),
+        "exp_y": _n(y_of(eq["expected_rate"])),
         "exp_pct": round(eq["expected_rate"] * 100, 1),
-        "axis_y": _PAD_T + plot_h, "axis_x0": _PAD_L,
-        "axis_x1": _CHART_W - _PAD_R,
+        "axis_y": _n(_PAD_T + plot_h), "axis_x0": _n(_PAD_L),
+        "axis_x1": _n(_CHART_W - _PAD_R), "top_y": _n(_PAD_T),
+        "yticks": _yticks(vmax, y_of),
     }
 
 
@@ -1041,16 +1060,17 @@ def _fairness_karma_chart(rows: list) -> dict:
         x = _PAD_L + i * (bw + gap)
         y = y_of(r["rate"])
         bars.append({
-            "x": round(x, 1), "y": round(y, 1), "w": round(bw, 1),
-            "h": round(_PAD_T + plot_h - y, 1),
-            "cx": round(x + bw / 2, 1),
-            "ci_top": round(y_of(r["ci_high"]), 1),
-            "ci_bot": round(y_of(r["ci_low"]), 1),
+            "x": _n(x), "y": _n(y), "w": _n(bw),
+            "h": _n(_PAD_T + plot_h - y),
+            "cx": _n(x + bw / 2),
+            "ci_top": _n(y_of(r["ci_high"])),
+            "ci_bot": _n(y_of(r["ci_low"])),
             "label": r["factor"], "rate": round(r["rate"] * 100, 1),
         })
     return {"w": _CHART_W, "h": _CHART_H, "bars": bars,
-            "axis_y": _PAD_T + plot_h, "axis_x0": _PAD_L,
-            "axis_x1": _CHART_W - _PAD_R}
+            "axis_y": _n(_PAD_T + plot_h), "axis_x0": _n(_PAD_L),
+            "axis_x1": _n(_CHART_W - _PAD_R), "top_y": _n(_PAD_T),
+            "yticks": _yticks(vmax, y_of)}
 
 
 @xframe_options_exempt
