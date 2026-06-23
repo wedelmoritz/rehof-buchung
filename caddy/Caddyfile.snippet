@@ -3,7 +3,7 @@
 # TLS; nach hinten spricht er HTTP. Der Caddy-Container muss am selben
 # externen Docker-Netz hängen wie web (siehe docker-compose.yml: networks.caddy).
 
-rehof.wedelparlow.de {
+quartiere.example.de {
     encode gzip
     # Feste Container-IP im gemeinsamen Netz compose_web (Schema: caddy=.10,
     # web=.20). Deterministisch und unabhängig von DNS-Aliassen anderer Stacks.

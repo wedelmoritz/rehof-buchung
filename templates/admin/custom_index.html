@@ -2,8 +2,8 @@
 {# Erklär-Panel oben auf der Backend-Startseite: was kann man hier tun und wie
    hängen Benutzer, Mitglieder und Anteile zusammen. #}
 {% block content %}
-<div class="module rehof-intro">
-  <h2>Was kannst du hier tun?</h2>
+<details class="module rehof-intro" id="rehof-intro">
+  <summary>Was kannst du hier tun? <span class="rehof-toggle">(ein-/ausklappen)</span></summary>
   <div class="rehof-intro-body">
     <p>Im <strong>Backend</strong> pflegst du die <strong>Stammdaten</strong>
       (Personen, Anteile, Quartiere, Regeln, Perioden, Hofladen). Das
@@ -65,13 +65,21 @@
         Hofladen-Einstellungen (IBAN, Zahlungsziel).</li>
     </ul>
   </div>
-</div>
+</details>
 {{ block.super }}
 {% endblock %}
 
 {% block extrastyle %}{{ block.super }}
 <style>
   .rehof-intro { margin-bottom: 18px; }
+  .rehof-intro > summary { cursor: pointer; list-style: none; padding: 8px 12px;
+    font-weight: 700; font-size: 13px; background: var(--darkened-bg);
+    color: var(--body-loud-color); border-radius: 6px 6px 0 0; }
+  .rehof-intro:not([open]) > summary { border-radius: 6px; }
+  .rehof-intro > summary::-webkit-details-marker { display: none; }
+  .rehof-intro > summary::before { content: "▸"; margin-right: 8px; color: var(--body-quiet-color); }
+  .rehof-intro[open] > summary::before { content: "▾"; }
+  .rehof-intro .rehof-toggle { font-weight: 400; font-size: 12px; color: var(--body-quiet-color); }
   .rehof-intro .rehof-intro-body { padding: 10px 14px 14px; }
   .rehof-intro h3 { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase;
     letter-spacing: .04em; color: var(--body-quiet-color); }
