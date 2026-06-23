@@ -11,6 +11,7 @@ from django.urls import reverse
 from booking.external import external_allowed
 from booking.models import (
     EquivalenceClass, ExternalBooking, ExternalConfig, Guest, Quarter,
+    QuarterPrice,
 )
 from booking import services as svc
 from shop.models import Invoice, ShopConfig
@@ -164,3 +165,82 @@ class ExternalPublicViewTests(TestCase):
         self.assertContains(r, "Danke")
         self.assertTrue(Guest.objects.filter(email="gast@example.org").exists())
         self.assertEqual(ExternalBooking.objects.count(), 1)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class SeasonPriceTests(TestCase):
+    def setUp(self):
+        ShopConfig.objects.create(iban="DE111")
+        self.cfg = ExternalConfig.objects.create(
+            active=True, allowed_weekdays="", min_nights=1, lead_days=0,
+            cleaning_fee=Decimal("0.00"))
+        ec = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(
+            name="Gartenhaus", eq_class=ec, min_occupancy=1, max_occupancy=4,
+            external_bookable=True, price_per_night=Decimal("80.00"))
+        # Hochsaison im Juli: 120 €/Nacht
+        QuarterPrice.objects.create(quarter=self.q, label="Hochsaison",
+                                    start_month=7, start_day=1, end_month=8, end_day=31,
+                                    price_per_night=Decimal("120.00"))
+
+    def test_saisonpreis_greift_pro_nacht(self):
+        # 3 Nächte im Juli -> 3*120
+        start, end = date(2026, 7, 6), date(2026, 7, 9)
+        quote = svc.external_quote(self.q, start, end, self.cfg)
+        self.assertEqual(quote["total_gross"], Decimal("360.00"))
+        self.assertFalse(quote["seasonal_price"])
+
+    def test_basispreis_ausserhalb_saison(self):
+        start, end = date(2026, 6, 8), date(2026, 6, 11)  # Juni -> Basis 80
+        quote = svc.external_quote(self.q, start, end, self.cfg)
+        self.assertEqual(quote["total_gross"], Decimal("240.00"))
+
+    def test_anzahlung_und_storno_in_quote(self):
+        self.cfg.deposit_percent = 20
+        self.cfg.save()
+        quote = svc.external_quote(self.q, date(2026, 6, 8), date(2026, 6, 11), self.cfg)
+        self.assertEqual(quote["deposit_gross"], Decimal("48.00"))  # 20% von 240
+        self.assertTrue(quote["cancellation_text"])
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class MagicLinkAndCalendarTests(TestCase):
+    def setUp(self):
+        ShopConfig.objects.create(iban="DE111")
+        self.cfg = ExternalConfig.objects.create(
+            active=True, allowed_weekdays="0,1,2,3", min_nights=2, lead_days=0,
+            free_cancel_days=30, partial_cancel_days=7, partial_refund_percent=50)
+        ec = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(
+            name="Gartenhaus", eq_class=ec, min_occupancy=1, max_occupancy=4,
+            external_bookable=True, price_per_night=Decimal("80.00"))
+        self.mon = _next_monday()
+        self.wed = self.mon + timedelta(days=3)
+
+    def test_externe_im_gemeinschaftskalender(self):
+        svc.create_external_booking(self.q, self.mon, self.wed, 2,
+                                    name="Max", email="max@example.org")
+        cal = svc.build_community_calendar(None, self.mon.year, self.mon.month)
+        self.assertTrue(cal["any_external"])
+        whos = [b["who"] for week in cal["weeks"] for d in week for b in d["bookings"]]
+        self.assertIn("extern", whos)
+
+    def test_magic_link_und_storno(self):
+        b, _ = svc.create_external_booking(self.q, self.mon, self.wed, 2,
+                                           name="Max", email="max@example.org")
+        url = reverse("external_manage", args=[b.guest.token])
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Gartenhaus")
+        # Storno per Magic-Link
+        r2 = self.client.post(url, {"action": "cancel", "booking": b.id})
+        self.assertEqual(r2.status_code, 302)
+        b.refresh_from_db()
+        self.assertEqual(b.status, ExternalBooking.CANCELLED)
+        # Slot wieder frei
+        self.assertTrue(svc.quarter_is_free(self.q, self.mon, self.wed))
+
+    def test_unbekannter_token_404(self):
+        import uuid
+        r = self.client.get(reverse("external_manage", args=[uuid.uuid4()]))
+        self.assertEqual(r.status_code, 404)

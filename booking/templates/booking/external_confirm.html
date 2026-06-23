@@ -12,13 +12,36 @@
 
 <div class="card">
   <h2 style="margin-top:0">So bezahlst du</h2>
+  <div class="pay-box">
+    <strong>Online-Direktbezahlung aktuell noch nicht möglich</strong>
+    <p class="muted" style="margin:.3rem 0 0">Kreditkarte, PayPal und Apple/Google&nbsp;Pay
+      folgen in Kürze. Bitte überweise den Betrag wie unten beschrieben.</p>
+  </div>
   <p>Bitte überweise <strong>{{ invoice.total_gross }} €</strong> bis
      <strong>{{ invoice.due_date|date:"d.m.Y" }}</strong> auf:</p>
   <p>IBAN: <strong>{{ invoice.iban|default:"—" }}</strong>{% if invoice.bic %} · BIC: {{ invoice.bic }}{% endif %}<br>
      Verwendungszweck: <strong>{{ invoice.number }}</strong></p>
+  {% if deposit %}<p class="muted">Anzahlung: <strong>{{ deposit }} €</strong> –
+     bitte zuerst überweisen.</p>{% endif %}
   <p class="muted">Du hast außerdem eine Bestätigung mit allen Angaben per E-Mail
      an <strong>{{ booking.guest.email }}</strong> erhalten.</p>
 </div>
 
+<div class="card">
+  <h2 style="margin-top:0">Buchung verwalten</h2>
+  <p>Über deinen persönlichen Link kannst du die Buchung jederzeit ansehen oder
+     (im Rahmen der Stornobedingungen) stornieren:</p>
+  <p><a class="btn ghost" href="{% url 'external_manage' booking.guest.token %}">Meine Buchung verwalten</a></p>
+  {% if cancellation_text %}
+  <details><summary class="muted" style="cursor:pointer">Stornobedingungen</summary>
+    <p class="muted" style="font-size:.85rem">{{ cancellation_text }}</p></details>
+  {% endif %}
+</div>
+
 <p><a class="btn ghost" href="{% url 'external_home' %}">Weitere Buchung</a></p>
+
+<style>
+  .pay-box { border:1px dashed var(--line); border-radius:11px; padding:.6rem .8rem;
+    margin:.4rem 0 .8rem; background:#faf7f1; }
+</style>
 {% endblock %}

@@ -16,7 +16,7 @@ from django.utils import timezone
 from . import availability as A
 from . import lottery as L
 from . import rules as R
-from .external import external_allowed
+from .external import external_allowed, cancellation_refund
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, ExternalBooking, ExternalConfig,
     Guest, LotteryRun, Member, NightTransfer, Notification, OutboxEmail, Quarter,
@@ -986,6 +986,13 @@ def day_detail(member, day: date) -> dict:
         .filter(start__lte=day, end__gt=day, provisional=False)
         .order_by("quarter__name")
     ]
+    occupied += [
+        {"quarter": b.quarter.name, "who": "extern", "persons": b.persons,
+         "mine": False, "external": True}
+        for b in ExternalBooking.objects.select_related("quarter")
+        .filter(status=ExternalBooking.CONFIRMED, start__lte=day, end__gt=day)
+        .order_by("quarter__name")
+    ]
     free, _occ = split_quarters_for_range(day, nxt)
     return {"day": day, "occupied": occupied, "free": [q.name for q in free]}
 
@@ -1108,6 +1115,10 @@ GERMAN_MONTHS = [
     "August", "September", "Oktober", "November", "Dezember",
 ]
 
+# Einheitliche Farbe für externe Gäste in der Gemeinschafts-Übersicht (klar von
+# den Mitglieder-Pastellfarben unterscheidbar, ohne Gastdaten preiszugeben).
+EXTERN_COLOR = "#8a93a6"
+
 
 def build_member_calendar(member: Member, year: int, month: int) -> dict:
     """Baut die Monatsmatrix (Wochen × 7 Tage) mit Ferien- und Buchungs-Infos.
@@ -1171,9 +1182,17 @@ def build_community_calendar(member, year, month) -> dict:
             start__lte=last, end__gt=first, provisional=False,
         ).order_by("quarter__name")
     )
+    # Externe Gäste werden in EINER neutralen Farbe und nur als „extern“ gezeigt
+    # (keine Gastdaten in der Mitglieder-Übersicht).
+    externals = list(
+        ExternalBooking.objects.select_related("quarter").filter(
+            status=ExternalBooking.CONFIRMED, start__lte=last, end__gt=first,
+        ).order_by("quarter__name")
+    )
     hols = school_holidays_in_range(first, last + timedelta(days=1))
     own_id = member.id if member else None
     today = date.today()
+    any_external = False
 
     grid = []
     for week in weeks:
@@ -1190,6 +1209,14 @@ def build_community_calendar(member, year, month) -> dict:
                 }
                 for a in allocs if a.start <= d < a.end
             ]
+            for b in externals:
+                if b.start <= d < b.end:
+                    any_external = True
+                    bookings.append({
+                        "quarter": b.quarter.name, "who": "extern",
+                        "persons": b.persons, "member_id": None,
+                        "mine": False, "external": True, "color": EXTERN_COLOR,
+                    })
             row.append({
                 "date": d,
                 "day": d.day,
@@ -1213,6 +1240,8 @@ def build_community_calendar(member, year, month) -> dict:
         "prev": {"year": prev_month[0], "month": prev_month[1]},
         "next": {"year": next_month[0], "month": next_month[1]},
         "holidays": hols,
+        "any_external": any_external,
+        "extern_color": EXTERN_COLOR,
     }
 
 
@@ -1338,22 +1367,37 @@ def withdraw_wishlist(member, period) -> int:
 # --------------------------------------------------------------------------- #
 
 def external_quote(quarter: Quarter, start: date, end: date, cfg=None) -> dict:
-    """Preis-Aufschlüsselung für eine externe Buchung (brutto) + Rechnungs-Positionen."""
+    """Preis-Aufschlüsselung für eine externe Buchung (brutto) + Rechnungs-Positionen.
+
+    Die Übernachtungen werden Nacht für Nacht zum jeweils gültigen (ggf.
+    saisonalen) Quartier-Preis berechnet (siehe `QuarterPrice`). Gleiche
+    Nachtpreise werden zu einer Rechnungs-Position zusammengefasst."""
+    from decimal import Decimal
     cfg = cfg or ExternalConfig.get_solo()
     nights = (end - start).days
-    stay = (quarter.price_per_night or 0) * nights
+    # Nacht-für-Nacht den (saisonalen) Preis bestimmen und nach Preis bündeln.
+    by_price: dict = defaultdict(int)
+    d = start
+    while d < end:
+        by_price[quarter.price_for_night(d)] += 1
+        d += timedelta(days=1)
+    stay = sum((p * n for p, n in by_price.items()), Decimal("0"))
     cleaning = cfg.cleaning_fee or 0
     specs: list[dict] = []
-    if nights > 0:
-        specs.append({"name": f"Übernachtung – {quarter.name}", "quantity": nights,
-                      "unit": "Nacht", "unit_price": quarter.price_per_night,
-                      "vat_rate": cfg.stay_vat})
+    for price in sorted(by_price, reverse=True):
+        n = by_price[price]
+        specs.append({"name": f"Übernachtung – {quarter.name}", "quantity": n,
+                      "unit": "Nacht", "unit_price": price, "vat_rate": cfg.stay_vat})
     if cleaning > 0:
         specs.append({"name": "Endreinigung", "quantity": 1, "unit": "Pauschale",
                       "unit_price": cleaning, "vat_rate": cfg.cleaning_vat,
                       "service_date": end})
+    total = stay + cleaning
+    seasonal = len(by_price) > 1
     return {"nights": nights, "stay_gross": stay, "cleaning_gross": cleaning,
-            "total_gross": stay + cleaning, "line_specs": specs}
+            "total_gross": total, "line_specs": specs, "seasonal_price": seasonal,
+            "deposit_gross": cfg.deposit_for(total),
+            "cancellation_text": cfg.cancellation_text}
 
 
 def external_available_quarters(start: date, end: date) -> list[tuple]:
@@ -1425,22 +1469,118 @@ def create_external_booking(quarter: Quarter, start: date, end: date, persons: i
 
     # Bestätigung + Zahlungsinfo per E-Mail (Gast hat kein Konto).
     bic = f" · BIC: {inv.bic}" if inv.bic else ""
+    manage_url = absolute_url(reverse("external_manage", args=[guest.token]))
+    deposit = q.get("deposit_gross") or 0
+    deposit_line = (f"Anzahlung: {deposit} € (bitte zuerst überweisen).\n"
+                    if deposit else "")
     queue_email(
         guest.email, f"Buchungsbestätigung – {quarter.name}",
         f"Hallo {guest.name},\n\nvielen Dank für deine Buchung:\n"
         f"{quarter.name}, {start:%d.%m.%Y} – {end:%d.%m.%Y} "
         f"({q['nights']} Nächte, {booking.persons} Pers.)\n\n"
         f"Rechnung {inv.number} über {inv.total_gross} €.\n"
+        f"{deposit_line}"
         f"Bitte mit der Rechnungsnummer als Verwendungszweck überweisen auf:\n"
         f"IBAN: {inv.iban or '—'}{bic}\n"
-        f"Zahlbar bis {inv.due_date:%d.%m.%Y}.\n\nViele Grüße\nRe:Hof",
+        f"Zahlbar bis {inv.due_date:%d.%m.%Y}.\n\n"
+        f"Stornobedingungen: {q.get('cancellation_text', '')}\n\n"
+        f"Buchung ansehen/stornieren: {manage_url}\n\n"
+        f"Viele Grüße\nRe:Hof",
         member=None)
     return booking, None
 
 
-def cancel_external_booking(booking: ExternalBooking) -> bool:
-    """Storniert eine externe Buchung (gibt den Slot frei)."""
+def external_cancellation_preview(booking: ExternalBooking, cfg=None) -> dict:
+    """Erstattungs-Vorschau für ein Storno (ohne zu stornieren)."""
+    cfg = cfg or ExternalConfig.get_solo()
+    refund, pct, label = cancellation_refund(
+        booking.total_gross, arrival=booking.start, today=date.today(),
+        free_days=cfg.free_cancel_days, partial_days=cfg.partial_cancel_days,
+        partial_percent=cfg.partial_refund_percent)
+    return {"refund": refund, "percent": pct, "label": label,
+            "kept": booking.total_gross - refund}
+
+
+def cancel_external_booking(booking: ExternalBooking) -> dict:
+    """Storniert eine externe Buchung (gibt den Slot frei) und liefert die
+    Erstattungs-Aufschlüsselung gemäß Stornobedingungen zurück."""
+    preview = external_cancellation_preview(booking)
     booking.status = ExternalBooking.CANCELLED
     booking.cancelled_at = timezone.now()
     booking.save(update_fields=["status", "cancelled_at"])
-    return True
+    notify_waitlist_if_free(booking.quarter, booking.start, booking.end)
+    return preview
+
+
+def external_booking_by_token(token, booking_id) -> ExternalBooking | None:
+    """Holt eine Buchung über den Gast-Magic-Link-Token (Selbstverwaltung)."""
+    return ExternalBooking.objects.select_related("guest", "quarter", "invoice") \
+        .filter(id=booking_id, guest__token=token).first()
+
+
+def guest_bookings_by_token(token) -> list[ExternalBooking]:
+    """Alle Buchungen eines Gastes zum Magic-Link-Token (neueste zuerst)."""
+    return list(ExternalBooking.objects.select_related("quarter", "invoice")
+                .filter(guest__token=token).order_by("-start"))
+
+
+def cancel_external_booking_by_token(token, booking_id) -> tuple[dict | None, str | None]:
+    """Storniert eine Gast-Buchung über den Magic-Link. Nur zukünftige Buchungen,
+    die noch nicht storniert sind."""
+    booking = external_booking_by_token(token, booking_id)
+    if not booking:
+        return None, "Buchung nicht gefunden."
+    if booking.status == ExternalBooking.CANCELLED:
+        return None, "Diese Buchung ist bereits storniert."
+    if booking.start <= date.today():
+        return None, "Vergangene oder laufende Buchungen können nicht storniert werden."
+    return cancel_external_booking(booking), None
+
+
+def build_external_calendar(year: int, month: int, cfg=None) -> dict:
+    """Öffentlicher Monatskalender für externe Gäste: je Tag nur GRÜN (für Externe
+    buchbar) oder GRAU (nicht verfügbar) – ohne preiszugeben, wer da ist.
+
+    „Buchbar“ heißt: mindestens ein für Externe freigegebenes Quartier ist an dem
+    Tag frei, der Tag ist ein erlaubter Übernachtungs-Wochentag, liegt im Vorlauf-/
+    Horizont-Fenster und in der Quartier-Saison."""
+    cfg = cfg or ExternalConfig.get_solo()
+    cal = _calendar.Calendar(firstweekday=0)
+    weeks = cal.monthdatescalendar(year, month)
+    first, last = weeks[0][0], weeks[-1][-1]
+    today = date.today()
+
+    quarters = list(Quarter.objects.filter(active=True, external_bookable=True))
+    occupied = _occupied_days_by_quarter(first, last)
+    wd_ok = cfg.allowed_weekday_set
+    horizon = cfg.horizon_days
+
+    grid = []
+    for week in weeks:
+        row = []
+        for d in week:
+            lead = (d - today).days
+            day_ok = (
+                cfg.active and d >= today and lead >= cfg.lead_days
+                and (not horizon or lead <= horizon)
+                and (not wd_ok or d.weekday() in wd_ok)
+                and any(q.bookable_on(d) and d not in occupied[str(q.id)]
+                        for q in quarters)
+            )
+            row.append({
+                "date": d, "day": d.day, "iso": d.isoformat(),
+                "in_month": d.month == month,
+                "is_today": d == today, "is_weekend": d.weekday() >= 5,
+                "is_past": d < today,
+                "available": bool(day_ok),
+            })
+        grid.append(row)
+
+    prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return {
+        "weeks": grid, "label": f"{GERMAN_MONTHS[month]} {year}",
+        "year": year, "month": month,
+        "prev": {"year": prev_month[0], "month": prev_month[1]},
+        "next": {"year": next_month[0], "month": next_month[1]},
+    }

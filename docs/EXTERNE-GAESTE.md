@@ -10,11 +10,18 @@
 > - **Gast-Konto:** Gast-Checkout ohne Pflicht-Registrierung (E-Mail + Magic-Link).
 
 **Umsetzungsstand:** Das Fundament ist gebaut – `Guest`, `ExternalConfig`,
-`ExternalBooking`, Quartier-Preise, Verfügbarkeits-/Regel-Logik, der öffentliche
-Einstieg `/extern/` und die **Abrechnung per Rechnung** (über die generalisierte
-`shop.Invoice`, inkl. Kontoabgleich/Mahnung). **Offen:** der **Online-Bezahlprozess
-(Mollie)** – als Naht vorbereitet (Status `pending`, `hold_expires_at`) – sowie
-das **einbettbare Website-Widget**, Magic-Link-Selbstverwaltung und Stornobedingungen.
+`ExternalBooking`, Quartier-Preise (inkl. **saisonaler `QuarterPrice`-Staffel**),
+Verfügbarkeits-/Regel-Logik, der öffentliche Einstieg `/extern/` mit
+**Verfügbarkeits-Kalender** (grün = frei / grau = belegt, ohne Gastdaten), die
+**Magic-Link-Selbstverwaltung** (`/extern/verwalten/<token>/` – ansehen + stornieren),
+**Anzahlung, Stornostaffel und Säumniszuschlag** (in `ExternalConfig` konfigurierbar,
+reine Logik in `booking/external.py::cancellation_refund`) und die **Abrechnung per
+Rechnung** (über die generalisierte `shop.Invoice`, inkl. Kontoabgleich/Mahnung). In
+der **internen Übersicht** werden externe Gäste in einer einheitlichen Farbe und nur
+als „extern“ ausgewiesen. Im Bezahlbereich steht ein **Platzhalter** „Online-
+Direktbezahlung aktuell noch nicht möglich“. **Offen:** der **Online-Bezahlprozess
+(Mollie)** – als Naht vorbereitet (Status `pending`, `hold_expires_at`, Anzahlung/
+Refund-Quoten bereits berechnet) – sowie das **einbettbare Website-Widget**.
 
 ## 1. Zielbild
 

@@ -13,8 +13,8 @@ from django.urls import reverse
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass, ExternalBooking,
     ExternalConfig, Guest, LotteryRun, Member, Membership, NightTransfer,
-    Notification, OpsConfig, OutboxEmail, Quarter, SchoolHoliday, SeasonRule,
-    Share, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
+    Notification, OpsConfig, OutboxEmail, Quarter, QuarterPrice, SchoolHoliday,
+    SeasonRule, Share, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
 )
 from .services import confirm_lottery, rollback_lottery, run_period_lottery
 
@@ -31,8 +31,16 @@ class EquivalenceClassAdmin(admin.ModelAdmin):
     list_display = ("name",)
 
 
+class QuarterPriceInline(admin.TabularInline):
+    """Saisonale Übernachtungspreise (jährlich wiederkehrend). Greift keine Regel,
+    gilt der Basispreis/Nacht."""
+    model = QuarterPrice
+    extra = 0
+
+
 @admin.register(Quarter)
 class QuarterAdmin(admin.ModelAdmin):
+    inlines = [QuarterPriceInline]
     list_display = ("name", "eq_class", "size_sqm", "min_occupancy",
                     "max_occupancy", "accessible", "active")
     list_filter = ("eq_class", "active", "accessible")
@@ -61,7 +69,8 @@ class QuarterAdmin(admin.ModelAdmin):
             "fields": ("external_bookable", "price_per_night"),
             "description": "Wenn „für externe Gäste buchbar“ aktiv ist, können "
                            "Externe (im Rahmen der Externe-Gäste-Einstellungen) "
-                           "dieses Quartier zum hinterlegten Preis/Nacht buchen.",
+                           "dieses Quartier buchen. „Preis/Nacht“ ist der Basispreis; "
+                           "saisonale Abweichungen unten als <b>Saisonpreise</b>.",
         }),
     )
 
@@ -527,8 +536,16 @@ class ExternalConfigAdmin(admin.ModelAdmin):
                            "Unabhängig von der tatsächlichen Belegung."}),
         ("Preise & Zahlung", {
             "fields": ("cleaning_fee", "cleaning_vat", "stay_vat", "payment_term_days"),
-            "description": "Preis/Nacht steht je Quartier. Endreinigung als Pauschale; "
-                           "USt getrennt (Beherbergung 7 %, Reinigung 19 %)."}),
+            "description": "Preis/Nacht steht je Quartier (inkl. Saisonpreise). "
+                           "Endreinigung als Pauschale; USt getrennt "
+                           "(Beherbergung 7 %, Reinigung 19 %)."}),
+        ("Anzahlung, Storno & Säumnis", {
+            "fields": ("deposit_percent", "free_cancel_days", "partial_cancel_days",
+                       "partial_refund_percent", "late_fee", "terms"),
+            "description": "Anzahlung (%, 0 = keine), Erstattungs-Staffel nach Vorlauf "
+                           "zur Anreise und Säumniszuschlag. Diese Werte sind als Naht "
+                           "für den Online-Bezahlprozess vorbereitet; heute werden sie "
+                           "den Gästen informativ angezeigt (Erstattung manuell)."}),
     )
 
     def has_add_permission(self, request):
