@@ -735,6 +735,21 @@ def dashboard(request):
     open_sum = sum((i.total_gross for i in open_inv), Decimal(0))
     overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
 
+    # Rechnungssicht: filterbar (offen / überfällig / bezahlt gemeldet / alle).
+    inv_filter = request.GET.get("inv", "open")
+    if inv_filter == "overdue":
+        invoices_view = sorted(overdue, key=lambda i: (i.due_date or today, i.number))
+    elif inv_filter == "paid":
+        invoices_view = list(Invoice.objects.filter(status=Invoice.PAID)
+                             .select_related("member").order_by("-paid_reported_at"))
+    elif inv_filter == "all":
+        invoices_view = list(Invoice.objects.select_related("member")
+                             .order_by("-year", "-month", "number"))
+    else:
+        inv_filter = "open"
+        invoices_view = open_inv
+    inv_view_sum = sum((i.total_gross for i in invoices_view), Decimal(0))
+
     from shop.models import BankImport, BankTransaction
     recent_imports = list(BankImport.objects.all()[:5])
     unmatched_count = BankTransaction.objects.filter(
@@ -750,6 +765,8 @@ def dashboard(request):
         "n_cleaning": len(cleaning),
         "open_invoices": open_inv, "overdue": overdue,
         "open_sum": open_sum, "overdue_sum": overdue_sum,
+        "invoices_view": invoices_view, "inv_filter": inv_filter,
+        "inv_view_sum": inv_view_sum,
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
     })
 
@@ -783,9 +800,14 @@ def dashboard_export(request, kind: str, fmt: str):
             svc.CLEANING_COLUMNS, svc.cleaning_rows(deps, only_cleaning=only))
     if kind == "rechnungen":
         status = request.GET.get("status", "open")
-        qs = (shop_svc.overdue_invoices() if status == "overdue"
-              else shop_svc.open_invoices() if status == "open"
-              else Invoice.objects.all())
+        if status == "overdue":
+            qs = shop_svc.overdue_invoices()
+        elif status == "paid":
+            qs = Invoice.objects.filter(status=Invoice.PAID).select_related("member")
+        elif status == "all":
+            qs = Invoice.objects.select_related("member")
+        else:
+            status, qs = "open", shop_svc.open_invoices()
         qs = qs.order_by("due_date", "number")
         return exports.table_response(
             fmt, f"rechnungen-{status}", f"Rechnungen {status}",

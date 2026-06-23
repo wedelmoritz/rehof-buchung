@@ -144,3 +144,52 @@ class InvoiceReminderTests(TestCase):
         self.inv.due_date = date.today() - timedelta(days=1)
         self.inv.save(update_fields=["due_date"])
         self.assertEqual(shop_svc.remind_overdue(), 1)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class InvoiceDashboardTests(TestCase):
+    def setUp(self):
+        ShopConfig.objects.create(payment_term_days=14)
+        self.member = make_member("Mia", email="mia@example.org")
+        self.staff = make_member("Chefin", staff=True, email="chefin@example.org")
+        grp = ProductGroup.objects.create(name="Obst")
+        apple = Product.objects.create(group=grp, name="Apfel",
+                                       price=Decimal("3.00"), unit="kg", vat_rate=7)
+        shop_svc.add_item(self.member, apple, "2")
+        shop_svc.checkout(self.member)
+        self.overdue_inv, _ = shop_svc.generate_invoice_now(self.member)
+        self.overdue_inv.due_date = date.today() - timedelta(days=3)
+        self.overdue_inv.save(update_fields=["due_date"])
+        shop_svc.add_item(self.member, apple, "1")
+        shop_svc.checkout(self.member)
+        self.confirmed_inv, _ = shop_svc.generate_invoice_now(self.member)
+        self.confirmed_inv.status = Invoice.CONFIRMED
+        self.confirmed_inv.save(update_fields=["status"])
+
+    def test_export_nur_fuer_staff(self):
+        url = reverse("dashboard_export", args=["rechnungen", "csv"]) + "?status=all"
+        self.client.force_login(self.member.user)
+        self.assertEqual(self.client.get(url).status_code, 302)   # abgewiesen
+        self.client.force_login(self.staff.user)
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/csv", r["Content-Type"])
+
+    def test_rechnungsfilter(self):
+        self.client.force_login(self.staff.user)
+        over = self.client.get(reverse("dashboard") + "?inv=overdue").content.decode()
+        self.assertIn(self.overdue_inv.number, over)
+        self.assertNotIn(self.confirmed_inv.number, over)
+        alle = self.client.get(reverse("dashboard") + "?inv=all").content.decode()
+        self.assertIn(self.confirmed_inv.number, alle)
+        self.assertIn(self.overdue_inv.number, alle)
+
+    def test_ueberfaellige_per_knopf_erinnern(self):
+        OutboxEmail.objects.all().delete()
+        self.client.force_login(self.staff.user)
+        self.client.post(reverse("dashboard"), {"action": "remind_overdue",
+                                                 "year": date.today().year, "month": 1})
+        self.assertTrue(OutboxEmail.objects.filter(
+            to_email="mia@example.org", subject__contains="Zahlungserinnerung").exists())
+        self.overdue_inv.refresh_from_db()
+        self.assertIsNotNone(self.overdue_inv.reminded_at)

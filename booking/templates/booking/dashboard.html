@@ -109,16 +109,22 @@
 {# --- Rechnungen ----------------------------------------------------------- #}
 <div class="card">
   <div class="sec-head">
-    <h2 style="margin:0">Offene Rechnungen</h2>
+    <h2 style="margin:0">Rechnungen</h2>
     <span class="spacer"></span>
-    <span class="muted">{{ open_invoices|length }} offen · {{ overdue|length }} überfällig</span>
+    <span class="muted">{{ invoices_view|length }} angezeigt · {{ inv_view_sum }} €</span>
   </div>
-  {% if open_invoices %}
+  <div class="chips">
+    <a class="chip {% if inv_filter == 'open' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
+    <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
+    <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=paid">Bezahlt gemeldet</a>
+    <a class="chip {% if inv_filter == 'all' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=all">Alle</a>
+  </div>
+  {% if invoices_view %}
   <div class="table-wrap">
     <table class="grid">
       <thead><tr><th>Nummer</th><th>Mitglied</th><th>Fällig</th><th>Brutto</th><th>Status</th><th>Erinnert</th></tr></thead>
       <tbody>
-        {% for i in open_invoices %}
+        {% for i in invoices_view %}
         <tr class="{% if i.is_overdue %}danger-row{% endif %}">
           <td><a href="/admin/shop/invoice/{{ i.id }}/change/">{{ i.number }}</a></td>
           <td>{{ i.member.display_name }}</td>
@@ -131,15 +137,15 @@
       </tbody>
     </table>
   </div>
-  {% else %}<p class="muted">Keine offenen Rechnungen. 🎉</p>{% endif %}
+  {% else %}<p class="muted">Keine Rechnungen in dieser Ansicht. 🎉</p>{% endif %}
   <div class="actions">
-    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'xlsx' %}?status=open">Excel (offen)</a>
-    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status=open">CSV (offen)</a>
-    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status=overdue">CSV (überfällig)</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'xlsx' %}?status={{ inv_filter }}">Excel</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status={{ inv_filter }}">CSV</a>
     {% if overdue %}
     <form method="post" class="inline" onsubmit="return confirm('Zahlungserinnerung an alle {{ overdue|length }} überfälligen Rechnungen senden?');">{% csrf_token %}
       <input type="hidden" name="action" value="remind_overdue">
-      <button class="btn small" type="submit">Überfällige erinnern ({{ overdue|length }})</button>
+      <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+      <button class="btn small" type="submit">Überfällige anschreiben &amp; erinnern ({{ overdue|length }})</button>
     </form>
     {% endif %}
   </div>
@@ -213,6 +219,12 @@
   .tag { display:inline-block; padding:.05rem .45rem; border-radius:999px; font-size:.72rem; background:var(--line); color:var(--muted); }
   .tag.ok { background:var(--accent-soft); color:var(--accent-deep); }
   .tag.danger { background:rgba(179,38,30,.12); color:#b3261e; }
+  .chips { display:flex; gap:.4rem; flex-wrap:wrap; margin:.2rem 0 .7rem; }
+  .chip { padding:.28rem .7rem; border-radius:999px; border:1px solid var(--line);
+    background:#fff; color:var(--muted); text-decoration:none; font-size:.84rem; font-weight:600; }
+  .chip:hover { color:var(--ink); }
+  .chip.on { background:var(--accent-soft); color:var(--accent-deep); border-color:var(--accent); }
+  .chip.on.danger { background:rgba(179,38,30,.12); color:#b3261e; border-color:#b3261e; }
   .actions { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
   .actions form.inline { display:inline; }
 </style>
