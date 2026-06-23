@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Rechnung {{ invoice.number }}</title>
+<style>
+  @page { size: A4; margin: 22mm 18mm 20mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; color: #2b2b2b;
+         font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .from { font-weight: 700; font-size: 11pt; }
+  .muted { color: #6b6b6b; }
+  .pre { white-space: pre-line; }
+  .meta { text-align: right; }
+  .meta h1 { margin: 0 0 2mm; font-size: 18pt; letter-spacing: .02em; }
+  .meta .num { font-weight: 700; font-size: 11pt; }
+  .to { margin: 10mm 0 6mm; }
+  .to .lbl { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .06em; color: #6b6b6b; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+  table.items th { text-align: left; font-size: 8.5pt; text-transform: uppercase;
+                   letter-spacing: .04em; color: #6b6b6b; border-bottom: 1px solid #cfcabf;
+                   padding: 2mm 2mm; }
+  table.items td { padding: 1.8mm 2mm; border-bottom: 1px solid #ececec; vertical-align: top; }
+  table.items td.r, table.items th.r { text-align: right; white-space: nowrap; }
+  tr.group td { background: #f5f2ec; font-weight: 600; border-bottom: 1px solid #cfcabf; }
+  .sums { margin-top: 5mm; width: 100%; }
+  .sums table { margin-left: auto; border-collapse: collapse; }
+  .sums td { padding: 1.2mm 4mm; text-align: right; }
+  .sums tr.grand td { border-top: 1.5pt solid #2b2b2b; font-weight: 700; font-size: 12pt; padding-top: 2mm; }
+  .pay { margin-top: 8mm; padding-top: 4mm; border-top: 1px solid #cfcabf; }
+  .pay .num { font-weight: 700; }
+  .foot { margin-top: 12mm; padding-top: 3mm; border-top: 1px solid #ececec;
+          font-size: 8.5pt; color: #6b6b6b; }
+  .status { display: inline-block; margin-top: 2mm; padding: 1mm 3mm; border-radius: 3mm;
+            background: #eef4e8; color: #3c6e2a; font-size: 9pt; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <div class="from">{{ invoice.coop_name }}</div>
+      <div class="muted pre">{{ invoice.coop_address }}</div>
+      {% if invoice.tax_number %}<div class="muted">Steuernr./USt-IdNr.: {{ invoice.tax_number }}</div>{% endif %}
+    </div>
+    <div class="meta">
+      <h1>Rechnung</h1>
+      <div class="num">{{ invoice.number }}</div>
+      <div class="muted">Leistungszeitraum {{ invoice.month }}/{{ invoice.year }}</div>
+      <div class="muted">Rechnungsdatum {{ invoice.created_at|date:"d.m.Y" }}</div>
+      {% if invoice.due_date %}<div class="muted">Fällig am {{ invoice.due_date|date:"d.m.Y" }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="to">
+    <div class="lbl">Rechnungsempfänger:in</div>
+    <div>{{ invoice.recipient_name }}</div>
+    <div class="muted pre">{{ invoice.recipient_address }}</div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr><th>Bezeichnung</th><th class="r">Menge</th><th class="r">Einzel</th><th class="r">MwSt</th><th class="r">Betrag</th></tr>
+    </thead>
+    <tbody>
+      {% for g in purchase_groups %}
+      <tr class="group">
+        <td colspan="4">Einkauf vom {% if g.purchase %}{{ g.purchase.confirmed_at|date:"d.m.Y" }}{% else %}{{ invoice.created_at|date:"d.m.Y" }}{% endif %}</td>
+        <td class="r">{{ g.gross }} €</td>
+      </tr>
+      {% for it in g.items %}
+      <tr>
+        <td>{{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date|date:"d.m.Y" }})</span>{% endif %}</td>
+        <td class="r">{{ it.quantity|floatformat:"-3" }} {{ it.get_unit_display|default:it.unit }}</td>
+        <td class="r">{{ it.unit_price }} €</td>
+        <td class="r">{{ it.vat_rate }} %</td>
+        <td class="r">{{ it.gross }} €</td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="sums">
+    <table>
+      {% for b in breakdown %}
+      <tr><td>Netto {{ b.rate }} %</td><td>{{ b.net }} €</td></tr>
+      <tr><td>zzgl. MwSt {{ b.rate }} %</td><td>{{ b.vat }} €</td></tr>
+      {% endfor %}
+      <tr class="grand"><td>Gesamtbetrag (brutto)</td><td>{{ invoice.total_gross }} €</td></tr>
+    </table>
+  </div>
+
+  <div class="pay">
+    <div>Zahlbar innerhalb von {{ payment_term_days }} Tagen auf:</div>
+    <div>IBAN: {{ invoice.iban|default:"—" }}{% if invoice.bic %} · BIC: {{ invoice.bic }}{% endif %}</div>
+    <div>Verwendungszweck: <span class="num">{{ invoice.number }}</span></div>
+    {% if invoice.status == 'confirmed' %}<div class="status">Zahlung bestätigt</div>{% endif %}
+  </div>
+
+  <div class="foot">
+    {{ invoice.coop_name }}{% if invoice.tax_number %} · Steuernr./USt-IdNr.: {{ invoice.tax_number }}{% endif %}.
+    Rechnung gemäß §14 UStG. Erstellt über die Re:Hof-Quartierverwaltung.
+  </div>
+</body>
+</html>

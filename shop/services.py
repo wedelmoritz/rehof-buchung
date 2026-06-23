@@ -184,12 +184,23 @@ def _invoice_items(member, items, year: int, month: int) -> Invoice | None:
     # Benachrichtigung per E-Mail (Outbox). Lazy-Import vermeidet Zirkularität.
     from booking.services import email_member, absolute_url
     url = absolute_url(f"/hofladen/rechnung/{inv.id}/")
+    # Rechnungs-PDF als Anhang (best effort – fehlt WeasyPrint, geht die Mail
+    # trotzdem raus, nur ohne Anhang).
+    pdf_bytes = None
+    try:
+        from . import pdf as pdf_mod
+        if pdf_mod.weasyprint_available():
+            pdf_bytes = pdf_mod.invoice_pdf_bytes(inv)
+    except Exception:
+        pdf_bytes = None
     email_member(
         member, f"Neue Rechnung {inv.number}",
         f"Hallo {member.display_name},\n\ndeine Hofladen-Rechnung {inv.number} "
-        f"über {inv.total_gross} € ist da.\n\n{url}\n\n"
+        f"über {inv.total_gross} € ist da{' (PDF im Anhang)' if pdf_bytes else ''}.\n\n{url}\n\n"
         f"Bitte mit der Rechnungsnummer als Verwendungszweck überweisen.\n\n"
-        f"Viele Grüße\nRe:Hof")
+        f"Viele Grüße\nRe:Hof",
+        attachment=pdf_bytes, attachment_name=f"{inv.number}.pdf",
+        attachment_mime="application/pdf")
     return inv
 
 

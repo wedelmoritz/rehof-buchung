@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Invoice, Product, ProductGroup
@@ -148,3 +149,22 @@ def invoice_detail(request, invoice_id: int):
         "purchase_groups": invoice.purchase_groups(),
         "breakdown": invoice.vat_breakdown(),
     })
+
+
+@login_required
+def invoice_pdf(request, invoice_id: int):
+    """Rechnung als PDF (WeasyPrint). Mitglied: eigene; Verwaltung: alle."""
+    member = _member(request)
+    if request.user.is_staff:
+        invoice = get_object_or_404(Invoice, id=invoice_id)
+    elif member:
+        invoice = get_object_or_404(Invoice, id=invoice_id, member=member)
+    else:
+        return redirect("shop_invoices")
+    from . import pdf
+    if not pdf.weasyprint_available():
+        return HttpResponse(
+            "PDF-Erzeugung ist auf diesem Server nicht verfügbar.", status=503)
+    resp = HttpResponse(pdf.invoice_pdf_bytes(invoice), content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{invoice.number}.pdf"'
+    return resp

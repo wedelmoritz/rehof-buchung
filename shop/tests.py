@@ -5,7 +5,10 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from unittest import skipUnless
+
 from django.test import TestCase
+from django.urls import reverse
 
 from booking.models import Member
 from shop.models import Invoice, LineItem, Product, ProductGroup, ShopConfig
@@ -206,3 +209,52 @@ class AccessTests(ShopBase):
         inv = svc.generate_monthly_invoices(date.today().year, date.today().month)[0]
         ok, err = svc.mark_paid(self.bob, inv.id)
         self.assertFalse(ok)
+
+
+class InvoicePdfTests(ShopBase):
+    """Rechnungs-PDF: HTML-Erzeugung, Endpoint-Zugriff, E-Mail-Anhang."""
+
+    def setUp(self):
+        super().setUp()
+        ShopConfig.objects.create(payment_term_days=14)
+        self.alice.user.email = "alice@example.org"
+        self.alice.user.save(update_fields=["email"])
+        svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
+        from booking.models import OutboxEmail
+        OutboxEmail.objects.all().delete()
+        self.inv, _ = svc.generate_invoice_now(self.alice)
+
+    def test_invoice_html_enthaelt_kernfelder(self):
+        from shop import pdf
+        html = pdf.invoice_html(self.inv)
+        self.assertIn(self.inv.number, html)
+        self.assertIn(self.alice.display_name, html)  # recipient_name default
+        self.assertIn("Gesamtbetrag", html)
+
+    def test_pdf_endpoint_zugriff(self):
+        from shop import pdf
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("shop_invoice_pdf", args=[self.inv.id]))
+        if pdf.weasyprint_available():
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r["Content-Type"], "application/pdf")
+            self.assertTrue(r.content.startswith(b"%PDF"))
+        else:
+            self.assertEqual(r.status_code, 503)
+        # fremde Rechnung ist für Nicht-Staff nicht erreichbar
+        self.client.force_login(self.bob.user)
+        self.assertEqual(
+            self.client.get(reverse("shop_invoice_pdf", args=[self.inv.id])).status_code,
+            404)
+
+    @skipUnless(__import__("shop.pdf", fromlist=["x"]).weasyprint_available(),
+                "WeasyPrint/native Libs nicht verfügbar")
+    def test_pdf_bytes_und_email_anhang(self):
+        from shop import pdf
+        from booking.models import OutboxEmail
+        self.assertTrue(pdf.invoice_pdf_bytes(self.inv).startswith(b"%PDF"))
+        em = OutboxEmail.objects.get(to_email="alice@example.org")
+        self.assertEqual(em.attachment_name, f"{self.inv.number}.pdf")
+        self.assertEqual(em.attachment_mime, "application/pdf")
+        self.assertTrue(bytes(em.attachment).startswith(b"%PDF"))

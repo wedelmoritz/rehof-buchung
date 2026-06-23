@@ -575,6 +575,12 @@ class OutboxEmail(models.Model):
     sent_at = models.DateTimeField("Versendet am", null=True, blank=True)
     attempts = models.PositiveIntegerField("Versuche", default=0)
     last_error = models.CharField("Letzter Fehler", max_length=300, blank=True)
+    # Optionaler Datei-Anhang (z.B. Rechnungs-PDF). Inhalt liegt in der DB –
+    # für kleine Dateien (PDFs) völlig ausreichend.
+    attachment = models.BinaryField("Anhang", null=True, blank=True, editable=False)
+    attachment_name = models.CharField("Anhang-Dateiname", max_length=120, blank=True)
+    attachment_mime = models.CharField(
+        "Anhang-Typ", max_length=80, blank=True, default="application/octet-stream")
 
     class Meta:
         verbose_name = "E-Mail (Ausgang)"

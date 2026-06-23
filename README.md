@@ -318,6 +318,11 @@ Anpassen im Admin (Äquivalenzklassen + Quartiere) oder in `seed_demo.py`.
   Stelle ist in `config/settings.py` markiert.
 - Wenn die App vollständig über HTTPS läuft, in `.env`
   `SECURE_HSTS_SECONDS=31536000` setzen.
+- **Backups & weiteres Hardening:** geplant, im PoC bewusst **noch nicht aktiv**.
+  Die genauen Blueprints (Off-site-Backup via Hetzner Storage Box + Borg
+  append-only mit 14-Tage-Retention und Restore-Runbook; 2FA für die Verwaltung;
+  IBAN-Feldverschlüsselung; LUKS) stehen in
+  [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md).
 
 ---
 

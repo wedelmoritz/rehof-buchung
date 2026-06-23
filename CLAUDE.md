@@ -152,7 +152,14 @@ Stammdaten der Genossenschaft im `ShopConfig`-Singleton. Geldlogik/Tests in
 `shop/services.py` bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices`
 (monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
 (Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
-`OpsConfig.notify_day`). Rechnung als In-App-HTML, PDF/Mail später.
+`OpsConfig.notify_day`). Rechnung als In-App-HTML **und PDF** (WeasyPrint):
+`shop/pdf.py` (`invoice_html` rein/testbar getrennt von `invoice_pdf_bytes`),
+Druckvorlage `shop/templates/shop/invoice_pdf.html`, Endpoint `shop_invoice_pdf`
+(eigene; Staff alle). Das PDF hängt als Anhang an der „Rechnung erstellt“-Mail
+(`OutboxEmail` um `attachment*`-Felder erweitert, `send_outbox` schickt es mit).
+Native Libs (Pango/Cairo) im `Dockerfile`; CI-Integrationsjob testet `booking shop`.
+**Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
+`docs/BETRIEB-SICHERHEIT.md`.
 
 **Verwaltungs-Dashboard (`dashboard`, nur Staff, `/verwaltung/`):** operative
 Seite fürs kleine Team – Kennzahlen, **Reinigungsliste** (alle Abreisen des
@@ -298,8 +305,14 @@ bleibt in `settings.py` markiert.
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
 - Externe Buchungen sicher ausbauen (Modell-Flag `Member.is_external`,
   `Allocation.source="external"` vorhanden).
-- E-Mail-Fundament steht (Outbox + `send_outbox`); offen: PDF-Rechnungen
-  (WeasyPrint), Losergebnis-PDF + Massenmail, Web-Push (mobil).
+- E-Mail-Fundament steht (Outbox + `send_outbox`, mit Datei-Anhängen);
+  **Rechnungs-PDF (WeasyPrint) erledigt**. Offen: Losergebnis-PDF + Massenmail,
+  Web-Push (mobil).
+- **Losung rückgängig/bestätigen** (nächste Phase): Losung in der Verwaltung
+  zurücknehmbar; Ergebnis erst nach Bestätigung für Mitglieder sichtbar; nach
+  Bestätigung kein Undo. Design in der Analyse besprochen.
+- **Backup & Hardening** (geplant, nicht umgesetzt): Blueprints in
+  `docs/BETRIEB-SICHERHEIT.md`.
 - **Kontoabgleich** (Phase C): Bank-CSV/CAMT importieren, über Betrag +
   Rechnungsnummer im Verwendungszweck offenen Rechnungen zuordnen → automatisch
   „bezahlt“, Rest manuell bestätigen (Dashboard hat dafür schon Status/Export).

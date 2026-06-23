@@ -32,6 +32,10 @@ class Command(BaseCommand):
                     em.subject, em.body, settings.DEFAULT_FROM_EMAIL, [em.to_email])
                 if em.html_body:
                     msg.attach_alternative(em.html_body, "text/html")
+                if em.attachment:
+                    msg.attach(em.attachment_name or "anhang",
+                               bytes(em.attachment),
+                               em.attachment_mime or "application/octet-stream")
                 msg.send()
             except Exception as exc:  # noqa: BLE001 – Versand soll robust sein
                 em.attempts += 1

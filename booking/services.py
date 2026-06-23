@@ -678,17 +678,26 @@ def absolute_url(path: str) -> str:
 
 
 def queue_email(to_email: str, subject: str, body: str, html_body: str = "",
-                member=None) -> "OutboxEmail | None":
-    """Stellt eine E-Mail in die Warteschlange (versendet wird sie vom Scheduler)."""
+                member=None, attachment: bytes | None = None,
+                attachment_name: str = "",
+                attachment_mime: str = "application/octet-stream"
+                ) -> "OutboxEmail | None":
+    """Stellt eine E-Mail in die Warteschlange (versendet wird sie vom Scheduler).
+    Optional mit einem Datei-Anhang (z.B. Rechnungs-PDF)."""
     to_email = (to_email or "").strip()
     if not to_email:
         return None
     return OutboxEmail.objects.create(
-        to_email=to_email, subject=subject, body=body,
-        html_body=html_body, member=member)
+        to_email=to_email, subject=subject, body=body, html_body=html_body,
+        member=member,
+        attachment=attachment if attachment else None,
+        attachment_name=attachment_name if attachment else "",
+        attachment_mime=attachment_mime if attachment else "")
 
 
-def email_member(member, subject: str, body: str, html_body: str = ""):
+def email_member(member, subject: str, body: str, html_body: str = "",
+                 attachment: bytes | None = None, attachment_name: str = "",
+                 attachment_mime: str = "application/octet-stream"):
     """Mail an ein Mitglied – nur wenn eine Adresse hinterlegt ist UND das
     Mitglied E-Mails nicht abbestellt hat (In-App-Hinweise bleiben unberührt)."""
     if not member or not getattr(member, "email_opt_in", True):
@@ -696,7 +705,8 @@ def email_member(member, subject: str, body: str, html_body: str = ""):
     email = (getattr(member.user, "email", "") or "").strip()
     if not email:
         return None
-    return queue_email(email, subject, body, html_body, member)
+    return queue_email(email, subject, body, html_body, member,
+                       attachment, attachment_name, attachment_mime)
 
 
 def queue_email_many(recipients, subject: str, body: str, html_body: str = ""):

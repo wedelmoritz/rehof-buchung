@@ -5,6 +5,7 @@ gunicorn>=22.0
 whitenoise>=6.6
 django-axes>=8.0
 redis>=5.0          # optional: nur genutzt, wenn REDIS_URL gesetzt ist
+weasyprint>=61      # Rechnungs-PDF (braucht native Libs, siehe Dockerfile)
 # Tests
 pytest>=8.0
 pytest-django>=4.8
