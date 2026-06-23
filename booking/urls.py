@@ -15,6 +15,7 @@ urlpatterns = [
     path("tage-uebertragen/", views.transfer, name="transfer"),
     path("profil/", views.profile, name="profile"),
     path("hilfe/", views.help_page, name="help"),
+    path("losung-fairness/", views.lottery_fairness, name="lottery_fairness"),
     path("registrieren/", views.register, name="register"),
     path("freischaltung/", views.pending, name="pending"),
     path("ergebnis/<int:period_id>/", views.period_result, name="period_result"),

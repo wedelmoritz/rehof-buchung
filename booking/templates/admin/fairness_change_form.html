@@ -1,0 +1,10 @@
+{% extends "admin/change_form.html" %}
+{% block submit_buttons_bottom %}
+  {{ block.super }}
+  <div class="submit-row">
+    <input type="submit" value="Simulation jetzt berechnen" name="_run_sim">
+    <p class="help" style="margin:.5rem 0 0">Speichert die Parameter und führt die
+      Monte-Carlo-Simulation aus. Ergebnis danach unter
+      <a href="/losung-fairness/">/losung-fairness/</a>.</p>
+  </div>
+{% endblock %}

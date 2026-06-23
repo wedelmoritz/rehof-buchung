@@ -1501,6 +1501,22 @@ def external_cancellation_preview(booking: ExternalBooking, cfg=None) -> dict:
             "kept": booking.total_gross - refund}
 
 
+def run_fairness_simulation(cfg=None) -> dict:
+    """Führt die Monte-Carlo-Fairness-Simulation aus und speichert das Ergebnis
+    am Singleton. Liefert das Ergebnis-Dict (equal-chance + Karma-Effekt)."""
+    from .models import FairnessSimConfig
+    from . import fairness as F
+    cfg = cfg or FairnessSimConfig.get_solo()
+    result = {
+        "equal": F.simulate_equal_chance(cfg.n_users, cfg.n_items, cfg.n_runs),
+        "karma": F.simulate_karma_effect(cfg.n_users, cfg.n_items, cfg.n_runs),
+    }
+    cfg.last_result = result
+    cfg.last_run_at = timezone.now()
+    cfg.save(update_fields=["last_result", "last_run_at"])
+    return result
+
+
 def cancel_external_booking(booking: ExternalBooking) -> dict:
     """Storniert eine externe Buchung (gibt den Slot frei) und liefert die
     Erstattungs-Aufschlüsselung gemäß Stornobedingungen zurück."""

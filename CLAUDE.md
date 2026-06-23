@@ -75,7 +75,8 @@ Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag),
 `SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
-`SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
+`SchoolHoliday`, `FairnessSimConfig` (Singleton: Parameter + letztes Ergebnis
+des Fairness-Nachweises). (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 **Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login, mit
 `token` für den Magic-Link), `ExternalConfig` (Singleton: Regeln Mo–Do/
 Mindestnächte/Vorlauf, Reinigung, USt **+ Anzahlung `deposit_percent`, Storno-
@@ -134,7 +135,19 @@ für Massenmails. Provider-neutral über `EMAIL_*`/`PUBLIC_BASE_URL` (ohne
 Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
 Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile`. Eine `help`-Seite erklärt Abläufe und die
-Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Verwaltung
+Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
+(`lottery_fairness`, `/losung-fairness/`, login-pflichtig, von der Hilfe verlinkt):
+zeigt per **Monte-Carlo-Simulation** (reine Logik `booking/fairness.py` auf dem
+puren `lottery`-Modul) mit **Inline-SVG-Grafen**, dass gleich gestellte Mitglieder
+statistisch dieselbe Chance haben (Chi-Quadrat-Anpassungstest + Wilson-KI =
+„equal treatment of equals" der RSD) und dass das Karma nachweisbar wirkt.
+Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
+(Admin-Knopf „Simulation jetzt berechnen", Ergebnis als JSON gespeichert);
+Service `services.run_fairness_simulation`. Das **Test-Szenario**
+`seed_demo --testdata` (kompletter Wipe inkl. Superuser → Test-Konten
+admin/verwaltung/test + 50 Mitglieder, wilde Buchungen im laufenden Jahr, offene
+Wunsch-Losung mit Feiertags-Ballung, offene Hofladen-Rechnungen, 15 externe
+Mo–Fr-Buchungen; Losung NICHT gezogen). **Verwaltung
 vereinfacht:** ein Benutzer trägt Login **und** Mitglieds-Profil in einem
 Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
 ausgeblendet (nur Autocomplete). Tage-Anteile werden am `Membership` zugeordnet.
