@@ -155,23 +155,38 @@ class ExternalPublicViewTests(TestCase):
                              {"start": self.mon.isoformat(),
                               "end": self.wed.isoformat(), "persons": 2})
         self.assertContains(r2, "Gartenhaus")
+        # Auswahl verlinkt auf die Bestätigungsseite (nicht sofort buchen)
+        self.assertContains(r2, reverse("external_book"))
 
-    def test_embed_widget_einbettbar(self):
+    def test_embed_widget_einbettbar_zeigt_angebote(self):
+        # Ohne Zeitraum: Kalender + Hinweis zur Buchungsseite
         r = self.client.get(reverse("external_embed"))
         self.assertEqual(r.status_code, 200)
-        # Per iframe einbettbar (Clickjacking-Schutz für diese Seite aufgehoben)
-        self.assertNotIn("X-Frame-Options", r)
-        self.assertContains(r, "Jetzt buchen")
-        # verlinkt auf den Buchungs-Einstieg
+        self.assertNotIn("X-Frame-Options", r)  # per iframe einbettbar
         self.assertContains(r, reverse("external_home"))
+        # Mit Zeitraum: freie Unterkünfte direkt im Widget + Buchen-Link
+        r2 = self.client.get(reverse("external_embed"),
+                             {"start": self.mon.isoformat(),
+                              "end": self.wed.isoformat(), "persons": 2})
+        self.assertContains(r2, "Gartenhaus")
+        self.assertContains(r2, reverse("external_book"))
 
-    def test_oeffentlich_buchen(self):
-        r = self.client.post(reverse("external_home"), {
+    def test_bestaetigungsseite_und_buchen(self):
+        # Schritt 1: Review-Seite (GET) zeigt Quartier + Daten-Formular
+        r = self.client.get(reverse("external_book"), {
+            "quarter": self.q.id, "start": self.mon.isoformat(),
+            "end": self.wed.isoformat(), "persons": 2})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Gartenhaus")
+        self.assertContains(r, "Verbindlich buchen")
+        self.assertEqual(ExternalBooking.objects.count(), 0)  # noch nichts gebucht
+        # Schritt 2: verbindlich buchen
+        r2 = self.client.post(reverse("external_book"), {
             "action": "book", "quarter": self.q.id,
             "start": self.mon.isoformat(), "end": self.wed.isoformat(),
             "persons": 2, "name": "Gast Extern", "email": "gast@example.org"})
-        self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Danke")
+        self.assertEqual(r2.status_code, 200)
+        self.assertContains(r2, "Danke")
         self.assertTrue(Guest.objects.filter(email="gast@example.org").exists())
         self.assertEqual(ExternalBooking.objects.count(), 1)
 

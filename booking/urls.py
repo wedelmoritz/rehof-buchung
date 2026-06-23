@@ -19,6 +19,7 @@ urlpatterns = [
     path("freischaltung/", views.pending, name="pending"),
     path("ergebnis/<int:period_id>/", views.period_result, name="period_result"),
     path("extern/", views.external_home, name="external_home"),
+    path("extern/buchen/", views.external_book, name="external_book"),
     path("extern/verwalten/<uuid:token>/", views.external_manage,
          name="external_manage"),
     path("extern/widget/", views.external_embed, name="external_embed"),

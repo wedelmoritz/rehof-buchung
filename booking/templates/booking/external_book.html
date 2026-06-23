@@ -1,0 +1,75 @@
+{% extends "booking/base.html" %}
+{% block title %}Buchung bestätigen{% endblock %}
+{% block content %}
+<h1>Buchung bestätigen</h1>
+
+{% include "booking/_notifications.html" %}
+
+<div class="card" style="border-color:var(--sage)">
+  <h2 style="margin-top:0">{{ quarter.name }}</h2>
+  <p>{{ start|date:"d.m.Y" }} – {{ end|date:"d.m.Y" }}
+     · {{ quote.nights }} Nächte · bis {{ quarter.max_occupancy }} Pers.{% if quarter.accessible %} · barrierearm{% endif %}</p>
+  <p class="muted" style="margin:.2rem 0">
+    Übernachtung {{ quote.stay_gross }} €{% if quote.seasonal_price %}
+    <span class="tag">saisonabhängig</span>{% endif %}{% if quote.cleaning_gross %}
+    + Endreinigung {{ quote.cleaning_gross }} €{% endif %} ·
+    <strong>gesamt {{ quote.total_gross }} €</strong>{% if quote.deposit_gross %}
+    · Anzahlung {{ quote.deposit_gross }} €{% endif %}</p>
+</div>
+
+{% if not available %}
+<div class="msg warning">Dieses Quartier ist in dem Zeitraum leider nicht (mehr)
+  verfügbar. Bitte einen anderen Zeitraum oder eine andere Unterkunft wählen.</div>
+<p><a class="btn ghost" href="{% url 'external_home' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">Zurück zur Auswahl</a></p>
+{% else %}
+
+<div class="card">
+  <h2 style="margin-top:0">Deine Daten</h2>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="action" value="book">
+    <input type="hidden" name="quarter" value="{{ quarter.id }}">
+    <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
+    <input type="hidden" name="end" value="{{ end|date:'Y-m-d' }}">
+    <div class="form-row">
+      <label>Personen <input type="number" name="persons" min="1" max="{{ quarter.max_occupancy }}" value="{{ persons }}"></label>
+    </div>
+    <div class="form-row">
+      <label>Name <input name="name" value="{{ form_data.name }}" required></label>
+      <label>E-Mail <input type="email" name="email" value="{{ form_data.email }}" required></label>
+    </div>
+    <div class="form-row">
+      <label>Straße &amp; Nr. <input name="street" value="{{ form_data.street }}"></label>
+      <label>PLZ <input name="zip_code" value="{{ form_data.zip_code }}"></label>
+      <label>Ort <input name="city" value="{{ form_data.city }}"></label>
+    </div>
+
+    <div class="pay-box">
+      <strong>Bezahlung</strong>
+      <p class="muted" style="margin:.3rem 0">Online-Direktbezahlung (Kreditkarte,
+        PayPal, Apple/Google&nbsp;Pay) ist <strong>aktuell noch nicht möglich</strong>.
+        Du erhältst eine Rechnung und überweist den Betrag mit der Rechnungsnummer
+        als Verwendungszweck{% if quote.deposit_gross %} (Anzahlung
+        {{ quote.deposit_gross }} € zuerst){% endif %}.</p>
+    </div>
+
+    <details style="margin:.4rem 0">
+      <summary class="muted" style="cursor:pointer">Stornobedingungen anzeigen</summary>
+      <p class="muted" style="font-size:.85rem">{{ quote.cancellation_text }}</p>
+    </details>
+
+    <p class="muted" style="font-size:.85rem">Mit „Verbindlich buchen“ erhältst du
+      eine Bestätigung und eine Rechnung per E-Mail. Deine Buchung kannst du später
+      über einen persönlichen Link selbst ansehen und stornieren.</p>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+      <button class="btn" type="submit">Verbindlich buchen ({{ quote.total_gross }} €)</button>
+      <a class="btn ghost" href="{% url 'external_home' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">Zurück</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<style>
+  .pay-box { border:1px dashed var(--line); border-radius:11px; padding:.6rem .8rem;
+    margin:.6rem 0; background:#faf7f1; }
+</style>
+{% endblock %}

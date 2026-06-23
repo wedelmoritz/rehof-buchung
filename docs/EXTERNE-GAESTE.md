@@ -26,11 +26,13 @@ Direktbezahlung aktuell noch nicht möglich“. Das **einbettbare Website-Widget
 
 ## 0. Website-Einbindung (Widget)
 
-Für die bestehende Re:Hof-Website gibt es ein **einbettbares, read-only
-Verfügbarkeits-Widget**: `/extern/widget/` zeigt denselben grün/grau-Kalender wie
-der öffentliche Einstieg (frei/belegt, **keine Gastdaten**, keine Navigation) und
-verlinkt zum Buchen auf `/extern/` (öffnet in neuem Tab). Die Seite ist per
-`@xframe_options_exempt` für `<iframe>` freigegeben. Einbinden:
+Für die bestehende Re:Hof-Website gibt es ein **einbettbares Verfügbarkeits-
+Widget**: `/extern/widget/` zeigt den grün/grau-Kalender (frei/belegt, **keine
+Gastdaten**, keine Navigation) und – sobald ein **Zeitraum (von/bis)** gewählt ist
+(über die Felder oder durch Anklicken zweier freier Tage) – **direkt die freien
+Unterkünfte mit Preis**. Erst der Klick auf **„Buchen“** führt (in neuem Tab) auf
+die Re:Hof-Buchungsseite. Die Seite ist per `@xframe_options_exempt` für `<iframe>`
+freigegeben. Einbinden:
 
 ```html
 <iframe src="https://buchung.rehof.example/extern/widget/"
@@ -39,10 +41,16 @@ verlinkt zum Buchen auf `/extern/` (öffnet in neuem Tab). Die Seite ist per
         loading="lazy"></iframe>
 ```
 
-Damit ist die Antwort auf „entspricht das der Kalenderübersicht und man wird
-weitergeleitet?“: **ja** – es ist die Verfügbarkeits-Übersicht (ohne zu zeigen,
-wer da ist), und ein Klick auf einen freien Tag bzw. „Jetzt buchen“ leitet zum
-vollständigen Buchungs-Einstieg `/extern/` weiter.
+Das Widget zeigt also die Verfügbarkeit **und** – nach Zeitraum-Auswahl – die
+freien Unterkünfte; nur das eigentliche Buchen passiert auf der Re:Hof-Seite.
+
+**Zweistufige Buchung (wie intern):** Der öffentliche Flow ist `external_home`
+(Kalender + Zeitraum + freie Unterkünfte) → **„Auswählen & buchen“** → separate
+Bestätigungsseite `external_book` (`/extern/buchen/`: Quartier/Zeitraum prüfen,
+Personen + Gast-/Rechnungsdaten eintragen, Preis/Anzahlung/Stornobedingungen +
+Mollie-Platzhalter sehen) → erst **„Verbindlich buchen“** legt die Buchung an und
+zeigt die Bestätigung (`external_confirm`). Das entspricht dem internen
+`book → book_confirm`.
 
 ## 1. Zielbild
 
