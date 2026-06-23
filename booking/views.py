@@ -847,3 +847,53 @@ def period_result(request, period_id: int):
         "member": member, "my_allocations": my_allocations, "my_note": my_note,
         "not_published": False, "preview": not confirmed and is_staff,
     })
+
+
+# --------------------------------------------------------------------------- #
+# Öffentlicher Bereich für externe Gäste (ohne Login)
+# --------------------------------------------------------------------------- #
+
+def external_home(request):
+    """Öffentlicher Einstieg für externe Gäste: Verfügbarkeit anzeigen und buchen
+    (Zahlung per Rechnung/Überweisung; Online-Bezahlung folgt). Kein Login nötig."""
+    from .models import ExternalConfig
+    cfg = ExternalConfig.get_solo()
+
+    if request.method == "POST" and request.POST.get("action") == "book":
+        quarter = Quarter.objects.filter(
+            id=request.POST.get("quarter"), active=True).first()
+        start = _parse_date(request.POST.get("start"))
+        end = _parse_date(request.POST.get("end"))
+        try:
+            persons = int(request.POST.get("persons") or 1)
+        except (TypeError, ValueError):
+            persons = 1
+        if not (quarter and start and end):
+            messages.error(request, "Bitte Auswahl wiederholen.")
+        else:
+            booking, err = svc.create_external_booking(
+                quarter, start, end, persons,
+                name=request.POST.get("name", ""),
+                email=request.POST.get("email", ""),
+                street=request.POST.get("street", ""),
+                zip_code=request.POST.get("zip_code", ""),
+                city=request.POST.get("city", ""))
+            if booking:
+                return render(request, "booking/external_confirm.html",
+                              {"booking": booking, "invoice": booking.invoice})
+            messages.error(request, err or "Buchung nicht möglich.")
+
+    src = request.POST if request.method == "POST" else request.GET
+    start = _parse_date(src.get("start"))
+    end = _parse_date(src.get("end"))
+    try:
+        persons = int(src.get("persons") or 2)
+    except (TypeError, ValueError):
+        persons = 2
+    offers = (svc.external_available_quarters(start, end)
+              if (cfg.active and start and end) else [])
+    return render(request, "booking/external_home.html", {
+        "cfg": cfg, "today": date.today(), "start": start, "end": end,
+        "persons": persons, "offers": offers,
+        "searched": bool(start and end),
+    })

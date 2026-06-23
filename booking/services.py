@@ -16,10 +16,11 @@ from django.utils import timezone
 from . import availability as A
 from . import lottery as L
 from . import rules as R
+from .external import external_allowed
 from .models import (
-    Allocation, BookingPeriod, BookingPolicy, LotteryRun, Member, NightTransfer,
-    Notification, OutboxEmail, Quarter, SchoolHoliday, SeasonRule, SwapRequest,
-    WaitlistEntry, Wish,
+    Allocation, BookingPeriod, BookingPolicy, ExternalBooking, ExternalConfig,
+    Guest, LotteryRun, Member, NightTransfer, Notification, OutboxEmail, Quarter,
+    SchoolHoliday, SeasonRule, SwapRequest, WaitlistEntry, Wish,
 )
 
 
@@ -246,12 +247,20 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
     return notices
 
 
+def _external_blocking_qs(quarter: Quarter, start: date, end: date):
+    """Externe Buchungen, die [start, end) für `quarter` blockieren."""
+    return ExternalBooking.objects.filter(
+        quarter=quarter, status=ExternalBooking.CONFIRMED,
+        start__lt=end, end__gt=start)
+
+
 def quarter_is_free(quarter: Quarter, start: date, end: date) -> bool:
-    """Prüft, ob ein Quartier im Zeitraum [start, end) komplett frei ist."""
-    overlapping = Allocation.objects.filter(
-        quarter=quarter, start__lt=end, end__gt=start,
-    ).exists()
-    return not overlapping
+    """Prüft, ob ein Quartier im Zeitraum [start, end) komplett frei ist –
+    berücksichtigt Mitglieder-Zuteilungen UND bestätigte externe Buchungen."""
+    if Allocation.objects.filter(
+            quarter=quarter, start__lt=end, end__gt=start).exists():
+        return False
+    return not _external_blocking_qs(quarter, start, end).exists()
 
 
 def find_gaps(
@@ -259,19 +268,20 @@ def find_gaps(
     min_nights: int = 1,
 ) -> list[tuple[date, date]]:
     """Findet freie Lücken eines Quartiers im Fenster [window_start, window_end)."""
-    allocs = list(
-        Allocation.objects.filter(
-            quarter=quarter, start__lt=window_end, end__gt=window_start,
-        ).order_by("start")
-    )
+    intervals = [
+        (a.start, a.end) for a in Allocation.objects.filter(
+            quarter=quarter, start__lt=window_end, end__gt=window_start)]
+    intervals += [(b.start, b.end)
+                  for b in _external_blocking_qs(quarter, window_start, window_end)]
+    intervals.sort()
     gaps: list[tuple[date, date]] = []
     cursor = window_start
-    for a in allocs:
-        a_start = max(a.start, window_start)
+    for a_start0, a_end0 in intervals:
+        a_start = max(a_start0, window_start)
         if a_start > cursor:
             if (a_start - cursor).days >= min_nights:
                 gaps.append((cursor, a_start))
-        cursor = max(cursor, min(a.end, window_end))
+        cursor = max(cursor, min(a_end0, window_end))
     if cursor < window_end and (window_end - cursor).days >= min_nights:
         gaps.append((cursor, window_end))
     return gaps
@@ -440,11 +450,14 @@ def find_bookable_gaps(
 ) -> list[tuple[date, date]]:
     """Buchbare Lücken eines Quartiers: frei UND freigeschaltet."""
     occupied: set[date] = set()
-    for a in Allocation.objects.filter(
-        quarter=quarter, start__lt=window_end, end__gt=window_start,
-    ):
-        d = max(a.start, window_start)
-        upper = min(a.end, window_end)
+    intervals = [
+        (a.start, a.end) for a in Allocation.objects.filter(
+            quarter=quarter, start__lt=window_end, end__gt=window_start)]
+    intervals += [(b.start, b.end)
+                  for b in _external_blocking_qs(quarter, window_start, window_end)]
+    for i_start, i_end in intervals:
+        d = max(i_start, window_start)
+        upper = min(i_end, window_end)
         while d < upper:
             occupied.add(d)
             d += timedelta(days=1)
@@ -476,11 +489,15 @@ def split_quarters_for_range(
 def _occupied_days_by_quarter(first: date, last: date) -> dict[str, set[date]]:
     """Belegte Tage je Quartier-ID im Bereich [first, last]."""
     occupied: dict[str, set[date]] = defaultdict(set)
-    for a in Allocation.objects.filter(start__lte=last, end__gt=first):
-        d = max(a.start, first)
-        upper = min(a.end, last + timedelta(days=1))
+    rows = [(a.quarter_id, a.start, a.end)
+            for a in Allocation.objects.filter(start__lte=last, end__gt=first)]
+    rows += [(b.quarter_id, b.start, b.end) for b in ExternalBooking.objects.filter(
+        status=ExternalBooking.CONFIRMED, start__lte=last, end__gt=first)]
+    for qid, s, e in rows:
+        d = max(s, first)
+        upper = min(e, last + timedelta(days=1))
         while d < upper:
-            occupied[str(a.quarter_id)].add(d)
+            occupied[str(qid)].add(d)
             d += timedelta(days=1)
     return occupied
 
@@ -828,19 +845,49 @@ def _annotate_cleaning(qs):
     return qs.annotate(has_cleaning=Exists(sq))
 
 
+class _ExtRow:
+    """Adapter, damit externe Buchungen in denselben Listen/Exports/Mails wie
+    Mitglieder-Zuteilungen auftauchen (Reinigung, anstehende Buchungen)."""
+    def __init__(self, b: ExternalBooking):
+        from types import SimpleNamespace
+        self.start, self.end, self.persons = b.start, b.end, b.persons
+        self.companions = ""
+        self.has_cleaning = True          # externe Buchung enthält Endreinigung
+        self.quarter = b.quarter
+        self.member = SimpleNamespace(display_name=f"{b.guest.name} (extern)")
+
+    @property
+    def nights(self) -> int:
+        return (self.end - self.start).days
+
+    def get_source_display(self) -> str:
+        return "Externer Gast"
+
+
+def _external_confirmed(**flt):
+    return (ExternalBooking.objects
+            .filter(status=ExternalBooking.CONFIRMED, **flt)
+            .select_related("quarter", "guest"))
+
+
 def arrivals_in_range(d_from: date, d_to: date):
-    """Buchungen mit Anreise in [d_from, d_to), inkl. Endreinigung-Markierung."""
-    qs = Allocation.objects.filter(start__gte=d_from, start__lt=d_to)
-    return (_annotate_cleaning(qs).select_related("quarter", "member")
-            .order_by("start", "quarter__name"))
+    """Anreisen in [d_from, d_to) – Mitglieder UND externe Gäste."""
+    qs = _annotate_cleaning(Allocation.objects.filter(
+        start__gte=d_from, start__lt=d_to)).select_related("quarter", "member")
+    rows = list(qs) + [_ExtRow(b) for b in _external_confirmed(
+        start__gte=d_from, start__lt=d_to)]
+    rows.sort(key=lambda a: (a.start, a.quarter.name))
+    return rows
 
 
 def departures_in_range(d_from: date, d_to: date):
-    """Abreisen in [d_from, d_to) – Basis der Reinigungsliste (Abreisetag =
-    Reinigungstag), inkl. Endreinigung-Markierung."""
-    qs = Allocation.objects.filter(end__gte=d_from, end__lt=d_to)
-    return (_annotate_cleaning(qs).select_related("quarter", "member")
-            .order_by("end", "quarter__name"))
+    """Abreisen in [d_from, d_to) – Reinigungstage; Mitglieder UND externe Gäste."""
+    qs = _annotate_cleaning(Allocation.objects.filter(
+        end__gte=d_from, end__lt=d_to)).select_related("quarter", "member")
+    rows = list(qs) + [_ExtRow(b) for b in _external_confirmed(
+        end__gte=d_from, end__lt=d_to)]
+    rows.sort(key=lambda a: (a.end, a.quarter.name))
+    return rows
 
 
 BOOKING_COLUMNS = ["Anreise", "Abreise", "Nächte", "Quartier", "Mitglied",
@@ -1284,3 +1331,116 @@ def withdraw_wishlist(member, period) -> int:
     return Wish.objects.filter(
         member=member, period=period, submitted=True,
     ).update(submitted=False, submitted_at=None)
+
+
+# --------------------------------------------------------------------------- #
+# Externe Gäste: Angebot, Buchung, Storno (siehe docs/EXTERNE-GAESTE.md)
+# --------------------------------------------------------------------------- #
+
+def external_quote(quarter: Quarter, start: date, end: date, cfg=None) -> dict:
+    """Preis-Aufschlüsselung für eine externe Buchung (brutto) + Rechnungs-Positionen."""
+    cfg = cfg or ExternalConfig.get_solo()
+    nights = (end - start).days
+    stay = (quarter.price_per_night or 0) * nights
+    cleaning = cfg.cleaning_fee or 0
+    specs: list[dict] = []
+    if nights > 0:
+        specs.append({"name": f"Übernachtung – {quarter.name}", "quantity": nights,
+                      "unit": "Nacht", "unit_price": quarter.price_per_night,
+                      "vat_rate": cfg.stay_vat})
+    if cleaning > 0:
+        specs.append({"name": "Endreinigung", "quantity": 1, "unit": "Pauschale",
+                      "unit_price": cleaning, "vat_rate": cfg.cleaning_vat,
+                      "service_date": end})
+    return {"nights": nights, "stay_gross": stay, "cleaning_gross": cleaning,
+            "total_gross": stay + cleaning, "line_specs": specs}
+
+
+def external_available_quarters(start: date, end: date) -> list[tuple]:
+    """Für Externe buchbare, freie Quartiere im Zeitraum + Preis-Angebot.
+    Leere Liste, wenn Externe gesperrt sind oder die Regeln nicht passen."""
+    cfg = ExternalConfig.get_solo()
+    if not cfg.active or end <= start:
+        return []
+    ok, _reason = external_allowed(
+        start, end, today=date.today(), allowed_weekdays=cfg.allowed_weekday_set,
+        min_nights=cfg.min_nights, max_nights=cfg.max_nights,
+        lead_days=cfg.lead_days, horizon_days=cfg.horizon_days)
+    if not ok:
+        return []
+    out = []
+    for q in Quarter.objects.filter(
+            active=True, external_bookable=True).order_by("name"):
+        if not _in_season_range(q, start, end):
+            continue
+        if not quarter_is_free(q, start, end):
+            continue
+        out.append((q, external_quote(q, start, end, cfg)))
+    return out
+
+
+@transaction.atomic
+def create_external_booking(quarter: Quarter, start: date, end: date, persons: int,
+                            *, name: str, email: str, street: str = "",
+                            zip_code: str = "", city: str = ""):
+    """Legt eine externe Buchung an: Gast + ExternalBooking (blockiert) + Rechnung
+    (wie Hofladen, Zahlung per Überweisung). Gibt (booking, None) oder (None, Fehler)."""
+    cfg = ExternalConfig.get_solo()
+    if not cfg.active:
+        return None, "Buchungen für externe Gäste sind derzeit nicht möglich."
+    if not (quarter.active and quarter.external_bookable):
+        return None, "Dieses Quartier ist für externe Gäste nicht buchbar."
+    if end <= start:
+        return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+    ok, reason = external_allowed(
+        start, end, today=date.today(), allowed_weekdays=cfg.allowed_weekday_set,
+        min_nights=cfg.min_nights, max_nights=cfg.max_nights,
+        lead_days=cfg.lead_days, horizon_days=cfg.horizon_days)
+    if not ok:
+        return None, reason
+    if not _in_season_range(quarter, start, end):
+        return None, f"{quarter.name} ist in diesem Zeitraum nicht buchbar."
+    if persons and persons > quarter.max_occupancy:
+        return None, f"{quarter.name}: maximal {quarter.max_occupancy} Personen."
+    if not quarter_is_free(quarter, start, end):
+        return None, f"{quarter.name} ist in diesem Zeitraum bereits belegt."
+    if not (name.strip() and email.strip()):
+        return None, "Bitte Name und E-Mail angeben."
+
+    q = external_quote(quarter, start, end, cfg)
+    guest = Guest.objects.create(
+        name=name.strip(), email=email.strip(), street=street.strip(),
+        zip_code=zip_code.strip(), city=city.strip())
+    booking = ExternalBooking.objects.create(
+        guest=guest, quarter=quarter, start=start, end=end,
+        persons=max(1, persons or 1), status=ExternalBooking.CONFIRMED,
+        total_gross=q["total_gross"], confirmed_at=timezone.now())
+
+    # Rechnung wie im Hofladen – Zahlung per Überweisung, Abgleich via reconcile.
+    from shop.services import create_invoice_for_guest
+    inv = create_invoice_for_guest(guest, q["line_specs"],
+                                   due_days=cfg.payment_term_days)
+    booking.invoice = inv
+    booking.save(update_fields=["invoice"])
+
+    # Bestätigung + Zahlungsinfo per E-Mail (Gast hat kein Konto).
+    bic = f" · BIC: {inv.bic}" if inv.bic else ""
+    queue_email(
+        guest.email, f"Buchungsbestätigung – {quarter.name}",
+        f"Hallo {guest.name},\n\nvielen Dank für deine Buchung:\n"
+        f"{quarter.name}, {start:%d.%m.%Y} – {end:%d.%m.%Y} "
+        f"({q['nights']} Nächte, {booking.persons} Pers.)\n\n"
+        f"Rechnung {inv.number} über {inv.total_gross} €.\n"
+        f"Bitte mit der Rechnungsnummer als Verwendungszweck überweisen auf:\n"
+        f"IBAN: {inv.iban or '—'}{bic}\n"
+        f"Zahlbar bis {inv.due_date:%d.%m.%Y}.\n\nViele Grüße\nRe:Hof",
+        member=None)
+    return booking, None
+
+
+def cancel_external_booking(booking: ExternalBooking) -> bool:
+    """Storniert eine externe Buchung (gibt den Slot frei)."""
+    booking.status = ExternalBooking.CANCELLED
+    booking.cancelled_at = timezone.now()
+    booking.save(update_fields=["status", "cancelled_at"])
+    return True

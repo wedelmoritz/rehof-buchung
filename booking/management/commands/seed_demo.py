@@ -280,6 +280,25 @@ class Command(BaseCommand):
             f"Quartiere); Pfarrhäuser saisonal nur Mai–Sept."
         ))
 
+        # Externe Gäste (Demo): Regeln aktiv (nur Mo–Do), ein paar Quartiere mit
+        # Preis freigeben – damit /extern/ sofort testbar ist.
+        from booking.models import ExternalConfig
+        from decimal import Decimal as _D
+        cfg, _ = ExternalConfig.objects.get_or_create(id=1)
+        cfg.active = True
+        cfg.allowed_weekdays = "0,1,2,3"   # Mo–Do (Wochenenden Mitgliedern vorbehalten)
+        cfg.min_nights = 2
+        cfg.lead_days = 1
+        cfg.cleaning_fee = _D("60.00")
+        cfg.save()
+        for i, q in enumerate(Quarter.objects.order_by("name")[:3]):
+            q.external_bookable = True
+            q.price_per_night = _D("80.00") + _D("10.00") * i
+            q.save(update_fields=["external_bookable", "price_per_night"])
+        self.stdout.write(self.style.SUCCESS(
+            "Externe Gäste: Regeln aktiv (Mo–Do), 3 Quartiere mit Preis freigegeben."
+        ))
+
         # Beispielhafte Tage-Übertragungen zwischen Mitgliedern (laufendes Jahr)
         if len(members) >= 4:
             NightTransfer.objects.get_or_create(

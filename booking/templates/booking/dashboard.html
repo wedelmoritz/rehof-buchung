@@ -147,7 +147,7 @@
         {% for i in invoices_view %}
         <tr class="{% if i.is_overdue %}danger-row{% endif %}">
           <td><a href="/admin/shop/invoice/{{ i.id }}/change/">{{ i.number }}</a></td>
-          <td>{{ i.member.display_name }}</td>
+          <td>{{ i.recipient_label }}</td>
           <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
           <td>{{ i.total_gross }} €</td>
           <td>{{ i.get_status_display }}</td>

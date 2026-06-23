@@ -3,7 +3,7 @@
 Reines Django-ORM, serverseitige Validierung."""
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -241,6 +241,31 @@ def generate_invoice_now(member) -> tuple[Invoice | None, str | None]:
         return None, "Keine bestätigten Einkäufe zum Abrechnen."
     inv = _invoice_items(member, items, today.year, today.month)
     return inv, None
+
+
+@transaction.atomic
+def create_invoice_for_guest(guest, line_specs, due_days: int = 14) -> Invoice:
+    """Rechnung für einen externen Gast (kein Mitglied). `line_specs` ist eine
+    Liste von Positionen: {name, quantity, unit, unit_price (brutto), vat_rate,
+    service_date?}. Nutzt dieselbe Invoice-/PDF-/Abgleich-Infrastruktur wie der
+    Hofladen."""
+    cfg = ShopConfig.get_solo()
+    today = date.today()
+    inv = Invoice.objects.create(
+        guest=guest, number=_next_number(cfg.invoice_prefix, today.year, today.month),
+        year=today.year, month=today.month,
+        due_date=today + timedelta(days=int(due_days or 14)),
+        recipient_name=guest.name, recipient_address=guest.address,
+        coop_name=cfg.coop_name, coop_address=cfg.coop_address,
+        tax_number=cfg.tax_number, iban=cfg.iban, bic=cfg.bic,
+    )
+    for s in line_specs:
+        LineItem.objects.create(
+            guest=guest, invoice=inv, name=s["name"],
+            unit=s.get("unit", "Nacht"), unit_price=s["unit_price"],
+            vat_rate=s["vat_rate"], quantity=s["quantity"],
+            service_date=s.get("service_date"))
+    return inv
 
 
 @transaction.atomic

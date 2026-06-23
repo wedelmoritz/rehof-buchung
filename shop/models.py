@@ -161,7 +161,10 @@ class LineItem(models.Model):
       * `invoice` gesetzt                  → **abgerechnet**."""
     member = models.ForeignKey(
         Member, on_delete=models.CASCADE, related_name="shop_items",
-        verbose_name="Mitglied")
+        verbose_name="Mitglied", null=True, blank=True)
+    guest = models.ForeignKey(
+        "booking.Guest", on_delete=models.CASCADE, related_name="shop_items",
+        verbose_name="Externer Gast", null=True, blank=True)
     product = models.ForeignKey(
         Product, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="line_items", verbose_name="Produkt")
@@ -217,7 +220,10 @@ class Invoice(models.Model):
     ]
     member = models.ForeignKey(
         Member, on_delete=models.PROTECT, related_name="invoices",
-        verbose_name="Mitglied")
+        verbose_name="Mitglied", null=True, blank=True)
+    guest = models.ForeignKey(
+        "booking.Guest", on_delete=models.PROTECT, related_name="invoices",
+        verbose_name="Externer Gast", null=True, blank=True)
     number = models.CharField("Rechnungsnummer", max_length=30, unique=True)
     year = models.PositiveIntegerField("Jahr")
     month = models.PositiveSmallIntegerField("Monat")
@@ -242,7 +248,16 @@ class Invoice(models.Model):
         ordering = ["-year", "-month", "number"]
 
     def __str__(self) -> str:
-        return f"{self.number} ({self.member})"
+        return f"{self.number} ({self.recipient_label})"
+
+    @property
+    def recipient_label(self) -> str:
+        """Empfänger-Anzeige – Mitglied ODER externer Gast."""
+        if self.member_id:
+            return self.member.display_name
+        if self.guest_id:
+            return self.guest.name
+        return self.recipient_name or "—"
 
     @property
     def archived(self) -> bool:

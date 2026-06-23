@@ -593,6 +593,22 @@ Backups** und die **IBAN-Feldverschlüsselung**.
 
 ---
 
+## Externe Gäste (Buchung & Zahlung)
+
+Die App lässt sich über die Mitglieder hinaus **für externe Gäste** öffnen: ein
+öffentlicher Einstieg (ohne Login) mit Verfügbarkeit, Buchung und Bezahlung;
+Mitglieder buchen weiterhin kostenfrei. Konzept, Architektur, Datenmodell,
+Zahlungsfluss (Mollie als Ziel, Rechnung/Vorkasse als Fallback) sowie die
+rechtlichen Punkte (USt, Meldeschein, Kurtaxe, AGB/Storno) stehen in
+[`docs/EXTERNE-GAESTE.md`](docs/EXTERNE-GAESTE.md).
+
+**Stand:** Das **Buchungs-Fundament** ist umgesetzt (Gast-Checkout ohne Konto,
+Externen-Verfügbarkeitsregeln im Backend, Preise je Quartier, Abrechnung **per
+Rechnung wie im Hofladen** inkl. Kontoabgleich/Mahnung). Der **Online-Bezahlprozess
+(Mollie)** ist als saubere Naht vorbereitet, aber noch nicht aktiv.
+
+---
+
 ## Lizenz
 
 **GNU AGPL v3** – siehe [`LICENSE`](LICENSE). Die App darf genutzt, verändert und

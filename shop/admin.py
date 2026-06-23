@@ -191,10 +191,10 @@ class OverdueFilter(admin.SimpleListFilter):
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ("number", "member", "year", "month", "status",
+    list_display = ("number", "recipient", "year", "month", "status",
                     "total_gross", "due_date", "overdue_display", "reminded_at")
     list_filter = (OverdueFilter, "status", "year", "month")
-    search_fields = ("number", "member__display_name")
+    search_fields = ("number", "member__display_name", "guest__name")
     date_hierarchy = "created_at"
     inlines = [LineItemInline]
     actions = [confirm_payment, send_reminders, export_excel, export_csv]
@@ -224,6 +224,10 @@ class InvoiceAdmin(admin.ModelAdmin):
             "fields": ("recipient_name", "recipient_address", "coop_name",
                        "coop_address", "tax_number", "iban", "bic")}),
     )
+
+    @admin.display(description="Empfänger")
+    def recipient(self, obj):
+        return obj.recipient_label
 
     @admin.display(description="Brutto")
     def total_gross(self, obj):

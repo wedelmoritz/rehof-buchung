@@ -1,0 +1,24 @@
+{% extends "booking/base.html" %}
+{% block title %}Buchung bestätigt{% endblock %}
+{% block content %}
+<h1>Danke für deine Buchung! ✓</h1>
+
+<div class="card" style="border-color:var(--sage)">
+  <h2 style="margin-top:0">{{ booking.quarter.name }}</h2>
+  <p>{{ booking.start|date:"d.m.Y" }} – {{ booking.end|date:"d.m.Y" }}
+     · {{ booking.nights }} Nächte · {{ booking.persons }} Personen</p>
+  <p><strong>Gesamtbetrag: {{ booking.total_gross }} €</strong></p>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">So bezahlst du</h2>
+  <p>Bitte überweise <strong>{{ invoice.total_gross }} €</strong> bis
+     <strong>{{ invoice.due_date|date:"d.m.Y" }}</strong> auf:</p>
+  <p>IBAN: <strong>{{ invoice.iban|default:"—" }}</strong>{% if invoice.bic %} · BIC: {{ invoice.bic }}{% endif %}<br>
+     Verwendungszweck: <strong>{{ invoice.number }}</strong></p>
+  <p class="muted">Du hast außerdem eine Bestätigung mit allen Angaben per E-Mail
+     an <strong>{{ booking.guest.email }}</strong> erhalten.</p>
+</div>
+
+<p><a class="btn ghost" href="{% url 'external_home' %}">Weitere Buchung</a></p>
+{% endblock %}

@@ -1,6 +1,7 @@
 """Datenmodelle der Buchungs-App."""
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
 
 from django.conf import settings
@@ -36,6 +37,14 @@ class Quarter(models.Model):
         "Barrierearm/-frei", default=False,
         help_text="Quartier ist barrierearm bzw. barrierefrei erreichbar.",
     )
+    # Externe Gäste (siehe docs/EXTERNE-GAESTE.md)
+    external_bookable = models.BooleanField(
+        "Für externe Gäste buchbar", default=False,
+        help_text="Wenn aktiv, können externe Gäste dieses Quartier (im Rahmen der "
+                  "Externen-Regeln) buchen.")
+    price_per_night = models.DecimalField(
+        "Preis/Nacht für Externe (brutto)", max_digits=8, decimal_places=2, default=0,
+        help_text="Bruttopreis pro Nacht für externe Gäste (Beherbergung, 7 % USt).")
     # Jährlich wiederkehrender Buchbarkeitszeitraum (ohne Jahr). Leer = ganzjährig.
     season_start_month = models.PositiveSmallIntegerField(
         "Buchbar ab (Monat)", null=True, blank=True)
@@ -760,3 +769,130 @@ class SchoolHoliday(models.Model):
     def __str__(self) -> str:
         return (f"{self.name} ({self.start_day}.{self.start_month}.–"
                 f"{self.end_day}.{self.end_month}., {self.region})")
+
+
+# --------------------------------------------------------------------------- #
+# Externe Gäste (siehe docs/EXTERNE-GAESTE.md)
+# --------------------------------------------------------------------------- #
+
+class Guest(models.Model):
+    """Ein externer Gast (kein Login). Bucht über den öffentlichen Bereich;
+    Verwaltung der eigenen Buchung später per Magic-Link (Token)."""
+    name = models.CharField("Name", max_length=160)
+    email = models.EmailField("E-Mail")
+    street = models.CharField("Straße & Nr.", max_length=160, blank=True)
+    zip_code = models.CharField("PLZ", max_length=12, blank=True)
+    city = models.CharField("Ort", max_length=120, blank=True)
+    country = models.CharField("Land", max_length=2, default="DE")
+    token = models.UUIDField("Verwaltungs-Token", default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Externer Gast"
+        verbose_name_plural = "Externe Gäste"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.name} <{self.email}>"
+
+    @property
+    def address(self) -> str:
+        line2 = f"{self.zip_code} {self.city}".strip()
+        return "\n".join(p for p in [self.street, line2] if p.strip())
+
+
+class ExternalConfig(models.Model):
+    """Regeln & Konditionen für externe Gäste (Singleton). Steuert, WANN externe
+    Gäste grundsätzlich buchen dürfen – unabhängig von der konkreten Belegung."""
+    active = models.BooleanField(
+        "Buchung für Externe aktiv", default=False,
+        help_text="Globaler Schalter. Aus = externe Buchung gesperrt.")
+    allowed_weekdays = models.CharField(
+        "Erlaubte Übernachtungs-Wochentage", max_length=20, blank=True, default="",
+        help_text="Komma-getrennt 0=Mo … 6=So. Jede Nacht muss auf einen dieser "
+                  "Wochentage fallen. Beispiel „0,1,2,3“ = Mo–Do (Anreise So–Mi, "
+                  "Abreise bis Do). Leer = alle Wochentage.")
+    min_nights = models.PositiveSmallIntegerField("Mindestnächte", default=2)
+    max_nights = models.PositiveSmallIntegerField(
+        "Höchstnächte (0 = unbegrenzt)", default=0)
+    lead_days = models.PositiveSmallIntegerField(
+        "Vorlauf (Tage)", default=1,
+        help_text="Frühestens so viele Tage vor Anreise buchbar.")
+    horizon_days = models.PositiveSmallIntegerField(
+        "Vorausbuchung (Tage, 0 = unbegrenzt)", default=365)
+    cleaning_fee = models.DecimalField(
+        "Endreinigung (brutto)", max_digits=8, decimal_places=2, default=0)
+    cleaning_vat = models.PositiveSmallIntegerField("MwSt Reinigung", default=19)
+    stay_vat = models.PositiveSmallIntegerField("MwSt Beherbergung", default=7)
+    payment_term_days = models.PositiveSmallIntegerField("Zahlungsziel (Tage)", default=14)
+
+    class Meta:
+        verbose_name = "Externe-Gäste-Einstellungen"
+        verbose_name_plural = "Externe-Gäste-Einstellungen"
+
+    def __str__(self) -> str:
+        return "Externe-Gäste-Einstellungen"
+
+    @classmethod
+    def get_solo(cls) -> "ExternalConfig":
+        return cls.objects.first() or cls.objects.create()
+
+    @property
+    def allowed_weekday_set(self) -> set[int]:
+        return {int(x) for x in self.allowed_weekdays.split(",") if x.strip().isdigit()}
+
+
+class ExternalBooking(models.Model):
+    """Eine Buchung eines externen Gastes. Blockiert (wenn bestätigt) die
+    Verfügbarkeit; abgerechnet wird über eine `shop.Invoice` (Rechnung wie im
+    Hofladen). Status `pending` ist als Naht für den späteren Online-Bezahlprozess
+    vorgesehen (Hold bis Zahlungseingang)."""
+    PENDING, CONFIRMED, CANCELLED = "pending", "confirmed", "cancelled"
+    STATUS = [
+        (PENDING, "Reserviert (Zahlung offen)"),
+        (CONFIRMED, "Bestätigt"),
+        (CANCELLED, "Storniert"),
+    ]
+    guest = models.ForeignKey(
+        Guest, on_delete=models.CASCADE, related_name="bookings", verbose_name="Gast")
+    quarter = models.ForeignKey(
+        Quarter, on_delete=models.PROTECT, related_name="external_bookings",
+        verbose_name="Quartier")
+    start = models.DateField("Anreise")
+    end = models.DateField("Abreise (exkl.)")
+    persons = models.PositiveIntegerField("Personen", default=1)
+    status = models.CharField("Status", max_length=10, choices=STATUS, default=CONFIRMED)
+    total_gross = models.DecimalField("Betrag (brutto)", max_digits=10,
+                                      decimal_places=2, default=0)
+    invoice = models.ForeignKey(
+        "shop.Invoice", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="external_booking", verbose_name="Rechnung")
+    # Naht für den Online-Bezahlprozess (Hold bis Zahlungseingang).
+    hold_expires_at = models.DateTimeField("Reservierung gültig bis", null=True, blank=True)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    confirmed_at = models.DateTimeField("Bestätigt am", null=True, blank=True)
+    cancelled_at = models.DateTimeField("Storniert am", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Externe Buchung"
+        verbose_name_plural = "Externe Buchungen"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["quarter", "start", "end"]),
+                   models.Index(fields=["status", "start"])]
+
+    def __str__(self) -> str:
+        return f"{self.guest.name} @ {self.quarter} {self.start}–{self.end}"
+
+    @property
+    def nights(self) -> int:
+        return (self.end - self.start).days
+
+    def blocks_availability(self, now=None) -> bool:
+        """Bestätigt → blockiert; reserviert → blockiert, solange der Hold gilt."""
+        if self.status == self.CONFIRMED:
+            return True
+        if self.status == self.PENDING:
+            from django.utils import timezone
+            now = now or timezone.now()
+            return self.hold_expires_at is None or self.hold_expires_at > now
+        return False
