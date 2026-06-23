@@ -48,6 +48,8 @@ booking/
   services.py           # Brücke DB <-> Logik (gesamte Geschäftslogik)
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
+                        #  (Backend-Startseite mit Erklär-Panel: templates/admin/custom_index.html,
+                        #   gesetzt über admin.site.index_template)
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html
@@ -279,6 +281,11 @@ erkennbar, ob alles passt.
 `docker compose ps` zeigt „unhealthy" statt nur 502 bei Caddy). **Optionales
 Redis** (Cache/Sessions/Axes-Lockout) ist über `REDIS_URL` + Profil `cache`
 zuschaltbar (`docker compose --profile cache up -d`); Standard bleibt DB-Sessions.
+**Server-Umzug inkl. DB:** `ops/migrate-server.sh dump|restore` (pg_dump/psql über
+den `db`-Container); Voraussetzungen + Ablauf stehen im README. **Backup/Hardening
+(Backups, 2FA, IBAN-Feldverschlüsselung, LUKS) sind GEPLANT, nicht umgesetzt** –
+Risiken/Blueprints im README-Abschnitt „Datensicherung & Härtung“ und in
+`docs/BETRIEB-SICHERHEIT.md`.
 
 ---
 

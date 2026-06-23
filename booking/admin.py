@@ -22,6 +22,8 @@ from .services import confirm_lottery, rollback_lottery, run_period_lottery
 admin.site.site_header = "ReHof-Verwaltung"
 admin.site.site_title = "ReHof-Verwaltung"
 admin.site.index_title = "Verwaltung"
+# Erklär-Panel „Was kannst du hier tun?“ auf der Backend-Startseite.
+admin.site.index_template = "admin/custom_index.html"
 
 
 @admin.register(EquivalenceClass)
@@ -75,8 +77,12 @@ class MemberProfileInline(admin.StackedInline):
     fieldsets = (
         ("Buchungs-Profil", {
             "fields": ("display_name", "factor", "is_external"),
-            "description": "Der Ausgleichsfaktor (Karma) wird von der Losung "
-                           "automatisch gepflegt – im Normalfall nicht ändern.",
+            "description": (
+                "<b>Mitglied = Buchungs-Profil dieses Benutzers (1:1).</b> Ohne "
+                "Profil kann die Person nicht buchen. Die <b>Tage</b> kommen NICHT "
+                "von hier, sondern vom <b>Mitglieds-Anteil</b> – dort die Person mit "
+                "ihrem Tage-Anteil zuordnen. Der Ausgleichsfaktor (Karma) wird von "
+                "der Losung automatisch gepflegt – im Normalfall nicht ändern."),
         }),
         ("Rechnungsdaten (Hofladen)", {
             "fields": ("legal_name", "street", "zip_code", "city", "iban",
