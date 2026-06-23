@@ -1,0 +1,70 @@
+{% extends "booking/base.html" %}
+{% block title %}Ferienquartiere buchen{% endblock %}
+{% block content %}
+<h1>Ferienquartiere der Re:Hof-Genossenschaft</h1>
+
+{% if not cfg.active %}
+<div class="card"><p style="margin:0">Buchungen für externe Gäste sind derzeit
+  nicht möglich. Bitte schau später noch einmal vorbei.</p></div>
+{% else %}
+
+<div class="card">
+  <p class="muted" style="margin-top:0">Wähle deinen Zeitraum – wir zeigen dir die
+    verfügbaren Unterkünfte mit Preis. Bezahlt wird per Rechnung/Überweisung.</p>
+  <form method="get" class="form-row">
+    <label>Anreise <input type="date" name="start" value="{{ start|date:'Y-m-d' }}" required></label>
+    <label>Abreise <input type="date" name="end" value="{{ end|date:'Y-m-d' }}" required></label>
+    <label>Personen <input type="number" name="persons" min="1" value="{{ persons }}"></label>
+    <button class="btn" type="submit">Verfügbarkeit zeigen</button>
+  </form>
+</div>
+
+{% if searched %}
+  {% if offers %}
+  <h2>Verfügbare Unterkünfte: {{ start|date:"d.m.Y" }} – {{ end|date:"d.m.Y" }}</h2>
+  {% for q, quote in offers %}
+  <div class="card">
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:baseline">
+      <strong style="font-size:1.1rem">{{ q.name }}</strong>
+      <span class="muted">bis {{ q.max_occupancy }} Pers.{% if q.accessible %} · barrierearm{% endif %}</span>
+      <span style="margin-left:auto;font-weight:700">{{ quote.total_gross }} €</span>
+    </div>
+    {% if q.description %}<p class="muted">{{ q.description }}</p>{% endif %}
+    <p class="muted" style="margin:.2rem 0">{{ quote.nights }} Nächte ×
+      {{ q.price_per_night }} € = {{ quote.stay_gross }} €{% if quote.cleaning_gross %}
+      + Endreinigung {{ quote.cleaning_gross }} €{% endif %} ·
+      <strong>gesamt {{ quote.total_gross }} €</strong></p>
+    <details>
+      <summary class="btn small">Diese Unterkunft buchen</summary>
+      <form method="post" style="margin-top:.7rem">{% csrf_token %}
+        <input type="hidden" name="action" value="book">
+        <input type="hidden" name="quarter" value="{{ q.id }}">
+        <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
+        <input type="hidden" name="end" value="{{ end|date:'Y-m-d' }}">
+        <input type="hidden" name="persons" value="{{ persons }}">
+        <div class="form-row">
+          <label>Name <input name="name" required></label>
+          <label>E-Mail <input type="email" name="email" required></label>
+        </div>
+        <div class="form-row">
+          <label>Straße &amp; Nr. <input name="street"></label>
+          <label>PLZ <input name="zip_code"></label>
+          <label>Ort <input name="city"></label>
+        </div>
+        <p class="muted" style="font-size:.85rem">Mit „Verbindlich buchen“ erhältst du
+          eine Bestätigung und eine Rechnung per E-Mail; bitte überweise den Betrag mit
+          der Rechnungsnummer als Verwendungszweck.</p>
+        <button class="btn" type="submit">Verbindlich buchen ({{ quote.total_gross }} €)</button>
+      </form>
+    </details>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="card"><p style="margin:0">Für diesen Zeitraum sind leider keine
+    Unterkünfte für externe Gäste verfügbar. Bitte einen anderen Zeitraum wählen
+    (für Externe gelten ggf. besondere Regeln, z. B. nur Wochentage).</p></div>
+  {% endif %}
+{% endif %}
+
+{% endif %}
+{% endblock %}

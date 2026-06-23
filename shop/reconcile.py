@@ -45,18 +45,27 @@ def book_payment(txn: BankTransaction, invoice: Invoice, note: str = "") -> None
     txn.save(update_fields=["matched_invoice", "matched_at", "note"])
 
     from booking.models import Notification
-    from booking.services import email_member, absolute_url
+    from booking.services import email_member, absolute_url, queue_email
     url = f"/hofladen/rechnung/{invoice.id}/"
-    Notification.objects.create(
-        member=invoice.member,
-        message=f"Rechnung {invoice.number} wurde als bezahlt verbucht.",
-        url=url)
-    email_member(
-        invoice.member, f"Zahlungseingang zu Rechnung {invoice.number}",
-        f"Hallo {invoice.member.display_name},\n\nwir haben deine Zahlung zu "
-        f"Rechnung {invoice.number} über {invoice.total_gross} € erhalten und die "
-        f"Rechnung als bezahlt verbucht. Vielen Dank!\n\n{absolute_url(url)}\n\n"
-        f"Viele Grüße\nRe:Hof")
+    subject = f"Zahlungseingang zu Rechnung {invoice.number}"
+    if invoice.member_id:
+        Notification.objects.create(
+            member=invoice.member,
+            message=f"Rechnung {invoice.number} wurde als bezahlt verbucht.",
+            url=url)
+        email_member(
+            invoice.member, subject,
+            f"Hallo {invoice.member.display_name},\n\nwir haben deine Zahlung zu "
+            f"Rechnung {invoice.number} über {invoice.total_gross} € erhalten und "
+            f"die Rechnung als bezahlt verbucht. Vielen Dank!\n\n"
+            f"{absolute_url(url)}\n\nViele Grüße\nRe:Hof")
+    elif invoice.guest_id:
+        # Externer Gast (kein Konto, keine In-App-Notification) – nur E-Mail.
+        queue_email(
+            invoice.guest.email, subject,
+            f"Hallo {invoice.guest.name},\n\nwir haben deine Zahlung zu Rechnung "
+            f"{invoice.number} über {invoice.total_gross} € erhalten. Deine Buchung "
+            f"ist damit vollständig bezahlt. Vielen Dank!\n\nViele Grüße\nRe:Hof")
 
 
 def reconcile_unmatched(queryset=None) -> int:

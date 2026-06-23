@@ -1,13 +1,20 @@
 # Externe Gäste: Buchung & Zahlung — Konzept
 
-> **Status: KONZEPT — NICHT UMGESETZT.** Bauplan zum Ablösen von **beds24**:
-> Externe Gäste buchen und zahlen direkt in dieser App; Mitglieder buchen wie
-> bisher kostenfrei. Entscheidungen (abgestimmt):
+> **Status: KONZEPT — teils umgesetzt.** Konzept, wie wir die App **für externe
+> Gäste** nutzbar machen: Externe Gäste buchen und zahlen direkt in dieser App;
+> Mitglieder buchen wie bisher kostenfrei. Entscheidungen (abgestimmt):
 >
 > - **Zahlung:** Mollie (Hosted Checkout) als Primärweg; Rechnung/Vorkasse als Fallback.
 > - **Einstieg:** Hybrid – buchen/zahlen zentral in der App + einbettbares
 >   Verfügbarkeits-Widget/Feed für die bestehende Re:Hof-Website.
 > - **Gast-Konto:** Gast-Checkout ohne Pflicht-Registrierung (E-Mail + Magic-Link).
+
+**Umsetzungsstand:** Das Fundament ist gebaut – `Guest`, `ExternalConfig`,
+`ExternalBooking`, Quartier-Preise, Verfügbarkeits-/Regel-Logik, der öffentliche
+Einstieg `/extern/` und die **Abrechnung per Rechnung** (über die generalisierte
+`shop.Invoice`, inkl. Kontoabgleich/Mahnung). **Offen:** der **Online-Bezahlprozess
+(Mollie)** – als Naht vorbereitet (Status `pending`, `hold_expires_at`) – sowie
+das **einbettbare Website-Widget**, Magic-Link-Selbstverwaltung und Stornobedingungen.
 
 ## 1. Zielbild
 

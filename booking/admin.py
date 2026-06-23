@@ -11,10 +11,10 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 from .models import (
-    Allocation, BookingPeriod, BookingPolicy, EquivalenceClass,
-    LotteryRun, Member, Membership, NightTransfer, Notification, OpsConfig,
-    OutboxEmail, Quarter, SchoolHoliday, SeasonRule, Share, SwapRequest,
-    UpcomingAllocation, WaitlistEntry, Wish,
+    Allocation, BookingPeriod, BookingPolicy, EquivalenceClass, ExternalBooking,
+    ExternalConfig, Guest, LotteryRun, Member, Membership, NightTransfer,
+    Notification, OpsConfig, OutboxEmail, Quarter, SchoolHoliday, SeasonRule,
+    Share, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
 )
 from .services import confirm_lottery, rollback_lottery, run_period_lottery
 
@@ -56,6 +56,12 @@ class QuarterAdmin(admin.ModelAdmin):
                        "season_end_month", "season_end_day"),
             "description": "Manche Quartiere sind nicht das ganze Jahr buchbar. "
                            "Beispiel: 1.4. bis 31.10.",
+        }),
+        ("Externe Gäste", {
+            "fields": ("external_bookable", "price_per_night"),
+            "description": "Wenn „für externe Gäste buchbar“ aktiv ist, können "
+                           "Externe (im Rahmen der Externe-Gäste-Einstellungen) "
+                           "dieses Quartier zum hinterlegten Preis/Nacht buchen.",
         }),
     )
 
@@ -491,3 +497,71 @@ class BookingPolicyAdmin(admin.ModelAdmin):
         return redirect(
             reverse("admin:booking_bookingpolicy_change", args=[obj.id])
         )
+
+
+# --------------------------------------------------------------------------- #
+# Externe Gäste (siehe docs/EXTERNE-GAESTE.md)
+# --------------------------------------------------------------------------- #
+
+@admin.register(Guest)
+class GuestAdmin(admin.ModelAdmin):
+    """Externe Gäste (kein Login). Werden beim öffentlichen Buchen angelegt."""
+    list_display = ("name", "email", "city", "created_at")
+    search_fields = ("name", "email", "city")
+    date_hierarchy = "created_at"
+    readonly_fields = ("token", "created_at")
+
+
+@admin.register(ExternalConfig)
+class ExternalConfigAdmin(admin.ModelAdmin):
+    """Regeln & Konditionen für externe Gäste (Singleton)."""
+    fieldsets = (
+        ("Freigabe", {
+            "fields": ("active",),
+            "description": "Globaler Schalter für die externe Buchung."}),
+        ("Wann dürfen Externe buchen?", {
+            "fields": ("allowed_weekdays", "min_nights", "max_nights",
+                       "lead_days", "horizon_days"),
+            "description": "„Erlaubte Übernachtungs-Wochentage“ z. B. 0,1,2,3 = Mo–Do "
+                           "(Wochenenden bleiben Mitgliedern). Leer = alle Tage. "
+                           "Unabhängig von der tatsächlichen Belegung."}),
+        ("Preise & Zahlung", {
+            "fields": ("cleaning_fee", "cleaning_vat", "stay_vat", "payment_term_days"),
+            "description": "Preis/Nacht steht je Quartier. Endreinigung als Pauschale; "
+                           "USt getrennt (Beherbergung 7 %, Reinigung 19 %)."}),
+    )
+
+    def has_add_permission(self, request):
+        return not ExternalConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj = ExternalConfig.get_solo()
+        return redirect(reverse("admin:booking_externalconfig_change", args=[obj.id]))
+
+
+@admin.action(description="Ausgewählte Buchungen stornieren")
+def cancel_external(modeladmin, request, queryset):
+    from .services import cancel_external_booking
+    n = sum(1 for b in queryset if b.status != ExternalBooking.CANCELLED
+            and cancel_external_booking(b))
+    messages.success(request, f"{n} externe Buchung(en) storniert.")
+
+
+@admin.register(ExternalBooking)
+class ExternalBookingAdmin(admin.ModelAdmin):
+    """Buchungen externer Gäste. Blockieren (wenn bestätigt) die Verfügbarkeit;
+    abgerechnet über die verknüpfte Rechnung (Hofladen-Workflow)."""
+    list_display = ("start", "end", "quarter", "guest", "persons", "status",
+                    "total_gross", "invoice")
+    list_filter = ("status", "quarter")
+    search_fields = ("guest__name", "guest__email", "quarter__name")
+    date_hierarchy = "start"
+    actions = [cancel_external]
+    autocomplete_fields = ("guest", "quarter", "invoice")
+    readonly_fields = ("created_at", "confirmed_at", "cancelled_at", "total_gross")
+
+    def has_add_permission(self, request):
+        return False

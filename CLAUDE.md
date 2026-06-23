@@ -75,6 +75,19 @@ Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag),
 `SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
 `SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
+**Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login),
+`ExternalConfig` (Singleton: Regeln Mo–Do/Mindestnächte/Vorlauf, Reinigung, USt),
+`ExternalBooking` (Reservierung; blockiert die Verfügbarkeit; verknüpft mit einer
+`shop.Invoice`). `Quarter` hat `external_bookable`/`price_per_night`. Die
+Abrechnung läuft über die **generalisierte `shop.Invoice`** (Member ODER Guest;
+`Invoice.recipient_label`) – PDF, Mahnung, **Kontoabgleich** (`reconcile`) und
+Dashboard werden mitgenutzt. Reine Regel-Logik in `booking/external.py`,
+Services in `booking/services.py` (`external_quote`/`external_available_quarters`/
+`create_external_booking`/`cancel_external_booking`); Verfügbarkeit
+(`quarter_is_free` & Belegungs-Helfer) berücksichtigt bestätigte
+`ExternalBooking`s. Öffentlicher Einstieg ohne Login: View `external_home`
+(`/extern/`). **Online-Bezahlung (Mollie) ist als Naht vorbereitet, noch nicht
+aktiv** (Status `pending`/`hold_expires_at`).
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
 farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
@@ -338,9 +351,9 @@ bleibt in `settings.py` markiert.
   run_period_lottery` bzw. `lottery.run_lottery`.
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
 - Externe Buchungen sicher ausbauen (Modell-Flag `Member.is_external`,
-  `Allocation.source="external"` vorhanden). **Konzept** zum Ablösen von beds24
-  (externe Gäste buchen + zahlen via Mollie, Hybrid-Einstieg, Gast-Checkout) in
-  `docs/EXTERNE-GAESTE.md` (geplant, nicht umgesetzt).
+  `Allocation.source="external"` vorhanden). **Konzept** zur Nutzung der App
+  für externe Gäste (buchen + zahlen via Mollie, Hybrid-Einstieg, Gast-Checkout) in
+  `docs/EXTERNE-GAESTE.md`.
 - E-Mail-Fundament steht (Outbox + `send_outbox`, mit Datei-Anhängen);
   **Rechnungs-PDF (WeasyPrint) erledigt**. Offen: Losergebnis-PDF + Massenmail,
   Web-Push (mobil).
