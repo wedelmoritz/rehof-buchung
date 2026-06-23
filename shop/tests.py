@@ -258,3 +258,82 @@ class InvoicePdfTests(ShopBase):
         self.assertEqual(em.attachment_name, f"{self.inv.number}.pdf")
         self.assertEqual(em.attachment_mime, "application/pdf")
         self.assertTrue(bytes(em.attachment).startswith(b"%PDF"))
+
+
+class KontoabgleichTests(ShopBase):
+    """Kontoauszug-Import: Parsen (CSV/CAMT), automatischer Abgleich, Dedup."""
+
+    def setUp(self):
+        super().setUp()
+        ShopConfig.objects.create(payment_term_days=14)
+        self.alice.user.email = "alice@example.org"
+        self.alice.user.save(update_fields=["email"])
+        svc.add_item(self.alice, self.apple, "2")   # 2 × 3,20 = 6,40 brutto
+        svc.checkout(self.alice)
+        from booking.models import OutboxEmail
+        OutboxEmail.objects.all().delete()
+        self.inv, _ = svc.generate_invoice_now(self.alice)
+        self.assertEqual(self.inv.total_gross, Decimal("6.40"))
+
+    def _csv(self, number, betrag="6,40"):
+        return (
+            "Buchungstag;Beguenstigter/Zahlungspflichtiger;Verwendungszweck;"
+            "Kontonummer/IBAN;Betrag\n"
+            f"15.04.2026;Anna Beispiel;Zahlung Rechnung {number};DE12;{betrag}\n"
+        ).encode("utf-8")
+
+    def test_csv_parsen_nur_eingaenge(self):
+        from shop import bankimport
+        data = (self._csv(self.inv.number).decode()
+                + "16.04.2026;Laden;Einkauf;DE9;-20,00\n").encode("utf-8")
+        txns = bankimport.parse_csv(data)
+        self.assertEqual(len(txns), 1)               # Belastung ignoriert
+        self.assertEqual(txns[0].amount, Decimal("6.40"))
+
+    def test_import_verbucht_und_benachrichtigt(self):
+        from shop import reconcile
+        from booking.models import Notification, OutboxEmail
+        batch = reconcile.import_bank_statement(
+            self._csv(self.inv.number), "csv", "auszug.csv")
+        self.assertEqual(batch.n_imported, 1)
+        self.assertEqual(batch.n_matched, 1)
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.status, Invoice.CONFIRMED)
+        self.assertTrue(Notification.objects.filter(
+            member=self.alice, message__contains=self.inv.number).exists())
+        self.assertTrue(OutboxEmail.objects.filter(
+            to_email="alice@example.org").exists())
+
+    def test_falscher_betrag_bleibt_offen(self):
+        from shop import reconcile
+        batch = reconcile.import_bank_statement(
+            self._csv(self.inv.number, betrag="5,00"), "csv", "a.csv")
+        self.assertEqual(batch.n_matched, 0)
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.status, Invoice.OPEN)
+
+    def test_doppelimport_wird_dedupliziert(self):
+        from shop import reconcile
+        data = self._csv(self.inv.number)
+        reconcile.import_bank_statement(data, "csv", "a.csv")
+        batch2 = reconcile.import_bank_statement(data, "csv", "a.csv")
+        self.assertEqual(batch2.n_imported, 0)       # nichts Neues
+
+    def test_camt_parsen_und_abgleich(self):
+        from shop import reconcile
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">'
+            '<BkToCstmrStmt><Stmt><Ntry>'
+            '<Amt Ccy="EUR">6.40</Amt><CdtDbtInd>CRDT</CdtDbtInd>'
+            '<BookgDt><Dt>2026-04-15</Dt></BookgDt>'
+            '<NtryDtls><TxDtls>'
+            '<RltdPties><Dbtr><Nm>Anna</Nm></Dbtr>'
+            '<DbtrAcct><Id><IBAN>DE12</IBAN></Id></DbtrAcct></RltdPties>'
+            f'<RmtInf><Ustrd>Rechnung {self.inv.number}</Ustrd></RmtInf>'
+            '</TxDtls></NtryDtls></Ntry></Stmt></BkToCstmrStmt></Document>'
+        ).encode("utf-8")
+        batch = reconcile.import_bank_statement(xml, "camt", "auszug.xml")
+        self.assertEqual(batch.n_matched, 1)
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.status, Invoice.CONFIRMED)

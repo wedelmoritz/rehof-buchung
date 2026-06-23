@@ -297,3 +297,54 @@ class Invoice(models.Model):
             groups.values(),
             key=lambda g: g["purchase"].confirmed_at if g["purchase"] else self.created_at,
         )
+
+
+class BankImport(models.Model):
+    """Ein Import eines Kontoauszugs (für den Abgleich offener Rechnungen).
+    Hält nur Eckdaten fürs Protokoll – die Zeilen stehen in BankTransaction."""
+    created_at = models.DateTimeField("Importiert am", auto_now_add=True)
+    filename = models.CharField("Datei", max_length=200, blank=True)
+    fmt = models.CharField("Format", max_length=16, default="csv")
+    n_total = models.PositiveIntegerField("Zeilen gesamt", default=0)
+    n_imported = models.PositiveIntegerField("Neu übernommen", default=0)
+    n_matched = models.PositiveIntegerField("Automatisch zugeordnet", default=0)
+
+    class Meta:
+        verbose_name = "Kontoauszug-Import"
+        verbose_name_plural = "Kontoauszug-Importe"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Import {self.filename or self.fmt} – {self.created_at:%d.%m.%Y %H:%M}"
+
+
+class BankTransaction(models.Model):
+    """Eine eingegangene Zahlung aus einem Kontoauszug. Wird – wenn eindeutig –
+    automatisch einer Rechnung zugeordnet (Betrag + Rechnungsnummer im
+    Verwendungszweck) und verbucht."""
+    batch = models.ForeignKey(
+        BankImport, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="transactions", verbose_name="Import")
+    booked_on = models.DateField("Buchungstag", null=True, blank=True)
+    amount = models.DecimalField("Betrag", max_digits=12, decimal_places=2)
+    purpose = models.TextField("Verwendungszweck", blank=True)
+    counterparty_name = models.CharField("Zahlungsbeteiligte:r", max_length=200, blank=True)
+    counterparty_iban = models.CharField("IBAN", max_length=40, blank=True)
+    # Fingerabdruck (Datum+Betrag+Zweck+Konto) gegen Doppel-Import desselben Auszugs.
+    fingerprint = models.CharField("Fingerabdruck", max_length=64, unique=True)
+    raw = models.TextField("Rohzeile", blank=True)
+    imported_at = models.DateTimeField("Übernommen am", auto_now_add=True)
+    matched_invoice = models.ForeignKey(
+        "Invoice", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="bank_transactions", verbose_name="Zugeordnete Rechnung")
+    matched_at = models.DateTimeField("Zugeordnet am", null=True, blank=True)
+    note = models.CharField("Hinweis", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "Zahlungseingang"
+        verbose_name_plural = "Zahlungseingänge (Kontoauszug)"
+        ordering = ["-booked_on", "-imported_at"]
+        indexes = [models.Index(fields=["matched_invoice"])]
+
+    def __str__(self) -> str:
+        return f"{self.booked_on} {self.amount} € {self.counterparty_name}".strip()

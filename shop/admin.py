@@ -5,9 +5,10 @@ from __future__ import annotations
 from django import forms
 from django.contrib import admin, messages
 
-from . import services as svc
+from . import reconcile, services as svc
 from .models import (
-    Invoice, LineItem, Product, ProductGroup, Purchase, ShopConfig)
+    BankImport, BankTransaction, Invoice, LineItem, Product, ProductGroup,
+    Purchase, ShopConfig)
 
 WEEKDAYS = [("0", "Montag"), ("1", "Dienstag"), ("2", "Mittwoch"),
             ("3", "Donnerstag"), ("4", "Freitag"), ("5", "Samstag"),
@@ -240,3 +241,71 @@ class LineItemAdmin(admin.ModelAdmin):
     list_filter = ("invoice__status", "vat_rate")
     search_fields = ("name", "member__display_name")
     date_hierarchy = "created_at"
+
+
+class MatchedFilter(admin.SimpleListFilter):
+    """Filter: zugeordnet / nicht zugeordnet."""
+    title = "Zuordnung"
+    parameter_name = "matched"
+
+    def lookups(self, request, model_admin):
+        return [("yes", "zugeordnet"), ("no", "nicht zugeordnet")]
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(matched_invoice__isnull=False)
+        if self.value() == "no":
+            return queryset.filter(matched_invoice__isnull=True, amount__gt=0)
+        return queryset
+
+
+@admin.action(description="Automatisch abgleichen (offene zuordnen)")
+def reconcile_action(modeladmin, request, queryset):
+    n = reconcile.reconcile_unmatched(queryset)
+    messages.success(request, f"{n} Zahlung(en) automatisch verbucht.")
+
+
+@admin.action(description="Verknüpfte Rechnung als bezahlt verbuchen")
+def book_linked(modeladmin, request, queryset):
+    n = 0
+    for txn in queryset:
+        if txn.matched_invoice and not txn.matched_at:
+            reconcile.book_payment(txn, txn.matched_invoice, note="manuell zugeordnet")
+            n += 1
+    messages.success(request, f"{n} Zahlung(en) verbucht.")
+
+
+@admin.register(BankTransaction)
+class BankTransactionAdmin(admin.ModelAdmin):
+    """Zahlungseingänge aus Kontoauszügen. Eindeutige (Betrag + Rechnungsnummer
+    im Verwendungszweck) werden automatisch verbucht; den Rest hier von Hand
+    einer Rechnung zuordnen (Feld „Zugeordnete Rechnung“) und „verbuchen“."""
+    list_display = ("booked_on", "amount", "counterparty_name", "short_purpose",
+                    "matched_invoice", "matched_at")
+    list_filter = (MatchedFilter, "booked_on")
+    search_fields = ("purpose", "counterparty_name", "counterparty_iban",
+                     "matched_invoice__number")
+    date_hierarchy = "booked_on"
+    autocomplete_fields = ("matched_invoice",)
+    actions = [reconcile_action, book_linked]
+    readonly_fields = ("batch", "booked_on", "amount", "purpose",
+                       "counterparty_name", "counterparty_iban", "fingerprint",
+                       "raw", "imported_at", "matched_at", "note")
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="Verwendungszweck")
+    def short_purpose(self, obj):
+        return (obj.purpose[:60] + "…") if len(obj.purpose) > 60 else obj.purpose
+
+
+@admin.register(BankImport)
+class BankImportAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "filename", "fmt", "n_total", "n_imported",
+                    "n_matched")
+    readonly_fields = ("created_at", "filename", "fmt", "n_total", "n_imported",
+                       "n_matched")
+
+    def has_add_permission(self, request):
+        return False

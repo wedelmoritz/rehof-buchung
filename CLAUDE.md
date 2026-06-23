@@ -158,6 +158,15 @@ Druckvorlage `shop/templates/shop/invoice_pdf.html`, Endpoint `shop_invoice_pdf`
 (eigene; Staff alle). Das PDF hängt als Anhang an der „Rechnung erstellt“-Mail
 (`OutboxEmail` um `attachment*`-Felder erweitert, `send_outbox` schickt es mit).
 Native Libs (Pango/Cairo) im `Dockerfile`; CI-Integrationsjob testet `booking shop`.
+**Kontoabgleich:** Kontoauszug im Dashboard hochladen (`reconcile.import_bank_statement`);
+Parser je Format in `shop/bankimport.py` (normalisierte `ParsedTxn`; `csv` flexibel
+über Header-Stichwörter, `camt` = CAMT.053-XML; MT940 später trivial ergänzbar).
+`shop/reconcile.py` legt `BankTransaction`/`BankImport` an (Dedup über
+`fingerprint`) und verbucht **eindeutige** Treffer (Rechnungsnummer im
+Verwendungszweck + exakter Betrag) automatisch: `confirm_invoice` → `confirmed`,
+Verknüpfung + In-App-/E-Mail-Benachrichtigung ans Mitglied. Nicht eindeutige
+Eingänge bleiben offen (in `BankTransactionAdmin` manuell zuzuordnen + Aktion
+„verbuchen“); Rechnungsstatus bleibt manuell änderbar.
 **Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
 `docs/BETRIEB-SICHERHEIT.md`.
 
@@ -323,14 +332,11 @@ bleibt in `settings.py` markiert.
 - E-Mail-Fundament steht (Outbox + `send_outbox`, mit Datei-Anhängen);
   **Rechnungs-PDF (WeasyPrint) erledigt**. Offen: Losergebnis-PDF + Massenmail,
   Web-Push (mobil).
-- **Losung rückgängig/bestätigen** (nächste Phase): Losung in der Verwaltung
-  zurücknehmbar; Ergebnis erst nach Bestätigung für Mitglieder sichtbar; nach
-  Bestätigung kein Undo. Design in der Analyse besprochen.
+- **Losung rückgängig/bestätigen** – **erledigt** (Review-Workflow, s.o.).
+- **Kontoabgleich** – **erledigt** (CSV + CAMT.053; MT940 als Parser leicht
+  ergänzbar in `shop/bankimport.py`).
 - **Backup & Hardening** (geplant, nicht umgesetzt): Blueprints in
   `docs/BETRIEB-SICHERHEIT.md`.
-- **Kontoabgleich** (Phase C): Bank-CSV/CAMT importieren, über Betrag +
-  Rechnungsnummer im Verwendungszweck offenen Rechnungen zuordnen → automatisch
-  „bezahlt“, Rest manuell bestätigen (Dashboard hat dafür schon Status/Export).
 - Verwaltungs-Mails/Putzliste später optional als **Datei-Anhang** (xlsx/CSV)
   statt nur inline (OutboxEmail um Anhang erweitern).
 - Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).

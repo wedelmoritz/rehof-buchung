@@ -706,6 +706,22 @@ def dashboard(request):
         elif action == "remind_overdue":
             n = shop_svc.remind_overdue()
             messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
+        elif action == "import_bank":
+            from shop import reconcile
+            f = request.FILES.get("statement")
+            fmt = request.POST.get("fmt", "csv")
+            if not f:
+                messages.error(request, "Bitte eine Datei auswählen.")
+            else:
+                try:
+                    batch = reconcile.import_bank_statement(f.read(), fmt, f.name)
+                    messages.success(
+                        request, f"Kontoauszug „{batch.filename}“: "
+                        f"{batch.n_imported} neue Eingänge übernommen, "
+                        f"{batch.n_matched} Rechnung(en) automatisch als bezahlt "
+                        f"verbucht.")
+                except Exception as exc:  # noqa: BLE001 – Nutzerfehler freundlich melden
+                    messages.error(request, f"Import nicht möglich: {exc}")
         return redirect(f"{reverse('dashboard')}?year={year}&month={month}"
                         + ("&only_cleaning=1" if only_cleaning else ""))
 
@@ -719,6 +735,11 @@ def dashboard(request):
     open_sum = sum((i.total_gross for i in open_inv), Decimal(0))
     overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
 
+    from shop.models import BankImport, BankTransaction
+    recent_imports = list(BankImport.objects.all()[:5])
+    unmatched_count = BankTransaction.objects.filter(
+        matched_invoice__isnull=True, amount__gt=0).count()
+
     months = [{"num": i, "name": svc.MONTHS_DE[i]} for i in range(1, 13)]
     return render(request, "booking/dashboard.html", {
         "today": today, "year": year, "month": month,
@@ -729,6 +750,7 @@ def dashboard(request):
         "n_cleaning": len(cleaning),
         "open_invoices": open_inv, "overdue": overdue,
         "open_sum": open_sum, "overdue_sum": overdue_sum,
+        "recent_imports": recent_imports, "unmatched_count": unmatched_count,
     })
 
 

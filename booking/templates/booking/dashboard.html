@@ -145,7 +145,55 @@
   </div>
 </div>
 
+{# --- Kontoabgleich (Zahlungseingänge importieren) ------------------------- #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Kontoabgleich</h2>
+    <span class="spacer"></span>
+    {% if unmatched_count %}<span class="muted">{{ unmatched_count }} nicht zugeordnete Eingänge</span>{% endif %}
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Kontoauszug hochladen – passende
+    Rechnungen (Nummer im Verwendungszweck + Betrag) werden automatisch als
+    bezahlt verbucht; das Mitglied wird benachrichtigt. Nicht eindeutige Eingänge
+    bleiben offen (im Backend zuzuordnen).</p>
+  <form method="post" enctype="multipart/form-data" class="import-form">{% csrf_token %}
+    <input type="hidden" name="action" value="import_bank">
+    <input type="file" name="statement" accept=".csv,.xml,.txt" required>
+    <label>Format
+      <select name="fmt">
+        <option value="csv">Bank-CSV</option>
+        <option value="camt">CAMT.053 (XML)</option>
+      </select></label>
+    <button class="btn small" type="submit">Importieren & abgleichen</button>
+  </form>
+  {% if recent_imports %}
+  <div class="table-wrap" style="margin-top:.7rem">
+    <table class="grid">
+      <thead><tr><th>Import</th><th>Datei</th><th>Format</th><th>Neu</th><th>Verbucht</th></tr></thead>
+      <tbody>
+        {% for b in recent_imports %}
+        <tr>
+          <td>{{ b.created_at|date:"d.m.Y H:i" }}</td>
+          <td>{{ b.filename|default:"—" }}</td>
+          <td>{{ b.fmt|upper }}</td>
+          <td>{{ b.n_imported }}</td>
+          <td>{{ b.n_matched }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  <div class="actions">
+    <a class="btn small ghost" href="/admin/shop/banktransaction/?matched=no">Nicht zugeordnete ansehen</a>
+  </div>
+</div>
+
 <style>
+  .import-form { display:flex; gap:.7rem; align-items:flex-end; flex-wrap:wrap; }
+  .import-form input[type=file] { flex:1 1 220px; }
+  .import-form label { font-size:.8rem; color:var(--muted); display:flex; flex-direction:column; gap:.2rem; }
+  .import-form select { padding:.4rem .55rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); }
   .kpis { display:flex; gap:.8rem; flex-wrap:wrap; margin-bottom:1rem; }
   .kpi { flex:1 1 140px; display:flex; align-items:center; gap:.7rem; padding:.9rem 1rem; }
   .kpi .num { font-size:1.9rem; font-weight:700; line-height:1; color:var(--accent-deep); }
