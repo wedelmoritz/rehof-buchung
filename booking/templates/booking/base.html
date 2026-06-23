@@ -213,22 +213,30 @@
       overflow-x: auto; font-size: .82rem; line-height: 1.5;
     }
 
-    /* Kalender (geteilt von Übersicht & Buchen) */
+    /* Kalender (geteilt von Übersicht, Buchen, Wunschliste & Extern) –
+       moderne Variante: abgesetzte, abgerundete Zellen mit etwas Luft. */
     .cal-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .7rem; }
     .cal-title { font-size: 1.1rem; font-weight: 700; }
-    table.cal { table-layout: fixed; }
-    table.cal th { text-align: center; color: var(--muted); font-weight: 600; }
+    table.cal { table-layout: fixed; width: 100%;
+      border-collapse: separate; border-spacing: 5px; }
+    table.cal th { text-align: center; color: var(--muted); font-weight: 600;
+      font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
+      padding-bottom: .2rem; }
     table.cal td {
-      vertical-align: top; height: 78px; border: 1px solid var(--line);
-      padding: 3px 4px; position: relative; border-radius: 6px;
+      vertical-align: top; height: 74px; border: 1px solid var(--line);
+      padding: 3px 4px; position: relative; border-radius: 12px; overflow: hidden;
+      transition: box-shadow .12s ease, transform .12s ease;
     }
     table.cal td.out { background: #f6f0e6; color: #c4bbab; }
     table.cal td.weekend:not(.out) { background: #f7f1e7; }
     table.cal td.holiday { background: var(--warn-soft); }
     table.cal td.today { outline: 2px solid var(--accent); outline-offset: -2px; }
-    .d-num { font-size: .78rem; color: var(--muted); }
+    /* Anklickbare Tage heben sich beim Überfahren leicht ab. */
+    table.cal td:has(a):hover { box-shadow: 0 3px 10px rgba(0,0,0,.10);
+      transform: translateY(-1px); }
+    .d-num { font-size: .8rem; color: var(--muted); }
     .d-book {
-      background: var(--accent); color: #fff; border-radius: 5px; font-size: .67rem;
+      background: var(--accent); color: #fff; border-radius: 6px; font-size: .67rem;
       padding: 1px 5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .d-book.other { background: var(--accent-soft); color: var(--accent-deep); }
@@ -291,7 +299,8 @@
       .stat .num { font-size: 1.5rem; }
       .btn { padding: .6rem 1rem; }      /* angenehmere Touch-Fläche */
 
-      table.cal td { height: 60px; }
+      table.cal { border-spacing: 3px; }
+      table.cal td { height: 60px; border-radius: 10px; }
       table.cal td .d-book { font-size: .58rem; }
 
       /* Datentabellen: einzeilig halten und bei Bedarf horizontal scrollen,

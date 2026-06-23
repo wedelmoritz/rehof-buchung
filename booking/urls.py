@@ -21,6 +21,7 @@ urlpatterns = [
     path("extern/", views.external_home, name="external_home"),
     path("extern/verwalten/<uuid:token>/", views.external_manage,
          name="external_manage"),
+    path("extern/widget/", views.external_embed, name="external_embed"),
     path("verwaltung/", views.dashboard, name="dashboard"),
     path("verwaltung/export/<str:kind>.<str:fmt>", views.dashboard_export,
          name="dashboard_export"),

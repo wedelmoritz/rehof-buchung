@@ -156,6 +156,15 @@ class ExternalPublicViewTests(TestCase):
                               "end": self.wed.isoformat(), "persons": 2})
         self.assertContains(r2, "Gartenhaus")
 
+    def test_embed_widget_einbettbar(self):
+        r = self.client.get(reverse("external_embed"))
+        self.assertEqual(r.status_code, 200)
+        # Per iframe einbettbar (Clickjacking-Schutz für diese Seite aufgehoben)
+        self.assertNotIn("X-Frame-Options", r)
+        self.assertContains(r, "Jetzt buchen")
+        # verlinkt auf den Buchungs-Einstieg
+        self.assertContains(r, reverse("external_home"))
+
     def test_oeffentlich_buchen(self):
         r = self.client.post(reverse("external_home"), {
             "action": "book", "quarter": self.q.id,

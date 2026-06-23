@@ -15,6 +15,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.clickjacking import xframe_options_exempt
 
 from .forms import ProfileForm, RegistrationForm, TransferForm, WishForm
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
@@ -944,3 +945,21 @@ def external_manage(request, token):
             for b in bookings]
     return render(request, "booking/external_manage.html", {
         "guest": guest, "rows": rows, "cfg": cfg, "today": today})
+
+
+@xframe_options_exempt
+def external_embed(request):
+    """Einbettbares Verfügbarkeits-Widget für die Re:Hof-Website (read-only).
+
+    Zeigt nur den grün/grau-Kalender (keine Gastdaten, keine Navigation/PWA) und
+    verlinkt zum eigentlichen Buchungs-Einstieg `/extern/` (öffnet in neuem Tab).
+    `@xframe_options_exempt`, damit die Seite per <iframe> eingebunden werden darf."""
+    cfg = svc.ExternalConfig.get_solo()
+    today = date.today()
+    year, month = _month_from_request(request, today)
+    cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
+    return render(request, "booking/external_embed.html", {
+        "cfg": cfg, "today": today, "cal": cal,
+        "book_url": request.build_absolute_uri(reverse("external_home")),
+        **(_cal_nav(cal) if cal else {"months": [], "years": []}),
+    })
