@@ -497,13 +497,96 @@ Anpassen im Admin (Äquivalenzklassen + Quartiere) oder in `seed_demo.py`.
 
 ---
 
+## Voraussetzungen (Betrieb & Server-Umzug)
+
+Was ein Server braucht, um die App zu betreiben – nützlich bei einem **Umzug**.
+
+**Pflicht (Grundbetrieb):**
+
+| Bereich | Anforderung |
+|---|---|
+| Host | Linux (Debian/Ubuntu empfohlen), Root/sudo |
+| Container | **Docker** + **Docker Compose v2**, `git` (installiert `install.sh` bei Bedarf) |
+| Reverse-Proxy | **Caddy** auf dem Host (TLS/Let’s Encrypt); Web-Container hängt über ein externes Docker-Netz (`compose_web`) dran |
+| Netz/DNS | Domain mit A-Record auf den Server; Ports **80/443** offen; ausgehend Docker-Hub + ACME erreichbar |
+| Ressourcen | klein: ~1–2 vCPU, ~2 GB RAM, ~10 GB Platte (PoC) |
+| Konfiguration | `.env` mit `SECRET_KEY`, `POSTGRES_DB/USER/PASSWORD`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` (optional `TZ`, `EMAIL_*`, `PUBLIC_BASE_URL`, `REDIS_URL`) |
+| Daten | liegen im Docker-Volume **`pgdata`** (PostgreSQL) – das ist beim Umzug der wichtige Teil |
+
+Native Bibliotheken (z. B. **Pango/Cairo** für die Rechnungs-PDFs) stecken im
+Docker-Image – auf dem Host ist **nichts** zusätzlich zu installieren.
+
+**Zusätzlich je Ausbaustufe (siehe unten):**
+
+| Ausbaustufe | Zusätzlich nötig |
+|---|---|
+| Echter E-Mail-Versand | SMTP-Zugang (`EMAIL_HOST/PORT/USER/PASSWORD`, `DEFAULT_FROM_EMAIL`, `PUBLIC_BASE_URL`) |
+| Off-site-Backups | Ziel per SSH/SFTP (z. B. **Hetzner Storage Box**) + `borg`/`restic`; `BORG_REPO`, `BORG_PASSPHRASE` |
+| 2FA für die Verwaltung | Python-Paket `django-otp` (nur Image-Neubau) |
+| IBAN-Feldverschlüsselung | separater Schlüssel `FIELD_ENCRYPTION_KEY` (getrennt von der DB verwahren) |
+| Cache/Sessions (optional) | Redis über das Compose-Profil `cache` (`REDIS_URL`) |
+
+### Server-Umzug inkl. Datenbank
+
+Das Skript `ops/migrate-server.sh` zieht die **PostgreSQL-Datenbank** um:
+
+```bash
+# Auf dem ALTEN Server (Stack läuft): Dump erzeugen
+./ops/migrate-server.sh dump            # -> rehof-dump-JJJJ-MM-TT_HHMM.sql.gz
+
+# Dump + .env auf den NEUEN Server kopieren (Secrets!), z.B.
+scp rehof-dump-*.sql.gz .env  user@neuer-server:/opt/rehof/
+
+# Auf dem NEUEN Server: Repo klonen, .env legen, DB starten, einspielen
+git clone <repo> /opt/rehof && cd /opt/rehof   # .env hierher
+docker compose up -d db                          # leere DB anlegen
+./ops/migrate-server.sh restore rehof-dump-*.sql.gz
+docker compose up -d                             # Web/Cron starten (migrate = i.d.R. No-op)
+```
+
+Wichtig: Auf beiden Servern möglichst **derselbe Code-Stand** (sonst nach dem
+Restore `docker compose exec web python manage.py migrate` ausführen). Den
+Caddy-Block aus `caddy/` übernehmen und die Domain in der `.env` anpassen.
+
+---
+
 ## Ausblick (Ausbaustufen)
 
-Umgesetzt sind Losverfahren, Buchungszeiträume (global + Teilmenge), normale
-Buchung mit verfügbaren Tagen und die Tage-Übertragung an Mitglieder. Offen
-bzw. als Feinschliff denkbar:
+**Im PoC umgesetzt:** Losverfahren mit Bestätigungs-/Rücknahme-Workflow, normale
+Buchung + Warteliste, Wunschliste, Tage-Übertragung, Wechselwunsch, Hofladen mit
+Rechnungen **und PDF**, In-App-/E-Mail-Benachrichtigungen (Outbox + Scheduler),
+Verwaltungs-Dashboard (Reinigung/Buchungen/Rechnungen/Export/Versand),
+**Kontoabgleich** (CSV/CAMT), PWA/Offline.
 
-- Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
-- Externe Buchungen sicher ausbauen (Modell-Flag vorhanden).
-- Benachrichtigungen (E-Mail) zu Anmeldeschluss und Losergebnis.
-- Kalender-/Belegungsansicht grafisch statt als Lückenliste.
+**Offen / Feinschliff (funktional):**
+
+- MT940 als drittes Import-Format (Parser-Schnittstelle steht in `shop/bankimport.py`).
+- Losergebnis als **PDF** + Massenmail an alle Teilnehmenden.
+- **Web-Push** (mobile Benachrichtigungen zusätzlich zur E-Mail).
+- Externe Buchungen ausbauen (Modell-Flags `Member.is_external`,
+  `Allocation.source="external"` vorhanden).
+- Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
+- Optionaler OIDC/Keycloak-Login (Naht in `config/settings.py` markiert).
+
+---
+
+## Geplante Ausbaustufe: Datensicherung & Härtung (noch NICHT umgesetzt)
+
+Bewusst für den PoC zurückgestellt – **vor dem echten Wirkbetrieb dringend
+empfohlen**. Details/Blueprints in
+[`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md).
+
+| Maßnahme | Was | Risiko, wenn NICHT umgesetzt |
+|---|---|---|
+| **Off-site-Backups** | Nächtlicher `pg_dump` → verschlüsselt & **append-only** auf eine Hetzner Storage Box (Borg/restic), 14-Tage-Retention, getesteter Restore | **Totalverlust** aller Daten bei Plattendefekt, versehentlichem Löschen, fehlgeschlagener Migration oder Ransomware – ohne Wiederherstellung. (Aktuell gibt es **kein** Backup.) |
+| **2FA für die Verwaltung** | TOTP-Zweitfaktor für Staff/Superuser (`django-otp`) | Ein **geleaktes/geknacktes Admin-Passwort** genügt für vollen Zugriff auf alle Mitgliederdaten und zum Manipulieren von Buchungen/Rechnungen. |
+| **IBAN-Feldverschlüsselung** | Sensibelste PII (IBAN, ggf. Anschrift) verschlüsselt, Schlüssel **getrennt** von der DB | Ein **gestohlener DB-Dump oder ein unverschlüsseltes Backup** legt die **Bankdaten (IBAN)** aller Mitglieder im Klartext offen. |
+| **At-Rest-Verschlüsselung (LUKS)** | Verschlüsselte Datenpartition auf dem VPS | Eine **gestohlene oder außer Betrieb genommene Platte** ist im Klartext lesbar. |
+| **Secrets-Hygiene** | `.env` mit `chmod 600`, Rotations-Runbook für `SECRET_KEY`/DB-Passwort | Geleakte `.env`/`SECRET_KEY` = Session-Fälschung und (bei DB-Zugriff) vollständige Kompromittierung. |
+
+**Einordnung der Architektur:** Die Datenbank ist **vom Netz abgeschottet**
+(internes Docker-Netz, kein veröffentlichter Port) und nur über die
+authentifizierte Web-App erreichbar; der Transport ist via Caddy TLS-verschlüsselt.
+**Nicht** geschützt ist der Fall „jemand hat Server-/Root-Zugriff oder eine Kopie
+der Platte/eines Backups“ – dagegen wirken vor allem **verschlüsselte Off-site-
+Backups** und die **IBAN-Feldverschlüsselung**.
