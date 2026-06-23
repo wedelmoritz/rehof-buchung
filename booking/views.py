@@ -967,6 +967,92 @@ def external_manage(request, token):
         "guest": guest, "rows": rows, "cfg": cfg, "today": today})
 
 
+@login_required
+def lottery_fairness(request):
+    """Login-geschützte Beweis-/Erklärseite: zeigt den statistischen Fairness-
+    Nachweis des Losverfahrens (Monte-Carlo) als Grafen. Konfiguriert/gestartet
+    wird im Backend (Admin-Aktion am „Fairness-Nachweis")."""
+    from .models import FairnessSimConfig
+    cfg = FairnessSimConfig.get_solo()
+    result = cfg.last_result
+    eq_chart = karma_chart = None
+    if result:
+        eq_chart = _fairness_eq_chart(result["equal"])
+        karma_chart = _fairness_karma_chart(result["karma"])
+    return render(request, "booking/fairness.html", {
+        "cfg": cfg, "result": result,
+        "eq_chart": eq_chart, "karma_chart": karma_chart,
+    })
+
+
+# Inline-SVG-Geometrie (server-seitig berechnet, ohne JS-Abhängigkeit).
+_CHART_W, _CHART_H = 560, 230
+_PAD_L, _PAD_B, _PAD_T, _PAD_R = 44, 28, 12, 12
+
+
+def _fairness_eq_chart(eq: dict) -> dict:
+    """Balken je Nutzer (Gewinnrate) + Erwartungslinie + 95%-Konfidenz-Whisker."""
+    users = eq["users"]
+    vmax = max(eq["expected_rate"] * 2, eq["max_rate"] * 1.15, 0.05)
+    plot_w = _CHART_W - _PAD_L - _PAD_R
+    plot_h = _CHART_H - _PAD_T - _PAD_B
+    n = len(users)
+    gap = 6
+    bw = max(4.0, plot_w / n - gap)
+
+    def y_of(v):
+        return _PAD_T + plot_h - (v / vmax) * plot_h
+
+    bars = []
+    for i, u in enumerate(users):
+        x = _PAD_L + i * (bw + gap)
+        y = y_of(u["rate"])
+        bars.append({
+            "x": round(x, 1), "y": round(y, 1), "w": round(bw, 1),
+            "h": round(_PAD_T + plot_h - y, 1),
+            "cx": round(x + bw / 2, 1),
+            "ci_top": round(y_of(u["ci_high"]), 1),
+            "ci_bot": round(y_of(u["ci_low"]), 1),
+            "label": u["index"], "rate": round(u["rate"] * 100, 1),
+        })
+    return {
+        "w": _CHART_W, "h": _CHART_H, "bars": bars,
+        "exp_y": round(y_of(eq["expected_rate"]), 1),
+        "exp_pct": round(eq["expected_rate"] * 100, 1),
+        "axis_y": _PAD_T + plot_h, "axis_x0": _PAD_L,
+        "axis_x1": _CHART_W - _PAD_R,
+    }
+
+
+def _fairness_karma_chart(rows: list) -> dict:
+    """Balken je Ausgleichsfaktor (Gewinnrate der bevorzugten Partei)."""
+    vmax = max((r["rate"] for r in rows), default=0.1) * 1.2 or 0.1
+    plot_w = _CHART_W - _PAD_L - _PAD_R
+    plot_h = _CHART_H - _PAD_T - _PAD_B
+    n = len(rows)
+    gap = 14
+    bw = max(6.0, plot_w / n - gap)
+
+    def y_of(v):
+        return _PAD_T + plot_h - (v / vmax) * plot_h
+
+    bars = []
+    for i, r in enumerate(rows):
+        x = _PAD_L + i * (bw + gap)
+        y = y_of(r["rate"])
+        bars.append({
+            "x": round(x, 1), "y": round(y, 1), "w": round(bw, 1),
+            "h": round(_PAD_T + plot_h - y, 1),
+            "cx": round(x + bw / 2, 1),
+            "ci_top": round(y_of(r["ci_high"]), 1),
+            "ci_bot": round(y_of(r["ci_low"]), 1),
+            "label": r["factor"], "rate": round(r["rate"] * 100, 1),
+        })
+    return {"w": _CHART_W, "h": _CHART_H, "bars": bars,
+            "axis_y": _PAD_T + plot_h, "axis_x0": _PAD_L,
+            "axis_x1": _CHART_W - _PAD_R}
+
+
 @xframe_options_exempt
 def external_embed(request):
     """Einbettbares Verfügbarkeits-Widget für die Re:Hof-Website (read-only).

@@ -1,0 +1,101 @@
+{% extends "booking/base.html" %}
+{% block title %}Fairness-Nachweis{% endblock %}
+{% block content %}
+<h1>Ist die Auslosung fair? – Der Nachweis</h1>
+
+<div class="card">
+  <p style="margin-top:0">Unser Losverfahren ist fachlich eine <strong>gewichtete
+    Random&nbsp;Serial&nbsp;Dictatorship</strong> (zufällige Reihenfolge im Runden-Prinzip).
+    Für gleich gestellte Mitglieder (alle mit Ausgleichsfaktor&nbsp;1,0) gilt die
+    Eigenschaft <strong>„equal&nbsp;treatment&nbsp;of&nbsp;equals“</strong>: im Erwartungswert
+    hat jede:r dieselbe Chance. Das zeigen wir hier <em>empirisch</em> über eine
+    <strong>Monte-Carlo-Simulation</strong> – viele tausend Ziehungen mit jeweils
+    anderem Zufalls-Seed – und prüfen die Gleichverteilung mit einem
+    <strong>Chi-Quadrat-Anpassungstest</strong> samt
+    <strong>95-%-Konfidenzintervallen</strong> (Wilson-Score).</p>
+</div>
+
+{% if not result %}
+<div class="msg info">Es liegt noch kein Ergebnis vor. Die Simulation wird im
+  <strong>Backend</strong> unter „Fairness-Nachweis“ konfiguriert und über die
+  Aktion <em>„Simulation jetzt berechnen“</em> gestartet.</div>
+{% else %}
+
+<div class="card">
+  <h2 style="margin-top:0">1. Gleiche Chance für Gleichgestellte</h2>
+  <p class="muted" style="margin-top:0">{{ result.equal.n_users }} gleich gestellte
+    Nutzer konkurrieren um {{ result.equal.n_items }} knappe Quartiere im selben
+    Zeitraum, über {{ result.equal.n_runs }} Ziehungen. Erwartete Gewinnrate je
+    Nutzer: <strong>{{ eq_chart.exp_pct }} %</strong> ({{ result.equal.n_items }}/{{ result.equal.n_users }}).</p>
+
+  <svg viewBox="0 0 {{ eq_chart.w }} {{ eq_chart.h }}" class="chart" role="img"
+       aria-label="Gewinnrate je Nutzer mit Konfidenzintervall">
+    <line x1="{{ eq_chart.axis_x0 }}" y1="{{ eq_chart.axis_y }}" x2="{{ eq_chart.axis_x1 }}" y2="{{ eq_chart.axis_y }}" class="axis"/>
+    <line x1="{{ eq_chart.axis_x0 }}" y1="{{ eq_chart.exp_y }}" x2="{{ eq_chart.axis_x1 }}" y2="{{ eq_chart.exp_y }}" class="exp"/>
+    <text x="{{ eq_chart.axis_x1 }}" y="{{ eq_chart.exp_y }}" dy="-3" text-anchor="end" class="explbl">erwartet {{ eq_chart.exp_pct }} %</text>
+    {% for b in eq_chart.bars %}
+    <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" class="bar"/>
+    <line x1="{{ b.cx }}" y1="{{ b.ci_top }}" x2="{{ b.cx }}" y2="{{ b.ci_bot }}" class="ci"/>
+    <text x="{{ b.cx }}" y="{{ eq_chart.axis_y }}" dy="14" text-anchor="middle" class="xlbl">{{ b.label }}</text>
+    {% endfor %}
+  </svg>
+
+  <p>Ergebnis des <strong>Chi-Quadrat-Tests</strong> (df&nbsp;=&nbsp;{{ result.equal.df }}):
+    χ²&nbsp;=&nbsp;{{ result.equal.chi2|floatformat:2 }},
+    <strong>p&nbsp;=&nbsp;{{ result.equal.p_value|floatformat:3 }}</strong>.
+    {% if result.equal.uniform_ok %}
+    <span class="tag ok">fair ✓</span> Da p&nbsp;&gt;&nbsp;0,05 wird die Gleichverteilung
+    <strong>nicht verworfen</strong> – die beobachteten Gewinnraten sind statistisch
+    nicht von „alle gleich“ zu unterscheiden.
+    {% else %}
+    <span class="tag">Hinweis</span> p&nbsp;≤&nbsp;0,05 – bei sehr wenigen Durchläufen
+    kann das schwanken; bitte mehr Ziehungen wählen.
+    {% endif %}
+    Spannweite der Raten: {{ eq_chart.bars|length }} Nutzer zwischen
+    {{ result.equal.min_rate|floatformat:3 }} und {{ result.equal.max_rate|floatformat:3 }}.</p>
+  <p class="muted" style="font-size:.85rem">Lesehilfe: Jeder Balken ist die
+    gemessene Gewinnrate eines Nutzers, die dünne Linie das 95-%-Konfidenzintervall,
+    die gestrichelte Linie die theoretisch erwartete Rate. Alle Balken liegen –
+    bis auf Zufallsrauschen – auf gleicher Höhe.</p>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">2. Der Ausgleich (Karma) wirkt nachweisbar</h2>
+  <p class="muted" style="margin-top:0">Wer im Vorjahr leer ausging, bekommt einen
+    höheren Ausgleichsfaktor. Hier hat <em>eine</em> Partei den jeweils angegebenen
+    Faktor (alle anderen 1,0); ihre Gewinnrate steigt messbar.</p>
+  <svg viewBox="0 0 {{ karma_chart.w }} {{ karma_chart.h }}" class="chart" role="img"
+       aria-label="Gewinnrate nach Ausgleichsfaktor">
+    <line x1="{{ karma_chart.axis_x0 }}" y1="{{ karma_chart.axis_y }}" x2="{{ karma_chart.axis_x1 }}" y2="{{ karma_chart.axis_y }}" class="axis"/>
+    {% for b in karma_chart.bars %}
+    <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" class="bar karma"/>
+    <line x1="{{ b.cx }}" y1="{{ b.ci_top }}" x2="{{ b.cx }}" y2="{{ b.ci_bot }}" class="ci"/>
+    <text x="{{ b.cx }}" y="{{ b.y }}" dy="-4" text-anchor="middle" class="vlbl">{{ b.rate }} %</text>
+    <text x="{{ b.cx }}" y="{{ karma_chart.axis_y }}" dy="14" text-anchor="middle" class="xlbl">{{ b.label }}</text>
+    {% endfor %}
+  </svg>
+  <p class="muted" style="font-size:.85rem">X-Achse: Ausgleichsfaktor · Y-Achse:
+    Gewinnrate der bevorzugten Partei. Höheres Karma → höhere Chance, aber
+    gedeckelt (max&nbsp;1,5) und nach einem Gewinn zurückgesetzt.</p>
+</div>
+
+<p class="muted">Zuletzt berechnet: {{ cfg.last_run_at|date:"d.m.Y H:i" }} ·
+  {{ result.equal.n_runs }} Ziehungen je Szenario · Konfiguration im Backend
+  („Fairness-Nachweis“).</p>
+{% endif %}
+
+<p><a class="btn ghost" href="{% url 'help' %}">← Zur Hilfe</a></p>
+
+<style>
+  svg.chart { width:100%; max-width:560px; height:auto; display:block; margin:.4rem 0; }
+  svg.chart .axis { stroke:var(--line); stroke-width:1; }
+  svg.chart .exp { stroke:var(--accent-deep); stroke-width:1.5; stroke-dasharray:5 4; }
+  svg.chart .explbl { fill:var(--accent-deep); font-size:11px; }
+  svg.chart .bar { fill:var(--sage); }
+  svg.chart .bar.karma { fill:var(--accent); }
+  svg.chart .ci { stroke:#3c352f; stroke-width:1.5; opacity:.55; }
+  svg.chart .xlbl { fill:var(--muted); font-size:10px; }
+  svg.chart .vlbl { fill:var(--ink); font-size:10px; }
+  .tag.ok { background:#e1efd6; color:#41663a; }
+</style>
+{% endblock %}

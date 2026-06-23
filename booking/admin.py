@@ -12,7 +12,8 @@ from django.urls import reverse
 
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass, ExternalBooking,
-    ExternalConfig, Guest, LotteryRun, Member, Membership, NightTransfer,
+    ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
+    NightTransfer,
     Notification, OpsConfig, OutboxEmail, Quarter, QuarterPrice, SchoolHoliday,
     SeasonRule, Share, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
 )
@@ -582,3 +583,39 @@ class ExternalBookingAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(FairnessSimConfig)
+class FairnessSimConfigAdmin(admin.ModelAdmin):
+    """Statistischer Fairness-Nachweis (Singleton): Parameter einstellen und die
+    Monte-Carlo-Simulation per Knopf starten. Das Ergebnis erscheint mit Grafen
+    auf der Login-Seite /losung-fairness/ (verlinkt unter der Hilfe)."""
+    fields = ("n_users", "n_items", "n_runs", "last_run_at")
+    readonly_fields = ("last_run_at",)
+    change_form_template = "admin/fairness_change_form.html"
+
+    def has_add_permission(self, request):
+        return not FairnessSimConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj = FairnessSimConfig.get_solo()
+        return redirect(
+            reverse("admin:booking_fairnesssimconfig_change", args=[obj.id]))
+
+    def response_change(self, request, obj):
+        # Beim Klick auf „Simulation berechnen“ werden zuerst die (ggf. geänderten)
+        # Parameter gespeichert, dann wird die Simulation ausgeführt.
+        if "_run_sim" in request.POST:
+            from .services import run_fairness_simulation
+            eq = run_fairness_simulation(obj)["equal"]
+            messages.success(
+                request,
+                f"Fairness-Simulation berechnet: {eq['n_runs']} Ziehungen, "
+                f"χ²-p-Wert {eq['p_value']:.3f} "
+                f"({'fair ✓' if eq['uniform_ok'] else 'siehe Seite'}). "
+                "Ergebnis unter „/losung-fairness/“.")
+            return redirect(request.path)
+        return super().response_change(request, obj)

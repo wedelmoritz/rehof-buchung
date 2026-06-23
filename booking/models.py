@@ -982,3 +982,34 @@ class ExternalBooking(models.Model):
             now = now or timezone.now()
             return self.hold_expires_at is None or self.hold_expires_at > now
         return False
+
+
+class FairnessSimConfig(models.Model):
+    """Einstellungen + letztes Ergebnis des statistischen Fairness-Nachweises
+    (Monte-Carlo-Simulation des Losverfahrens). Singleton; im Backend
+    konfiguriert und per Admin-Aktion gestartet, Ergebnis auf der Login-Seite
+    `/losung-fairness/`. Reine Logik in `booking/fairness.py`."""
+    n_users = models.PositiveSmallIntegerField(
+        "Nutzer (gleich gestellt)", default=10,
+        help_text="Anzahl gleich gestellter Parteien (alle Karma 1,0).")
+    n_items = models.PositiveSmallIntegerField(
+        "Knappe Quartiere / Wünsche je Nutzer", default=4,
+        help_text="Anzahl umkämpfter Quartiere im selben Zeitraum (Knappheit "
+                  "M < Nutzer). Jeder Nutzer wünscht alle.")
+    n_runs = models.PositiveIntegerField(
+        "Anzahl Lose-Durchläufe", default=2000,
+        help_text="Wie viele Ziehungen mit unterschiedlichem Seed gemittelt "
+                  "werden (mehr = engere Konfidenzintervalle).")
+    last_result = models.JSONField("Letztes Ergebnis", null=True, blank=True)
+    last_run_at = models.DateTimeField("Zuletzt berechnet", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Fairness-Nachweis"
+        verbose_name_plural = "Fairness-Nachweis"
+
+    def __str__(self) -> str:
+        return "Fairness-Nachweis (Losverfahren)"
+
+    @classmethod
+    def get_solo(cls) -> "FairnessSimConfig":
+        return cls.objects.first() or cls.objects.create()

@@ -63,6 +63,16 @@ docker compose exec web python manage.py seed_demo --reset   # Demo-Stammdaten
 docker compose exec web python manage.py createsuperuser     # Verwalter:in (Staff)
 ```
 
+**Großes Test-Szenario** (kompletter Wipe inkl. Superuser, dann reich befüllt –
+Test-Konten `admin`/`verwaltung`/`test`, 50 Mitglieder mit wilden Buchungen im
+laufenden Jahr, offene Wunsch-Losung mit Feiertags-Ballung, offene Hofladen-
+Rechnungen und 15 externe Mo–Fr-Buchungen; die Losung ist bewusst **nicht**
+gezogen):
+
+```bash
+docker compose exec web python manage.py seed_demo --testdata --yes
+```
+
 - **Verwalter:in** = das Superuser-Konto. Es ist `is_staff` und sieht in der
   Navigation zusätzlich **Verwaltung** (Dashboard) und **Backend** (Django-Admin).
 - **Testnutzer:in** = ein Demo-Mitglied, z. B. Login `anna0`, Passwort

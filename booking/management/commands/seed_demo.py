@@ -52,6 +52,36 @@ VORNAMEN = [
 ]
 
 
+def _easter(year: int) -> date:
+    """Ostersonntag (Gregorianischer Algorithmus nach Meeus/Jones/Butcher)."""
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    ell = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * ell) // 451
+    month = (h + ell - 7 * m + 114) // 31
+    day = ((h + ell - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def _holiday_anchors(year: int) -> list[date]:
+    """Typische Ballungs-Anreisetage: Ostern, Himmelfahrt, Pfingsten, Berliner
+    Sommerferien (Anfang Juli) und Weihnachten – jeweils als Anreisedatum."""
+    easter = _easter(year)
+    return [
+        easter - timedelta(days=2),            # Karfreitag (Osterwochenende)
+        easter + timedelta(days=39),           # Christi Himmelfahrt
+        easter + timedelta(days=49),           # Pfingstsonntag
+        date(year, 7, 10),                     # Berliner Sommerferien (grob)
+        date(year, 7, 24),                     # Sommerferien, 2. Welle
+        date(year, 12, 23),                    # Weihnachten
+    ]
+
+
 class Command(BaseCommand):
     help = ("Legt Demo-/Testdaten an (Quartiere, Nutzer inkl. Tandems, Periode, "
             "Wünsche, Hofladen). Mit --reset/--wipe werden vorhandene Daten "
@@ -72,6 +102,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--tandems", type=int, default=2,
             help="Anzahl Zweier-Tandems (teilen sich je einen Anteil 25/25).")
+        parser.add_argument(
+            "--testdata", action="store_true",
+            help="Großes Test-Szenario: KOMPLETTER Wipe (inkl. Superuser) und "
+                 "befüllt die DB mit Test-Nutzern (admin/verwaltung/test), 50 "
+                 "wild buchenden Mitgliedern, offener Wunsch-Losung mit Feiertags-"
+                 "Ballung, offenen Hofladen-Rechnungen und 15 externen Buchungen.")
 
     def _confirm_destroy(self, opts):
         """Definitive Warnung vor dem Löschen. --yes überspringt; ohne TTY und
@@ -92,18 +128,24 @@ class Command(BaseCommand):
             return False
         return True
 
-    def _wipe(self):
+    def _wipe(self, full=False):
         """Löscht alle Nutzer-/Buchungs-/Hofladen-Daten in sicherer Reihenfolge
-        (Fremdschlüssel mit PROTECT zuerst entkoppeln)."""
+        (Fremdschlüssel mit PROTECT zuerst entkoppeln). `full=True` entfernt auch
+        Superuser (für ein vollständig frisches Test-Szenario)."""
         from shop.models import (
-            Invoice, LineItem, Product, ProductGroup, ShopConfig)
+            Invoice, LineItem, Product, ProductGroup, Purchase, ShopConfig)
         from booking.models import (
-            LotteryRun, Notification, Share, SwapRequest, WaitlistEntry)
+            ExternalBooking, Guest, LotteryRun, Notification, OutboxEmail,
+            Share, SwapRequest, WaitlistEntry)
+        ExternalBooking.objects.all().delete()
         LineItem.objects.all().delete()
         Invoice.objects.all().delete()
+        Purchase.objects.all().delete()
+        Guest.objects.all().delete()
         Product.objects.all().delete()
         ProductGroup.objects.all().delete()
         ShopConfig.objects.all().delete()
+        OutboxEmail.objects.all().delete()
         SwapRequest.objects.all().delete()
         Notification.objects.all().delete()
         WaitlistEntry.objects.all().delete()
@@ -118,7 +160,10 @@ class Command(BaseCommand):
         Share.objects.all().delete()
         Member.objects.all().delete()
         Membership.objects.all().delete()
-        User.objects.filter(is_superuser=False).delete()
+        if full:
+            User.objects.all().delete()
+        else:
+            User.objects.filter(is_superuser=False).delete()
         Quarter.objects.all().delete()
         EquivalenceClass.objects.all().delete()
 
@@ -126,11 +171,11 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         rng = random.Random(20270524)
 
-        if opts["reset"] or opts["wipe"]:
+        if opts["reset"] or opts["wipe"] or opts["testdata"]:
             if not self._confirm_destroy(opts):
                 return
             self.stdout.write("Lösche vorhandene Daten …")
-            self._wipe()
+            self._wipe(full=opts["testdata"])
             if opts["wipe"]:
                 self.stdout.write(self.style.SUCCESS("Alle Daten gelöscht."))
                 return
@@ -216,18 +261,17 @@ class Command(BaseCommand):
             defaults=dict(
                 start=date(next_year, 1, 1),
                 end=date(next_year + 1, 1, 1),
-                wishlist_open=date.today() - timedelta(days=3),
-                wishlist_close=date.today() + timedelta(days=14),
-                draw_at=timezone.now() + timedelta(days=15),
+                wishlist_open=date.today(),
+                wishlist_close=date.today() + timedelta(days=21),  # 3 Wochen offen
+                draw_at=timezone.now() + timedelta(days=22),
                 status=BookingPeriod.WISHES_OPEN,
             ),
         )
 
-        # Zufällige Wünsche – mit Häufung auf "Pfingst"-Wochen, um Kollisionen
-        # zu erzeugen (Pfingsten next_year grob Ende Mai/Anfang Juni).
-        hot_anchors = [
-            date(next_year, 5, 22), date(next_year, 5, 29), date(next_year, 6, 5),
-        ]
+        # Zufällige Wünsche – mit Häufung auf den typischen Feiertagen/Ferien
+        # (Ostern, Himmelfahrt, Pfingsten, Sommerferien, Weihnachten), um realistische
+        # Kollisionen zu erzeugen.
+        hot_anchors = _holiday_anchors(next_year)
         cool_anchors = [
             date(next_year, 3, 1) + timedelta(days=rng.randint(0, 200))
             for _ in range(8)
@@ -379,6 +423,10 @@ class Command(BaseCommand):
         # Hofladen-Katalog (Gruppen, Produkte, Genossenschafts-Stammdaten)
         call_command("seed_shop")
 
+        # Großes Test-Szenario (Test-Nutzer, Buchungen, Rechnungen, Externe)
+        if opts["testdata"]:
+            self._seed_testdata(rng, members, quarters, period, this_year)
+
         self.stdout.write(self.style.WARNING(
             "\nLogin-Demodaten: Benutzername wie 'anna0', Passwort 'demo12345'.\n"
             "Losung starten: im Admin unter „Buchungsperioden (Zeiträume)“ -> "
@@ -389,3 +437,118 @@ class Command(BaseCommand):
             "Buchungsregeln (global + Saison + Schulferien): im Admin unter "
             "„Buchungsregeln“."
         ))
+
+    # ----------------------------------------------------------------- #
+    # Großes Test-Szenario (--testdata)
+    # ----------------------------------------------------------------- #
+    def _seed_testdata(self, rng, members, quarters, period, this_year):
+        """Befüllt die DB realistisch: benannte Test-Nutzer, wilde Buchungen im
+        laufenden Jahr, offene Hofladen-Rechnungen und 15 externe Buchungen.
+        Die Losung wird bewusst NICHT durchgeführt (das tun die Test-Nutzer)."""
+        from booking import services as svc
+        from shop import services as shopsvc
+        from shop.models import Invoice, Product
+
+        # 1) Benannte Test-Konten ------------------------------------------------
+        admin, _ = User.objects.get_or_create(
+            username="admin",
+            defaults=dict(email="admin@example.org", is_staff=True,
+                          is_superuser=True, first_name="Admin"))
+        admin.set_password("admin12345"); admin.save()
+
+        verw, _ = User.objects.get_or_create(
+            username="verwaltung",
+            defaults=dict(email="verwaltung@example.org", is_staff=True,
+                          first_name="Verwaltung"))
+        verw.set_password("verwaltung12345"); verw.save()
+
+        test_user, _ = User.objects.get_or_create(
+            username="test",
+            defaults=dict(email="test@example.org", first_name="Test"))
+        test_user.set_password("test12345"); test_user.save()
+        test_member, _ = Member.objects.get_or_create(
+            user=test_user, defaults=dict(display_name="Testnutzende (test)"))
+        if not Share.objects.filter(member=test_member).exists():
+            ms = Membership.objects.create(
+                eg_number="VL-TEST", label="Testnutzende",
+                kind=Membership.VOLL, annual_night_budget=50, wish_night_budget=25)
+            Share.objects.create(membership=ms, member=test_member,
+                                 night_budget=50, wish_night_budget=25)
+        members = list(members) + [test_member]
+        # Auch die Testnutzenden wünschen mit (Feiertags-Ballung).
+        if not Wish.objects.filter(period=period, member=test_member).exists():
+            for prio, start in enumerate(_holiday_anchors(period.target_year)[:2], 1):
+                Wish.objects.create(
+                    period=period, member=test_member, priority=prio,
+                    quarter=rng.choice(quarters), start=start,
+                    end=start + timedelta(days=rng.choice([3, 4, 7])),
+                    submitted=True)
+        self.stdout.write(self.style.SUCCESS(
+            "Test-Konten: admin/admin12345 (Superuser), verwaltung/verwaltung12345 "
+            "(Staff), test/test12345 (Mitglied)."))
+
+        # 2) Wilde Buchungen im laufenden Jahr -----------------------------------
+        n_alloc = 0
+        attempts = 0
+        while n_alloc < 60 and attempts < 600:
+            attempts += 1
+            m = rng.choice(members)
+            q = rng.choice(quarters)
+            month = rng.randint(1, 12)
+            day = rng.randint(1, 28)
+            start = date(this_year, month, day)
+            end = start + timedelta(days=rng.choice([2, 3, 3, 4, 7]))
+            if not svc._in_season_range(q, start, end):
+                continue
+            if not svc.quarter_is_free(q, start, end):
+                continue
+            Allocation.objects.create(
+                member=m, quarter=q, start=start, end=end,
+                persons=rng.randint(1, q.max_occupancy), source="spontaneous",
+                provisional=False)
+            n_alloc += 1
+        self.stdout.write(self.style.SUCCESS(
+            f"{n_alloc} wilde Buchungen im laufenden Jahr {this_year} angelegt."))
+
+        # 3) Offene Hofladen-Rechnungen ------------------------------------------
+        wares = list(Product.objects.filter(kind="ware"))
+        n_inv = 0
+        if wares:
+            for m in rng.sample(members, min(12, len(members))):
+                for _ in range(rng.randint(1, 3)):
+                    shopsvc.add_item(m, rng.choice(wares), rng.randint(1, 4))
+                shopsvc.checkout(m)
+                inv, _err = shopsvc.generate_invoice_now(m)
+                if inv:
+                    n_inv += 1
+                    # Etwa jede dritte Rechnung überfällig (für Mahnwesen/Dashboard).
+                    if n_inv % 3 == 0:
+                        inv.due_date = date.today() - timedelta(days=rng.randint(5, 40))
+                        inv.save(update_fields=["due_date"])
+        self.stdout.write(self.style.SUCCESS(
+            f"{n_inv} offene Hofladen-Rechnungen angelegt (≈⅓ überfällig)."))
+
+        # 4) 15 externe Buchungen (nur Mo–Fr: Anreise Mo, Abreise Fr) ------------
+        ext_quarters = list(Quarter.objects.filter(external_bookable=True))
+        names = ["Familie Müller", "Lena Gast", "P. Schmidt", "Café Nord",
+                 "Team Retreat", "Anja & Tom", "Wandergruppe", "Oma Erna",
+                 "Studio B", "Yoga-Kreis", "Klaus Extern", "Reisegruppe Süd",
+                 "Birte Hansen", "Hoffreunde", "Tina & Co"]
+        n_ext, ext_attempts = 0, 0
+        # Nächster Montag ab heute+lead.
+        d0 = date.today() + timedelta(days=2)
+        while d0.weekday() != 0:
+            d0 += timedelta(days=1)
+        while n_ext < 15 and ext_attempts < 200 and ext_quarters:
+            mon = d0 + timedelta(weeks=ext_attempts // max(1, len(ext_quarters)))
+            q = ext_quarters[ext_attempts % len(ext_quarters)]
+            ext_attempts += 1
+            fri = mon + timedelta(days=4)   # Mo→Fr = 4 Nächte (Mo,Di,Mi,Do)
+            booking, _err = svc.create_external_booking(
+                q, mon, fri, rng.randint(1, q.max_occupancy),
+                name=names[n_ext % len(names)],
+                email=f"gast{n_ext}@example.org", city="Berlin")
+            if booking:
+                n_ext += 1
+        self.stdout.write(self.style.SUCCESS(
+            f"{n_ext} externe Buchungen (Mo–Fr) angelegt."))
