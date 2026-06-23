@@ -39,8 +39,22 @@ def run_period_lottery(
     factor_cap: float = 1.5,
     reset_on_contested_win: bool = True,
 ) -> LotteryRun:
-    """Führt die Losung für eine Periode aus, schreibt Zuteilungen, aktualisiert
-    die Ausgleichsfaktoren und legt ein Audit-Protokoll an."""
+    """Führt die Losung für eine Periode aus, schreibt (vorläufige) Zuteilungen,
+    aktualisiert die Ausgleichsfaktoren und legt einen unbestätigten Losdurchlauf
+    an. Veröffentlicht wird erst über `confirm_lottery`."""
+    # Bestehenden Lauf behandeln, BEVOR die Faktoren gelesen werden: ein
+    # bestätigter Lauf ist tabu; ein unbestätigter wird zurückgerollt (Faktoren
+    # wiederhergestellt), damit ein erneuter Lauf das Karma nicht aufsummiert.
+    existing = period.runs.first()
+    if existing and existing.confirmed:
+        raise ValueError(
+            "Die Losung dieser Periode ist bereits bestätigt und kann nicht "
+            "erneut ausgeführt werden – erst zurücknehmen ist nicht möglich.")
+    if existing:
+        _restore_factors(existing)
+        existing.delete()
+    Allocation.objects.filter(period=period, source="lottery").delete()
+
     members = list(Member.objects.filter(is_external=False))
     quarters = list(Quarter.objects.filter(active=True))
     # Nur eingereichte Wünsche ("im Lostopf") nehmen an der Losung teil – und nur,
@@ -77,9 +91,11 @@ def run_period_lottery(
         reset_on_contested_win=reset_on_contested_win,
     )
 
-    # Alte Los-Zuteilungen dieser Periode entfernen (Idempotenz bei Re-Run)
-    Allocation.objects.filter(period=period, source="lottery").delete()
+    # Faktor-Stände VOR dem Lauf festhalten (für ein sauberes Rückgängigmachen).
+    old_factors = {str(m.id): m.factor for m in members}
 
+    # Vorläufige Zuteilungen (provisional=True): blockieren die Verfügbarkeit,
+    # bleiben aber für Mitglieder unsichtbar, bis bestätigt wird.
     for a in result.allocations:
         Allocation.objects.create(
             member_id=int(a.party_id),
@@ -87,26 +103,27 @@ def run_period_lottery(
             start=a.start, end=a.end,
             source="lottery", period=period,
             via_substitution=a.via_substitution, contested=a.contested,
+            provisional=True,
         )
 
-    # Faktoren aktualisieren (alte Werte für die Transparenz-Meldung merken)
-    old_factors = {str(m.id): m.factor for m in members}
+    # Faktoren aktualisieren
     for m in members:
         new_f = result.new_factors.get(str(m.id))
         if new_f is not None and new_f != m.factor:
             m.factor = new_f
             m.save(update_fields=["factor"])
 
-    period.status = BookingPeriod.LOTTERY_DONE
+    # Status zunächst nur „zur Prüfung“ – Veröffentlichung erst per Bestätigung.
+    period.status = BookingPeriod.LOTTERY_REVIEW
     period.seed = seed
     period.save(update_fields=["status", "seed"])
 
     party_names = {str(m.id): m.display_name for m in members}
     quarter_names = {str(q.id): q.name for q in quarters}
 
-    # Transparenz: jedem Teilnehmer (mit eingereichten Wünschen) eine
-    # Benachrichtigung mit Gewinnen, Verlusten und Karma-Änderung schicken.
-    _notify_lottery_results(
+    # Benachrichtigungen NUR vorbereiten (nicht zustellen) – das übernimmt erst
+    # confirm_lottery. So bekommen Mitglieder vor der Bestätigung nichts zu sehen.
+    notices = _build_lottery_notices(
         period, members, result, old_factors, quarter_names)
 
     log_text = L.render_log_text(result, party_names, quarter_names)
@@ -116,12 +133,67 @@ def run_period_lottery(
     )
     return LotteryRun.objects.create(
         period=period, seed=seed, log_text=log_text, summary=summary,
+        karma_snapshot=old_factors, notices=notices, confirmed=False,
     )
 
 
-def _notify_lottery_results(period, members, result, old_factors, quarter_names):
-    """Schreibt jedem Teilnehmer (eingereichte Wünsche) eine Benachrichtigung mit
-    seinen Gewinnen, Verlusten und der Karma-Änderung – für Nachvollziehbarkeit."""
+def _restore_factors(run) -> None:
+    """Setzt die Ausgleichsfaktoren auf den vor dem Lauf gemerkten Stand zurück."""
+    for mid, factor in (run.karma_snapshot or {}).items():
+        Member.objects.filter(id=int(mid)).update(factor=factor)
+
+
+def confirm_lottery(run) -> None:
+    """Bestätigt einen Losdurchlauf: macht die Zuteilungen sichtbar und stellt
+    die vorbereiteten Benachrichtigungen (In-App + E-Mail) zu. Danach ist der
+    Lauf nicht mehr rücknehmbar. Idempotent."""
+    if run.confirmed:
+        return
+    period = run.period
+    Allocation.objects.filter(
+        period=period, source="lottery").update(provisional=False)
+
+    url = reverse("period_result", args=[period.id])
+    Notification.objects.filter(url=url).delete()  # Idempotenz
+    year = period.target_year
+    for n in (run.notices or []):
+        member = Member.objects.filter(id=n["member_id"]).first()
+        if not member:
+            continue
+        Notification.objects.create(
+            member=member, message=n["message"], detail=n["detail"], url=url)
+        body = (f"Hallo {member.display_name},\n\n{n['message']}\n\n{n['detail']}"
+                f"\n\nDetails: {absolute_url(url)}\n\nViele Grüße\nRe:Hof")
+        email_member(member, f"Auslosung {year}: dein Ergebnis", body)
+
+    run.confirmed = True
+    run.confirmed_at = timezone.now()
+    run.save(update_fields=["confirmed", "confirmed_at"])
+    period.status = BookingPeriod.LOTTERY_DONE
+    period.save(update_fields=["status"])
+
+
+def rollback_lottery(run) -> tuple[bool, str | None]:
+    """Macht einen UNbestätigten Losdurchlauf rückgängig: löscht die vorläufigen
+    Zuteilungen, stellt das Karma wieder her, setzt die Periode zurück auf
+    „zur Auslosung freigegeben“ und entfernt den Lauf. Bestätigte Läufe sind
+    gesperrt."""
+    if run.confirmed:
+        return False, "Diese Losung ist bereits bestätigt und kann nicht mehr zurückgenommen werden."
+    period = run.period
+    Allocation.objects.filter(
+        period=period, source="lottery", provisional=True).delete()
+    _restore_factors(run)
+    period.status = BookingPeriod.LOTTERY_READY
+    period.save(update_fields=["status"])
+    run.delete()
+    return True, None
+
+
+def _build_lottery_notices(period, members, result, old_factors, quarter_names):
+    """Baut je Teilnehmer (mit eingereichten Wünschen) den Benachrichtigungstext
+    mit Gewinnen, Verlusten und Karma-Änderung – als serialisierbare Liste, die
+    am Losdurchlauf gespeichert und erst bei der Bestätigung zugestellt wird."""
     wins_by: dict[str, list] = defaultdict(list)
     losses_by: dict[str, list] = defaultdict(list)
     for a in result.allocations:
@@ -133,10 +205,8 @@ def _notify_lottery_results(period, members, result, old_factors, quarter_names)
         str(mid) for mid in Wish.objects.filter(period=period, submitted=True)
         .values_list("member_id", flat=True).distinct()
     }
-    url = reverse("period_result", args=[period.id])
     year = period.target_year
-    # Idempotenz: bei einem Re-Run alte Losungs-Benachrichtigungen ersetzen.
-    Notification.objects.filter(url=url).delete()
+    notices: list[dict] = []
 
     for m in members:
         pid = str(m.id)
@@ -170,12 +240,10 @@ def _notify_lottery_results(period, members, result, old_factors, quarter_names)
             lines.append(
                 f"Dein Ausgleichsfaktor wurde nach dem Gewinn eines umkämpften "
                 f"Wunsches auf {round(new_f, 1)} zurückgesetzt.")
-        Notification.objects.create(
-            member=m, message=msg, detail="\n".join(lines), url=url)
-        # Zusätzlich per E-Mail (Outbox), falls gewünscht/möglich.
-        body = (f"Hallo {m.display_name},\n\n{msg}\n\n" + "\n".join(lines)
-                + f"\n\nDetails: {absolute_url(url)}\n\nViele Grüße\nRe:Hof")
-        email_member(m, f"Auslosung {year}: dein Ergebnis", body)
+        notices.append({
+            "member_id": m.id, "message": msg, "detail": "\n".join(lines),
+        })
+    return notices
 
 
 def quarter_is_free(quarter: Quarter, start: date, end: date) -> bool:
@@ -443,7 +511,8 @@ def build_booking_calendar(
     hols = school_holidays_in_range(first, last + timedelta(days=1))
     own_days: set[date] = set()
     if member:
-        for a in member.allocations.filter(start__lte=last, end__gt=first):
+        for a in member.allocations.filter(
+                start__lte=last, end__gt=first, provisional=False):
             d = max(a.start, first)
             upper = min(a.end, last + timedelta(days=1))
             while d < upper:
@@ -867,7 +936,8 @@ def day_detail(member, day: date) -> dict:
             "mine": bool(member) and a.member_id == member.id,
         }
         for a in Allocation.objects.select_related("quarter", "member")
-        .filter(start__lte=day, end__gt=day).order_by("quarter__name")
+        .filter(start__lte=day, end__gt=day, provisional=False)
+        .order_by("quarter__name")
     ]
     free, _occ = split_quarters_for_range(day, nxt)
     return {"day": day, "occupied": occupied, "free": [q.name for q in free]}
@@ -878,7 +948,7 @@ def concurrent_allocations(allocation: Allocation):
     überlappen – „wer ist zur gleichen Zeit da“."""
     return list(
         Allocation.objects.select_related("quarter", "member").filter(
-            start__lt=allocation.end, end__gt=allocation.start,
+            start__lt=allocation.end, end__gt=allocation.start, provisional=False,
         ).exclude(member_id=allocation.member_id).order_by("start", "quarter__name")
     )
 
@@ -1051,7 +1121,7 @@ def build_community_calendar(member, year, month) -> dict:
 
     allocs = list(
         Allocation.objects.select_related("quarter", "member").filter(
-            start__lte=last, end__gt=first,
+            start__lte=last, end__gt=first, provisional=False,
         ).order_by("quarter__name")
     )
     hols = school_holidays_in_range(first, last + timedelta(days=1))

@@ -16,7 +16,7 @@ from .models import (
     OutboxEmail, Quarter, SchoolHoliday, SeasonRule, Share, SwapRequest,
     UpcomingAllocation, WaitlistEntry, Wish,
 )
-from .services import run_period_lottery
+from .services import confirm_lottery, rollback_lottery, run_period_lottery
 
 # Branding der Verwaltung
 admin.site.site_header = "ReHof-Verwaltung"
@@ -214,9 +214,17 @@ class BookingPeriodAdmin(admin.ModelAdmin):
     def action_run_lottery(self, request, queryset):
         for period in queryset:
             seed = period.seed or random.randint(1, 2_000_000_000)
-            run = run_period_lottery(period, seed=seed)
+            try:
+                run = run_period_lottery(period, seed=seed)
+            except ValueError as exc:
+                self.message_user(request, f"{period}: {exc}", level=messages.ERROR)
+                continue
             self.message_user(
-                request, f"{period}: {run.summary}", level=messages.SUCCESS,
+                request,
+                f"{period}: {run.summary}. Ergebnis ist UNBESTÄTIGT (für "
+                f"Mitglieder unsichtbar) – unter „Losdurchläufe“ bestätigen oder "
+                f"zurücknehmen.",
+                level=messages.WARNING,
             )
 
 
@@ -281,15 +289,76 @@ class UpcomingAllocationAdmin(admin.ModelAdmin):
 
 @admin.register(LotteryRun)
 class LotteryRunAdmin(admin.ModelAdmin):
-    list_display = ("period", "executed_at", "seed", "summary")
-    readonly_fields = ("period", "executed_at", "seed", "summary", "log_text")
+    """Losdurchläufe. Ein Lauf ist zunächst <b>unbestätigt</b> (Ergebnis für
+    Mitglieder unsichtbar). Über die Aktionen <b>bestätigen</b> (veröffentlicht +
+    benachrichtigt; danach kein Zurück) oder <b>zurücknehmen</b> (löscht die
+    vorläufigen Zuteilungen, stellt das Karma wieder her)."""
+    list_display = ("period", "executed_at", "seed", "confirmed", "confirmed_at",
+                    "summary")
+    list_filter = ("confirmed",)
+    readonly_fields = ("period", "executed_at", "seed", "summary", "log_text",
+                       "confirmed", "confirmed_at")
+    actions = ["action_confirm", "action_rollback"]
+    exclude = ("karma_snapshot", "notices")
 
     def has_add_permission(self, request):
         # Losdurchläufe sind Audit-Einträge, die der Dienst bei der Auslosung
-        # erzeugt – manuelles Anlegen ergibt keinen Sinn (und schlug fehl, weil
-        # der Pflicht-Seed nicht setzbar war). Auslösen über die Aktion an der
-        # Buchungsperiode.
+        # erzeugt – manuelles Anlegen ergibt keinen Sinn. Auslösen über die
+        # Aktion an der Buchungsperiode.
         return False
+
+    def _confirm_page(self, request, queryset, action, title, intro, button):
+        from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+        from django.template.response import TemplateResponse
+        return TemplateResponse(request, "admin/lottery_action_confirm.html", {
+            "title": title, "intro": intro, "button_label": button,
+            "action": action, "runs": queryset,
+            "checkbox_name": ACTION_CHECKBOX_NAME,
+            "opts": self.model._meta,
+        })
+
+    @admin.action(description="Auslosung bestätigen & veröffentlichen")
+    def action_confirm(self, request, queryset):
+        if request.POST.get("confirm"):
+            n = 0
+            for run in queryset:
+                if not run.confirmed:
+                    confirm_lottery(run)
+                    n += 1
+            self.message_user(
+                request, f"{n} Auslosung(en) bestätigt und veröffentlicht.",
+                level=messages.SUCCESS)
+            return None
+        return self._confirm_page(
+            request, queryset, "action_confirm",
+            "Auslosung wirklich bestätigen?",
+            "Die folgende(n) Auslosung(en) werden veröffentlicht und alle "
+            "Teilnehmer benachrichtigt. Danach ist KEIN Zurücknehmen mehr möglich:",
+            "Ja, verbindlich bestätigen")
+
+    @admin.action(description="Auslosung zurücknehmen (nur unbestätigte)")
+    def action_rollback(self, request, queryset):
+        if request.POST.get("confirm"):
+            ok_n = 0
+            for run in queryset:
+                done, err = rollback_lottery(run)
+                if done:
+                    ok_n += 1
+                else:
+                    self.message_user(request, f"{run.period}: {err}",
+                                      level=messages.ERROR)
+            if ok_n:
+                self.message_user(
+                    request, f"{ok_n} Auslosung(en) zurückgenommen "
+                    "(Zuteilungen entfernt, Karma wiederhergestellt).",
+                    level=messages.SUCCESS)
+            return None
+        return self._confirm_page(
+            request, queryset, "action_rollback",
+            "Auslosung wirklich zurücknehmen?",
+            "Die vorläufigen Zuteilungen werden gelöscht und das Karma auf den "
+            "Stand vor dem Lauf zurückgesetzt. Nur unbestätigte Läufe:",
+            "Ja, zurücknehmen")
 
 
 @admin.register(NightTransfer)

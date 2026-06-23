@@ -268,11 +268,20 @@ class LosungTransparenzTests(UseCaseBase):
         svc.submit_wishlist(self.alice, period)
         svc.submit_wishlist(self.bob, period)
 
-        svc.run_period_lottery(period, seed=1)
+        run = svc.run_period_lottery(period, seed=1)
 
+        # Vor der Bestätigung: unbestätigt, KEINE Benachrichtigungen.
         url = reverse("period_result", args=[period.id])
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_REVIEW)
+        self.assertEqual(Notification.objects.filter(url=url).count(), 0)
+
+        # Bestätigen → veröffentlicht, beide Teilnehmer benachrichtigt.
+        svc.confirm_lottery(run)
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_DONE)
         notes = list(Notification.objects.filter(url=url))
-        self.assertEqual(len(notes), 2)  # beide Teilnehmer benachrichtigt
+        self.assertEqual(len(notes), 2)
 
         losers = [n for n in notes if "nicht erfüllbar" in n.detail]
         winners = [n for n in notes if "Du hast bekommen" in n.detail]
@@ -570,7 +579,8 @@ class TerminierteLosungTests(UseCaseBase):
         svc.submit_wishlist(self.alice, period)
         call_command("run_due_lotteries")
         period.refresh_from_db()
-        self.assertEqual(period.status, BookingPeriod.LOTTERY_DONE)
+        # Nach dem Lauf nur „zur Prüfung“ – die Veröffentlichung ist manuell.
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_REVIEW)
         self.assertIsNotNone(period.seed)
         self.assertEqual(
             Allocation.objects.filter(period=period, source="lottery").count(), 1)
@@ -617,7 +627,7 @@ class TerminierteLosungTests(UseCaseBase):
         svc.submit_wishlist(self.alice, period)
         call_command("run_scheduler", once=True)
         period.refresh_from_db()
-        self.assertEqual(period.status, BookingPeriod.LOTTERY_DONE)
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_REVIEW)
 
     def test_buchbar_ab_oeffnet_freie_buchung(self):
         """Ist „buchbar ab“ erreicht (und die Losung gelaufen), steht die Periode
@@ -629,7 +639,11 @@ class TerminierteLosungTests(UseCaseBase):
             start=date(y, 1, 1), end=date(y + 1, 1, 1),
             draw_at=timezone.now() - timedelta(days=1),
             status=BookingPeriod.DRAFT)
-        call_command("run_due_lotteries")
+        call_command("run_due_lotteries")       # Losung läuft → Prüfzustand
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_REVIEW)
+        svc.confirm_lottery(period.runs.first())  # bestätigen → veröffentlicht
+        call_command("run_due_lotteries")       # „buchbar ab“ erreicht → frei
         period.refresh_from_db()
         self.assertEqual(period.status, BookingPeriod.FREE_BOOKING)
 
@@ -808,3 +822,95 @@ class WunschSaisonTests(UseCaseBase):
         self.assertEqual(self.carla.annual_night_budget, 35)
         self.assertEqual(self.carla.wish_night_budget, 15)
         self.assertEqual(len(self.carla.memberships), 2)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Losung bestätigen / zurücknehmen (Review-Workflow)
+# --------------------------------------------------------------------------- #
+
+class LosungBestaetigungTests(UseCaseBase):
+    def _period(self):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def _two_rivals(self, period):
+        s = date(NEXT_YEAR, 5, 24)
+        e = s + timedelta(days=4)
+        svc.add_wish(self.alice, period, self.qa, s, e)
+        svc.add_wish(self.bob, period, self.qa, s, e)
+        svc.submit_wishlist(self.alice, period)
+        svc.submit_wishlist(self.bob, period)
+        return s, e
+
+    def test_unbestaetigt_ist_unsichtbar_aber_blockiert(self):
+        period = self._period()
+        s, e = self._two_rivals(period)
+        svc.run_period_lottery(period, seed=1)
+
+        # Für Mitglieder unsichtbar (keine nicht-provisorische eigene Buchung) …
+        visible = (self.alice.allocations.filter(provisional=False).count()
+                   + self.bob.allocations.filter(provisional=False).count())
+        self.assertEqual(visible, 0)
+        # … existiert aber provisorisch und blockiert die Verfügbarkeit.
+        self.assertEqual(
+            Allocation.objects.filter(period=period, source="lottery").count(), 1)
+        self.assertFalse(svc.quarter_is_free(self.qa, s, e))
+        # Keine Benachrichtigung vor der Bestätigung.
+        url = reverse("period_result", args=[period.id])
+        self.assertEqual(Notification.objects.filter(url=url).count(), 0)
+
+    def test_bestaetigen_macht_sichtbar_und_benachrichtigt_idempotent(self):
+        period = self._period()
+        self._two_rivals(period)
+        run = svc.run_period_lottery(period, seed=1)
+        svc.confirm_lottery(run)
+
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_DONE)
+        self.assertEqual(
+            Allocation.objects.filter(
+                period=period, source="lottery", provisional=False).count(), 1)
+        url = reverse("period_result", args=[period.id])
+        n = Notification.objects.filter(url=url).count()
+        self.assertEqual(n, 2)
+        # Erneutes Bestätigen ändert nichts (idempotent).
+        svc.confirm_lottery(run)
+        self.assertEqual(Notification.objects.filter(url=url).count(), 2)
+        # Nach Bestätigung ist Zurücknehmen gesperrt.
+        run.refresh_from_db()
+        ok, err = svc.rollback_lottery(run)
+        self.assertFalse(ok)
+        self.assertIsNotNone(err)
+
+    def test_zuruecknehmen_stellt_zustand_wieder_her(self):
+        period = self._period()
+        self._two_rivals(period)
+        run = svc.run_period_lottery(period, seed=1)
+        self.alice.refresh_from_db(); self.bob.refresh_from_db()
+        self.assertGreater(max(self.alice.factor, self.bob.factor), 1.0)
+
+        ok, err = svc.rollback_lottery(run)
+        self.assertTrue(ok, err)
+        self.alice.refresh_from_db(); self.bob.refresh_from_db()
+        self.assertEqual(self.alice.factor, 1.0)
+        self.assertEqual(self.bob.factor, 1.0)
+        self.assertEqual(
+            Allocation.objects.filter(period=period, source="lottery").count(), 0)
+        period.refresh_from_db()
+        self.assertEqual(period.status, BookingPeriod.LOTTERY_READY)
+        self.assertEqual(period.runs.count(), 0)
+
+    def test_rerun_summiert_karma_nicht_auf(self):
+        period = self._period()
+        self._two_rivals(period)
+        svc.run_period_lottery(period, seed=1)
+        self.alice.refresh_from_db(); self.bob.refresh_from_db()
+        loser = self.alice if self.alice.factor > self.bob.factor else self.bob
+        self.assertAlmostEqual(loser.factor, 1.1, places=5)
+        # Erneuter Lauf (gleicher Seed) darf das Karma NICHT aufsummieren.
+        svc.run_period_lottery(period, seed=1)
+        loser.refresh_from_db()
+        self.assertAlmostEqual(loser.factor, 1.1, places=5)

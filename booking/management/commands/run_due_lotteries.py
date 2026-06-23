@@ -56,6 +56,10 @@ class Command(BaseCommand):
                         f"Losung durchgeführt: {period} – {run.summary}"))
 
             # 2) Status anhand der Termine vorwärts schalten (nie zurück).
+            # Aus dem Prüfzustand führt KEIN automatischer Weg – die Auslosung
+            # muss erst manuell bestätigt (oder zurückgenommen) werden.
+            if period.status == BookingPeriod.LOTTERY_REVIEW:
+                continue
             desired = period.compute_status(now)
             if rank.get(desired, -1) > rank.get(period.status, -1):
                 did_something = True

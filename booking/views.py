@@ -396,7 +396,8 @@ def my_bookings(request):
     submitted_wishes = []
     wish_period = None
     if member:
-        for a in member.allocations.select_related("quarter").order_by("start"):
+        for a in member.allocations.select_related("quarter").filter(
+                provisional=False).order_by("start"):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
             a.waiters = svc.waiters_for_allocation(a)
@@ -775,6 +776,16 @@ def period_result(request, period_id: int):
     period = get_object_or_404(BookingPeriod, id=period_id)
     member = _current_member(request)
     run = period.runs.first()
+    confirmed = bool(run and run.confirmed)
+    is_staff = request.user.is_staff
+    # Vor der Bestätigung ist das Ergebnis für Mitglieder nicht sichtbar; nur die
+    # Verwaltung sieht eine Vorschau.
+    if not confirmed and not is_staff:
+        return render(request, "booking/result.html", {
+            "period": period, "run": run, "not_published": True,
+            "member": member, "allocations": [], "my_allocations": [],
+            "my_note": None,
+        })
     allocations = (
         Allocation.objects.filter(period=period, source="lottery")
         .select_related("member", "quarter").order_by("start", "quarter__name")
@@ -790,4 +801,5 @@ def period_result(request, period_id: int):
     return render(request, "booking/result.html", {
         "period": period, "run": run, "allocations": allocations,
         "member": member, "my_allocations": my_allocations, "my_note": my_note,
+        "not_published": False, "preview": not confirmed and is_staff,
     })

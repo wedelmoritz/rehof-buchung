@@ -186,15 +186,30 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
   sich über `BookingPeriod.draw_at` terminieren; das Kommando
   `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
+- **Losung-Bestätigung (Review-Workflow):** Ein Lauf landet zunächst im Status
+  `lottery_review` – die Zuteilungen sind `Allocation.provisional=True`
+  (blockieren die Verfügbarkeit, sind aber für Mitglieder **unsichtbar**;
+  `period_result`/`my_bookings`/Übersicht/`day_detail` filtern `provisional=False`),
+  und es werden **keine** Benachrichtigungen zugestellt (nur am `LotteryRun`
+  vorbereitet: `notices`). Erst `services.confirm_lottery` veröffentlicht
+  (Zuteilungen sichtbar, Benachrichtigungen + Mails raus, Status `lottery_done`) –
+  danach **kein Undo**. `services.rollback_lottery` (nur unbestätigt) löscht die
+  vorläufigen Zuteilungen, stellt das Karma aus `LotteryRun.karma_snapshot`
+  wieder her und setzt zurück auf `lottery_ready`. Admin-Aktionen mit Rückfrage
+  an `LotteryRunAdmin` (Bestätigen/Zurücknehmen); der Cron schaltet NIE
+  automatisch aus `lottery_review` heraus. Ein erneuter `run_period_lottery`
+  rollt einen vorhandenen unbestätigten Lauf erst zurück (kein Karma-Aufsummieren).
 - **Buchungsperiode/Zeitraum (`BookingPeriod`):** **Pro Buchungsjahr genau EINE
   Periode** (`target_year` ist eindeutig). Sie durchläuft den Lebenszyklus über
   ihren `status`: `draft` (Entwurf) → `wishes_open` (Wunsch-Einträge freigegeben)
-  → `lottery_ready` (zur Auslosung freigegeben) → `lottery_done` (Auslosung
-  beendet) → `free_booking` (freie Bebuchbarkeit im Zeitraum) → `ended`
+  → `lottery_ready` (zur Auslosung freigegeben) → `lottery_review` (Auslosung
+  gelaufen, **unbestätigt**) → `lottery_done` (bestätigt/veröffentlicht) →
+  `free_booking` (freie Bebuchbarkeit im Zeitraum) → `ended`
   (beendet); `suspended` (unterbrochen) sperrt vorläufig. Der Status wird
-  normalerweise **aus den Terminen abgeleitet** (`BookingPeriod.compute_status`)
-  und vom Cron-Kommando `run_due_lotteries` **vorwärts** geschaltet (nie zurück)
-  — inkl. der fälligen Auslosung. Termine: `wishlist_open/close` (Wünsche),
+  normalerweise **aus den Terminen abgeleitet** (`BookingPeriod.compute_status`,
+  die nur bis `lottery_review` führt) und vom Cron-Kommando `run_due_lotteries`
+  **vorwärts** geschaltet (nie zurück, nie aus `lottery_review` heraus). Termine:
+  `wishlist_open/close` (Wünsche),
   `draw_at` (Losung), `start/end` (buchbar ab/bis; `start` darf vor dem 1.1.
   liegen). Die **normale Buchung** ist nur im Status `free_booking` möglich und
   gilt für `[start, end)`. **Quartiersspezifische Grenzen** gibt es NICHT mehr
