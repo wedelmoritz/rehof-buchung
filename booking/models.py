@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -77,6 +78,50 @@ class Quarter(models.Model):
         md = (day.month, day.day)
         s = (self.season_start_month, self.season_start_day)
         e = (self.season_end_month, self.season_end_day)
+        if s <= e:
+            return s <= md <= e
+        return md >= s or md <= e
+
+    def price_for_night(self, day) -> Decimal:
+        """Bruttopreis für die Übernachtung, die am `day` beginnt. Greift eine
+        saisonale `QuarterPrice`-Regel, gilt deren Preis; sonst der Basispreis."""
+        for p in self.prices.all():
+            if p.covers(day):
+                return p.price_per_night
+        return self.price_per_night or Decimal("0")
+
+
+class QuarterPrice(models.Model):
+    """Saisonaler Übernachtungspreis für externe Gäste (jährlich wiederkehrend,
+    ohne Jahr – wie `SeasonRule`/`Quarter.season_*`). Fällt eine Nacht in den
+    Zeitraum, gilt dieser Preis; sonst der Basispreis `Quarter.price_per_night`.
+    So lassen sich z. B. Hoch-/Nebensaison-Preise je Quartier hinterlegen."""
+    quarter = models.ForeignKey(
+        Quarter, on_delete=models.CASCADE, related_name="prices",
+        verbose_name="Quartier")
+    label = models.CharField("Bezeichnung", max_length=80, blank=True,
+                             help_text="z. B. „Hochsaison“ (nur zur Anzeige).")
+    start_month = models.PositiveSmallIntegerField("Von (Monat)")
+    start_day = models.PositiveSmallIntegerField("Von (Tag)")
+    end_month = models.PositiveSmallIntegerField("Bis einschl. (Monat)")
+    end_day = models.PositiveSmallIntegerField("Bis einschl. (Tag)")
+    price_per_night = models.DecimalField(
+        "Preis/Nacht (brutto)", max_digits=8, decimal_places=2, default=0,
+        help_text="Bruttopreis pro Nacht in diesem Zeitraum (Beherbergung, 7 % USt).")
+
+    class Meta:
+        verbose_name = "Saisonpreis"
+        verbose_name_plural = "Saisonpreise"
+        ordering = ["quarter", "start_month", "start_day"]
+
+    def __str__(self) -> str:
+        return f"{self.label or 'Saisonpreis'} ({self.price_per_night} €)"
+
+    def covers(self, day) -> bool:
+        """Liegt `day` im (jährlich wiederkehrenden) Preiszeitraum?"""
+        md = (day.month, day.day)
+        s = (self.start_month, self.start_day)
+        e = (self.end_month, self.end_day)
         if s <= e:
             return s <= md <= e
         return md >= s or md <= e
@@ -825,6 +870,26 @@ class ExternalConfig(models.Model):
     cleaning_vat = models.PositiveSmallIntegerField("MwSt Reinigung", default=19)
     stay_vat = models.PositiveSmallIntegerField("MwSt Beherbergung", default=7)
     payment_term_days = models.PositiveSmallIntegerField("Zahlungsziel (Tage)", default=14)
+    # Anzahlung (Naht für den Bezahlprozess: heute nur informativ ausgewiesen).
+    deposit_percent = models.PositiveSmallIntegerField(
+        "Anzahlung in % (0 = keine)", default=0,
+        help_text="Anteil des Gesamtbetrags, der als Anzahlung fällig ist.")
+    # Stornobedingungen (Refund-Staffel nach Vorlauf zur Anreise).
+    free_cancel_days = models.PositiveSmallIntegerField(
+        "Kostenlose Stornofrist (Tage vor Anreise)", default=30,
+        help_text="Bis so viele Tage vor Anreise volle Erstattung.")
+    partial_cancel_days = models.PositiveSmallIntegerField(
+        "Teil-Storno-Frist (Tage vor Anreise)", default=7,
+        help_text="Bis so viele Tage vor Anreise teilweise Erstattung.")
+    partial_refund_percent = models.PositiveSmallIntegerField(
+        "Erstattung im Teil-Storno-Fenster (%)", default=50)
+    late_fee = models.DecimalField(
+        "Säumniszuschlag (brutto)", max_digits=8, decimal_places=2, default=0,
+        help_text="Pauschale bei verspäteter Zahlung (mit der Mahnung fällig).")
+    terms = models.TextField(
+        "Stornobedingungen (Anzeigetext)", blank=True,
+        help_text="Wird Gästen bei der Buchung und im Magic-Link angezeigt. "
+                  "Leer = aus den Fristen automatisch erzeugter Text.")
 
     class Meta:
         verbose_name = "Externe-Gäste-Einstellungen"
@@ -840,6 +905,27 @@ class ExternalConfig(models.Model):
     @property
     def allowed_weekday_set(self) -> set[int]:
         return {int(x) for x in self.allowed_weekdays.split(",") if x.strip().isdigit()}
+
+    @property
+    def cancellation_text(self) -> str:
+        """Anzeige-Text der Stornobedingungen (eigener Text oder aus Fristen)."""
+        if self.terms.strip():
+            return self.terms.strip()
+        parts = [f"Bis {self.free_cancel_days} Tage vor Anreise kostenlos stornierbar "
+                 "(volle Erstattung)."]
+        if self.partial_refund_percent and self.partial_cancel_days < self.free_cancel_days:
+            parts.append(
+                f"Bis {self.partial_cancel_days} Tage vorher Erstattung von "
+                f"{self.partial_refund_percent} %.")
+        parts.append("Danach bzw. bei Nichtanreise keine Erstattung.")
+        return " ".join(parts)
+
+    def deposit_for(self, total) -> Decimal:
+        """Anzahlungsbetrag (brutto) für einen Gesamtbetrag."""
+        if not self.deposit_percent:
+            return Decimal("0")
+        cents = (Decimal(total) * Decimal(self.deposit_percent) / Decimal(100))
+        return cents.quantize(Decimal("0.01"))
 
 
 class ExternalBooking(models.Model):

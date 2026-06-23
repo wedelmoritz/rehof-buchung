@@ -15,6 +15,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.clickjacking import xframe_options_exempt
 
 from .forms import ProfileForm, RegistrationForm, TransferForm, WishForm
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
@@ -108,6 +109,8 @@ def overview(request):
     for week in cal["weeks"]:
         for d in week:
             for b in d["bookings"]:
+                if b.get("external"):
+                    continue  # Externe: feste Farbe (in services gesetzt)
                 mid = b["member_id"]
                 if mid not in color_map:
                     color_map[mid] = MEMBER_COLORS[len(color_map) % len(MEMBER_COLORS)]
@@ -879,8 +882,10 @@ def external_home(request):
                 zip_code=request.POST.get("zip_code", ""),
                 city=request.POST.get("city", ""))
             if booking:
-                return render(request, "booking/external_confirm.html",
-                              {"booking": booking, "invoice": booking.invoice})
+                return render(request, "booking/external_confirm.html", {
+                    "booking": booking, "invoice": booking.invoice,
+                    "deposit": cfg.deposit_for(booking.total_gross),
+                    "cancellation_text": cfg.cancellation_text})
             messages.error(request, err or "Buchung nicht möglich.")
 
     src = request.POST if request.method == "POST" else request.GET
@@ -892,8 +897,69 @@ def external_home(request):
         persons = 2
     offers = (svc.external_available_quarters(start, end)
               if (cfg.active and start and end) else [])
+    today = date.today()
+    year, month = _month_from_request(request, today)
+    cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
     return render(request, "booking/external_home.html", {
-        "cfg": cfg, "today": date.today(), "start": start, "end": end,
+        "cfg": cfg, "today": today, "start": start, "end": end,
         "persons": persons, "offers": offers,
         "searched": bool(start and end),
+        "cal": cal, "nav_qs": _ext_nav_qs(start, end, persons),
+        **(_cal_nav(cal) if cal else {"months": [], "years": []}),
+    })
+
+
+def _ext_nav_qs(start, end, persons) -> str:
+    """Query-Suffix für die Kalender-Navigation (erhält Auswahl/Personen)."""
+    parts = [f"persons={persons}"]
+    if start:
+        parts.append(f"start={start:%Y-%m-%d}")
+    if end:
+        parts.append(f"end={end:%Y-%m-%d}")
+    return "&" + "&".join(parts)
+
+
+def external_manage(request, token):
+    """Magic-Link-Selbstverwaltung für externe Gäste (kein Login): eigene
+    Buchungen ansehen und – im Rahmen der Stornobedingungen – stornieren."""
+    bookings = svc.guest_bookings_by_token(token)
+    if not bookings:
+        return render(request, "booking/external_manage.html",
+                      {"unknown": True}, status=404)
+    guest = bookings[0].guest
+    if request.method == "POST" and request.POST.get("action") == "cancel":
+        preview, err = svc.cancel_external_booking_by_token(
+            token, request.POST.get("booking"))
+        if err:
+            messages.error(request, err)
+        else:
+            messages.success(
+                request,
+                f"Buchung storniert. Erstattung: {preview['refund']} € "
+                f"({preview['percent']} %).")
+        return redirect("external_manage", token=token)
+    cfg = svc.ExternalConfig.get_solo()
+    today = date.today()
+    rows = [{"b": b, "cancellable": b.status == b.CONFIRMED and b.start > today,
+             "preview": svc.external_cancellation_preview(b, cfg)}
+            for b in bookings]
+    return render(request, "booking/external_manage.html", {
+        "guest": guest, "rows": rows, "cfg": cfg, "today": today})
+
+
+@xframe_options_exempt
+def external_embed(request):
+    """Einbettbares Verfügbarkeits-Widget für die Re:Hof-Website (read-only).
+
+    Zeigt nur den grün/grau-Kalender (keine Gastdaten, keine Navigation/PWA) und
+    verlinkt zum eigentlichen Buchungs-Einstieg `/extern/` (öffnet in neuem Tab).
+    `@xframe_options_exempt`, damit die Seite per <iframe> eingebunden werden darf."""
+    cfg = svc.ExternalConfig.get_solo()
+    today = date.today()
+    year, month = _month_from_request(request, today)
+    cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
+    return render(request, "booking/external_embed.html", {
+        "cfg": cfg, "today": today, "cal": cal,
+        "book_url": request.build_absolute_uri(reverse("external_home")),
+        **(_cal_nav(cal) if cal else {"months": [], "years": []}),
     })

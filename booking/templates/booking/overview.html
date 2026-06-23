@@ -52,6 +52,13 @@
     <span class="who-item {% if m.mine %}mine{% endif %}">
       <i class="sw" style="background:{{ m.color }}"></i>{{ m.name }}{% if m.mine %} (du){% endif %}</span>
     {% endfor %}
+    {% if cal.any_external %}
+    <span class="who-item"><i class="sw" style="background:{{ cal.extern_color }}"></i>externe Gäste</span>
+    {% endif %}
+  </div>
+  {% elif cal.any_external %}
+  <div class="who-legend">
+    <span class="who-item"><i class="sw" style="background:{{ cal.extern_color }}"></i>externe Gäste</span>
   </div>
   {% endif %}
   {% if cal.holidays %}

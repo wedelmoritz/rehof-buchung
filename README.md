@@ -602,10 +602,14 @@ Zahlungsfluss (Mollie als Ziel, Rechnung/Vorkasse als Fallback) sowie die
 rechtlichen Punkte (USt, Meldeschein, Kurtaxe, AGB/Storno) stehen in
 [`docs/EXTERNE-GAESTE.md`](docs/EXTERNE-GAESTE.md).
 
-**Stand:** Das **Buchungs-Fundament** ist umgesetzt (Gast-Checkout ohne Konto,
-Externen-Verfügbarkeitsregeln im Backend, Preise je Quartier, Abrechnung **per
-Rechnung wie im Hofladen** inkl. Kontoabgleich/Mahnung). Der **Online-Bezahlprozess
-(Mollie)** ist als saubere Naht vorbereitet, aber noch nicht aktiv.
+**Stand:** Das **Buchungs-Fundament** ist umgesetzt (Gast-Checkout ohne Konto mit
+grün/grau-**Verfügbarkeitskalender**, Externen-Verfügbarkeitsregeln im Backend,
+**saisonale Preise je Quartier**, **Anzahlung/Stornostaffel/Säumniszuschlag**
+konfigurierbar, **Magic-Link-Selbstverwaltung** zum Ansehen/Stornieren, Abrechnung
+**per Rechnung wie im Hofladen** inkl. Kontoabgleich/Mahnung). In der internen
+Übersicht erscheinen externe Gäste in einer einheitlichen Farbe nur als „extern“.
+Der **Online-Bezahlprozess (Mollie)** ist als saubere Naht vorbereitet, aber noch
+nicht aktiv – im Bezahlbereich steht dazu ein Platzhalter.
 
 ---
 

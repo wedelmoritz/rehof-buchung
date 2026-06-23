@@ -10,11 +10,39 @@
 > - **Gast-Konto:** Gast-Checkout ohne Pflicht-Registrierung (E-Mail + Magic-Link).
 
 **Umsetzungsstand:** Das Fundament ist gebaut – `Guest`, `ExternalConfig`,
-`ExternalBooking`, Quartier-Preise, Verfügbarkeits-/Regel-Logik, der öffentliche
-Einstieg `/extern/` und die **Abrechnung per Rechnung** (über die generalisierte
-`shop.Invoice`, inkl. Kontoabgleich/Mahnung). **Offen:** der **Online-Bezahlprozess
-(Mollie)** – als Naht vorbereitet (Status `pending`, `hold_expires_at`) – sowie
-das **einbettbare Website-Widget**, Magic-Link-Selbstverwaltung und Stornobedingungen.
+`ExternalBooking`, Quartier-Preise (inkl. **saisonaler `QuarterPrice`-Staffel**),
+Verfügbarkeits-/Regel-Logik, der öffentliche Einstieg `/extern/` mit
+**Verfügbarkeits-Kalender** (grün = frei / grau = belegt, ohne Gastdaten), die
+**Magic-Link-Selbstverwaltung** (`/extern/verwalten/<token>/` – ansehen + stornieren),
+**Anzahlung, Stornostaffel und Säumniszuschlag** (in `ExternalConfig` konfigurierbar,
+reine Logik in `booking/external.py::cancellation_refund`) und die **Abrechnung per
+Rechnung** (über die generalisierte `shop.Invoice`, inkl. Kontoabgleich/Mahnung). In
+der **internen Übersicht** werden externe Gäste in einer einheitlichen Farbe und nur
+als „extern“ ausgewiesen. Im Bezahlbereich steht ein **Platzhalter** „Online-
+Direktbezahlung aktuell noch nicht möglich“. Das **einbettbare Website-Widget**
+(`/extern/widget/`, s. Abschnitt 0) ist umgesetzt. **Offen:** nur noch der
+**Online-Bezahlprozess (Mollie)** – als Naht vorbereitet (Status `pending`,
+`hold_expires_at`, Anzahlung/Refund-Quoten bereits berechnet).
+
+## 0. Website-Einbindung (Widget)
+
+Für die bestehende Re:Hof-Website gibt es ein **einbettbares, read-only
+Verfügbarkeits-Widget**: `/extern/widget/` zeigt denselben grün/grau-Kalender wie
+der öffentliche Einstieg (frei/belegt, **keine Gastdaten**, keine Navigation) und
+verlinkt zum Buchen auf `/extern/` (öffnet in neuem Tab). Die Seite ist per
+`@xframe_options_exempt` für `<iframe>` freigegeben. Einbinden:
+
+```html
+<iframe src="https://buchung.rehof.example/extern/widget/"
+        title="Ferienquartiere – Verfügbarkeit"
+        style="width:100%;max-width:600px;height:560px;border:0"
+        loading="lazy"></iframe>
+```
+
+Damit ist die Antwort auf „entspricht das der Kalenderübersicht und man wird
+weitergeleitet?“: **ja** – es ist die Verfügbarkeits-Übersicht (ohne zu zeigen,
+wer da ist), und ein Klick auf einen freien Tag bzw. „Jetzt buchen“ leitet zum
+vollständigen Buchungs-Einstieg `/extern/` weiter.
 
 ## 1. Zielbild
 

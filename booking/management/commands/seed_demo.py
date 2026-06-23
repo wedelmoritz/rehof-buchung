@@ -282,7 +282,7 @@ class Command(BaseCommand):
 
         # Externe Gäste (Demo): Regeln aktiv (nur Mo–Do), ein paar Quartiere mit
         # Preis freigeben – damit /extern/ sofort testbar ist.
-        from booking.models import ExternalConfig
+        from booking.models import ExternalConfig, QuarterPrice
         from decimal import Decimal as _D
         cfg, _ = ExternalConfig.objects.get_or_create(id=1)
         cfg.active = True
@@ -290,13 +290,24 @@ class Command(BaseCommand):
         cfg.min_nights = 2
         cfg.lead_days = 1
         cfg.cleaning_fee = _D("60.00")
+        cfg.deposit_percent = 20           # 20 % Anzahlung (Demo)
+        cfg.free_cancel_days = 30
+        cfg.partial_cancel_days = 7
+        cfg.partial_refund_percent = 50
+        cfg.late_fee = _D("15.00")
         cfg.save()
         for i, q in enumerate(Quarter.objects.order_by("name")[:3]):
             q.external_bookable = True
             q.price_per_night = _D("80.00") + _D("10.00") * i
             q.save(update_fields=["external_bookable", "price_per_night"])
+            # Sommer-Hochsaison-Preis (Juli/August) als Demo-Saisonpreis.
+            QuarterPrice.objects.get_or_create(
+                quarter=q, label="Sommer", start_month=7, start_day=1,
+                end_month=8, end_day=31,
+                defaults={"price_per_night": _D("120.00") + _D("10.00") * i})
         self.stdout.write(self.style.SUCCESS(
-            "Externe Gäste: Regeln aktiv (Mo–Do), 3 Quartiere mit Preis freigegeben."
+            "Externe Gäste: Regeln aktiv (Mo–Do), 3 Quartiere mit Preis + "
+            "Sommer-Saisonpreis, Anzahlung/Storno gesetzt."
         ))
 
         # Beispielhafte Tage-Übertragungen zwischen Mitgliedern (laufendes Jahr)

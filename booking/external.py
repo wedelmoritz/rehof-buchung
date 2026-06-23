@@ -6,6 +6,7 @@ frei“ (Belegung, liegt im Service-Layer). Datumsbasiert und isoliert testbar.
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 
 def external_allowed(
@@ -36,3 +37,28 @@ def external_allowed(
                                "Mo–Do).")
             d += timedelta(days=1)
     return True, None
+
+
+def cancellation_refund(
+    total, *, arrival: date, today: date,
+    free_days: int = 30, partial_days: int = 7, partial_percent: int = 50,
+) -> tuple[Decimal, int, str]:
+    """Erstattung bei Storno gemäß Vorlauf zur Anreise (reine Logik).
+
+    Gibt (Erstattungsbetrag, Erstattungsquote in %, Stufen-Bezeichnung).
+    Staffel: bis `free_days` vor Anreise 100 %, bis `partial_days` vorher
+    `partial_percent` %, danach 0 %.
+    """
+    total = Decimal(total)
+    lead = (arrival - today).days
+    if lead >= free_days:
+        pct = 100
+        label = "Kostenlose Stornofrist"
+    elif lead >= partial_days:
+        pct = int(partial_percent)
+        label = "Teil-Erstattung"
+    else:
+        pct = 0
+        label = "Keine Erstattung"
+    refund = (total * Decimal(pct) / Decimal(100)).quantize(Decimal("0.01"))
+    return refund, pct, label

@@ -9,9 +9,43 @@
 {% else %}
 
 <div class="card">
-  <p class="muted" style="margin-top:0">Wähle deinen Zeitraum – wir zeigen dir die
-    verfügbaren Unterkünfte mit Preis. Bezahlt wird per Rechnung/Überweisung.</p>
-  <form method="get" class="form-row">
+  <p class="muted" style="margin-top:0">Grün = an diesem Tag ist mindestens ein
+    Quartier frei. Grau = nicht verfügbar. Klicke deinen <strong>Anreisetag</strong>
+    (1. Klick) und deinen <strong>Abreisetag</strong> (2. Klick) – oder gib den
+    Zeitraum direkt ein.</p>
+
+  {% if cal %}
+  {% include "booking/_calnav.html" %}
+  <table class="cal ext-cal">
+    <thead><tr><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th></tr></thead>
+    <tbody>
+      {% for week in cal.weeks %}
+      <tr>
+        {% for d in week %}
+        <td class="{% if d.available %}avail{% else %}blocked{% endif %} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if start and d.date == start %}is-start{% endif %} {% if start and end and start <= d.date and d.date < end %}in-range{% endif %}">
+          {% if start and d.date == start %}<span class="start-flag">Anreise</span>{% endif %}
+          {% if d.available and d.in_month %}
+            <a class="dlink" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if start and not end and d.date > start %}&start={{ start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}&start={{ d.iso }}{% endif %}">
+              <span class="d-num">{{ d.day }}</span>
+            </a>
+          {% else %}
+            <span class="d-num">{{ d.day }}</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="legend">
+    <span><i class="sw avail"></i> verfügbar</span>
+    <span><i class="sw blocked"></i> nicht verfügbar</span>
+  </div>
+  {% endif %}
+
+  <form method="get" class="form-row" style="margin-top:.9rem">
+    <input type="hidden" name="year" value="{{ cal.year }}">
+    <input type="hidden" name="month" value="{{ cal.month }}">
     <label>Anreise <input type="date" name="start" value="{{ start|date:'Y-m-d' }}" required></label>
     <label>Abreise <input type="date" name="end" value="{{ end|date:'Y-m-d' }}" required></label>
     <label>Personen <input type="number" name="persons" min="1" value="{{ persons }}"></label>
@@ -30,10 +64,12 @@
       <span style="margin-left:auto;font-weight:700">{{ quote.total_gross }} €</span>
     </div>
     {% if q.description %}<p class="muted">{{ q.description }}</p>{% endif %}
-    <p class="muted" style="margin:.2rem 0">{{ quote.nights }} Nächte ×
-      {{ q.price_per_night }} € = {{ quote.stay_gross }} €{% if quote.cleaning_gross %}
+    <p class="muted" style="margin:.2rem 0">{{ quote.nights }} Nächte
+      Übernachtung {{ quote.stay_gross }} €{% if quote.seasonal_price %}
+      <span class="tag">saisonabhängig</span>{% endif %}{% if quote.cleaning_gross %}
       + Endreinigung {{ quote.cleaning_gross }} €{% endif %} ·
-      <strong>gesamt {{ quote.total_gross }} €</strong></p>
+      <strong>gesamt {{ quote.total_gross }} €</strong>{% if quote.deposit_gross %}
+      · Anzahlung {{ quote.deposit_gross }} €{% endif %}</p>
     <details>
       <summary class="btn small">Diese Unterkunft buchen</summary>
       <form method="post" style="margin-top:.7rem">{% csrf_token %}
@@ -51,9 +87,24 @@
           <label>PLZ <input name="zip_code"></label>
           <label>Ort <input name="city"></label>
         </div>
+
+        <div class="pay-box">
+          <strong>Bezahlung</strong>
+          <p class="muted" style="margin:.3rem 0">Online-Direktbezahlung (Kreditkarte,
+            PayPal, Apple/Google&nbsp;Pay) ist <strong>aktuell noch nicht möglich</strong>.
+            Du erhältst eine Rechnung und überweist den Betrag mit der Rechnungsnummer
+            als Verwendungszweck.</p>
+        </div>
+
+        <details style="margin:.4rem 0">
+          <summary class="muted" style="cursor:pointer">Stornobedingungen anzeigen</summary>
+          <p class="muted" style="font-size:.85rem">{{ quote.cancellation_text }}</p>
+        </details>
+
         <p class="muted" style="font-size:.85rem">Mit „Verbindlich buchen“ erhältst du
-          eine Bestätigung und eine Rechnung per E-Mail; bitte überweise den Betrag mit
-          der Rechnungsnummer als Verwendungszweck.</p>
+          eine Bestätigung und eine Rechnung per E-Mail
+          {% if quote.deposit_gross %}(Anzahlung {{ quote.deposit_gross }} €){% endif %}.
+          Deine Buchung kannst du später per Link selbst verwalten.</p>
         <button class="btn" type="submit">Verbindlich buchen ({{ quote.total_gross }} €)</button>
       </form>
     </details>
@@ -65,6 +116,29 @@
     (für Externe gelten ggf. besondere Regeln, z. B. nur Wochentage).</p></div>
   {% endif %}
 {% endif %}
+
+<style>
+  table.ext-cal { table-layout:fixed; }
+  table.ext-cal td { padding:0; height:54px; position:relative; border-radius:10px; }
+  table.ext-cal td.avail { background:#dcefce; }
+  table.ext-cal td.blocked { background:#ece8df; }
+  table.ext-cal td.out { opacity:.45; }
+  table.ext-cal td.today { outline:2px dotted #9d958a; outline-offset:-2px; }
+  table.ext-cal td.in-range { background-image:linear-gradient(rgba(138,169,127,.22),rgba(138,169,127,.22)); }
+  table.ext-cal td.is-start { box-shadow: inset 0 0 0 3px var(--accent-deep); }
+  .ext-cal .dlink { display:flex; align-items:center; justify-content:center;
+    height:100%; min-height:50px; text-decoration:none; color:var(--ink); font-weight:600; }
+  .ext-cal .dlink:hover { background:rgba(255,255,255,.45); border-radius:10px; }
+  .ext-cal .d-num { font-size:.95rem; }
+  .ext-cal td.blocked .d-num { color:#a89f8f; display:flex; align-items:center;
+    justify-content:center; height:100%; }
+  .ext-cal .start-flag { position:absolute; top:0; right:0; background:var(--accent-deep);
+    color:#fff; font-size:.6rem; line-height:1; padding:2px 4px; border-bottom-left-radius:6px; z-index:1; }
+  .legend .sw.avail { background:#dcefce; }
+  .legend .sw.blocked { background:#ece8df; }
+  .pay-box { border:1px dashed var(--line); border-radius:11px; padding:.6rem .8rem;
+    margin:.6rem 0; background:#faf7f1; }
+</style>
 
 {% endif %}
 {% endblock %}

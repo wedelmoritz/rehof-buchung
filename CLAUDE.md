@@ -60,7 +60,8 @@ tests/                  # reine pytest-Suite (ohne Django/DB)
   test_lottery.py  test_availability.py  test_rules.py
 ```
 
-Modelle in `models.py`: `EquivalenceClass`, `Quarter`, `Membership`
+Modelle in `models.py`: `EquivalenceClass`, `Quarter` (+ `QuarterPrice` =
+saisonale Übernachtungspreise für Externe), `Membership`
 („Mitglied"/Anteil = eine Vielleben-eG-Nummer + `kind` Voll/Teil +
 Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; Tage-/Wunsch-Budget =
 **Summe** der `Share`-Anteile), `Share` (Through-Modell Nutzer↔Anteil mit festem
@@ -75,19 +76,29 @@ Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag),
 `SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
 `SchoolHoliday`. (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
-**Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login),
-`ExternalConfig` (Singleton: Regeln Mo–Do/Mindestnächte/Vorlauf, Reinigung, USt),
+**Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login, mit
+`token` für den Magic-Link), `ExternalConfig` (Singleton: Regeln Mo–Do/
+Mindestnächte/Vorlauf, Reinigung, USt **+ Anzahlung `deposit_percent`, Storno-
+Staffel `free/partial_cancel_days`+`partial_refund_percent`, `late_fee`, `terms`**),
 `ExternalBooking` (Reservierung; blockiert die Verfügbarkeit; verknüpft mit einer
-`shop.Invoice`). `Quarter` hat `external_bookable`/`price_per_night`. Die
-Abrechnung läuft über die **generalisierte `shop.Invoice`** (Member ODER Guest;
-`Invoice.recipient_label`) – PDF, Mahnung, **Kontoabgleich** (`reconcile`) und
-Dashboard werden mitgenutzt. Reine Regel-Logik in `booking/external.py`,
-Services in `booking/services.py` (`external_quote`/`external_available_quarters`/
-`create_external_booking`/`cancel_external_booking`); Verfügbarkeit
-(`quarter_is_free` & Belegungs-Helfer) berücksichtigt bestätigte
-`ExternalBooking`s. Öffentlicher Einstieg ohne Login: View `external_home`
-(`/extern/`). **Online-Bezahlung (Mollie) ist als Naht vorbereitet, noch nicht
-aktiv** (Status `pending`/`hold_expires_at`).
+`shop.Invoice`). `Quarter` hat `external_bookable`/`price_per_night`; **saisonale
+Preise** über `QuarterPrice` (jährlich wiederkehrende Staffel, `Quarter.price_for_night(day)`
+greift sie pro Nacht, sonst Basispreis). Die Abrechnung läuft über die
+**generalisierte `shop.Invoice`** (Member ODER Guest; `Invoice.recipient_label`) –
+PDF, Mahnung, **Kontoabgleich** (`reconcile`) und Dashboard werden mitgenutzt.
+Reine Regel-Logik in `booking/external.py` (`external_allowed`,
+`cancellation_refund`), Services in `booking/services.py` (`external_quote`
+[saisonale Preise pro Nacht + Anzahlung/Storno-Text]/`external_available_quarters`/
+`create_external_booking`/`cancel_external_booking`/`build_external_calendar`/
+Magic-Link `*_by_token`); Verfügbarkeit (`quarter_is_free` & Belegungs-Helfer)
+berücksichtigt bestätigte `ExternalBooking`s. Öffentlicher Einstieg ohne Login:
+View `external_home` (`/extern/`, mit grün/grau-**Verfügbarkeitskalender**
+`build_external_calendar`, ohne Gastdaten) + `external_manage`
+(`/extern/verwalten/<token>/`, ansehen/stornieren). In der internen `overview`
+werden externe Gäste in **einer** Farbe (`services.EXTERN_COLOR`) nur als „extern“
+gezeigt. **Online-Bezahlung (Mollie) ist als Naht vorbereitet, noch nicht aktiv**
+(Status `pending`/`hold_expires_at`; im Bezahlbereich steht ein Platzhalter
+„Online-Direktbezahlung aktuell noch nicht möglich“).
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
 farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
