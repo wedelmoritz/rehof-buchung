@@ -338,7 +338,9 @@ bleibt in `settings.py` markiert.
   run_period_lottery` bzw. `lottery.run_lottery`.
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
 - Externe Buchungen sicher ausbauen (Modell-Flag `Member.is_external`,
-  `Allocation.source="external"` vorhanden).
+  `Allocation.source="external"` vorhanden). **Konzept** zum Ablösen von beds24
+  (externe Gäste buchen + zahlen via Mollie, Hybrid-Einstieg, Gast-Checkout) in
+  `docs/EXTERNE-GAESTE.md` (geplant, nicht umgesetzt).
 - E-Mail-Fundament steht (Outbox + `send_outbox`, mit Datei-Anhängen);
   **Rechnungs-PDF (WeasyPrint) erledigt**. Offen: Losergebnis-PDF + Massenmail,
   Web-Push (mobil).
