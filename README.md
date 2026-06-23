@@ -590,3 +590,12 @@ authentifizierte Web-App erreichbar; der Transport ist via Caddy TLS-verschlüss
 **Nicht** geschützt ist der Fall „jemand hat Server-/Root-Zugriff oder eine Kopie
 der Platte/eines Backups“ – dagegen wirken vor allem **verschlüsselte Off-site-
 Backups** und die **IBAN-Feldverschlüsselung**.
+
+---
+
+## Lizenz
+
+**GNU AGPL v3** – siehe [`LICENSE`](LICENSE). Die App darf genutzt, verändert und
+weitergegeben werden; wer sie (auch als gehosteten Webdienst) betreibt, muss den
+Quellcode der eingesetzten Version zugänglich machen. Damit bleibt eine
+Genossenschafts-Lösung dauerhaft offen.
