@@ -15,12 +15,18 @@
   p.sub { margin:0 0 .8rem; color:var(--muted); font-size:.88rem; }
   .nav { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
   .nav .label { font-weight:700; }
-  .nav a, .book { text-decoration:none; }
+  .nav a { text-decoration:none; }
   .nav a.arrow { display:inline-flex; align-items:center; justify-content:center;
     width:32px; height:32px; border:1px solid var(--line); border-radius:9px;
     color:var(--ink); background:#fff; }
   .nav a.arrow:hover { background:#f4efe6; }
   .spacer { margin-left:auto; }
+  form.range { display:flex; gap:.6rem; flex-wrap:wrap; align-items:flex-end;
+    margin:0 0 .8rem; }
+  form.range label { font-size:.8rem; color:var(--muted); display:flex;
+    flex-direction:column; gap:.2rem; }
+  form.range input { padding:.4rem .5rem; border:1px solid var(--line);
+    border-radius:9px; font:inherit; }
   table { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:5px; }
   th { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em;
        color:var(--muted); font-weight:600; padding-bottom:.2rem; }
@@ -30,21 +36,35 @@
   td.blocked { background:var(--blocked); }
   td.out { opacity:.4; }
   td.today { outline:2px dotted #9d958a; outline-offset:-2px; }
+  td.is-start { box-shadow: inset 0 0 0 3px var(--deep); }
+  td.in-range { background-image:linear-gradient(rgba(138,169,127,.22),rgba(138,169,127,.22)); }
   td a { display:flex; align-items:center; justify-content:center; height:100%;
          color:var(--ink); font-weight:600; text-decoration:none; }
   td a:hover { background:rgba(255,255,255,.5); }
   td .num { font-size:.92rem; }
   td.blocked .num { color:#a89f8f; display:flex; align-items:center;
     justify-content:center; height:100%; }
+  .flag { position:absolute; top:0; right:0; background:var(--deep); color:#fff;
+    font-size:.55rem; line-height:1; padding:2px 4px; border-bottom-left-radius:6px; z-index:1; }
   .legend { display:flex; gap:1rem; margin:.6rem 0 0; font-size:.8rem; color:var(--muted); }
   .legend i { display:inline-block; width:13px; height:13px; border-radius:4px;
     vertical-align:-2px; margin-right:4px; }
   .legend i.avail { background:var(--avail); } .legend i.blocked { background:var(--blocked); }
-  .cta { margin-top:1rem; text-align:center; }
+  .offers { margin-top:1rem; }
+  .offer { border:1px solid var(--line); border-radius:12px; padding:.7rem .9rem;
+    margin-bottom:.6rem; background:#fff; }
+  .offer .top { display:flex; gap:.6rem; align-items:baseline; flex-wrap:wrap; }
+  .offer .name { font-weight:700; }
+  .offer .price { margin-left:auto; font-weight:700; }
+  .offer .meta { color:var(--muted); font-size:.83rem; margin:.2rem 0 .5rem; }
   a.book { display:inline-block; background:var(--sage); color:#fff; font-weight:700;
-    padding:.7rem 1.4rem; border-radius:11px; }
+    padding:.45rem 1rem; border-radius:10px; text-decoration:none; }
   a.book:hover { background:var(--deep); }
+  a.book.big { padding:.7rem 1.4rem; }
+  .cta { margin-top:1rem; text-align:center; }
   .off { padding:1rem; border:1px solid var(--line); border-radius:11px; background:#fff; }
+  .tag { display:inline-block; background:#eef3e6; color:var(--deep); border-radius:6px;
+    font-size:.7rem; padding:0 .4rem; }
   footer { margin-top:.9rem; font-size:.75rem; color:var(--muted); text-align:center; }
 </style>
 </head>
@@ -56,14 +76,25 @@
   <div class="off">Buchungen für Gäste sind derzeit nicht möglich. Bitte schau
     später noch einmal vorbei.</div>
   {% else %}
-  <p class="sub">Grün = frei · Grau = belegt. Für die Buchung tippe einen freien
-    Tag an oder nutze den Button unten.</p>
+  <p class="sub">Grün = frei · Grau = belegt. Wähle deinen <strong>Zeitraum</strong>
+    (Anreise/Abreise) – wir zeigen dir die freien Unterkünfte. Buchen erfolgt auf
+    der Re:Hof-Seite.</p>
+
+  <form class="range" method="get">
+    <input type="hidden" name="year" value="{{ cal.year }}">
+    <input type="hidden" name="month" value="{{ cal.month }}">
+    <label>Anreise <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+    <label>Abreise <input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+    <label>Personen <input type="number" name="persons" min="1" value="{{ persons }}" style="width:5rem"></label>
+    <a class="book" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}" style="background:#fff;color:var(--ink);border:1px solid var(--line)">Zurücksetzen</a>
+    <button class="book" type="submit">Anzeigen</button>
+  </form>
 
   <div class="nav">
-    <a class="arrow" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}" title="Vormonat">&lsaquo;</a>
+    <a class="arrow" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ nav_qs }}" title="Vormonat">&lsaquo;</a>
     <span class="label">{{ cal.label }}</span>
-    <a class="arrow" href="?year={{ cal.next.year }}&month={{ cal.next.month }}" title="Folgemonat">&rsaquo;</a>
-    <a class="arrow spacer" href="?year={{ today.year }}&month={{ today.month }}" title="Heute">⌂</a>
+    <a class="arrow" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ nav_qs }}" title="Folgemonat">&rsaquo;</a>
+    <a class="arrow spacer" href="?year={{ today.year }}&month={{ today.month }}{{ nav_qs }}" title="Heute">⌂</a>
   </div>
 
   <table>
@@ -72,10 +103,11 @@
       {% for week in cal.weeks %}
       <tr>
         {% for d in week %}
-        <td class="{% if d.available %}avail{% else %}blocked{% endif %} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %}">
+        <td class="{% if d.available %}avail{% else %}blocked{% endif %} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if start and d.date == start %}is-start{% endif %} {% if start and end and start <= d.date and d.date < end %}in-range{% endif %}">
+          {% if start and d.date == start %}<span class="flag">An</span>{% endif %}
           {% if d.available and d.in_month %}
-            <a href="{{ book_url }}?start={{ d.iso }}&persons=2" target="_blank" rel="noopener"
-               title="{{ d.date|date:'d.m.Y' }} buchen"><span class="num">{{ d.day }}</span></a>
+            <a href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if start and not end and d.date > start %}&start={{ start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}&start={{ d.iso }}{% endif %}"
+               title="{{ d.date|date:'d.m.Y' }}"><span class="num">{{ d.day }}</span></a>
           {% else %}
             <span class="num">{{ d.day }}</span>
           {% endif %}
@@ -91,9 +123,36 @@
     <span><i class="blocked"></i>nicht verfügbar</span>
   </div>
 
-  <div class="cta">
-    <a class="book" href="{{ book_url }}" target="_blank" rel="noopener">Jetzt buchen →</a>
-  </div>
+  {% if searched %}
+    <div class="offers">
+    {% if offers %}
+      <p class="sub" style="margin:.2rem 0 .6rem"><strong>Frei vom
+        {{ start|date:"d.m.Y" }} – {{ end|date:"d.m.Y" }}</strong> ({{ persons }} Pers.):</p>
+      {% for q, quote in offers %}
+      <div class="offer">
+        <div class="top">
+          <span class="name">{{ q.name }}</span>
+          <span style="color:var(--muted);font-size:.82rem">bis {{ q.max_occupancy }} Pers.{% if q.accessible %} · barrierearm{% endif %}</span>
+          <span class="price">{{ quote.total_gross }} €</span>
+        </div>
+        <div class="meta">{{ quote.nights }} Nächte · Übernachtung {{ quote.stay_gross }} €{% if quote.seasonal_price %}
+          <span class="tag">saisonabhängig</span>{% endif %}{% if quote.cleaning_gross %}
+          + Reinigung {{ quote.cleaning_gross }} €{% endif %}</div>
+        <a class="book" target="_blank" rel="noopener"
+           href="{{ book_url }}?quarter={{ q.id }}&start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">Buchen →</a>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="off">Für diesen Zeitraum sind leider keine Unterkünfte verfügbar
+        (für Gäste gelten ggf. besondere Regeln, z. B. nur Wochentage). Bitte einen
+        anderen Zeitraum wählen.</div>
+    {% endif %}
+    </div>
+  {% else %}
+    <div class="cta">
+      <a class="book big" href="{{ home_url }}" target="_blank" rel="noopener">Zur Buchungsseite →</a>
+    </div>
+  {% endif %}
   {% endif %}
 
   <footer>Re:Hof-Genossenschaft</footer>

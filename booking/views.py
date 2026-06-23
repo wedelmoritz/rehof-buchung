@@ -857,42 +857,16 @@ def period_result(request, period_id: int):
 # --------------------------------------------------------------------------- #
 
 def external_home(request):
-    """Öffentlicher Einstieg für externe Gäste: Verfügbarkeit anzeigen und buchen
-    (Zahlung per Rechnung/Überweisung; Online-Bezahlung folgt). Kein Login nötig."""
+    """Öffentlicher Einstieg für externe Gäste: Verfügbarkeit anzeigen und ein
+    freies Quartier auswählen. Der Klick auf „Auswählen“ führt auf die separate
+    Bestätigungs-/Datenseite (`external_book`). Kein Login nötig."""
     from .models import ExternalConfig
     cfg = ExternalConfig.get_solo()
 
-    if request.method == "POST" and request.POST.get("action") == "book":
-        quarter = Quarter.objects.filter(
-            id=request.POST.get("quarter"), active=True).first()
-        start = _parse_date(request.POST.get("start"))
-        end = _parse_date(request.POST.get("end"))
-        try:
-            persons = int(request.POST.get("persons") or 1)
-        except (TypeError, ValueError):
-            persons = 1
-        if not (quarter and start and end):
-            messages.error(request, "Bitte Auswahl wiederholen.")
-        else:
-            booking, err = svc.create_external_booking(
-                quarter, start, end, persons,
-                name=request.POST.get("name", ""),
-                email=request.POST.get("email", ""),
-                street=request.POST.get("street", ""),
-                zip_code=request.POST.get("zip_code", ""),
-                city=request.POST.get("city", ""))
-            if booking:
-                return render(request, "booking/external_confirm.html", {
-                    "booking": booking, "invoice": booking.invoice,
-                    "deposit": cfg.deposit_for(booking.total_gross),
-                    "cancellation_text": cfg.cancellation_text})
-            messages.error(request, err or "Buchung nicht möglich.")
-
-    src = request.POST if request.method == "POST" else request.GET
-    start = _parse_date(src.get("start"))
-    end = _parse_date(src.get("end"))
+    start = _parse_date(request.GET.get("start"))
+    end = _parse_date(request.GET.get("end"))
     try:
-        persons = int(src.get("persons") or 2)
+        persons = int(request.GET.get("persons") or 2)
     except (TypeError, ValueError):
         persons = 2
     offers = (svc.external_available_quarters(start, end)
@@ -906,6 +880,52 @@ def external_home(request):
         "searched": bool(start and end),
         "cal": cal, "nav_qs": _ext_nav_qs(start, end, persons),
         **(_cal_nav(cal) if cal else {"months": [], "years": []}),
+    })
+
+
+def external_book(request):
+    """Bestätigungsschritt für externe Gäste (wie das interne `book_confirm`):
+    Quartier + Zeitraum prüfen, Gast-/Rechnungsdaten eintragen, Preis/Anzahlung/
+    Stornobedingungen sehen – erst „Verbindlich buchen“ legt die Buchung an."""
+    from .models import ExternalConfig
+    cfg = ExternalConfig.get_solo()
+    src = request.POST if request.method == "POST" else request.GET
+    quarter = Quarter.objects.filter(
+        id=src.get("quarter"), active=True, external_bookable=True).first()
+    start = _parse_date(src.get("start"))
+    end = _parse_date(src.get("end"))
+    try:
+        persons = int(src.get("persons") or 1)
+    except (TypeError, ValueError):
+        persons = 1
+
+    if not (cfg.active and quarter and start and end):
+        messages.error(request, "Bitte Auswahl wiederholen.")
+        return redirect("external_home")
+
+    if request.method == "POST" and request.POST.get("action") == "book":
+        booking, err = svc.create_external_booking(
+            quarter, start, end, persons,
+            name=request.POST.get("name", ""),
+            email=request.POST.get("email", ""),
+            street=request.POST.get("street", ""),
+            zip_code=request.POST.get("zip_code", ""),
+            city=request.POST.get("city", ""))
+        if booking:
+            return render(request, "booking/external_confirm.html", {
+                "booking": booking, "invoice": booking.invoice,
+                "deposit": cfg.deposit_for(booking.total_gross),
+                "cancellation_text": cfg.cancellation_text})
+        messages.error(request, err or "Buchung nicht möglich.")
+
+    # Review/Eingabe-Seite (GET oder fehlgeschlagener POST)
+    quote = svc.external_quote(quarter, start, end, cfg)
+    available = svc.quarter_is_free(quarter, start, end) and \
+        any(q.id == quarter.id for q, _ in svc.external_available_quarters(start, end))
+    return render(request, "booking/external_book.html", {
+        "cfg": cfg, "quarter": quarter, "start": start, "end": end,
+        "persons": persons, "quote": quote, "available": available,
+        "form_data": request.POST if request.method == "POST" else {},
     })
 
 
@@ -951,15 +971,29 @@ def external_manage(request, token):
 def external_embed(request):
     """Einbettbares Verfügbarkeits-Widget für die Re:Hof-Website (read-only).
 
-    Zeigt nur den grün/grau-Kalender (keine Gastdaten, keine Navigation/PWA) und
-    verlinkt zum eigentlichen Buchungs-Einstieg `/extern/` (öffnet in neuem Tab).
-    `@xframe_options_exempt`, damit die Seite per <iframe> eingebunden werden darf."""
+    Zeigt den grün/grau-Kalender und – sobald ein Zeitraum (von/bis) gewählt ist –
+    die freien Unterkünfte mit Preis (keine Gastdaten, keine Navigation/PWA). Nur
+    der Klick auf „Buchen“ führt (in neuem Tab) auf die Re:Hof-Buchungsseite
+    (`external_book`). `@xframe_options_exempt`, damit die Seite per <iframe>
+    eingebunden werden darf."""
     cfg = svc.ExternalConfig.get_solo()
     today = date.today()
+    start = _parse_date(request.GET.get("start"))
+    end = _parse_date(request.GET.get("end"))
+    try:
+        persons = int(request.GET.get("persons") or 2)
+    except (TypeError, ValueError):
+        persons = 2
+    offers = (svc.external_available_quarters(start, end)
+              if (cfg.active and start and end) else [])
     year, month = _month_from_request(request, today)
     cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
     return render(request, "booking/external_embed.html", {
         "cfg": cfg, "today": today, "cal": cal,
-        "book_url": request.build_absolute_uri(reverse("external_home")),
+        "start": start, "end": end, "persons": persons,
+        "offers": offers, "searched": bool(start and end),
+        "book_url": request.build_absolute_uri(reverse("external_book")),
+        "home_url": request.build_absolute_uri(reverse("external_home")),
+        "nav_qs": _ext_nav_qs(start, end, persons),
         **(_cal_nav(cal) if cal else {"months": [], "years": []}),
     })

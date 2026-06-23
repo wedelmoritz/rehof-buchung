@@ -91,10 +91,15 @@ Reine Regel-Logik in `booking/external.py` (`external_allowed`,
 [saisonale Preise pro Nacht + Anzahlung/Storno-Text]/`external_available_quarters`/
 `create_external_booking`/`cancel_external_booking`/`build_external_calendar`/
 Magic-Link `*_by_token`); Verfügbarkeit (`quarter_is_free` & Belegungs-Helfer)
-berücksichtigt bestätigte `ExternalBooking`s. Öffentlicher Einstieg ohne Login:
-View `external_home` (`/extern/`, mit grün/grau-**Verfügbarkeitskalender**
-`build_external_calendar`, ohne Gastdaten) + `external_manage`
-(`/extern/verwalten/<token>/`, ansehen/stornieren). In der internen `overview`
+berücksichtigt bestätigte `ExternalBooking`s. Öffentlicher Einstieg ohne Login (zweistufig wie intern `book→book_confirm`):
+`external_home` (`/extern/`, grün/grau-**Verfügbarkeitskalender**
+`build_external_calendar` + freie Unterkünfte, ohne Gastdaten) → `external_book`
+(`/extern/buchen/`, **Bestätigungs-/Datenseite**: prüfen, Gastdaten, Preis/Storno/
+Anzahlung/Mollie-Platzhalter, erst dann verbindlich buchen) → `external_confirm`;
+dazu `external_manage` (`/extern/verwalten/<token>/`, ansehen/stornieren) und das
+einbettbare Website-Widget `external_embed` (`/extern/widget/`,
+`@xframe_options_exempt`: Kalender + nach Zeitraum-Wahl freie Unterkünfte, „Buchen“
+führt auf die Buchungsseite). In der internen `overview`
 werden externe Gäste in **einer** Farbe (`services.EXTERN_COLOR`) nur als „extern“
 gezeigt. **Online-Bezahlung (Mollie) ist als Naht vorbereitet, noch nicht aktiv**
 (Status `pending`/`hold_expires_at`; im Bezahlbereich steht ein Platzhalter

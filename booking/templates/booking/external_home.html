@@ -70,44 +70,7 @@
       + Endreinigung {{ quote.cleaning_gross }} €{% endif %} ·
       <strong>gesamt {{ quote.total_gross }} €</strong>{% if quote.deposit_gross %}
       · Anzahlung {{ quote.deposit_gross }} €{% endif %}</p>
-    <details>
-      <summary class="btn small">Diese Unterkunft buchen</summary>
-      <form method="post" style="margin-top:.7rem">{% csrf_token %}
-        <input type="hidden" name="action" value="book">
-        <input type="hidden" name="quarter" value="{{ q.id }}">
-        <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
-        <input type="hidden" name="end" value="{{ end|date:'Y-m-d' }}">
-        <input type="hidden" name="persons" value="{{ persons }}">
-        <div class="form-row">
-          <label>Name <input name="name" required></label>
-          <label>E-Mail <input type="email" name="email" required></label>
-        </div>
-        <div class="form-row">
-          <label>Straße &amp; Nr. <input name="street"></label>
-          <label>PLZ <input name="zip_code"></label>
-          <label>Ort <input name="city"></label>
-        </div>
-
-        <div class="pay-box">
-          <strong>Bezahlung</strong>
-          <p class="muted" style="margin:.3rem 0">Online-Direktbezahlung (Kreditkarte,
-            PayPal, Apple/Google&nbsp;Pay) ist <strong>aktuell noch nicht möglich</strong>.
-            Du erhältst eine Rechnung und überweist den Betrag mit der Rechnungsnummer
-            als Verwendungszweck.</p>
-        </div>
-
-        <details style="margin:.4rem 0">
-          <summary class="muted" style="cursor:pointer">Stornobedingungen anzeigen</summary>
-          <p class="muted" style="font-size:.85rem">{{ quote.cancellation_text }}</p>
-        </details>
-
-        <p class="muted" style="font-size:.85rem">Mit „Verbindlich buchen“ erhältst du
-          eine Bestätigung und eine Rechnung per E-Mail
-          {% if quote.deposit_gross %}(Anzahlung {{ quote.deposit_gross }} €){% endif %}.
-          Deine Buchung kannst du später per Link selbst verwalten.</p>
-        <button class="btn" type="submit">Verbindlich buchen ({{ quote.total_gross }} €)</button>
-      </form>
-    </details>
+    <a class="btn small" href="{% url 'external_book' %}?quarter={{ q.id }}&start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">Auswählen &amp; buchen →</a>
   </div>
   {% endfor %}
   {% else %}
@@ -136,8 +99,6 @@
     color:#fff; font-size:.6rem; line-height:1; padding:2px 4px; border-bottom-left-radius:6px; z-index:1; }
   .legend .sw.avail { background:#dcefce; }
   .legend .sw.blocked { background:#ece8df; }
-  .pay-box { border:1px dashed var(--line); border-radius:11px; padding:.6rem .8rem;
-    margin:.6rem 0; background:#faf7f1; }
 </style>
 
 {% endif %}
