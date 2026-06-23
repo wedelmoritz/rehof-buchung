@@ -32,6 +32,15 @@ class FairnessPageTests(TestCase):
         self.assertContains(r, "Chi-Quadrat")
         self.assertContains(r, "<svg")
         self.assertContains(r, "Karma")
+        html = r.content.decode()
+        # Balken werden tatsächlich gezeichnet …
+        self.assertGreater(html.count("<rect"), 0)
+        # … und SVG-Koordinaten dürfen KEIN Komma haben (deutsche L10N würde
+        # x="44,0" erzeugen -> ungültiges SVG, Balken unsichtbar).
+        import re
+        svg = html[html.find("<svg"):]
+        bad = re.findall(r'(?:x|y|x1|y1|x2|y2|width|height)="[0-9]+,[0-9]+"', svg)
+        self.assertEqual(bad, [], f"Komma in SVG-Koordinaten: {bad[:3]}")
 
 
 class FairnessAdminTests(TestCase):

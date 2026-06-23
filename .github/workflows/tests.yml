@@ -190,7 +190,13 @@ jobs:
           from datetime import date
           from django.db import connection
           from booking.models import Member, Quarter, Wish
-          m = Member.objects.first(); q = Quarter.objects.first()
+          # WICHTIG: nur Spalten lesen, die es im zurückgesetzten Stand (booking 0015)
+          # schon gibt. Die aktuellen Modelle haben später ergänzte Felder
+          # (Member.email_opt_in ab 0020, Quarter.external_bookable ab 0024); ein
+          # volles ORM-SELECT (Member.objects.first()) würde hier auf der Alt-DB
+          # scheitern. Über values_list("id") holen wir nur die ID.
+          member_id = Member.objects.values_list("id", flat=True).first()
+          quarter_id = Quarter.objects.values_list("id", flat=True).first()
           with connection.cursor() as c:
               c.execute('INSERT INTO booking_bookingperiod '
                         '(name,target_year,"start","end",status,applies_to_all) '
@@ -203,7 +209,9 @@ jobs:
               dup_id = c.fetchone()[0]
           # Wunsch an der Dublette: dessen Cascade-Löschung erzeugt die
           # "pending trigger events", an denen das ALTER TABLE scheiterte.
-          Wish.objects.create(period_id=dup_id, member=m, quarter=q,
+          # (Wish hat seit 0004 keine neuen Spalten -> ORM-Insert ist hier sicher.)
+          Wish.objects.create(period_id=dup_id, member_id=member_id,
+                              quarter_id=quarter_id,
                               start=date(2099, 5, 2), end=date(2099, 5, 5),
                               priority=1, submitted=True)
           print("Alt-Zustand: 2 Perioden für 2099 + Wunsch auf der Dublette.")

@@ -30,11 +30,16 @@
 
   <svg viewBox="0 0 {{ eq_chart.w }} {{ eq_chart.h }}" class="chart" role="img"
        aria-label="Gewinnrate je Nutzer mit Konfidenzintervall">
+    {% for t in eq_chart.yticks %}
+    <line x1="{{ eq_chart.axis_x0 }}" y1="{{ t.y }}" x2="{{ eq_chart.axis_x1 }}" y2="{{ t.y }}" class="grid"/>
+    <text x="{{ eq_chart.axis_x0 }}" y="{{ t.y }}" dx="-6" dy="3" text-anchor="end" class="ytick">{{ t.label }}</text>
+    {% endfor %}
+    <line x1="{{ eq_chart.axis_x0 }}" y1="{{ eq_chart.top_y }}" x2="{{ eq_chart.axis_x0 }}" y2="{{ eq_chart.axis_y }}" class="axis"/>
     <line x1="{{ eq_chart.axis_x0 }}" y1="{{ eq_chart.axis_y }}" x2="{{ eq_chart.axis_x1 }}" y2="{{ eq_chart.axis_y }}" class="axis"/>
     <line x1="{{ eq_chart.axis_x0 }}" y1="{{ eq_chart.exp_y }}" x2="{{ eq_chart.axis_x1 }}" y2="{{ eq_chart.exp_y }}" class="exp"/>
     <text x="{{ eq_chart.axis_x1 }}" y="{{ eq_chart.exp_y }}" dy="-3" text-anchor="end" class="explbl">erwartet {{ eq_chart.exp_pct }} %</text>
     {% for b in eq_chart.bars %}
-    <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" class="bar"/>
+    <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" class="bar" rx="3"/>
     <line x1="{{ b.cx }}" y1="{{ b.ci_top }}" x2="{{ b.cx }}" y2="{{ b.ci_bot }}" class="ci"/>
     <text x="{{ b.cx }}" y="{{ eq_chart.axis_y }}" dy="14" text-anchor="middle" class="xlbl">{{ b.label }}</text>
     {% endfor %}
@@ -66,9 +71,14 @@
     Faktor (alle anderen 1,0); ihre Gewinnrate steigt messbar.</p>
   <svg viewBox="0 0 {{ karma_chart.w }} {{ karma_chart.h }}" class="chart" role="img"
        aria-label="Gewinnrate nach Ausgleichsfaktor">
+    {% for t in karma_chart.yticks %}
+    <line x1="{{ karma_chart.axis_x0 }}" y1="{{ t.y }}" x2="{{ karma_chart.axis_x1 }}" y2="{{ t.y }}" class="grid"/>
+    <text x="{{ karma_chart.axis_x0 }}" y="{{ t.y }}" dx="-6" dy="3" text-anchor="end" class="ytick">{{ t.label }}</text>
+    {% endfor %}
+    <line x1="{{ karma_chart.axis_x0 }}" y1="{{ karma_chart.top_y }}" x2="{{ karma_chart.axis_x0 }}" y2="{{ karma_chart.axis_y }}" class="axis"/>
     <line x1="{{ karma_chart.axis_x0 }}" y1="{{ karma_chart.axis_y }}" x2="{{ karma_chart.axis_x1 }}" y2="{{ karma_chart.axis_y }}" class="axis"/>
     {% for b in karma_chart.bars %}
-    <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" class="bar karma"/>
+    <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" class="bar karma" rx="3"/>
     <line x1="{{ b.cx }}" y1="{{ b.ci_top }}" x2="{{ b.cx }}" y2="{{ b.ci_bot }}" class="ci"/>
     <text x="{{ b.cx }}" y="{{ b.y }}" dy="-4" text-anchor="middle" class="vlbl">{{ b.rate }} %</text>
     <text x="{{ b.cx }}" y="{{ karma_chart.axis_y }}" dy="14" text-anchor="middle" class="xlbl">{{ b.label }}</text>
@@ -88,7 +98,9 @@
 
 <style>
   svg.chart { width:100%; max-width:560px; height:auto; display:block; margin:.4rem 0; }
-  svg.chart .axis { stroke:var(--line); stroke-width:1; }
+  svg.chart .axis { stroke:#b7ad9c; stroke-width:1; }
+  svg.chart .grid { stroke:var(--line); stroke-width:1; }
+  svg.chart .ytick { fill:var(--muted); font-size:9px; }
   svg.chart .exp { stroke:var(--accent-deep); stroke-width:1.5; stroke-dasharray:5 4; }
   svg.chart .explbl { fill:var(--accent-deep); font-size:11px; }
   svg.chart .bar { fill:var(--sage); }
