@@ -122,7 +122,9 @@ Zustand in `localStorage`, schon im `<head>` gesetzt (kein FOUC). Auf dem
 daumenfreundlich) mit 4 Hauptpunkten (Übersicht, Buchen, Meine Buchungen,
 Hofladen) + Knopf „Mehr“ (`#moreBtn`), der ein **Bottom-Sheet** (`.sheet` +
 `.sheet-backdrop`) mit den übrigen Punkten öffnet (Wunschliste, Tage übertragen,
-Rechnungen, Profil, Hilfe, Verwaltung). Die Navigation erscheint für Mitglieder
+Rechnungen, Profil, Hilfe, Verwaltung, Backend). Für Staff gibt es zwei eigene
+Nav-Punkte: **Verwaltung** (`/verwaltung/`, Dashboard) und **Backend** (`/admin/`,
+Django-Admin/Stammdaten). Die Navigation erscheint für Mitglieder
 UND für Verwaltungs-/Superuser (auch ohne Mitglieds-Profil). Das Layout ist responsiv
 (Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
@@ -178,7 +180,8 @@ gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
 (Reinigungsliste ans Reinigungsteam, Buchungen an die Verwaltung,
 Zahlungserinnerung an überfällige). Empfänger in `OpsConfig`
 (`email_admins`/`email_cleaning`; Reinigungsteam leer = Verwaltungs-Adresse).
-Die Nav „Verwaltung“ zeigt aufs Dashboard; von dort Link ins Django-Backend.
+Die Nav „Verwaltung“ zeigt aufs Dashboard, die Nav „Backend“ direkt ins
+Django-Admin (beide nur für Staff).
 Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 `departures_in_range`, `_annotate_cleaning`, `*_rows`, `*_text`).
 

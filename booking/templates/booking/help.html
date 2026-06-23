@@ -3,6 +3,28 @@
 {% block content %}
 <h1>Hilfe &amp; Erklärung</h1>
 
+<div class="card" id="ueberblick">
+  <h2 style="margin-top:0">Was du hier tun kannst</h2>
+  <ul>
+    <li><strong>Übersicht:</strong> sehen, wer wann in welchem Quartier ist; pro Tag,
+      wer da ist und was noch frei ist.</li>
+    <li><strong>Buchen:</strong> über den Ampel-Kalender freie Zeiträume spontan buchen
+      – mit Personenzahl, optionaler Endreinigung; ist alles belegt, auf die
+      <strong>Warteliste</strong> setzen (Benachrichtigung, sobald frei).</li>
+    <li><strong>Wunschliste &amp; Auslosung:</strong> begehrte Zeiträume fürs nächste
+      Jahr fair verlosen lassen (siehe unten).</li>
+    <li><strong>Meine Buchungen:</strong> eigene Buchungen sehen, stornieren und einen
+      <strong>Wechselwunsch</strong> an andere Mitglieder stellen.</li>
+    <li><strong>Tage übertragen:</strong> eigene Tage an ein anderes Mitglied abgeben.</li>
+    <li><strong>Hofladen &amp; Rechnungen:</strong> Waren/Dienstleistungen kaufen,
+      monatliche Sammelrechnung, Rechnung als <strong>PDF</strong>, „bezahlt“ melden.</li>
+    <li><strong>Profil:</strong> Name, Anschrift, IBAN und E-Mail-Benachrichtigungen
+      pflegen.</li>
+    <li><strong>App installieren:</strong> die Seite lässt sich aufs Handy „zum
+      Startbildschirm hinzufügen“ und funktioniert auch offline grundlegend.</li>
+  </ul>
+</div>
+
 <div class="card toc">
   <strong>Inhalt</strong>
   <ul>
@@ -92,6 +114,67 @@
       wenn du dran bist, nicht <em>wann</em>. Taktieren bringt keinen Vorteil.</li>
   </ol>
 
+  <h3>Wie wird die Reihenfolge gewählt – und wie wirkt das Karma?</h3>
+  <p>Die Reihenfolge ist eine <strong>gewichtete Zufallsreihenfolge</strong>. Jede
+    Partei bekommt einen Zufalls-Schlüssel; sortiert man absteigend danach, ergibt
+    sich die Reihenfolge. Der Schlüssel ist</p>
+  <p class="formula">k = u<sup>(1/g)</sup>,&nbsp; u ~ Gleichverteilung auf (0,1)</p>
+  <p>wobei <strong>g</strong> das <em>Karma-Gewicht</em> der Partei ist (Start 1,0).
+    Ein höheres <em>g</em> schiebt den Schlüssel näher an 1 – die Partei landet also
+    <em>tendenziell</em> weiter vorne, aber nie garantiert. Fachlich ist das das
+    <em>Efraimidis-Spirakis-Verfahren</em> für eine gewichtete Zufallsstichprobe
+    ohne Zurücklegen (eine gewichtete Zufalls-Permutation).</p>
+  <p>Die Chance, <strong>Erste:r</strong> zu werden, ist genau gewichtsproportional:</p>
+  <p class="formula">P(Partei i ist vorn) = g<sub>i</sub> / (g<sub>1</sub> + g<sub>2</sub> + … + g<sub>n</sub>)</p>
+  <p>Beispiel: Bei 5 Parteien hat eine mit Karma 1,5 gegen vier mit je 1,0 eine
+    Chance von 1,5 / (1,5 + 4·1,0) = <strong>1,5/5,5 ≈ 27 %</strong> auf Platz 1
+    (statt 1,0/5,5 ≈ 18 % bei gleichem Karma). <strong>Karma</strong> startet bei
+    1,0, steigt um +0,1 je Jahr mit echtem Verlust (Deckel <strong>1,5</strong>) und
+    wird nach dem Gewinn eines umkämpften Slots auf 1,0 zurückgesetzt. Pech tiltet
+    also die Wahrscheinlichkeiten zu deinen Gunsten – bis maximal zur 1,5-fachen
+    Gewichtung –, ersetzt aber nie den Zufall.</p>
+
+  <h3>Was heißt „strategiesicher“ genau?</h3>
+  <p><strong>Strategiesicher</strong> heißt: Es gibt <em>keine</em> Falschangabe –
+    keine getürkte Reihenfolge, keine Tricks –, die dir im Schnitt ein besseres
+    Ergebnis bringt als deine <em>ehrlichen</em>, nach echter Wichtigkeit sortierten
+    Wünsche. Ehrlich angeben ist die <em>dominante Strategie</em>.</p>
+  <p>Warum das so ist: Das Verfahren ist eine <em>(gewichtete) zufällige serielle
+    Diktatur</em>. Entscheidend sind zwei Dinge:</p>
+  <ul>
+    <li>Die <strong>Reihenfolge hängt nur von Karma und Zufall ab – nicht von deiner
+      Wunschliste</strong>. Egal, was oder wie viel du einträgst: <em>wann</em> du
+      dran bist, kannst du damit nicht beeinflussen.</li>
+    <li>Wenn du dran bist, bekommst du deinen <strong>höchsten noch freien</strong>
+      Wunsch. Den wirklich am meisten gewünschten freien Slot zu nehmen ist per
+      Definition das Beste – eine andere Reihenfolge anzugeben könnte dich nur dazu
+      bringen, etwas <em>weniger</em> Gewünschtes zu nehmen.</li>
+  </ul>
+  <p>Deine Liste bestimmt also nur das <em>Was</em>, nie das <em>Wann</em> – deshalb
+    lohnt Taktieren nicht. Auch <strong>viele</strong> Wünsche einzutragen ist kein
+    „Trick“, sondern bloß ehrliches Angeben deiner Flexibilität: zusätzliche, ehrlich
+    nachgeordnete Wünsche können nur <em>helfen</em> (Rückfalloptionen) und nie schaden
+    – vergeben werden aber höchstens 25 Wunsch-Nächte (siehe unten). Sichergestellt ist
+    das durch einen Test, der über <em>alle</em> möglichen Reihenfolgen nachrechnet,
+    dass ehrliches Angeben nie schlechter abschneidet.</p>
+
+  <h3>Budgets &amp; Wünsche (wichtig!)</h3>
+  <ul>
+    <li>Du hast <strong>50 Tage pro Jahr</strong> insgesamt (Losung + normale Buchung),
+      davon höchstens <strong>25 Tage über die Losung</strong>.</li>
+    <li>Du darfst <strong>mehr als 25 Nächte an Wünschen eintragen</strong> – das ist
+      ausdrücklich okay und sogar sinnvoll (Rückfälle, falls Erstwünsche belegt sind).
+      Die Losung teilt dir aber <strong>höchstens 25 Wunsch-Nächte</strong> zu; sind die
+      erreicht, werden weitere Wünsche einfach <strong>übersprungen</strong> – das ist
+      <em>kein</em> Verlust und kostet kein Karma. Im Schaubild ist das der Zweig
+      „Budget voll → übersprungen“.</li>
+    <li><strong>„Budget voll“ ist keine Buchsperre:</strong> die restlichen Tage (bis
+      zu deinen 50) kannst du danach ganz normal selbst buchen.</li>
+    <li>Mehr Wünsche bringen dir also <em>keinen unfairen Vorteil</em>: deine Position
+      in der Reihenfolge ändert sich nicht, und die 25-Nächte-Grenze deckelt, wie viel
+      die Losung dir überhaupt geben kann.</li>
+  </ul>
+
   <div class="qa">
     <strong>Kurz beantwortet</strong>
     <p><em>Wird nach Runde 1 die Reihenfolge neu gelost?</em> — Nein. Die Reihenfolge
@@ -100,6 +183,10 @@
       Ja, aber nur als <strong>Gewicht für die eine Ziehung der Reihenfolge</strong>
       (aus den Vorjahreswerten). <strong>Neu berechnet</strong> wird Karma erst ganz am
       Ende – für die <em>nächste</em> Auslosung, nicht zwischen den Runden.</p>
+    <p><em>Kann ich mehr als 25 Tage an Wünschen eintragen?</em> — Ja. Das Eintragen
+      ist nicht begrenzt; vergeben werden über die Losung aber höchstens 25
+      Wunsch-Nächte. Mehr (ehrlich nachgeordnete) Wünsche verschlechtern nie deine
+      Position.</p>
   </div>
 
   <h3>Ablauf auf einen Blick</h3>
@@ -155,7 +242,7 @@
       <text x="300" y="282" class="b">✓ Ausweichquartier</text>
       <text x="478" y="266">nichts frei</text>
       <text x="478" y="282" class="b">✗ Verlust (Karma +0,1)</text>
-      <text x="300" y="313" class="sm">Budget voll? Wunsch wird übersprungen – kein Verlust.</text>
+      <text x="300" y="313" class="sm">Budget voll (25 Wunsch-Nächte vergeben)? Wunsch übersprungen – kein Verlust.</text>
       <text x="300" y="352">höchstens EINE Buchung pro Partei &amp; Runde</text>
       <text x="300" y="404">offene</text>
       <text x="300" y="418">Wünsche?</text>
@@ -253,6 +340,9 @@
   .card ol, .card ul { line-height:1.6; }
   .qa { background:var(--accent-soft); border-radius:12px; padding:.7rem .9rem; margin:.8rem 0; }
   .qa p { margin:.4rem 0 0; }
+  .formula { font-family:"DejaVu Serif",Georgia,serif; font-size:1.05rem; text-align:center;
+    background:#faf7f1; border:1px solid var(--line); border-radius:8px; padding:.5rem .6rem; margin:.5rem 0; }
+  .formula sup, .formula sub { font-size:.72em; }
   .flow { display:block; width:100%; max-width:560px; height:auto; margin:.4rem auto .2rem; }
   .flow .bx rect { fill:#fff; stroke:var(--line); }
   .flow .acc { fill:var(--accent-soft); stroke:var(--accent); }

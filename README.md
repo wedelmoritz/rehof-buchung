@@ -5,10 +5,11 @@ Mitgliedermanagement. Diese PoC enthält das fachlich abgenommene Losverfahren a
 getestetes, eigenständiges Python-Modul und eine schlanke Django-Oberfläche
 darum herum.
 
-> **Status:** lauffähige Proof-of-Concept. Der Losalgorithmus ist vollständig
-> getestet (17 Tests, inkl. deterministischem Strategiesicherheits-Beweis).
-> Oberfläche und Datenmodell decken den Kern ab; einige Komfort- und
-> Verwaltungsfunktionen sind als Ausbaustufen vorgesehen (siehe unten).
+> **Status:** lauffähige Proof-of-Concept. Getestet auf zwei Ebenen –
+> **reine Logik** (Losverfahren inkl. deterministischem Strategiesicherheits-
+> Beweis, Verfügbarkeit, Regeln) und **Integration** (DB-Ebene: Buchung,
+> Losung-Workflow, Dashboard, Hofladen, Kontoabgleich). Backup & weiteres
+> Hardening sind als Blueprint vorbereitet (`docs/BETRIEB-SICHERHEIT.md`).
 
 ---
 
@@ -48,29 +49,93 @@ Caddy holt das TLS-Zertifikat automatisch und proxyt auf `127.0.0.1:8000`
 
 ---
 
-## Was die PoC kann
+## Test-Anleitung (POC)
 
-- **Mitgliedermanagement** über das Django-Admin (`/admin/`): Mitglieder,
-  Ausgleichsfaktoren, Nächte-Budgets, Quartiere, Äquivalenzklassen.
-- **Mein Kalender** (zentrale Mitglieder-Seite): Monatskalender mit den eigenen
-  Buchungen und den **Berliner Schulferien**, verfügbare Tage, Buchen,
-  **Stornieren**, und ein **Wunschlisten-Editor** fürs Losverfahren mit per
-  Ziehen oder Pfeiltasten **verschiebbarer Priorität** und „In den Lostopf"-
-  Bestätigung (vor dem Bestätigen nur für das Mitglied sichtbar).
-- **Jahres-Losung** per Admin-Aktion: gewichtete Zufallsreihenfolge im
-  Runden-Prinzip, Ausweichen auf gleichwertige Quartiere, Karma-Faktor für
-  Verlierer, vollständiges Audit-Protokoll. Es nehmen nur **eingereichte**
-  Wünsche teil.
-- **Freigeschaltete Buchungszeiträume** (Admin): global für alle Quartiere und
-  enger eingeschränkt für eine Teilmenge.
-- **Buchungsregeln** (Admin): Mindestnächte, max. parallele Wohneinheiten und
-  Aufenthaltsdeckel je Saison (siehe unten).
-- **Tage an andere Mitglieder übertragen** (kein Übertrag ins Folgejahr).
-- **Ergebnis- und Audit-Ansicht** mit nachvollziehbarem Ziehungsprotokoll.
+Ziel: in wenigen Minuten **zwei Rollen** ausprobieren – eine:n **Verwalter:in**
+(Staff) und eine:n **Testnutzer:in** (Mitglied).
+
+### 1) Daten & Konten anlegen
+
+Am schnellsten mit Demo-Daten (echte Quartiere, Perioden, ein paar Mitglieder):
+
+```bash
+docker compose exec web python manage.py seed_demo --reset   # Demo-Stammdaten
+docker compose exec web python manage.py createsuperuser     # Verwalter:in (Staff)
+```
+
+- **Verwalter:in** = das Superuser-Konto. Es ist `is_staff` und sieht in der
+  Navigation zusätzlich **Verwaltung** (Dashboard) und **Backend** (Django-Admin).
+- **Testnutzer:in** = ein Demo-Mitglied, z. B. Login `anna0`, Passwort
+  `demo12345` (nach `seed_demo`).
+
+**Ohne Demo-Daten** (manuell): Testnutzer:in unter `…/registrieren/` selbst
+anlegen → dann als Verwalter:in im **Backend** ein **Mitglieds-Profil** zuordnen
+(Benutzer → „Mitglieds-Profil“) und einen **Mitglieds-Anteil** mit Tage-Budget
+anlegen (Mitglieds-Anteile → Anteil + Nutzer mit z. B. 50/25 Tagen). Erst dann
+ist das Konto freigeschaltet und kann buchen.
+
+> Tipp: Damit die Auslosung etwas zu verteilen hat, muss eine **Buchungsperiode**
+> fürs Folgejahr existieren (Demo legt das an) und es müssen **eingereichte**
+> Wünsche vorliegen.
+
+### 2) Als Verwalter:in testen (Nav: „Verwaltung“ + „Backend“)
+
+- **Backend** (`/admin/`): Quartiere & Äquivalenzklassen, **Buchungsregeln**
+  (Mindestnächte/Saison), **Buchungsperiode** mit Terminen anlegen;
+  **Betriebs-Einstellungen** (Empfänger der Verwaltungs-Mails) und
+  **Hofladen-Einstellungen** (IBAN, Zahlungsziel) pflegen.
+- **Losung**: Buchungsperioden → Aktion **„Losung durchführen“** → Ergebnis ist
+  zunächst **unbestätigt**; unter **Losdurchläufe** **bestätigen** (veröffentlicht +
+  benachrichtigt) oder **zurücknehmen**.
+- **Dashboard** (`/verwaltung/`): Reinigungsliste (Export/Versand), anstehende
+  Buchungen (Export/Versand), **Rechnungen** (Filter offen/überfällig/alle,
+  „überfällige erinnern“, Export) und **Kontoabgleich** (Test-CSV hochladen –
+  Rechnungsnummer im Verwendungszweck + passender Betrag wird automatisch
+  verbucht).
+
+### 3) Als Testnutzer:in testen
+
+- **Übersicht**: einen Tag anklicken → wer ist da, was ist frei.
+- **Buchen**: Personen einstellen, im Ampel-Kalender An-/Abreise klicken, Quartier
+  wählen, optional **Endreinigung** mitbuchen; ist alles belegt → **Warteliste**.
+- **Wunschliste**: Wünsche fürs Folgejahr eintragen, priorisieren, **einreichen**.
+  Nach der (bestätigten) Losung das Ergebnis unter **Meine Buchungen** sehen.
+- **Meine Buchungen**: stornieren; **Wechselwunsch** an ein anderes Mitglied.
+- **Tage übertragen**: ein paar Tage an ein anderes Mitglied abgeben.
+- **Hofladen**: etwas in den Warenkorb, **Kasse**, **Rechnung** ansehen, **PDF**
+  herunterladen, „habe ich bezahlt“ melden.
+- **Profil**: Anschrift/IBAN pflegen, E-Mail-Benachrichtigungen an/aus.
+- **Installieren**: im mobilen Browser „Zum Startbildschirm hinzufügen“.
+
+E-Mails landen ohne konfiguriertes `EMAIL_HOST` im Container-Log
+(`docker compose logs web`), sodass sich der Versand auch ohne echten
+Mailserver nachvollziehen lässt.
+
+---
+
+## Was die PoC kann (Kurzüberblick)
+
+**Für Mitglieder (Web-App, auch als PWA aufs Handy installierbar):**
+Community-**Übersicht** (wer ist wann wo), **Buchen** über einen Ampel-Kalender
+inkl. Spontanbuchung und **Warteliste**, **Wunschliste + faires Losverfahren**
+fürs Folgejahr, **Meine Buchungen** mit Storno und **Wechselwunsch**, **Tage
+übertragen**, **Hofladen** mit monatlicher Sammelrechnung und **Rechnungs-PDF**,
+**Profil** (Anschrift/IBAN/E-Mail-Opt-out). **Benachrichtigungen** in-App und per
+E-Mail.
+
+**Für die Verwaltung:** Django-**Backend** (Mitglieder/Anteile, Quartiere,
+Äquivalenzklassen, Buchungsregeln, Perioden) + ein operatives **Dashboard**
+(`/verwaltung/`): Reinigungsliste, anstehende Buchungen, Rechnungen (filterbar,
+Mahnen per Knopf, Export), **Kontoabgleich** (Auszug importieren → Rechnungen
+automatisch verbuchen). **Losung** mit Bestätigungs-/Rücknahme-Workflow.
+Ein **Scheduler** erledigt Cron-Aufgaben (fällige Losungen, Monatsrechnungen,
+E-Mail-Versand, Monats-Mail an die Verwaltung).
+
+Die vollständige Feature-Liste **mit Datei/Funktion** steht unter
+[Funktionsüberblick](#funktionsüberblick); eine Schritt-für-Schritt-Anleitung
+zum Ausprobieren unter [Test-Anleitung](#test-anleitung-poc).
 
 Demo-Login nach `--seed`: Benutzername z.B. `anna0`, Passwort `demo12345`.
-Die Losung wird im Admin unter **Buchungsperioden → Aktion „Losung durchführen"**
-gestartet.
 
 ---
 
@@ -157,6 +222,55 @@ Verfahren: **gewichtete Zufallsreihenfolge im Runden-Prinzip** (fachlich eine
   dran ist – nicht *wann*. Ehrliches Angeben ist nachweislich nie schlechter als
   Tricksen (siehe Test `test_strategieproof_ueber_alle_reihenfolgen`).
 
+### Reihenfolge & Karma (wie die Ziehung statistisch funktioniert)
+
+Die Reihenfolge ist eine **gewichtete Zufalls-Permutation** nach dem
+**Efraimidis–Spirakis-Verfahren** (gewichtete Zufallsstichprobe ohne
+Zurücklegen, `booking/lottery.py::weighted_random_order`). Jede Partei erhält
+einen Schlüssel
+
+$$k = u^{1/g}, \qquad u \sim \mathcal{U}(0,1)$$
+
+mit dem **Karma-Gewicht** $g$ (Start 1,0). Absteigend nach $k$ sortiert ergibt
+sich die Reihenfolge; ein höheres $g$ schiebt $k$ näher an 1 (tendenziell weiter
+vorn, nie garantiert). Die Wahrscheinlichkeit, **Erste:r** zu werden, ist exakt
+gewichtsproportional:
+
+$$P(\text{Partei } i \text{ ist vorn}) = \frac{g_i}{\sum_{j} g_j}$$
+
+Beispiel: Karma 1,5 gegen vier mit je 1,0 → $1{,}5/5{,}5 \approx 27\,\%$ (statt
+18 % bei gleichem Karma). $g$ steigt um **+0,1** je Jahr mit echtem Verlust
+(Deckel **1,5**) und wird nach Gewinn eines umkämpften Slots auf **1,0**
+zurückgesetzt. Pech verschiebt also die Wahrscheinlichkeiten zu deinen Gunsten,
+ersetzt aber nie den Zufall.
+
+### Strategiesicherheit (was das heißt und wie es sichergestellt ist)
+
+**Strategiesicher** heißt: keine Falschangabe bringt im Erwartungswert ein
+besseres Ergebnis als die ehrlichen, nach echter Wichtigkeit sortierten Wünsche –
+ehrlich angeben ist die **dominante Strategie**. Es ist eine **(gewichtete)
+zufällige serielle Diktatur**: die **Reihenfolge hängt nur von Karma und Zufall
+ab, nicht von der Wunschliste** (man kann das *Wann* nicht beeinflussen), und wer
+dran ist, nimmt den höchsten noch freien Wunsch (das *Was*). Den am meisten
+gewünschten freien Slot zu nehmen ist per Definition optimal; eine andere
+Reihenfolge anzugeben kann nur zu etwas weniger Gewünschtem führen. Belegt wird
+das durch `tests/test_lottery.py::test_strategieproof_ueber_alle_reihenfolgen`,
+der über **alle** möglichen Reihenfolgen nachrechnet.
+
+### Budgets & Wünsche (bewusst entkoppelt)
+
+Es gibt **zwei** Budgets: **50 Tage/Jahr gesamt** (Losung + normale Buchung) und
+davon höchstens **25 über die Losung** (`Member.wish_night_budget`). Das **Eintragen
+von Wünschen ist NICHT begrenzt** – man darf mehr als 25 Nächte an Wünschen
+einreichen. Die Losung vergibt aber höchstens 25 Wunsch-Nächte: ist die Grenze
+erreicht, werden weitere Wünsche **übersprungen** (`budget_skip` in
+`lottery.run_lottery`) – das ist *kein* Verlust und kostet kein Karma. „Viele
+Wünsche eintragen" ist daher **kein Vorteil über das ehrliche Angeben hinaus**:
+die Position in der Reihenfolge ändert sich nicht, und die 25-Nächte-Grenze
+deckelt die Gesamt-Zuteilung. (Eine Obergrenze für die *Anzahl* eingetragener
+Wünsche ist bewusst nicht gesetzt – falls die Genossenschaft das wünscht, ließe
+sich das in `services.add_wish` ergänzen.)
+
 ### Ablauf
 
 ```mermaid
@@ -166,7 +280,7 @@ flowchart TD
     C --> D{"Partei: höchster noch<br/>möglicher Wunsch"}
     D -->|"Wunschquartier frei"| E["✓ zuteilen"]
     D -->|"sonst gleichwertiges frei"| F["✓ Ausweichquartier"]
-    D -->|"Budget voll"| H["übersprungen – kein Verlust"]
+    D -->|"Budget voll (25 Wunsch-Nächte)"| H["übersprungen – kein Verlust"]
     D -->|"nichts frei"| G["✗ echter Verlust<br/>Karma +0,1 (nächstes Jahr)"]
     H -->|"nächster Wunsch"| D
     G -->|"nächster Wunsch"| D
@@ -227,6 +341,62 @@ Das Verfahren ist im Detail in `Losverfahren-Spezifikation.md` beschrieben
 
 ---
 
+## Funktionsüberblick
+
+Alle Features mit funktionaler Kurzbeschreibung und der Stelle im Code
+(Datei · Funktion/Klasse). Architektur-Prinzip: **reine Logik** (`lottery.py`,
+`availability.py`, `rules.py`, ohne Django) ↔ **Service-Layer** (`services.py`,
+Brücke DB↔Logik) ↔ **dünne Views/Templates**.
+
+### Für Mitglieder
+
+| Funktion | Funktional (was es tut) | Technik (Datei · Funktion/Klasse) |
+|---|---|---|
+| Übersicht | Community-Monatskalender; Klick auf einen Tag zeigt, wer da ist und was frei ist | `booking/views.py::overview` · `services.build_community_calendar`, `day_detail` |
+| Buchen / Spontanbuchung | Ampel-Kalender, Quartierwahl nach Personen/Barrierefreiheit, Mindestnächte-Hinweis, Bestätigungsschritt | `views.py::book`, `book_confirm` · `services.book_spontaneous`, `split_quarters_for_range`, `range_is_released`, `min_nights_for_range` |
+| Warteliste | Auf belegten Zeitraum warten; Benachrichtigung, sobald frei | `services.add_waitlist_entry`, `notify_waitlist_if_free` · `models.WaitlistEntry` |
+| Wunschliste | Wünsche fürs Folgejahr eintragen, priorisieren (Drag/Pfeiltasten), einreichen | `views.py::wishlist` · `services.add_wish`, `move_wish`, `submit_wishlist`, `build_wish_calendar` · `models.Wish` |
+| Losverfahren | Gewichtete Ziehung, Runden-Prinzip, Ausweichquartiere, Karma | `booking/lottery.py::run_lottery`, `weighted_random_order` · `services.run_period_lottery` |
+| Ergebnis-/Auditansicht | Eigenes Ergebnis + Gemeinschafts-Zuteilungen + (Staff) Protokoll | `views.py::period_result` · `lottery.render_log_text` |
+| Meine Buchungen / Storno | Eigene Buchungen sehen und stornieren (mit Rückfrage) | `views.py::my_bookings` · `services.cancel_allocation` |
+| Wechselwunsch | Quartiertausch an ein anderes Mitglied anfragen, zustimmen/ablehnen | `services` (Wechselwunsch) · `models.SwapRequest` |
+| Tage übertragen | Eigene Tage an ein anderes Mitglied abgeben (zweistufig) | `views.py::transfer` · `services.transfer_nights` · `models.NightTransfer` |
+| Profil | Anschrift/IBAN + E-Mail-Opt-out selbst pflegen | `views.py::profile` · `forms.ProfileForm` |
+| Registrierung & Freischaltung | Selbst registrieren; bis Profil-Zuordnung gesperrt (Warteseite) | `views.py::register`, `pending` · `middleware.ActivationGateMiddleware` · `auth.EmailOrUsernameModelBackend` |
+| Benachrichtigungen | In-App **und** E-Mail (Opt-out je Mitglied) | `models.Notification`, `OutboxEmail` · `services.email_member` · `commands/send_outbox.py` |
+| Hofladen | Warenkorb → Kasse → Einkauf; gleiche Artikel zusammengefasst | `shop/services.py::add_item`, `set_cart_quantity`, `checkout` · `shop/models.py::LineItem`, `Purchase` |
+| Rechnung + PDF | Monatliche/sofortige Sammelrechnung (§14), PDF, „bezahlt“ melden | `shop/services.py::generate_monthly_invoices`, `generate_invoice_now`, `mark_paid` · `shop/pdf.py` · `shop/views.py::invoice_pdf` |
+| PWA / Mobil | Installierbar, offline-Fallback, responsive Navigation (untere Tab-Leiste) | `templates/booking/base.html`, `templates/booking/sw.js`, `static/booking/manifest.webmanifest` |
+
+### Für die Verwaltung
+
+| Funktion | Funktional | Technik |
+|---|---|---|
+| Dashboard | Operative Seite (nur Staff): Kennzahlen + Arbeitslisten | `booking/views.py::dashboard` (Gate `_staff_required`) |
+| Reinigungsliste | Abreisen = Reinigungstage, Filter „Endreinigung“, Export, Versand ans Team | `services.departures_in_range`, `_annotate_cleaning`, `cleaning_rows`, `email_cleaning` |
+| Anstehende Buchungen | Monatsliste, Export, Versand an die Verwaltung | `services.arrivals_in_range`, `booking_rows`, `email_admins` |
+| Export (xlsx/CSV) | Listen als Excel **und** CSV | `booking/exports.py::xlsx_response`, `csv_response` |
+| Rechnungen verwalten | Fälligkeit/Überfälligkeit, Filter, **Mahnen per Knopf**, Export | `shop/services.py::overdue_invoices`, `send_payment_reminder`, `remind_overdue` · `shop/admin.py::InvoiceAdmin` |
+| Kontoabgleich | Auszug (CSV/CAMT) importieren → eindeutige Treffer automatisch verbuchen + benachrichtigen | `shop/bankimport.py::parse_csv/parse_camt` · `shop/reconcile.py::import_bank_statement`, `book_payment` |
+| Losung steuern | Durchführen, **bestätigen** (veröffentlichen), **zurücknehmen** | `services.confirm_lottery`, `rollback_lottery` · `admin.BookingPeriodAdmin`, `LotteryRunAdmin` |
+| Stammdaten & Regeln | Mitglieder/Anteile, Quartiere, Saison-Regeln, Perioden | `booking/admin.py`, `shop/admin.py` |
+| Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag, Zahlungsziel | `models.OpsConfig`, `shop/models.py::ShopConfig` |
+
+### Betrieb (Scheduler/Cron) & reine Logik
+
+| Funktion | Technik |
+|---|---|
+| Hintergrund-Scheduler (Cron-Ersatz) | `commands/run_scheduler.py` |
+| Fällige Losungen + Status-Schaltung | `commands/run_due_lotteries.py` · `BookingPeriod.compute_status` |
+| Monatsrechnungen | `commands/run_monthly_invoices.py` |
+| E-Mail-Versand (Outbox leeren, mit Anhängen) | `commands/send_outbox.py` |
+| Monats-Mail an die Verwaltung | `commands/notify_admins_upcoming.py` · `services.notify_admins_upcoming` |
+| Losalgorithmus (rein, ohne DB) | `booking/lottery.py` |
+| Verfügbarkeit & Tage-Rechnung (rein) | `booking/availability.py` |
+| Saison-Regeln: Mindestnächte/Parallel/Deckel (rein) | `booking/rules.py` |
+
+---
+
 ## Tests
 
 Zwei Ebenen:
@@ -236,8 +406,9 @@ Zwei Ebenen:
 pip install pytest
 PYTHONPATH=. python -m pytest tests/ -v          # -> 41 passed
 
-# 2) Integrationstests (DB-Ebene: Gate, Übertragung, Regeln, Kalender, Losung)
-python manage.py test booking                    # -> 22 passed
+# 2) Integrationstests (DB-Ebene: Gate, Buchung, Losung-Workflow, Dashboard,
+#    Hofladen, Kontoabgleich)
+python manage.py test booking shop               # -> 110 passed (1 skip ohne WeasyPrint)
 ```
 
 Abgedeckt: Determinismus, Budget, Ausweich-Logik, Karma (Bonus/Deckel/Reset),
