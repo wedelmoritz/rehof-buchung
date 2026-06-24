@@ -2,7 +2,7 @@
 {% block title %}Verwaltung{% endblock %}
 {% block content %}
 <div class="sec-head"><h1 style="margin:0">Verwaltung</h1><span class="spacer"></span>
-  {% if is_admin %}<a class="btn small ghost" href="{% url 'beds24_import' %}">Beds24-Import</a>{% endif %}
+  {% if is_admin and beds24_enabled %}<a class="btn small ghost" href="{% url 'beds24_import' %}">Beds24-Import</a>{% endif %}
   <a class="btn small" href="{% url 'dashboard_products' %}">Hofladen-Katalog pflegen</a></div>
 
 <details class="card help-note">
@@ -22,6 +22,9 @@
     <li><strong>Hofladen-Katalog</strong>: Produkte/Preise anlegen und ändern.</li>
     <li><strong>Kontoabgleich</strong>: Kontoauszug (CSV/CAMT) hochladen – passende
       Rechnungen werden automatisch als bezahlt verbucht, das Mitglied benachrichtigt.</li>
+    <li><strong>Beds24-Import</strong> (nur Admin) übernimmt einmalig bestehende
+      Buchungen beim Umzug; danach lässt er sich in den
+      <strong>Betriebs-Einstellungen</strong> abschalten (dann hier ausgeblendet).</li>
     <li><em>Buchungen ändern und die Losung starten</em> macht die <strong>Admin-Rolle</strong>
       im Backend; hier siehst du Buchungen/Losung nur lesend.</li>
   </ul>

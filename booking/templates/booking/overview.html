@@ -2,6 +2,11 @@
 {% block title %}Übersicht{% endblock %}
 {% block content %}
 <h1>Übersicht – wer ist wann da</h1>
+<p class="muted" style="margin-top:-.3rem">Deine Startseite: Hier siehst du auf einen
+  Blick, wer wann in welchem Quartier ist. Selbst <a href="{% url 'book' %}">buchen</a>,
+  <a href="{% url 'wishlist' %}">Wünsche</a> fürs Losverfahren eintragen oder den
+  <a href="{% url 'shop_index' %}">Hofladen</a> nutzt du über die Navigation
+  (links bzw. unten am Bildschirmrand).</p>
 
 {% include "booking/_notifications.html" %}
 
@@ -15,9 +20,9 @@
 
 <div class="card">
   <div class="view-toggle" role="tablist" aria-label="Ansicht wählen">
-    <a class="vt {% if view_mode != 'timeline' %}on{% endif %}" role="tab" aria-selected="{% if view_mode != 'timeline' %}true{% else %}false{% endif %}"
+    <a class="vt {% if view_mode != 'timeline' %}on{% endif %}" role="tab" title="Monatsraster" aria-selected="{% if view_mode != 'timeline' %}true{% else %}false{% endif %}"
        href="?year={{ cal.year }}&month={{ cal.month }}">Kalender</a>
-    <a class="vt {% if view_mode == 'timeline' %}on{% endif %}" role="tab" aria-selected="{% if view_mode == 'timeline' %}true{% else %}false{% endif %}"
+    <a class="vt {% if view_mode == 'timeline' %}on{% endif %}" role="tab" title="Zeitstrahl je Unterkunft" aria-selected="{% if view_mode == 'timeline' %}true{% else %}false{% endif %}"
        href="?year={{ cal.year }}&month={{ cal.month }}&view=timeline">Belegung</a>
   </div>
 
@@ -57,6 +62,10 @@
     </div>
   </div>
   {% else %}
+  <p class="muted" style="margin:.2rem 0 .5rem">Jede Farbe steht für ein Mitglied
+    (Legende unten). Tippe einen Tag an, um zu sehen, <strong>wer da ist und was
+    noch frei ist</strong>. Mit „Belegung" siehst du je Unterkunft, von wann bis
+    wann jemand da ist.</p>
   <table class="cal community-cal">
     <thead><tr>
       <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>

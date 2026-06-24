@@ -7,7 +7,9 @@
   <h2 style="margin-top:0">Was du hier tun kannst</h2>
   <ul>
     <li><strong>Übersicht:</strong> sehen, wer wann in welchem Quartier ist; pro Tag,
-      wer da ist und was noch frei ist.</li>
+      wer da ist und was noch frei ist. Oben kannst du zwischen <strong>Kalender</strong>
+      (Monatsraster) und <strong>Belegung</strong> (Zeitstrahl je Unterkunft – ein
+      Balken pro Aufenthalt) umschalten.</li>
     <li><strong>Buchen:</strong> über den Ampel-Kalender freie Zeiträume spontan buchen
       – mit Personenzahl, optionaler Endreinigung; ist alles belegt, auf die
       <strong>Warteliste</strong> setzen (Benachrichtigung, sobald frei).</li>
@@ -62,11 +64,17 @@
     <li><strong>1. Klick</strong> = Anreise, <strong>2. Klick</strong> = Abreise
       (Check-out), <strong>3. Klick</strong> = neue Anreise. Auch über Monatsgrenzen
       (oder Datum direkt eingeben).</li>
+    <li><strong>Anreise</strong> und <strong>Abreise</strong> werden im Kalender klar
+      mit einem Fähnchen markiert, die gewählten Nächte erscheinen als
+      durchgehendes <strong>Band</strong> – so siehst du auf einen Blick „von wann
+      bis wann“.</li>
     <li>Passende Quartiere stehen oben; nicht passende (Personenzahl/Barrierefreiheit)
       unter „ggf. nicht geeignet“. Greift eine Regel (Mindestnächte, zu wenig Budget),
       wird das sofort angezeigt.</li>
     <li>Ist dein Wunschzeitraum belegt, kannst du dich auf die <strong>Warteliste</strong>
-      setzen und wirst benachrichtigt, sobald er frei wird.</li>
+      setzen und wirst benachrichtigt, sobald er frei wird. Unter
+      <a href="{% url 'my_bookings' %}">Meine Buchungen</a> zeigt dir die Karte
+      <strong>„Meine Wartelisten-Einträge“</strong>, wo du gerade wartest.</li>
     <li>Unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a> siehst du deine
       Buchungen, kannst stornieren und einen <strong>Wechselwunsch</strong> an andere
       stellen.</li>

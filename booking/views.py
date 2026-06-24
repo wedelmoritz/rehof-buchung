@@ -698,6 +698,7 @@ def dashboard(request):
 
     from shop import services as shop_svc
     from shop.models import Invoice
+    from .models import OpsConfig
     from decimal import Decimal
 
     today = date.today()
@@ -811,6 +812,7 @@ def dashboard(request):
         "online_total_count": online_total_count, "online_sum": online_sum,
         "online_count": len(online_month),
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
+        "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
     })
 
 
@@ -925,7 +927,11 @@ def beds24_import(request):
     if not is_admin(request.user):
         messages.error(request, "Der Import ist der Admin-Rolle vorbehalten.")
         return redirect("dashboard")
-    from .models import Beds24Import, Beds24ImportRow
+    from .models import Beds24Import, Beds24ImportRow, OpsConfig
+    if not OpsConfig.get_solo().beds24_import_enabled:
+        messages.info(request, "Der Beds24-Import ist deaktiviert "
+                               "(Betriebs-Einstellungen im Backend).")
+        return redirect("dashboard")
 
     if request.method == "POST":
         action = request.POST.get("action")
