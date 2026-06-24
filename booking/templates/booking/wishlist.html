@@ -130,16 +130,16 @@
           <form method="post" class="inline">{% csrf_token %}
             <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
             <input type="hidden" name="direction" value="up">
-            <button class="btn small ghost" type="submit" {% if forloop.first %}disabled{% endif %}>&#9650;</button>
+            <button class="btn small ghost" type="submit" aria-label="Priorität höher" title="Priorität höher" {% if forloop.first %}disabled{% endif %}>&#9650;</button>
           </form>
           <form method="post" class="inline">{% csrf_token %}
             <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
             <input type="hidden" name="direction" value="down">
-            <button class="btn small ghost" type="submit" {% if forloop.last %}disabled{% endif %}>&#9660;</button>
+            <button class="btn small ghost" type="submit" aria-label="Priorität niedriger" title="Priorität niedriger" {% if forloop.last %}disabled{% endif %}>&#9660;</button>
           </form>
           <form method="post" class="inline" onsubmit="return confirm('Wunsch löschen?');">{% csrf_token %}
             <input type="hidden" name="action" value="delete_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
-            <button class="btn small ghost danger" type="submit">&#10005;</button>
+            <button class="btn small ghost danger" type="submit" aria-label="Wunsch entfernen" title="Wunsch entfernen">&#10005;</button>
           </form>
         </span>
       </li>

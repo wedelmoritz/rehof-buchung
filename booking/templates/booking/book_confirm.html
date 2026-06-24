@@ -68,7 +68,12 @@
 
   <div class="confirm-actions">
     <a class="btn ghost" href="{% url 'book' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">Abbrechen</a>
+    {% if nights < min_nights or not enough_days %}
+    <button class="btn" type="submit" disabled
+            title="Bitte zuerst die Hinweise oben beheben (Mindestaufenthalt bzw. verfügbare Tage).">Verbindlich buchen</button>
+    {% else %}
     <button class="btn" type="submit">Verbindlich buchen</button>
+    {% endif %}
   </div>
 </form>
 
@@ -83,6 +88,7 @@
   .confirm-actions { display:flex; gap:.8rem; align-items:center; justify-content:flex-end;
     flex-wrap:wrap; margin-top:.4rem; }
   .confirm-actions .btn { padding:.6rem 1.3rem; }
+  .confirm-actions .btn[disabled] { opacity:.5; cursor:not-allowed; }
   @media (max-width:680px){ .confirm-actions .btn { flex:1 1 100%; text-align:center; } }
 </style>
 {% endblock %}

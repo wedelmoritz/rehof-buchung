@@ -445,6 +445,19 @@ class BuchungsFlowTests(UseCaseBase):
         self.assertTrue(cells[s + timedelta(days=1)]["in_range"])
         self.assertFalse(cells[e]["in_range"])
 
+    def test_belegungs_timeline_balken(self):
+        s = date(NEXT_YEAR, 6, 5)
+        e = date(NEXT_YEAR, 6, 8)
+        b, err = svc.book_spontaneous(self.alice, self.k1, s, e, persons=2)
+        self.assertIsNotNone(b, err)
+        tl = svc.build_occupancy_timeline(self.alice, NEXT_YEAR, 6)
+        row = next(r for r in tl["rows"] if r["quarter"].id == self.k1.id)
+        self.assertEqual(len(row["bars"]), 1)
+        bar = row["bars"][0]
+        self.assertEqual(bar["col"], 5)     # 5. Tag des Monats
+        self.assertEqual(bar["span"], 3)    # 3 Nächte
+        self.assertTrue(bar["mine"])
+
     def test_ampel_kalender_zeigt_belegung(self):
         quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
         d = date(NEXT_YEAR, 6, 15)

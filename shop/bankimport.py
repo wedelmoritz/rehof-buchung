@@ -166,6 +166,11 @@ def _findall_text(el, name) -> list[str]:
 
 
 def parse_camt(data: bytes) -> list[ParsedTxn]:
+    # Schutz vor „billion laughs"/Entity-Expansion: DOCTYPE/ENTITY ablehnen.
+    # CAMT.053-Dateien enthalten so etwas nie (defusedxml ohne Extra-Abhängigkeit).
+    head = (data[:4096] if isinstance(data, (bytes, bytearray)) else b"").lower()
+    if b"<!doctype" in head or b"<!entity" in head:
+        raise ValueError("CAMT-Datei mit DOCTYPE/ENTITY wird abgelehnt.")
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:

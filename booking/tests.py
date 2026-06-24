@@ -322,6 +322,26 @@ class CalendarAndWishlistTests(BaseData):
         self.assertIn("alice", winners)
         self.assertNotIn("bob", winners)  # Entwurf nimmt nicht teil
 
+    def test_losung_erzwingt_saison_parallel_limit_NICHT(self):
+        """Charakterisierung des bekannten offenen Punkts (Roadmap): die Losung
+        setzt Saison-Parallel-Limits (noch) NICHT durch – anders als die
+        Spontanbuchung. Bricht dieser Test, wurde die Durchsetzung ergänzt und
+        die Roadmap ist zu aktualisieren."""
+        SeasonRule.objects.create(
+            name="Pfingsten", start_month=5, start_day=22, end_month=5, end_day=27,
+            max_parallel_units=2, active=True)
+        s = date(YEAR + 1, 5, 23)
+        e = s + timedelta(days=3)
+        carol = make_member("carol")
+        for m in (self.alice, self.bob, carol):
+            svc.add_wish(m, self.period, self.q1, s, e)
+            svc.submit_wishlist(m, self.period)
+        run_period_lottery(self.period, seed=1)
+        # Drei parallele Einheiten trotz max_parallel_units=2 → Limit nicht erzwungen.
+        n = Allocation.objects.filter(period=self.period, source="lottery",
+                                      start=s).count()
+        self.assertEqual(n, 3)
+
     def test_wunsch_reihenfolge_aendern(self):
         s = date(YEAR + 1, 6, 1)
         w1, _ = svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=3))
