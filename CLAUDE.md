@@ -94,17 +94,21 @@ Reine Regel-Logik in `booking/external.py` (`external_allowed`,
 Magic-Link `*_by_token`); Verfügbarkeit (`quarter_is_free` & Belegungs-Helfer)
 berücksichtigt bestätigte `ExternalBooking`s. Öffentlicher Einstieg ohne Login (zweistufig wie intern `book→book_confirm`):
 `external_home` (`/extern/`, grün/grau-**Verfügbarkeitskalender**
-`build_external_calendar` + freie Unterkünfte, ohne Gastdaten) → `external_book`
+`build_external_calendar` + freie Unterkünfte, ohne Gastdaten; enthält einen
+aufklappbaren Bereich **„Hilfe & Infos für Gäste“**: So buchst du / Bezahlung
+[online via Mollie oder Überweisung] / Stornieren / Kontakt aus
+`ShopConfig.contact_email`) → `external_book`
 (`/extern/buchen/`, **Bestätigungs-/Datenseite**: prüfen, Gastdaten, Preis/Storno/
-Anzahlung/Mollie-Platzhalter, erst dann verbindlich buchen) → `external_confirm`;
-dazu `external_manage` (`/extern/verwalten/<token>/`, ansehen/stornieren) und das
+Anzahlung, erst dann verbindlich buchen) → `external_confirm`;
+dazu `external_manage` (`/extern/verwalten/<token>/`, ansehen/stornieren),
+`external_pay` (Gast bezahlt seine `Invoice` online über den Magic-Link – „Jetzt
+bezahlen“ aus Bestätigung/Verwaltung) und das
 einbettbare Website-Widget `external_embed` (`/extern/widget/`,
 `@xframe_options_exempt`: Kalender + nach Zeitraum-Wahl freie Unterkünfte, „Buchen“
 führt auf die Buchungsseite). In der internen `overview`
 werden externe Gäste in **einer** Farbe (`services.EXTERN_COLOR`) nur als „extern“
-gezeigt. **Online-Bezahlung (Mollie) ist als Naht vorbereitet, noch nicht aktiv**
-(Status `pending`/`hold_expires_at`; im Bezahlbereich steht ein Platzhalter
-„Online-Direktbezahlung aktuell noch nicht möglich“).
+gezeigt. Die **Online-Bezahlung (Mollie)** ist aktiv (s. „Hofladen“ →
+Online-Bezahlung) und gilt für Gäste wie Mitglieder gleichermaßen.
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
 farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
@@ -121,8 +125,9 @@ Rückfrage**; je Buchung „wer ist gleichzeitig da“ + Wechselwunsch an andere
 Mitglieder, die zustimmen/ablehnen können), `transfer` (**zweistufig**: Vorschau
 mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
 des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
-`dashboard` (nur Staff, `/verwaltung/`) ist das operative Verwaltungs-Dashboard
-(s.u. „Verwaltungs-Dashboard“). Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
+`dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
+Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
+den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
 `unavailable_weekdays` sperrt Wochentage (geprüft am Abreisetag, z.B.
 Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` **und** (über die Outbox)
@@ -145,9 +150,11 @@ Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
 (Admin-Knopf „Simulation jetzt berechnen", Ergebnis als JSON gespeichert);
 Service `services.run_fairness_simulation`. Das **Test-Szenario**
 `seed_demo --testdata` (kompletter Wipe inkl. Superuser → Test-Konten
-admin/verwaltung/test + 50 Mitglieder, wilde Buchungen im laufenden Jahr, offene
-Wunsch-Losung mit Feiertags-Ballung, offene Hofladen-Rechnungen, 15 externe
-Mo–Fr-Buchungen; Losung NICHT gezogen). **Verwaltung
+admin [Superuser] / verwaltung [Gruppe „Verwaltung“, **kein** Staff] / test
++ 50 Mitglieder, wilde Buchungen im laufenden Jahr, offene
+Wunsch-Losung mit Feiertags-Ballung, offene Hofladen-Rechnungen, davon
+**8 per Online-Zahldienst (Test) beglichen** für die „online bezahlt“-Ansicht,
+15 externe Mo–Fr-Buchungen; Losung NICHT gezogen). **Verwaltung
 vereinfacht:** ein Benutzer trägt Login **und** Mitglieds-Profil in einem
 Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
 ausgeblendet (nur Autocomplete). Tage-Anteile werden am `Membership` zugeordnet.
@@ -166,10 +173,11 @@ Zustand in `localStorage`, schon im `<head>` gesetzt (kein FOUC). Auf dem
 daumenfreundlich) mit 4 Hauptpunkten (Übersicht, Buchen, Meine Buchungen,
 Hofladen) + Knopf „Mehr“ (`#moreBtn`), der ein **Bottom-Sheet** (`.sheet` +
 `.sheet-backdrop`) mit den übrigen Punkten öffnet (Wunschliste, Tage übertragen,
-Rechnungen, Profil, Hilfe, Verwaltung, Backend). Für Staff gibt es zwei eigene
-Nav-Punkte: **Verwaltung** (`/verwaltung/`, Dashboard) und **Backend** (`/admin/`,
-Django-Admin/Stammdaten). Die Navigation erscheint für Mitglieder
-UND für Verwaltungs-/Superuser (auch ohne Mitglieds-Profil). Das Layout ist responsiv
+Rechnungen, Profil, Hilfe, Verwaltung, Backend). Zwei Staff-Nav-Punkte,
+rollenabhängig (s. „Rollen Admin/Verwaltung“): **Verwaltung** (`/verwaltung/`,
+Dashboard – für Gruppe „Verwaltung“ **und** Admin) und **Backend** (`/admin/`,
+Django-Admin/Stammdaten – **nur Admin/Superuser**). Die Navigation erscheint für
+Mitglieder UND für Verwaltungs-/Admin-Konten (auch ohne Mitglieds-Profil). Das Layout ist responsiv
 (Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
 `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das Manifest liegt
@@ -194,8 +202,24 @@ mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
 **Offene Posten:** `Invoice.due_date` (aus `ShopConfig.payment_term_days`) +
 `is_overdue`; **Zahlungserinnerung** idempotent über `services.send_payment_reminder`
 / `remind_overdue` (Aktion im Admin + Dashboard, „zuletzt erinnert am“).
-Stammdaten der Genossenschaft im `ShopConfig`-Singleton. Geldlogik/Tests in
-`shop/services.py` bzw. `shop/tests.py`. **Cron:** `generate_monthly_invoices`
+Stammdaten der Genossenschaft im `ShopConfig`-Singleton („Hofladen-Einstellungen“:
+`coop_name`, `coop_address`, `tax_number`, `iban`, `bic`, `invoice_prefix`,
+`payment_term_days` + NEU `board` (Vorstand) und `contact_email`; editierbar nur im
+Django-Admin = Admin-Rolle). Geldlogik/Tests in
+`shop/services.py` bzw. `shop/tests.py`.
+**Online-Bezahlung (Mollie, EIN System für Hofladen UND externe Gäste):** auf
+`Invoice`-Ebene (Mitglied wie Gast haben eine `Invoice`). Reine Naht in
+`shop/payments.py` (`start_payment`/`settle_payment`/`cancel_payment`,
+`payments_enabled`), echte Anbindung in `shop/mollie_api.py` (nur mit Key). **Ohne
+API-Key: eingebauter TEST-/Sandbox-Modus** (simulierte Bezahlseite, ohne Konto/
+Gebühren); `test_…`-Key = Mollie-Testumgebung, `live_…`-Key = echt. Modell
+`shop.Payment` (token-geschützte, login-freie Bezahl-/Rückkehr-URLs);
+`Invoice.payment_method`/`paid_online_at` + Properties `paid_online`/`is_payable`.
+Mitglied: „Online bezahlen“ in `shop_invoices`; Gast: `external_pay` über den
+Magic-Link. **Online bezahlt ⇒ Rechnung sofort bestätigt/archiviert** (kein
+Kontoabgleich) + Benachrichtigung. Konfiguriert am `ShopConfig` (`payments_active`,
+`mollie_api_key`).
+**Cron:** `generate_monthly_invoices`
 (monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
 (Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
 `OpsConfig.notify_day`). Rechnung als In-App-HTML **und PDF** (WeasyPrint):
@@ -216,16 +240,20 @@ Eingänge bleiben offen (in `BankTransactionAdmin` manuell zuzuordnen + Aktion
 **Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
 `docs/BETRIEB-SICHERHEIT.md`.
 
-**Verwaltungs-Dashboard (`dashboard`, nur Staff, `/verwaltung/`):** operative
-Seite fürs kleine Team – Kennzahlen, **Reinigungsliste** (alle Abreisen des
+**Verwaltungs-Dashboard (`dashboard`, Rolle Verwaltung **oder** Admin,
+`/verwaltung/`):** operative
+Seite fürs kleine Team – Kennzahlen (inkl. KPI **„online bezahlt (Monat)“**),
+**Reinigungsliste** (alle Abreisen des
 gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
-**anstehende Buchungen** und **offene/überfällige Rechnungen**. Je Liste
+**anstehende Buchungen** und **offene/überfällige/online bezahlte Rechnungen**
+(Filter-Chip „Online bezahlt“ + Status-Spalte). Je Liste
 **Export** als xlsx **und** CSV (`booking/exports.py`) und **Versand per Knopf**
 (Reinigungsliste ans Reinigungsteam, Buchungen an die Verwaltung,
 Zahlungserinnerung an überfällige). Empfänger in `OpsConfig`
 (`email_admins`/`email_cleaning`; Reinigungsteam leer = Verwaltungs-Adresse).
-Die Nav „Verwaltung“ zeigt aufs Dashboard, die Nav „Backend“ direkt ins
-Django-Admin (beide nur für Staff).
+**Hofladen-Katalog im Dashboard pflegen** (`dashboard_products`,
+`/verwaltung/produkte/`): Produkte/Gruppen anlegen + ändern, Preise/aktiv – für
+die Verwaltung-Rolle ohne Backend. Backend-Deeplinks im Dashboard nur für Admins.
 Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 `departures_in_range`, `_annotate_cleaning`, `*_rows`, `*_text`).
 
@@ -354,9 +382,21 @@ Axes-Block). Nutzer können sich **selbst registrieren** (`register` →
 `registration/register.html`); dabei entsteht NUR ein Login-Konto. Bis die
 Verwaltung ein **Mitglieds-Profil** (`Member`) zuordnet, sperrt
 `booking/middleware.py::ActivationGateMiddleware` alles und leitet auf die
-Warte-Seite `pending` um (Verwaltungs-/Superuser ausgenommen). Cookies/Sessions
+Warte-Seite `pending` um (Verwaltungs-/Admin-Konten ausgenommen). Cookies/Sessions
 sind gehärtet (HttpOnly, SameSite=Lax, Secure in Prod). OIDC/Keycloak-Naht
 bleibt in `settings.py` markiert.
+
+**Rollen Admin/Verwaltung** (`booking/permissions.py`): zwei getrennte Rollen
+statt eines einzelnen `is_staff`-Flags. **Admin** = Django-**Superuser** → volles
+Backend `/admin/`, darf Buchungen ändern und Losungen starten. **Verwaltung** =
+Mitglied der Gruppe **„Verwaltung“** (Konstante `VERWALTUNG_GROUP`) **oder** Admin
+→ nur das Dashboard `/verwaltung/` (Buchungen/Losung lesend, pflegt dort den
+Hofladen-Katalog), **kein** Backend. Helfer: `is_admin`/`is_verwaltung`/
+`ensure_verwaltung_group`; die Gruppe legt Migration `booking/0027_verwaltung_group`
+an. `booking/context_processors.py` stellt `is_admin`/`is_verwaltung` allen
+Templates bereit (registriert in `config/settings.py`) – die Nav zeigt darüber
+„Verwaltung“ (Gruppe) und „Backend“ (nur Admin). Zuordnung = ein Häkchen: den User
+im Backend der Gruppe „Verwaltung“ hinzufügen.
 
 ---
 
@@ -379,10 +419,10 @@ bleibt in `settings.py` markiert.
   `rules.py` ist dafür bereits entkoppelt; Einhängepunkt wäre `services.
   run_period_lottery` bzw. `lottery.run_lottery`.
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
-- Externe Buchungen sicher ausbauen (Modell-Flag `Member.is_external`,
-  `Allocation.source="external"` vorhanden). **Konzept** zur Nutzung der App
-  für externe Gäste (buchen + zahlen via Mollie, Hybrid-Einstieg, Gast-Checkout) in
-  `docs/EXTERNE-GAESTE.md`.
+- Externe Gäste (buchen + zahlen via Mollie, Gast-Checkout) – **erledigt**
+  (Buchung + Online-Bezahlung aktiv, s.o.); Konzept in `docs/EXTERNE-GAESTE.md`.
+- **Online-Bezahlung (Mollie) für Hofladen + Externe** – **erledigt**
+  (`shop/payments.py`, `shop/mollie_api.py`, `Payment`; Sandbox-Default).
 - E-Mail-Fundament steht (Outbox + `send_outbox`, mit Datei-Anhängen);
   **Rechnungs-PDF (WeasyPrint) erledigt**. Offen: Losergebnis-PDF + Massenmail,
   Web-Push (mobil).

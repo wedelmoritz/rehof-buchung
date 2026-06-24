@@ -26,6 +26,12 @@ class ShopConfig(models.Model):
     coop_name = models.CharField("Genossenschaft", max_length=160,
                                  default="Re:Hof eG")
     coop_address = models.TextField("Anschrift", blank=True)
+    contact_email = models.EmailField(
+        "Kontakt-E-Mail", blank=True,
+        help_text="Erscheint auf Rechnungen und im Hilfebereich für externe Gäste.")
+    board = models.CharField(
+        "Vorstand", max_length=200, blank=True,
+        help_text="z. B. Namen des Vorstands (für Rechnung/Impressum).")
     tax_number = models.CharField("Steuernummer/USt-IdNr.", max_length=40, blank=True)
     iban = models.CharField("IBAN (Zahlungsempfang)", max_length=34, blank=True)
     bic = models.CharField("BIC", max_length=11, blank=True)

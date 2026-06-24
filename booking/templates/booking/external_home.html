@@ -101,5 +101,37 @@
   .legend .sw.blocked { background:#ece8df; }
 </style>
 
+<details class="card" style="margin-top:1rem">
+  <summary style="cursor:pointer"><strong>Hilfe &amp; Infos für Gäste</strong></summary>
+  <div style="margin-top:.6rem">
+    <h3 style="margin:.4rem 0 .2rem">So buchst du</h3>
+    <ol style="margin:.2rem 0 .6rem;padding-left:1.2rem">
+      <li>Im Kalender <strong>Anreise</strong> (1. Klick) und <strong>Abreise</strong>
+        (2. Klick) wählen – oder den Zeitraum direkt eingeben.</li>
+      <li>Aus den freien Unterkünften eine auswählen.</li>
+      <li>Auf der Bestätigungsseite deine Daten eingeben und verbindlich buchen.</li>
+    </ol>
+    <p class="muted" style="margin:.2rem 0">Es gelten mindestens
+      <strong>{{ cfg.min_nights }} Nächte</strong>, eine Vorlaufzeit von
+      <strong>{{ cfg.lead_days }} Tag(en)</strong>; Anreisetage sind in der Regel
+      Mo–Do (Wochenenden bleiben den Mitgliedern vorbehalten).</p>
+
+    <h3 style="margin:.6rem 0 .2rem">Bezahlung</h3>
+    <p style="margin:.2rem 0">{% if payments_active %}Nach dem Buchen kannst du
+      <strong>bequem online</strong> (Kreditkarte, PayPal, Apple/Google&nbsp;Pay über
+      Mollie) oder per <strong>Überweisung</strong> mit der Rechnungsnummer als
+      Verwendungszweck bezahlen.{% else %}Du erhältst eine Rechnung und überweist den
+      Betrag mit der Rechnungsnummer als Verwendungszweck.{% endif %}</p>
+
+    <h3 style="margin:.6rem 0 .2rem">Stornieren</h3>
+    <p class="muted" style="margin:.2rem 0">{{ cancellation_text }} Deine Buchung
+      verwaltest du jederzeit über den persönlichen Link aus deiner Bestätigungs-Mail.</p>
+
+    <h3 style="margin:.6rem 0 .2rem">Kontakt</h3>
+    <p style="margin:.2rem 0">{{ shop_cfg.coop_name }}{% if shop_cfg.contact_email %} ·
+      <a href="mailto:{{ shop_cfg.contact_email }}">{{ shop_cfg.contact_email }}</a>{% endif %}</p>
+  </div>
+</details>
+
 {% endif %}
 {% endblock %}

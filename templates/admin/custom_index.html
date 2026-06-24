@@ -5,6 +5,15 @@
 <details class="module rehof-intro" id="rehof-intro">
   <summary>Was kannst du hier tun? <span class="rehof-toggle">(ein-/ausklappen)</span></summary>
   <div class="rehof-intro-body">
+    <p class="rehof-roles"><strong>Zwei Rollen:</strong>
+      <strong>Backend (hier)</strong> = <em>Admin/Superuser</em> – Stammdaten,
+      Buchungen ändern, Losung starten.
+      <strong>Verwaltung</strong> = Mitglieder der Gruppe „Verwaltung“ – nur das
+      operative Dashboard unter <a href="/verwaltung/">/verwaltung/</a> (Buchungen/
+      Losung ansehen + Hofladen-Katalog pflegen), <em>kein</em> Backend. Eine Person
+      bekommt die Verwaltungs-Rolle, indem du sie unter <strong>Benutzer</strong> der
+      <strong>Gruppe „Verwaltung“</strong> hinzufügst.</p>
+
     <p>Im <strong>Backend</strong> pflegst du die <strong>Stammdaten</strong>
       (Personen, Anteile, Quartiere, Regeln, Perioden, Hofladen). Das
       <em>operative</em> Tagesgeschäft – Reinigungsliste, anstehende Buchungen,
@@ -62,7 +71,10 @@
         (Verwaltung/Reinigungsteam), Monats-Mail-Tag.</li>
       <li><strong>Hofladen</strong> – Produkte/Gruppen, Einkäufe, <strong>Rechnungen</strong>
         (mahnen/exportieren), <strong>Zahlungseingänge</strong> (Kontoabgleich),
-        Hofladen-Einstellungen (IBAN, Zahlungsziel).</li>
+        <strong>Hofladen-Einstellungen</strong> = Genossenschaftsdaten (Name, Anschrift,
+        Steuernummer/USt-IdNr., IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel) und
+        die <strong>Online-Bezahlung</strong> (Mollie: an/aus + API-Key; ohne Key läuft
+        ein eingebauter Test-Modus).</li>
     </ul>
   </div>
 </details>
@@ -90,5 +102,7 @@
   .rehof-intro .arr { color: var(--body-quiet-color); margin: 0 2px; }
   .rehof-intro .rehof-tip { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px;
     background: var(--message-success-bg); }
+  .rehof-intro .rehof-roles { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px;
+    background: var(--selected-bg); }
 </style>
 {% endblock %}

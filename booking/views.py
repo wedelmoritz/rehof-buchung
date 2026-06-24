@@ -936,7 +936,10 @@ def external_home(request):
     freies Quartier auswählen. Der Klick auf „Auswählen“ führt auf die separate
     Bestätigungs-/Datenseite (`external_book`). Kein Login nötig."""
     from .models import ExternalConfig
+    from shop.models import ShopConfig
+    from shop import payments as pay_svc
     cfg = ExternalConfig.get_solo()
+    shop_cfg = ShopConfig.get_solo()
 
     start = _parse_date(request.GET.get("start"))
     end = _parse_date(request.GET.get("end"))
@@ -950,9 +953,12 @@ def external_home(request):
     year, month = _month_from_request(request, today)
     cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
     return render(request, "booking/external_home.html", {
-        "cfg": cfg, "today": today, "start": start, "end": end,
+        "cfg": cfg, "shop_cfg": shop_cfg, "today": today,
+        "start": start, "end": end,
         "persons": persons, "offers": offers,
         "searched": bool(start and end),
+        "payments_active": pay_svc.payments_enabled(),
+        "cancellation_text": cfg.cancellation_text,
         "cal": cal, "nav_qs": _ext_nav_qs(start, end, persons),
         **(_cal_nav(cal) if cal else {"months": [], "years": []}),
     })

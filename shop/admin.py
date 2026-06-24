@@ -40,9 +40,11 @@ class ProductAdminForm(forms.ModelForm):
 class ShopConfigAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Genossenschaft (für die Rechnung)", {
-            "fields": ("coop_name", "coop_address", "tax_number"),
-            "description": "Diese Angaben erscheinen als Absender auf jeder "
-                           "Hofladen-Rechnung (§14 UStG). Einmalig pflegen."}),
+            "fields": ("coop_name", "coop_address", "tax_number", "board",
+                       "contact_email"),
+            "description": "Stammdaten der Genossenschaft: Absender auf jeder "
+                           "Hofladen-Rechnung (§14 UStG) sowie Kontakt im "
+                           "Hilfebereich für externe Gäste. Einmalig pflegen."}),
         ("Zahlung", {
             "fields": ("iban", "bic", "invoice_prefix", "payment_term_days"),
             "description": "IBAN/BIC, auf die Mitglieder überweisen. Das Präfix "

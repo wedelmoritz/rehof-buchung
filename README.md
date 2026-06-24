@@ -73,10 +73,22 @@ gezogen):
 docker compose exec web python manage.py seed_demo --testdata --yes
 ```
 
-- **Verwalter:in** = das Superuser-Konto. Es ist `is_staff` und sieht in der
-  Navigation zusätzlich **Verwaltung** (Dashboard) und **Backend** (Django-Admin).
-- **Testnutzer:in** = ein Demo-Mitglied, z. B. Login `anna0`, Passwort
+- **Admin** = das Superuser-Konto (`admin`). Es sieht in der Navigation
+  zusätzlich **Verwaltung** (Dashboard) und **Backend** (Django-Admin).
+- **Verwaltung** = das Konto `verwaltung` (Mitglied der Gruppe „Verwaltung“,
+  **kein** Superuser). Es sieht nur **Verwaltung** (Dashboard), **nicht** das
+  Backend (siehe „Rollen“ unten).
+- **Testnutzer:in** = ein Demo-Mitglied, z. B. Login `anna0`/`test`, Passwort
   `demo12345` (nach `seed_demo`).
+
+> **Zwei Rollen (Admin vs. Verwaltung):** **Admin** = Django-Superuser → volles
+> **Backend** (`/admin/`), darf Buchungen ändern und Losungen starten.
+> **Verwaltung** = Mitglied der Gruppe **„Verwaltung“** (oder Admin) → nur das
+> **Dashboard** (`/verwaltung/`), liest Buchungen/Losung und pflegt dort den
+> Hofladen-Katalog – **kein** Django-Backend. Zuordnung = ein Häkchen: den
+> Benutzer im Backend der Gruppe „Verwaltung“ hinzufügen. Die Test-Konten
+> `admin`/`verwaltung`/`test` aus `seed_demo --testdata` bilden genau diese drei
+> Rollen ab.
 
 **Ohne Demo-Daten** (manuell): Testnutzer:in unter `…/registrieren/` selbst
 anlegen → dann als Verwalter:in im **Backend** ein **Mitglieds-Profil** zuordnen
@@ -88,20 +100,24 @@ ist das Konto freigeschaltet und kann buchen.
 > fürs Folgejahr existieren (Demo legt das an) und es müssen **eingereichte**
 > Wünsche vorliegen.
 
-### 2) Als Verwalter:in testen (Nav: „Verwaltung“ + „Backend“)
+### 2) Als Verwaltung/Admin testen (Nav: „Verwaltung“ + ggf. „Backend“)
 
-- **Backend** (`/admin/`): Quartiere & Äquivalenzklassen, **Buchungsregeln**
-  (Mindestnächte/Saison), **Buchungsperiode** mit Terminen anlegen;
-  **Betriebs-Einstellungen** (Empfänger der Verwaltungs-Mails) und
-  **Hofladen-Einstellungen** (IBAN, Zahlungsziel) pflegen.
-- **Losung**: Buchungsperioden → Aktion **„Losung durchführen“** → Ergebnis ist
-  zunächst **unbestätigt**; unter **Losdurchläufe** **bestätigen** (veröffentlicht +
-  benachrichtigt) oder **zurücknehmen**.
-- **Dashboard** (`/verwaltung/`): Reinigungsliste (Export/Versand), anstehende
-  Buchungen (Export/Versand), **Rechnungen** (Filter offen/überfällig/alle,
-  „überfällige erinnern“, Export) und **Kontoabgleich** (Test-CSV hochladen –
-  Rechnungsnummer im Verwendungszweck + passender Betrag wird automatisch
-  verbucht).
+- **Backend** (`/admin/`, nur **Admin**): Quartiere & Äquivalenzklassen,
+  **Buchungsregeln** (Mindestnächte/Saison), **Buchungsperiode** mit Terminen
+  anlegen; **Betriebs-Einstellungen** (Empfänger der Verwaltungs-Mails) und
+  **Hofladen-Einstellungen** (= Genossenschaftsdaten: Name, Anschrift,
+  Steuernummer, IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel **+ Online-
+  Bezahlung an/aus + Mollie-API-Key**) pflegen.
+- **Losung** (nur **Admin**): Buchungsperioden → Aktion **„Losung durchführen“** →
+  Ergebnis ist zunächst **unbestätigt**; unter **Losdurchläufe** **bestätigen**
+  (veröffentlicht + benachrichtigt) oder **zurücknehmen**.
+- **Dashboard** (`/verwaltung/`, **Verwaltung** und **Admin**): Reinigungsliste
+  (Export/Versand), anstehende Buchungen (Export/Versand), **Rechnungen** (Filter
+  offen/überfällig/**online bezahlt**/alle, „überfällige erinnern“, Export) und
+  **Kontoabgleich** (Test-CSV hochladen – Rechnungsnummer im Verwendungszweck +
+  passender Betrag wird automatisch verbucht). Unter **„Produkte“**
+  (`/verwaltung/produkte/`) pflegt die Verwaltung den **Hofladen-Katalog**
+  (Produkte/Gruppen, Preise, aktiv) ganz ohne Backend.
 
 ### 3) Als Testnutzer:in testen
 
@@ -113,7 +129,8 @@ ist das Konto freigeschaltet und kann buchen.
 - **Meine Buchungen**: stornieren; **Wechselwunsch** an ein anderes Mitglied.
 - **Tage übertragen**: ein paar Tage an ein anderes Mitglied abgeben.
 - **Hofladen**: etwas in den Warenkorb, **Kasse**, **Rechnung** ansehen, **PDF**
-  herunterladen, „habe ich bezahlt“ melden.
+  herunterladen, „habe ich bezahlt“ melden – oder direkt **„Online bezahlen“**
+  (Mollie; im Standard ein eingebauter Test-Modus ohne Konto/Gebühren).
 - **Profil**: Anschrift/IBAN pflegen, E-Mail-Benachrichtigungen an/aus.
 - **Installieren**: im mobilen Browser „Zum Startbildschirm hinzufügen“.
 
@@ -133,11 +150,13 @@ fürs Folgejahr, **Meine Buchungen** mit Storno und **Wechselwunsch**, **Tage
 **Profil** (Anschrift/IBAN/E-Mail-Opt-out). **Benachrichtigungen** in-App und per
 E-Mail.
 
-**Für die Verwaltung:** Django-**Backend** (Mitglieder/Anteile, Quartiere,
-Äquivalenzklassen, Buchungsregeln, Perioden) + ein operatives **Dashboard**
-(`/verwaltung/`): Reinigungsliste, anstehende Buchungen, Rechnungen (filterbar,
-Mahnen per Knopf, Export), **Kontoabgleich** (Auszug importieren → Rechnungen
-automatisch verbuchen). **Losung** mit Bestätigungs-/Rücknahme-Workflow.
+**Für die Verwaltung:** Zwei Rollen – **Admin** (Superuser) mit vollem Django-
+**Backend** (Mitglieder/Anteile, Quartiere, Äquivalenzklassen, Buchungsregeln,
+Perioden, Genossenschaftsdaten) und **Verwaltung** (Gruppe „Verwaltung“) mit dem
+operativen **Dashboard** (`/verwaltung/`): Reinigungsliste, anstehende Buchungen,
+Rechnungen (filterbar inkl. „online bezahlt“, Mahnen per Knopf, Export),
+**Hofladen-Katalog pflegen**, **Kontoabgleich** (Auszug importieren → Rechnungen
+automatisch verbuchen). **Losung** mit Bestätigungs-/Rücknahme-Workflow (Admin).
 Ein **Scheduler** erledigt Cron-Aufgaben (fällige Losungen, Monatsrechnungen,
 E-Mail-Versand, Monats-Mail an die Verwaltung).
 
@@ -376,13 +395,16 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Benachrichtigungen | In-App **und** E-Mail (Opt-out je Mitglied) | `models.Notification`, `OutboxEmail` · `services.email_member` · `commands/send_outbox.py` |
 | Hofladen | Warenkorb → Kasse → Einkauf; gleiche Artikel zusammengefasst | `shop/services.py::add_item`, `set_cart_quantity`, `checkout` · `shop/models.py::LineItem`, `Purchase` |
 | Rechnung + PDF | Monatliche/sofortige Sammelrechnung (§14), PDF, „bezahlt“ melden | `shop/services.py::generate_monthly_invoices`, `generate_invoice_now`, `mark_paid` · `shop/pdf.py` · `shop/views.py::invoice_pdf` |
+| Online bezahlen | „Online bezahlen“ auf Rechnungen (Mitglied) bzw. „Jetzt bezahlen“ (Gast, Magic-Link); Test-Modus ohne Konto | `shop/payments.py::start_payment`, `settle_payment` · `shop/mollie_api.py` · `shop/models.py::Payment`, `Invoice.paid_online` |
 | PWA / Mobil | Installierbar, offline-Fallback, responsive Navigation (untere Tab-Leiste) | `templates/booking/base.html`, `templates/booking/sw.js`, `static/booking/manifest.webmanifest` |
 
 ### Für die Verwaltung
 
 | Funktion | Funktional | Technik |
 |---|---|---|
-| Dashboard | Operative Seite (nur Staff): Kennzahlen + Arbeitslisten | `booking/views.py::dashboard` (Gate `_staff_required`) |
+| Rollen Admin/Verwaltung | Admin = Superuser (Backend); Verwaltung = Gruppe „Verwaltung“ (nur Dashboard) | `booking/permissions.py::is_admin`, `is_verwaltung`, `ensure_verwaltung_group` · `booking/context_processors.py` |
+| Dashboard | Operative Seite (Verwaltung/Admin): Kennzahlen + Arbeitslisten | `booking/views.py::dashboard` |
+| Hofladen-Katalog pflegen | Produkte/Gruppen + Preise im Dashboard, ohne Backend | `booking/views.py::dashboard_products` |
 | Reinigungsliste | Abreisen = Reinigungstage, Filter „Endreinigung“, Export, Versand ans Team | `services.departures_in_range`, `_annotate_cleaning`, `cleaning_rows`, `email_cleaning` |
 | Anstehende Buchungen | Monatsliste, Export, Versand an die Verwaltung | `services.arrivals_in_range`, `booking_rows`, `email_admins` |
 | Export (xlsx/CSV) | Listen als Excel **und** CSV | `booking/exports.py::xlsx_response`, `csv_response` |
@@ -390,7 +412,8 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Kontoabgleich | Auszug (CSV/CAMT) importieren → eindeutige Treffer automatisch verbuchen + benachrichtigen | `shop/bankimport.py::parse_csv/parse_camt` · `shop/reconcile.py::import_bank_statement`, `book_payment` |
 | Losung steuern | Durchführen, **bestätigen** (veröffentlichen), **zurücknehmen** | `services.confirm_lottery`, `rollback_lottery` · `admin.BookingPeriodAdmin`, `LotteryRunAdmin` |
 | Stammdaten & Regeln | Mitglieder/Anteile, Quartiere, Saison-Regeln, Perioden | `booking/admin.py`, `shop/admin.py` |
-| Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag, Zahlungsziel | `models.OpsConfig`, `shop/models.py::ShopConfig` |
+| Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag | `models.OpsConfig` |
+| Genossenschaftsdaten / Zahlung | Name, Anschrift, Steuernummer, IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel + Online-Bezahlung (an/aus, Mollie-Key) | `shop/models.py::ShopConfig` |
 
 ### Betrieb (Scheduler/Cron) & reine Logik
 
@@ -564,17 +587,17 @@ Caddy-Block aus `caddy/` übernehmen und die Domain in der `.env` anpassen.
 
 **Im PoC umgesetzt:** Losverfahren mit Bestätigungs-/Rücknahme-Workflow, normale
 Buchung + Warteliste, Wunschliste, Tage-Übertragung, Wechselwunsch, Hofladen mit
-Rechnungen **und PDF**, In-App-/E-Mail-Benachrichtigungen (Outbox + Scheduler),
-Verwaltungs-Dashboard (Reinigung/Buchungen/Rechnungen/Export/Versand),
-**Kontoabgleich** (CSV/CAMT), PWA/Offline.
+Rechnungen **und PDF**, **Online-Bezahlung (Mollie, mit Test-Modus) für Hofladen +
+externe Gäste**, **externe Gäste-Buchung** (Gast-Checkout, Magic-Link),
+In-App-/E-Mail-Benachrichtigungen (Outbox + Scheduler), **Rollen Admin/Verwaltung**,
+Verwaltungs-Dashboard (Reinigung/Buchungen/Rechnungen/Export/Versand,
+Katalogpflege), **Kontoabgleich** (CSV/CAMT), PWA/Offline.
 
 **Offen / Feinschliff (funktional):**
 
 - MT940 als drittes Import-Format (Parser-Schnittstelle steht in `shop/bankimport.py`).
 - Losergebnis als **PDF** + Massenmail an alle Teilnehmenden.
 - **Web-Push** (mobile Benachrichtigungen zusätzlich zur E-Mail).
-- Externe Buchungen ausbauen (Modell-Flags `Member.is_external`,
-  `Allocation.source="external"` vorhanden).
 - Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
 - Optionaler OIDC/Keycloak-Login (Naht in `config/settings.py` markiert).
 
@@ -618,8 +641,34 @@ grün/grau-**Verfügbarkeitskalender**, Externen-Verfügbarkeitsregeln im Backen
 konfigurierbar, **Magic-Link-Selbstverwaltung** zum Ansehen/Stornieren, Abrechnung
 **per Rechnung wie im Hofladen** inkl. Kontoabgleich/Mahnung). In der internen
 Übersicht erscheinen externe Gäste in einer einheitlichen Farbe nur als „extern“.
-Der **Online-Bezahlprozess (Mollie)** ist als saubere Naht vorbereitet, aber noch
-nicht aktiv – im Bezahlbereich steht dazu ein Platzhalter.
+Gäste können ihre Rechnung wahlweise **online bezahlen** (Mollie, über den
+Magic-Link – „Jetzt bezahlen“) oder überweisen; siehe „Online-Bezahlung“ unten.
+Auf der öffentlichen Seite `/extern/` gibt es zudem einen aufklappbaren Bereich
+**„Hilfe &amp; Infos für Gäste“** (So buchst du / Bezahlung [online oder
+Überweisung] / Stornieren / Kontakt aus den Hofladen-Einstellungen).
+
+---
+
+## Online-Bezahlung (Mollie)
+
+**Ein** Online-Zahlsystem für **Hofladen UND externe Gäste** – auf Ebene der
+Rechnung (`shop.Invoice`; Mitglied wie Gast haben eine). Mitglieder klicken
+„Online bezahlen“ auf ihren Rechnungen, Gäste „Jetzt bezahlen“ über ihren
+Magic-Link. Eine **online bezahlte Rechnung gilt sofort als bestätigt/archiviert**
+(kein Kontoabgleich nötig) und löst eine Benachrichtigung aus.
+
+- **Standard = eingebauter Test-/Sandbox-Modus** (ohne Mollie-Konto, **ohne
+  Gebühren**): simulierte Bezahlseite, ideal zum Ausprobieren.
+- **Mit `test_…`-Key**: Mollies kostenlose Testumgebung. **Mit `live_…`-Key**:
+  echte Bezahlung (Kreditkarte, PayPal, Apple/Google Pay …).
+- **Konfiguration** im Backend unter **Hofladen-Einstellungen** (`ShopConfig`):
+  `Online-Bezahlung aktiv` an/aus + `Mollie-API-Key`.
+
+Online bezahlte Rechnungen sind im **Verwaltungs-Dashboard** ausgewiesen
+(Filter-Chip „Online bezahlt“, eigene Status-Spalte, KPI „online bezahlt
+(Monat)“). Technik: `shop/payments.py` (Naht) + `shop/mollie_api.py` (echte
+Anbindung), Modell `shop.Payment` (token-geschützte, login-freie Bezahl-/
+Rückkehr-URLs), `Invoice.payment_method`/`paid_online_at`.
 
 ---
 

@@ -556,3 +556,17 @@ class Command(BaseCommand):
                 n_ext += 1
         self.stdout.write(self.style.SUCCESS(
             f"{n_ext} externe Buchungen (Mo–Fr) angelegt."))
+
+        # 5) Einige Rechnungen per Online-Zahldienst (Mollie-Sandbox) begleichen,
+        #    damit die Verwaltungsseite „online bezahlt“ befüllt ist.
+        from shop import payments as pay_svc
+        from shop.models import Invoice as _Invoice
+        n_online = 0
+        candidates = list(_Invoice.objects.filter(payment_method="")
+                          .order_by("?")[:8])
+        for inv in candidates:
+            if inv.items.exists() and inv.is_payable:
+                pay_svc.settle_payment(pay_svc.start_payment(inv))
+                n_online += 1
+        self.stdout.write(self.style.SUCCESS(
+            f"{n_online} Rechnungen per Online-Zahldienst (Test) beglichen."))
