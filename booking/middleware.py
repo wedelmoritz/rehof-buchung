@@ -16,9 +16,10 @@ class ActivationGateMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        from .permissions import is_verwaltung
         user = getattr(request, "user", None)
         if (user is not None and user.is_authenticated
-                and not user.is_staff and not user.is_superuser
+                and not is_verwaltung(user)
                 and not hasattr(user, "member")):
             allowed = {reverse("pending"), reverse("logout"),
                        reverse("offline"), reverse("sw")}

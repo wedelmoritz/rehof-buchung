@@ -155,7 +155,8 @@ def invoice_detail(request, invoice_id: int):
 def invoice_pdf(request, invoice_id: int):
     """Rechnung als PDF (WeasyPrint). Mitglied: eigene; Verwaltung: alle."""
     member = _member(request)
-    if request.user.is_staff:
+    from booking.permissions import is_verwaltung
+    if is_verwaltung(request.user):
         invoice = get_object_or_404(Invoice, id=invoice_id)
     elif member:
         invoice = get_object_or_404(Invoice, id=invoice_id, member=member)

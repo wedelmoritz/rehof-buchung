@@ -584,7 +584,8 @@ def register(request):
 @login_required
 def pending(request):
     """Warte-Seite für noch nicht freigeschaltete Konten (kein Mitglieds-Profil)."""
-    if _current_member(request) or request.user.is_staff:
+    from .permissions import is_verwaltung
+    if _current_member(request) or is_verwaltung(request.user):
         return redirect("overview")
     return render(request, "registration/pending.html", {})
 
@@ -661,7 +662,9 @@ def transfer(request):
 # --------------------------------------------------------------------------- #
 
 def _staff_required(request):
-    return bool(request.user.is_authenticated and request.user.is_staff)
+    """Zugang zum Verwaltungs-Dashboard: Verwaltung-Gruppe oder Admin."""
+    from .permissions import is_verwaltung
+    return is_verwaltung(request.user)
 
 
 @login_required
@@ -824,7 +827,8 @@ def period_result(request, period_id: int):
     member = _current_member(request)
     run = period.runs.first()
     confirmed = bool(run and run.confirmed)
-    is_staff = request.user.is_staff
+    from .permissions import is_verwaltung
+    is_staff = is_verwaltung(request.user)  # Verwaltung sieht Vorschau (nur lesend)
     # Vor der Bestätigung ist das Ergebnis für Mitglieder nicht sichtbar; nur die
     # Verwaltung sieht eine Vorschau.
     if not confirmed and not is_staff:

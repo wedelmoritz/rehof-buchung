@@ -456,11 +456,14 @@ class Command(BaseCommand):
                           is_superuser=True, first_name="Admin"))
         admin.set_password("admin12345"); admin.save()
 
+        # Verwaltung = Dashboard-Rolle (Gruppe „Verwaltung"), KEIN Django-Backend.
+        from booking.permissions import ensure_verwaltung_group
         verw, _ = User.objects.get_or_create(
             username="verwaltung",
-            defaults=dict(email="verwaltung@example.org", is_staff=True,
+            defaults=dict(email="verwaltung@example.org", is_staff=False,
                           first_name="Verwaltung"))
-        verw.set_password("verwaltung12345"); verw.save()
+        verw.set_password("verwaltung12345"); verw.is_staff = False; verw.save()
+        verw.groups.add(ensure_verwaltung_group())
 
         test_user, _ = User.objects.get_or_create(
             username="test",
@@ -484,8 +487,9 @@ class Command(BaseCommand):
                     end=start + timedelta(days=rng.choice([3, 4, 7])),
                     submitted=True)
         self.stdout.write(self.style.SUCCESS(
-            "Test-Konten: admin/admin12345 (Superuser), verwaltung/verwaltung12345 "
-            "(Staff), test/test12345 (Mitglied)."))
+            "Test-Konten: admin/admin12345 (Admin/Superuser, volles Backend), "
+            "verwaltung/verwaltung12345 (Verwaltung-Gruppe, nur Dashboard), "
+            "test/test12345 (Mitglied)."))
 
         # 2) Wilde Buchungen im laufenden Jahr -----------------------------------
         n_alloc = 0

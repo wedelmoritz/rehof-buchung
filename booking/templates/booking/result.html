@@ -52,7 +52,7 @@
   </table></div>
 </div>
 
-{% if run and user.is_staff %}
+{% if run and is_verwaltung %}
 <h2>Ziehungsprotokoll (Audit – nur Verwaltung)</h2>
 <pre class="log">{{ run.log_text }}</pre>
 {% endif %}
