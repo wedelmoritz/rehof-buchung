@@ -1,0 +1,29 @@
+{% extends "booking/base.html" %}
+{% block title %}Test-Bezahlung{% endblock %}
+{% block content %}
+<h1>Online-Bezahlung (Testmodus)</h1>
+
+<div class="card" style="max-width:460px">
+  <div class="msg info" style="margin-top:0">
+    <strong>Testumgebung:</strong> Hier fällt <strong>kein echtes Geld</strong> an –
+    diese Seite simuliert die Mollie-Bezahlung (Kreditkarte, PayPal, Apple/Google&nbsp;Pay),
+    solange kein echter Mollie-Schlüssel hinterlegt ist.
+  </div>
+  <p style="font-size:1.1rem;margin:.6rem 0">
+    Rechnung <strong>{{ invoice.number }}</strong><br>
+    Betrag: <strong>{{ pay.amount }} {{ pay.currency }}</strong>
+  </p>
+  <p class="muted" style="margin-top:0">{{ pay.description }}</p>
+
+  {% if pay.status == 'open' %}
+  <form method="post" style="display:flex;gap:.6rem;flex-wrap:wrap">
+    {% csrf_token %}
+    <button class="btn" name="action" value="pay" type="submit">✓ Zahlung bestätigen (Test)</button>
+    <button class="btn ghost" name="action" value="cancel" type="submit">Abbrechen</button>
+  </form>
+  {% else %}
+  <p>Diese Zahlung ist bereits <strong>{{ pay.get_status_display }}</strong>.</p>
+  <p><a class="btn" href="{% url 'payment_return' pay.token %}">Weiter</a></p>
+  {% endif %}
+</div>
+{% endblock %}

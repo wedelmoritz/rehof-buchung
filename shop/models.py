@@ -7,6 +7,7 @@ Django-ORM; keine rohen SQL-Abfragen.
 """
 from __future__ import annotations
 
+import uuid
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import models
@@ -25,6 +26,12 @@ class ShopConfig(models.Model):
     coop_name = models.CharField("Genossenschaft", max_length=160,
                                  default="Re:Hof eG")
     coop_address = models.TextField("Anschrift", blank=True)
+    contact_email = models.EmailField(
+        "Kontakt-E-Mail", blank=True,
+        help_text="Erscheint auf Rechnungen und im Hilfebereich für externe Gäste.")
+    board = models.CharField(
+        "Vorstand", max_length=200, blank=True,
+        help_text="z. B. Namen des Vorstands (für Rechnung/Impressum).")
     tax_number = models.CharField("Steuernummer/USt-IdNr.", max_length=40, blank=True)
     iban = models.CharField("IBAN (Zahlungsempfang)", max_length=34, blank=True)
     bic = models.CharField("BIC", max_length=11, blank=True)
@@ -33,6 +40,16 @@ class ShopConfig(models.Model):
         "Zahlungsziel (Tage)", default=14,
         help_text="Nach so vielen Tagen ohne Zahlungseingang gilt eine Rechnung "
                   "als überfällig (für die Zahlungserinnerung).")
+    # Online-Bezahlung (Mollie) – EIN System für Hofladen UND externe Gäste.
+    payments_active = models.BooleanField(
+        "Online-Bezahlung aktiv", default=True,
+        help_text="Schaltet die Online-Bezahlung (Mollie) für Hofladen-Rechnungen "
+                  "UND externe Gäste frei.")
+    mollie_api_key = models.CharField(
+        "Mollie API-Key", max_length=64, blank=True,
+        help_text="LEER = eingebauter TEST-Modus (simuliert, ohne Konto/Gebühren). "
+                  "Ein „test_…“-Key nutzt Mollies Testumgebung (ebenfalls kostenlos), "
+                  "ein „live_…“-Key die echte Bezahlung.")
 
     class Meta:
         verbose_name = "Hofladen-Einstellungen"
@@ -241,6 +258,11 @@ class Invoice(models.Model):
     tax_number = models.CharField("Steuernummer", max_length=40, blank=True)
     iban = models.CharField("IBAN", max_length=34, blank=True)
     bic = models.CharField("BIC", max_length=11, blank=True)
+    # Online-Bezahlung (Mollie): leer = per Überweisung beglichen.
+    payment_method = models.CharField(
+        "Bezahlt über", max_length=20, blank=True,
+        help_text="Leer = Überweisung; sonst Online-Zahldienst (z. B. „mollie“).")
+    paid_online_at = models.DateTimeField("Online bezahlt am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Rechnung"
@@ -262,6 +284,16 @@ class Invoice(models.Model):
     @property
     def archived(self) -> bool:
         return self.status == self.CONFIRMED
+
+    @property
+    def paid_online(self) -> bool:
+        """Wurde über den Online-Zahldienst (Mollie) beglichen?"""
+        return bool(self.payment_method)
+
+    @property
+    def is_payable(self) -> bool:
+        """Online bezahlbar, solange nicht schon online beglichen/bestätigt."""
+        return self.status in (self.OPEN, self.PAID) and not self.paid_online
 
     @property
     def is_overdue(self) -> bool:
@@ -312,6 +344,45 @@ class Invoice(models.Model):
             groups.values(),
             key=lambda g: g["purchase"].confirmed_at if g["purchase"] else self.created_at,
         )
+
+
+class Payment(models.Model):
+    """Eine Online-Bezahlung (Mollie) zu einer Rechnung – für Mitglieder UND
+    externe Gäste, da beide eine `Invoice` haben. `token` ist die fälschungs-
+    sichere Kennung für die (login-freien) Bezahl-/Rückkehr-URLs. Ohne Mollie-
+    API-Key läuft alles im eingebauten TEST-Modus (`is_sandbox`)."""
+    OPEN, PAID, FAILED, EXPIRED, CANCELED = (
+        "open", "paid", "failed", "expired", "canceled")
+    STATUS = [
+        (OPEN, "Offen"),
+        (PAID, "Bezahlt"),
+        (FAILED, "Fehlgeschlagen"),
+        (EXPIRED, "Abgelaufen"),
+        (CANCELED, "Abgebrochen"),
+    ]
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.CASCADE, related_name="payments",
+        verbose_name="Rechnung")
+    token = models.UUIDField("Token", default=uuid.uuid4, unique=True,
+                             editable=False)
+    provider = models.CharField("Anbieter", max_length=20, default="mollie")
+    provider_id = models.CharField("Anbieter-Zahlungs-ID", max_length=64, blank=True)
+    amount = models.DecimalField("Betrag", max_digits=9, decimal_places=2)
+    currency = models.CharField("Währung", max_length=3, default="EUR")
+    status = models.CharField("Status", max_length=10, choices=STATUS, default=OPEN)
+    description = models.CharField("Verwendungszweck", max_length=140, blank=True)
+    checkout_url = models.URLField("Bezahlseite", max_length=500, blank=True)
+    is_sandbox = models.BooleanField("Test-Modus", default=False)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    paid_at = models.DateTimeField("Bezahlt am", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Online-Zahlung"
+        verbose_name_plural = "Online-Zahlungen"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.provider} {self.amount} {self.currency} – {self.get_status_display()}"
 
 
 class BankImport(models.Model):

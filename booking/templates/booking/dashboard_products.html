@@ -1,0 +1,69 @@
+{% extends "booking/base.html" %}
+{% block title %}Hofladen-Katalog{% endblock %}
+{% block content %}
+<h1>Hofladen-Katalog</h1>
+<p class="muted">Produkte und Dienstleistungen anlegen, Preise ändern und aktiv/
+  inaktiv schalten. <a href="{% url 'dashboard' %}">← Zurück zum Dashboard</a></p>
+
+<div class="card">
+  <h2 style="margin-top:0">Neues Produkt</h2>
+  <form method="post" class="prod-form">{% csrf_token %}
+    <input type="hidden" name="action" value="add_product">
+    <label>Gruppe
+      <select name="group" required>
+        {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+      </select></label>
+    <label>Name <input type="text" name="name" required></label>
+    <label>Preis (brutto) <input type="text" name="price" inputmode="decimal" placeholder="z. B. 3,20" required></label>
+    <label>Einheit
+      <select name="unit">{% for v,l in units %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+    <label>MwSt
+      <select name="vat_rate">{% for v,l in vat_choices %}<option value="{{ v }}" {% if v == 7 %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label>Art
+      <select name="kind">{% for v,l in kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+    <button class="btn" type="submit">Anlegen</button>
+  </form>
+  <details style="margin-top:.6rem"><summary class="muted" style="cursor:pointer">Neue Gruppe anlegen</summary>
+    <form method="post" class="prod-form" style="margin-top:.5rem">{% csrf_token %}
+      <input type="hidden" name="action" value="add_group">
+      <label>Name <input type="text" name="name" required></label>
+      <label>Symbol <input type="text" name="emoji" maxlength="8" placeholder="🧺" style="width:5rem"></label>
+      <button class="btn ghost" type="submit">Gruppe anlegen</button>
+    </form>
+  </details>
+</div>
+
+{% for grp in groups %}
+<div class="card">
+  <h2 style="margin-top:0">{{ grp.group.emoji }} {{ grp.group.name }}</h2>
+  {% if grp.products %}
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Name</th><th>Preis</th><th>Einheit</th><th>MwSt</th><th>Art</th><th>Aktiv</th><th></th></tr></thead>
+    <tbody>
+    {% for p in grp.products %}
+      <tr>
+        <form method="post">{% csrf_token %}
+          <input type="hidden" name="action" value="update_product">
+          <input type="hidden" name="product" value="{{ p.id }}">
+          <td><input type="text" name="name" value="{{ p.name }}" style="min-width:9rem"></td>
+          <td><input type="text" name="price" value="{{ p.price }}" inputmode="decimal" style="width:5rem"></td>
+          <td><select name="unit">{% for v,l in units %}<option value="{{ v }}" {% if v == p.unit %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+          <td><select name="vat_rate">{% for v,l in vat_choices %}<option value="{{ v }}" {% if v == p.vat_rate %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+          <td>{{ p.get_kind_display }}</td>
+          <td style="text-align:center"><input type="checkbox" name="active" {% if p.active %}checked{% endif %}></td>
+          <td><button class="btn small" type="submit">Speichern</button></td>
+        </form>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">Noch keine Produkte in dieser Gruppe.</p>{% endif %}
+</div>
+{% endfor %}
+
+<style>
+  .prod-form { display:flex; gap:.6rem; flex-wrap:wrap; align-items:end; }
+  .prod-form label { display:flex; flex-direction:column; font-size:.85rem; color:var(--muted); gap:.2rem; }
+  .prod-form input, .prod-form select { padding:.35rem .4rem; }
+</style>
+{% endblock %}

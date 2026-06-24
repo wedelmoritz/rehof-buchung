@@ -332,7 +332,7 @@
     {% block content %}{% endblock %}
   </main>
 
-  {% if user.is_authenticated and user.member or user.is_staff %}
+  {% if user.is_authenticated and user.member or is_verwaltung %}
   {% with url_name=request.resolver_match.url_name %}
   {# Icon-Sprite: einmal definiert, von Sidebar und Tab-Leiste per <use> genutzt #}
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -367,8 +367,8 @@
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}" title="Meine Rechnungen"><svg class="nav-ic"><use href="#ic-invoices"/></svg><span class="nav-label">Meine Rechnungen</span></a>
       <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}" title="Profil"><svg class="nav-ic"><use href="#ic-profile"/></svg><span class="nav-label">Profil</span></a>
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}" title="Hilfe"><svg class="nav-ic"><use href="#ic-help"/></svg><span class="nav-label">Hilfe</span></a>
-      {% if user.is_staff %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}" title="Verwaltung"><svg class="nav-ic"><use href="#ic-admin"/></svg><span class="nav-label">Verwaltung</span></a>
-      <a href="/admin/" title="Backend (Stammdaten)"><svg class="nav-ic"><use href="#ic-backend"/></svg><span class="nav-label">Backend</span></a>{% endif %}
+      {% if is_verwaltung %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}" title="Verwaltung"><svg class="nav-ic"><use href="#ic-admin"/></svg><span class="nav-label">Verwaltung</span></a>{% endif %}
+      {% if is_admin %}<a href="/admin/" title="Backend (Stammdaten)"><svg class="nav-ic"><use href="#ic-backend"/></svg><span class="nav-label">Backend</span></a>{% endif %}
     </nav>
   </aside>
 
@@ -390,8 +390,8 @@
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Meine Rechnungen</a>
       <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-profile"/></svg>Profil</a>
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-help"/></svg>Hilfe</a>
-      {% if user.is_staff %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>
-      <a href="/admin/"><svg class="nav-ic"><use href="#ic-backend"/></svg>Backend</a>{% endif %}
+      {% if is_verwaltung %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>{% endif %}
+      {% if is_admin %}<a href="/admin/"><svg class="nav-ic"><use href="#ic-backend"/></svg>Backend</a>{% endif %}
     </div>
   </div>
   {% endwith %}

@@ -1,0 +1,22 @@
+{% extends "booking/base.html" %}
+{% block title %}Zahlung{% endblock %}
+{% block content %}
+<h1>Zahlung</h1>
+
+<div class="card" style="max-width:460px">
+  {% if pay.status == 'paid' %}
+  <div class="msg" style="margin-top:0;background:#e1efd6;color:#41663a">
+    <strong>Vielen Dank!</strong> Deine Zahlung über {{ pay.amount }} {{ pay.currency }}
+    zur Rechnung <strong>{{ invoice.number }}</strong> ist eingegangen und bestätigt.
+  </div>
+  {% elif pay.status == 'open' %}
+  <div class="msg info" style="margin-top:0">Die Zahlung ist noch nicht abgeschlossen.
+    Sobald der Zahldienst den Eingang meldet, wird die Rechnung automatisch als bezahlt markiert.</div>
+  {% else %}
+  <div class="msg error" style="margin-top:0">Die Zahlung wurde
+    <strong>{{ pay.get_status_display|lower }}</strong>. Die Rechnung bleibt offen –
+    du kannst es erneut versuchen oder per Überweisung zahlen.</div>
+  {% endif %}
+  {% if back_url %}<p style="margin-bottom:0"><a class="btn" href="{{ back_url }}">Weiter</a></p>{% endif %}
+</div>
+{% endblock %}

@@ -23,8 +23,10 @@ urlpatterns = [
     path("extern/buchen/", views.external_book, name="external_book"),
     path("extern/verwalten/<uuid:token>/", views.external_manage,
          name="external_manage"),
+    path("extern/bezahlen/<uuid:token>/", views.external_pay, name="external_pay"),
     path("extern/widget/", views.external_embed, name="external_embed"),
     path("verwaltung/", views.dashboard, name="dashboard"),
+    path("verwaltung/produkte/", views.dashboard_products, name="dashboard_products"),
     path("verwaltung/export/<str:kind>.<str:fmt>", views.dashboard_export,
          name="dashboard_export"),
 ]

@@ -1,25 +1,28 @@
 {% extends "booking/base.html" %}
 {% block title %}Verwaltung{% endblock %}
 {% block content %}
-<h1>Verwaltung</h1>
+<div class="sec-head"><h1 style="margin:0">Verwaltung</h1><span class="spacer"></span>
+  <a class="btn small" href="{% url 'dashboard_products' %}">Hofladen-Katalog pflegen</a></div>
 
 <details class="card help-note">
   <summary><strong>Was du hier tun kannst</strong></summary>
   <ul>
     <li><strong>Kennzahlen</strong> des gewählten Monats (Anreisen, Endreinigungen,
-      offene/überfällige Rechnungen).</li>
+      offene/überfällige Rechnungen, online bezahlte).</li>
     <li><strong>Reinigungsliste</strong>: alle Abreisen des Monats (= Reinigungstage),
       Filter „nur mit Endreinigung“, Export (Excel/CSV) und <strong>Versand ans
       Reinigungsteam</strong> per Knopf.</li>
-    <li><strong>Anstehende Buchungen</strong>: Übersicht des Monats, Export und
-      <strong>Versand an die Verwaltung</strong>. (Zusätzlich geht monatlich
+    <li><strong>Anstehende Buchungen</strong> (nur ansehen): Übersicht des Monats,
+      Export und <strong>Versand an die Verwaltung</strong>. (Monatlich geht zudem
       automatisch eine Mail mit den Buchungen des Folgemonats raus.)</li>
     <li><strong>Rechnungen</strong>: filterbar (offen / überfällig / bezahlt gemeldet /
-      alle), Export, und <strong>überfällige per Knopf anschreiben &amp; erinnern</strong>.</li>
+      <strong>online bezahlt</strong> / alle), Export, und <strong>überfällige per
+      Knopf anschreiben &amp; erinnern</strong>.</li>
+    <li><strong>Hofladen-Katalog</strong>: Produkte/Preise anlegen und ändern.</li>
     <li><strong>Kontoabgleich</strong>: Kontoauszug (CSV/CAMT) hochladen – passende
       Rechnungen werden automatisch als bezahlt verbucht, das Mitglied benachrichtigt.</li>
-    <li>Empfänger der Verwaltungs-Mails und das Zahlungsziel stellst du im
-      <strong>Backend</strong> ein (Betriebs-Einstellungen / Hofladen-Einstellungen).</li>
+    <li><em>Buchungen ändern und die Losung starten</em> macht die <strong>Admin-Rolle</strong>
+      im Backend; hier siehst du Buchungen/Losung nur lesend.</li>
   </ul>
 </details>
 
@@ -33,6 +36,8 @@
     <span class="lbl">offene Rechnungen<br>{{ open_sum }} €</span></div>
   <div class="card kpi {% if overdue %}danger{% endif %}"><span class="num">{{ overdue|length }}</span>
     <span class="lbl">überfällig<br>{{ overdue_sum }} €</span></div>
+  <div class="card kpi"><span class="num">{{ online_count }}</span>
+    <span class="lbl">online bezahlt<br>{{ online_sum }} € · {{ month_label }}</span></div>
 </div>
 
 {# --- Monatsauswahl -------------------------------------------------------- #}
@@ -137,20 +142,24 @@
     <a class="chip {% if inv_filter == 'open' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
     <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
     <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=paid">Bezahlt gemeldet</a>
+    <a class="chip {% if inv_filter == 'online' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=online">Online bezahlt ({{ online_total_count }})</a>
     <a class="chip {% if inv_filter == 'all' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=all">Alle</a>
   </div>
+  {% if inv_filter == 'online' %}<p class="muted" style="margin:.2rem 0 .6rem">Per
+    Zahldienst (Mollie) beglichene Rechnungen – Eingang ist bereits bestätigt,
+    kein Kontoabgleich nötig.</p>{% endif %}
   {% if invoices_view %}
   <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>Nummer</th><th>Mitglied</th><th>Fällig</th><th>Brutto</th><th>Status</th><th>Erinnert</th></tr></thead>
+      <thead><tr><th>Nummer</th><th>Empfänger</th><th>Fällig</th><th>Brutto</th><th>Status</th><th>Erinnert</th></tr></thead>
       <tbody>
         {% for i in invoices_view %}
         <tr class="{% if i.is_overdue %}danger-row{% endif %}">
-          <td><a href="/admin/shop/invoice/{{ i.id }}/change/">{{ i.number }}</a></td>
+          <td>{% if is_admin %}<a href="/admin/shop/invoice/{{ i.id }}/change/">{{ i.number }}</a>{% else %}{{ i.number }}{% endif %}</td>
           <td>{{ i.recipient_label }}</td>
           <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
           <td>{{ i.total_gross }} €</td>
-          <td>{{ i.get_status_display }}</td>
+          <td>{% if i.paid_online %}<span class="tag" style="background:#e1efd6;color:#41663a">online ({{ i.payment_method }})</span>{% else %}{{ i.get_status_display }}{% endif %}</td>
           <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
@@ -210,9 +219,11 @@
     </table>
   </div>
   {% endif %}
+  {% if is_admin %}
   <div class="actions">
-    <a class="btn small ghost" href="/admin/shop/banktransaction/?matched=no">Nicht zugeordnete ansehen</a>
+    <a class="btn small ghost" href="/admin/shop/banktransaction/?matched=no">Nicht zugeordnete ansehen (Backend)</a>
   </div>
+  {% endif %}
 </div>
 
 <style>

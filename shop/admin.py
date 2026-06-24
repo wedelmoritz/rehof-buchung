@@ -7,8 +7,8 @@ from django.contrib import admin, messages
 
 from . import reconcile, services as svc
 from .models import (
-    BankImport, BankTransaction, Invoice, LineItem, Product, ProductGroup,
-    Purchase, ShopConfig)
+    BankImport, BankTransaction, Invoice, LineItem, Payment, Product,
+    ProductGroup, Purchase, ShopConfig)
 
 WEEKDAYS = [("0", "Montag"), ("1", "Dienstag"), ("2", "Mittwoch"),
             ("3", "Donnerstag"), ("4", "Freitag"), ("5", "Samstag"),
@@ -40,15 +40,24 @@ class ProductAdminForm(forms.ModelForm):
 class ShopConfigAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Genossenschaft (für die Rechnung)", {
-            "fields": ("coop_name", "coop_address", "tax_number"),
-            "description": "Diese Angaben erscheinen als Absender auf jeder "
-                           "Hofladen-Rechnung (§14 UStG). Einmalig pflegen."}),
+            "fields": ("coop_name", "coop_address", "tax_number", "board",
+                       "contact_email"),
+            "description": "Stammdaten der Genossenschaft: Absender auf jeder "
+                           "Hofladen-Rechnung (§14 UStG) sowie Kontakt im "
+                           "Hilfebereich für externe Gäste. Einmalig pflegen."}),
         ("Zahlung", {
             "fields": ("iban", "bic", "invoice_prefix", "payment_term_days"),
             "description": "IBAN/BIC, auf die Mitglieder überweisen. Das Präfix "
                            "bildet die Rechnungsnummer (z. B. HL-2026-04-001). Das "
                            "Zahlungsziel bestimmt, ab wann eine Rechnung als "
                            "überfällig gilt (für die Zahlungserinnerung)."}),
+        ("Online-Bezahlung (Mollie)", {
+            "fields": ("payments_active", "mollie_api_key"),
+            "description": "EIN Zahlsystem für Hofladen UND externe Gäste. Ohne "
+                           "API-Key läuft alles im eingebauten TEST-Modus (simuliert, "
+                           "ohne Konto/Gebühren). Ein „test_…“-Key nutzt Mollies "
+                           "kostenlose Testumgebung, ein „live_…“-Key die echte "
+                           "Bezahlung."}),
     )
 
     def has_add_permission(self, request):
@@ -236,6 +245,22 @@ class InvoiceAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description="überfällig")
     def overdue_display(self, obj):
         return obj.is_overdue
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    """Online-Zahlungen (Mollie) – Protokoll. Verbuchung läuft automatisch über
+    die Bezahl-Rückkehr bzw. den Webhook; hier nur einsehbar."""
+    list_display = ("created_at", "invoice", "amount", "currency", "provider",
+                    "status", "is_sandbox")
+    list_filter = ("status", "provider", "is_sandbox")
+    search_fields = ("invoice__number", "provider_id", "token")
+    readonly_fields = ("invoice", "token", "provider", "provider_id", "amount",
+                       "currency", "status", "description", "checkout_url",
+                       "is_sandbox", "created_at", "paid_at")
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(LineItem)

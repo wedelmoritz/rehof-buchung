@@ -456,11 +456,14 @@ class Command(BaseCommand):
                           is_superuser=True, first_name="Admin"))
         admin.set_password("admin12345"); admin.save()
 
+        # Verwaltung = Dashboard-Rolle (Gruppe „Verwaltung"), KEIN Django-Backend.
+        from booking.permissions import ensure_verwaltung_group
         verw, _ = User.objects.get_or_create(
             username="verwaltung",
-            defaults=dict(email="verwaltung@example.org", is_staff=True,
+            defaults=dict(email="verwaltung@example.org", is_staff=False,
                           first_name="Verwaltung"))
-        verw.set_password("verwaltung12345"); verw.save()
+        verw.set_password("verwaltung12345"); verw.is_staff = False; verw.save()
+        verw.groups.add(ensure_verwaltung_group())
 
         test_user, _ = User.objects.get_or_create(
             username="test",
@@ -484,8 +487,9 @@ class Command(BaseCommand):
                     end=start + timedelta(days=rng.choice([3, 4, 7])),
                     submitted=True)
         self.stdout.write(self.style.SUCCESS(
-            "Test-Konten: admin/admin12345 (Superuser), verwaltung/verwaltung12345 "
-            "(Staff), test/test12345 (Mitglied)."))
+            "Test-Konten: admin/admin12345 (Admin/Superuser, volles Backend), "
+            "verwaltung/verwaltung12345 (Verwaltung-Gruppe, nur Dashboard), "
+            "test/test12345 (Mitglied)."))
 
         # 2) Wilde Buchungen im laufenden Jahr -----------------------------------
         n_alloc = 0
@@ -552,3 +556,17 @@ class Command(BaseCommand):
                 n_ext += 1
         self.stdout.write(self.style.SUCCESS(
             f"{n_ext} externe Buchungen (Mo–Fr) angelegt."))
+
+        # 5) Einige Rechnungen per Online-Zahldienst (Mollie-Sandbox) begleichen,
+        #    damit die Verwaltungsseite „online bezahlt“ befüllt ist.
+        from shop import payments as pay_svc
+        from shop.models import Invoice as _Invoice
+        n_online = 0
+        candidates = list(_Invoice.objects.filter(payment_method="")
+                          .order_by("?")[:8])
+        for inv in candidates:
+            if inv.items.exists() and inv.is_payable:
+                pay_svc.settle_payment(pay_svc.start_payment(inv))
+                n_online += 1
+        self.stdout.write(self.style.SUCCESS(
+            f"{n_online} Rechnungen per Online-Zahldienst (Test) beglichen."))
