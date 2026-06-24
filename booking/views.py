@@ -742,9 +742,10 @@ def dashboard(request):
     overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
 
     # Online (Mollie) bezahlte Rechnungen – fürs Dashboard separat ausweisbar.
-    online_qs = Invoice.objects.exclude(payment_method="")
+    online_qs = (Invoice.objects.exclude(payment_method="")
+                 .select_related("member", "guest").prefetch_related("items"))
     online_total_count = online_qs.count()
-    online_month = [i for i in online_qs.select_related("member", "guest")
+    online_month = [i for i in online_qs
                     if i.paid_online_at and i.paid_online_at.year == year
                     and i.paid_online_at.month == month]
     online_sum = sum((i.total_gross for i in online_month), Decimal(0))
@@ -755,12 +756,13 @@ def dashboard(request):
         invoices_view = sorted(overdue, key=lambda i: (i.due_date or today, i.number))
     elif inv_filter == "paid":
         invoices_view = list(Invoice.objects.filter(status=Invoice.PAID)
-                             .select_related("member").order_by("-paid_reported_at"))
+                             .select_related("member", "guest")
+                             .prefetch_related("items").order_by("-paid_reported_at"))
     elif inv_filter == "online":
-        invoices_view = list(online_qs.select_related("member", "guest")
-                             .order_by("-paid_online_at"))
+        invoices_view = list(online_qs.order_by("-paid_online_at"))
     elif inv_filter == "all":
-        invoices_view = list(Invoice.objects.select_related("member")
+        invoices_view = list(Invoice.objects.select_related("member", "guest")
+                             .prefetch_related("items")
                              .order_by("-year", "-month", "number"))
     else:
         inv_filter = "open"
@@ -890,6 +892,84 @@ def dashboard_products(request):
         "groups": groups, "all_groups": list(ProductGroup.objects.all()),
         "units": Product.UNITS, "vat_choices": Product.VAT_CHOICES,
         "kinds": Product.KIND})
+
+
+@login_required
+def beds24_import(request):
+    """Migrations-Assistent: bestehende Beds24-Buchungen per CSV importieren.
+    Nur Admin (legt echte Buchungen an). Ablauf: CSV hochladen → automatischer
+    Vorschlag je Zeile → manuell Mitglied/Quartier abgleichen → übernehmen."""
+    from .permissions import is_admin
+    if not is_admin(request.user):
+        messages.error(request, "Der Import ist der Admin-Rolle vorbehalten.")
+        return redirect("dashboard")
+    from .models import Beds24Import, Beds24ImportRow
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "upload":
+            f = request.FILES.get("csv")
+            if not f:
+                messages.error(request, "Bitte eine CSV-Datei auswählen.")
+                return redirect("beds24_import")
+            try:
+                raw = f.read()
+                text = raw.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                text = raw.decode("latin-1", errors="replace")
+            batch = svc.beds24_stage(text, f.name)
+            messages.success(
+                request, f"{batch.n_rows} Buchungszeilen gelesen. Bitte abgleichen.")
+            return redirect(f"{reverse('beds24_import')}?batch={batch.id}")
+
+        batch = get_object_or_404(Beds24Import, id=request.POST.get("batch"))
+        if action == "create_member":
+            row = get_object_or_404(Beds24ImportRow, id=request.POST.get("row"),
+                                    batch=batch)
+            member = svc.beds24_create_member(row.guest_name,
+                                              row.raw.get("email", "") if row.raw else "")
+            row.chosen_member = member
+            row.save(update_fields=["chosen_member"])
+            messages.success(request, f"Mitglied „{member.display_name}“ angelegt "
+                                      "und der Zeile zugeordnet.")
+            return redirect(f"{reverse('beds24_import')}?batch={batch.id}")
+        if action == "apply":
+            decisions = {}
+            for row in batch.rows.all():
+                rid = row.id
+                act = request.POST.get(f"action_{rid}", "")
+                if act not in ("import", "skip"):
+                    continue
+                def _int(name):
+                    v = request.POST.get(name)
+                    return int(v) if v and v.isdigit() else None
+                decisions[rid] = {
+                    "action": act, "member": _int(f"member_{rid}"),
+                    "quarter": _int(f"quarter_{rid}"),
+                    "persons": _int(f"persons_{rid}")}
+            res = svc.beds24_apply(batch, decisions)
+            msg = (f"{res['imported']} Buchung(en) übernommen, "
+                   f"{res['skipped']} übersprungen.")
+            if res["errors"]:
+                msg += f" {len(res['errors'])} unvollständig (übersprungen)."
+            messages.success(request, msg)
+            return redirect(f"{reverse('beds24_import')}?batch={batch.id}")
+        return redirect("beds24_import")
+
+    # GET
+    batch_id = request.GET.get("batch")
+    batch = Beds24Import.objects.filter(id=batch_id).first() if batch_id else None
+    context = {"recent": list(Beds24Import.objects.all()[:8])}
+    if batch:
+        members = list(Member.objects.select_related("user").order_by("display_name"))
+        quarters = list(Quarter.objects.order_by("name"))
+        context.update({
+            "batch": batch,
+            "rows": list(batch.rows.select_related(
+                "suggested_member", "suggested_quarter",
+                "chosen_member", "chosen_quarter").all()),
+            "members": members, "quarters": quarters})
+    return render(request, "booking/beds24_import.html", context)
 
 
 @login_required
@@ -1072,7 +1152,11 @@ def external_pay(request, token):
     if not booking.invoice.is_payable:
         messages.info(request, "Diese Rechnung ist bereits beglichen.")
         return redirect("external_manage", token=token)
-    pay = pay_svc.start_payment(booking.invoice, request=request)
+    try:
+        pay = pay_svc.start_payment(booking.invoice, request=request)
+    except pay_svc.PaymentUnavailable:
+        messages.error(request, "Online-Bezahlung ist derzeit nicht möglich.")
+        return redirect("external_manage", token=token)
     return redirect(pay.checkout_url)
 
 

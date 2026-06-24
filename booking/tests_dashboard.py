@@ -20,8 +20,11 @@ from shop.models import Invoice, LineItem, Product, ProductGroup, ShopConfig
 
 
 def make_member(name, staff=False, email=""):
-    u = User.objects.create_user(username=name, password="x" * 12, email=email,
-                                 is_staff=staff)
+    u = User.objects.create_user(username=name, password="x" * 12, email=email)
+    if staff:
+        # „Verwaltung"-Rolle = Gruppe, nicht mehr das is_staff-Flag.
+        from booking.permissions import ensure_verwaltung_group
+        u.groups.add(ensure_verwaltung_group())
     m = Member.objects.create(user=u, display_name=name)
     ms = Membership.objects.create(eg_number=f"EG-{name}", label=name,
                                    annual_night_budget=50, wish_night_budget=25)
@@ -193,3 +196,20 @@ class InvoiceDashboardTests(TestCase):
             to_email="mia@example.org", subject__contains="Zahlungserinnerung").exists())
         self.overdue_inv.refresh_from_db()
         self.assertIsNotNone(self.overdue_inv.reminded_at)
+
+    def test_dashboard_queries_skalieren_nicht_mit_rechnungen(self):
+        """N+1-Wächter: das Dashboard darf nicht pro Rechnung neue Queries feuern
+        (total_gross summiert items → ohne prefetch O(n))."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        grp = ProductGroup.objects.get(name="Obst")
+        apple = Product.objects.get(name="Apfel")
+        for _ in range(15):
+            shop_svc.add_item(self.member, apple, "1")
+            shop_svc.checkout(self.member)
+            shop_svc.generate_invoice_now(self.member)
+        self.client.force_login(self.staff.user)
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get(reverse("dashboard") + "?inv=all")
+        self.assertLess(len(ctx.captured_queries), 40,
+                        f"zu viele Queries: {len(ctx.captured_queries)}")

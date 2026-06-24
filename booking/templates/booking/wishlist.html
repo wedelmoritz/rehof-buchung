@@ -34,9 +34,10 @@
       {% for week in cal.weeks %}
       <tr>
         {% for d in week %}
-        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %}"
+        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %} {% if d.is_end %}is-end{% endif %}"
             {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
-          {% if d.is_start %}<span class="start-flag">Start</span>{% endif %}
+          {% if d.is_start %}<span class="cap-flag start">Anreise</span>{% endif %}
+          {% if d.is_end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.in_month and not wishlist_submitted %}
           <a class="dlink" href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}">
             <span class="d-num">{{ d.day }}{% if d.own_sub %} <span class="own sub" title="dein eingereichter Wunsch">&#9679;</span>{% elif d.own_draft %} <span class="own draft" title="dein Entwurf">&#9675;</span>{% endif %}</span>
@@ -165,8 +166,15 @@
   td.lvl-few { background:#f9efc9; } td.lvl-full { background:#f6ddd6; }
   table.wish-cal td.out { background:#f6f0e6; opacity:.5; }
   table.wish-cal td.today { outline:2px dotted #9d958a; outline-offset:-2px; }
-  td.in-range { background-image:linear-gradient(rgba(138,169,127,.18),rgba(138,169,127,.18)); }
-  td.is-start { box-shadow: inset 0 0 0 3px var(--accent-deep); }
+  td.in-range { background:rgba(176,106,72,.18) !important; }
+  td.is-start, td.is-end { background:rgba(176,106,72,.34) !important;
+    box-shadow: inset 0 0 0 3px var(--accent-deep); }
+  td.is-start { border-top-left-radius:12px; border-bottom-left-radius:12px; }
+  td.is-end { border-top-right-radius:12px; border-bottom-right-radius:12px; }
+  .cap-flag { position:absolute; top:0; background:var(--accent-deep); color:#fff;
+    font-size:.56rem; line-height:1; padding:2px 4px; z-index:2; }
+  .cap-flag.start { right:0; border-bottom-left-radius:5px; }
+  .cap-flag.end { left:0; border-bottom-right-radius:5px; }
   .wish-cal .dlink { display:flex; flex-direction:column; justify-content:space-between;
     height:100%; min-height:64px; padding:3px 5px; text-decoration:none; color:var(--ink); }
   .wish-cal .dlink:hover { background:rgba(255,255,255,.4); }

@@ -58,6 +58,7 @@ booking/
 config/                 # settings.py, urls.py, wsgi.py, asgi.py
 tests/                  # reine pytest-Suite (ohne Django/DB)
   test_lottery.py  test_availability.py  test_rules.py
+  test_fairness.py  test_beds24.py
 ```
 
 Modelle in `models.py`: `EquivalenceClass`, `Quarter` (+ `QuarterPrice` =
@@ -237,6 +238,17 @@ Verwendungszweck + exakter Betrag) automatisch: `confirm_invoice` → `confirmed
 Verknüpfung + In-App-/E-Mail-Benachrichtigung ans Mitglied. Nicht eindeutige
 Eingänge bleiben offen (in `BankTransactionAdmin` manuell zuzuordnen + Aktion
 „verbuchen“); Rechnungsstatus bleibt manuell änderbar.
+**Beds24-Migrations-Assistent** (`beds24_import`, `/verwaltung/beds24-import/`,
+**nur Admin** – legt echte Buchungen an): bestehende Beds24-Buchungen per
+**CSV-Upload** übernehmen. Reine Logik in `booking/beds24.py` (flexibles CSV-Parsen
+über Header-Stichwörter + unscharfer Namensabgleich `name_score`/`rank_candidates`,
+Django-frei testbar). Service `services.beds24_stage` (parst + legt `Beds24Import`
+mit `Beds24ImportRow`-Zeilen an und hängt Vorschläge Mitglied/Quartier an),
+`beds24_apply` (übernimmt abgeglichene Zeilen als `Allocation`, Quelle **„import"**,
+**ohne** Rechnung – diese Buchungen sind immer bezahlt; idempotent/dedupe) und
+`beds24_create_member` (legt für nicht zuordenbare Gäste ein Mitglied + Anteil an).
+Gäste tippen ihre Namen bei Beds24 frei → es gibt **nur Vorschläge**, der Abgleich
+ist **manuell** (Review-Seite mit Mitglied-/Quartier-Dropdown + „+ Mitglied"-Knopf).
 **Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
 `docs/BETRIEB-SICHERHEIT.md`.
 
@@ -254,6 +266,8 @@ Zahlungserinnerung an überfällige). Empfänger in `OpsConfig`
 **Hofladen-Katalog im Dashboard pflegen** (`dashboard_products`,
 `/verwaltung/produkte/`): Produkte/Gruppen anlegen + ändern, Preise/aktiv – für
 die Verwaltung-Rolle ohne Backend. Backend-Deeplinks im Dashboard nur für Admins.
+Der **Beds24-Import** (`beds24_import`) ist im Dashboard verlinkt, aber **nur für
+Admins** sichtbar/erreichbar (legt Buchungen an).
 Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 `departures_in_range`, `_annotate_cleaning`, `*_rows`, `*_text`).
 
@@ -325,7 +339,7 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 41 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 53 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
 # 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 31 passed

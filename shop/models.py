@@ -45,11 +45,15 @@ class ShopConfig(models.Model):
         "Online-Bezahlung aktiv", default=True,
         help_text="Schaltet die Online-Bezahlung (Mollie) für Hofladen-Rechnungen "
                   "UND externe Gäste frei.")
+    payments_test_mode = models.BooleanField(
+        "Test-Modus (simuliert, ohne Konto/Gebühren)", default=True,
+        help_text="AN = eingebaute Test-Bezahlseite, es fließt kein echtes Geld. "
+                  "Für den Echtbetrieb ausschalten UND einen Mollie-Key hinterlegen. "
+                  "Solange dieser Haken AN ist, werden Rechnungen NUR simuliert beglichen.")
     mollie_api_key = models.CharField(
         "Mollie API-Key", max_length=64, blank=True,
-        help_text="LEER = eingebauter TEST-Modus (simuliert, ohne Konto/Gebühren). "
-                  "Ein „test_…“-Key nutzt Mollies Testumgebung (ebenfalls kostenlos), "
-                  "ein „live_…“-Key die echte Bezahlung.")
+        help_text="Für den Echtbetrieb (Test-Modus AUS). Ein „test_…“-Key nutzt "
+                  "Mollies kostenlose Testumgebung, ein „live_…“-Key die echte Bezahlung.")
 
     class Meta:
         verbose_name = "Hofladen-Einstellungen"
@@ -268,6 +272,11 @@ class Invoice(models.Model):
         verbose_name = "Rechnung"
         verbose_name_plural = "Rechnungen"
         ordering = ["-year", "-month", "number"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["payment_method"]),
+            models.Index(fields=["status", "due_date"]),
+        ]
 
     def __str__(self) -> str:
         return f"{self.number} ({self.recipient_label})"

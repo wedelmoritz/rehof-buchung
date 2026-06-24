@@ -2,6 +2,7 @@
 {% block title %}Verwaltung{% endblock %}
 {% block content %}
 <div class="sec-head"><h1 style="margin:0">Verwaltung</h1><span class="spacer"></span>
+  {% if is_admin %}<a class="btn small ghost" href="{% url 'beds24_import' %}">Beds24-Import</a>{% endif %}
   <a class="btn small" href="{% url 'dashboard_products' %}">Hofladen-Katalog pflegen</a></div>
 
 <details class="card help-note">

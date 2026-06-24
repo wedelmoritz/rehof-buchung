@@ -79,3 +79,37 @@ class PaymentSandboxTests(TestCase):
         r = self.client.get(reverse("pay_invoice", args=[inv.id]))
         self.assertRedirects(r, reverse("shop_invoice", args=[inv.id]))
         self.assertFalse(Payment.objects.exists())
+
+    def test_echtbetrieb_ohne_key_blockiert(self):
+        # Sicherheitslücke (alt): aktiv + kein Key fiel still in den Sandbox-Modus.
+        cfg = ShopConfig.get_solo()
+        cfg.payments_active = True; cfg.payments_test_mode = False
+        cfg.mollie_api_key = ""; cfg.save()
+        self.assertFalse(payments.payments_enabled())
+        inv = _member_invoice(self.member)
+        with self.assertRaises(payments.PaymentUnavailable):
+            payments.start_payment(inv)
+        self.client.force_login(self.user)
+        r = self.client.get(reverse("pay_invoice", args=[inv.id]))
+        self.assertRedirects(r, reverse("shop_invoice", args=[inv.id]))
+        self.assertFalse(Payment.objects.exists())
+
+    def test_testmodus_simuliert_auch_ohne_key(self):
+        cfg = ShopConfig.get_solo()
+        cfg.payments_active = True; cfg.payments_test_mode = True; cfg.save()
+        self.assertTrue(payments.payments_enabled())
+        pay = payments.start_payment(_member_invoice(self.member))
+        self.assertTrue(pay.is_sandbox)
+
+    def test_gast_rechnung_online_bezahlen(self):
+        from booking.models import Guest
+        g = Guest.objects.create(name="Gast", email="g@example.org")
+        inv = Invoice.objects.create(guest=g, number="HL-2026-06-099",
+                                     year=2026, month=6)
+        LineItem.objects.create(guest=g, invoice=inv, name="Nacht", unit="Nacht",
+                                unit_price=Decimal("80.00"), vat_rate=7,
+                                quantity=Decimal("2"))
+        payments.settle_payment(payments.start_payment(inv))
+        inv.refresh_from_db()
+        self.assertTrue(inv.paid_online)
+        self.assertEqual(inv.status, Invoice.CONFIRMED)

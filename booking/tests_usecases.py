@@ -432,6 +432,19 @@ class BuchungsFlowTests(UseCaseBase):
         b, err = svc.book_spontaneous(self.bob, self.k1, s, e, persons=2)
         self.assertIsNotNone(b, err)
 
+    def test_kalender_markiert_anreise_und_abreise(self):
+        s = date(NEXT_YEAR, 6, 10)
+        e = date(NEXT_YEAR, 6, 13)
+        cal = svc.build_booking_calendar(self.alice, s.year, s.month,
+                                         sel_start=s, sel_end=e)
+        cells = {c["date"]: c for week in cal["weeks"] for c in week if c["in_month"]}
+        self.assertTrue(cells[s]["is_start"])
+        self.assertTrue(cells[e]["is_end"])
+        self.assertFalse(cells[e]["is_start"])
+        # Die Nächte dazwischen sind im Band, der Abreisetag (exklusiv) nicht.
+        self.assertTrue(cells[s + timedelta(days=1)]["in_range"])
+        self.assertFalse(cells[e]["in_range"])
+
     def test_ampel_kalender_zeigt_belegung(self):
         quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
         d = date(NEXT_YEAR, 6, 15)

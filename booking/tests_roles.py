@@ -20,6 +20,14 @@ class RoleHelperTests(TestCase):
         self.assertTrue(is_verwaltung(adm))
         self.assertFalse(is_verwaltung(normal))
 
+    def test_reines_staff_flag_ist_keine_verwaltung(self):
+        # Ein bloßes is_staff (für ein enges Backend-Recht) darf NICHT das
+        # ganze Verwaltungs-Dashboard freischalten.
+        staff = User.objects.create_user("s", password="pw12345")
+        staff.is_staff = True; staff.save()
+        self.assertFalse(is_verwaltung(staff))
+        self.assertFalse(is_admin(staff))
+
 
 class VerwaltungAccessTests(TestCase):
     def setUp(self):
