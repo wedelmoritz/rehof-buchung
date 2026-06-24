@@ -44,16 +44,20 @@
       <td>{{ inv.month }}/{{ inv.year }}</td>
       <td>{{ inv.total_gross }} €</td>
       <td>
-        {% if inv.status == 'open' %}<span class="tag sub">offen</span>
+        {% if inv.paid_online %}<span class="tag mine">online bezahlt</span>
+        {% elif inv.status == 'open' %}<span class="tag sub">offen</span>
         {% elif inv.status == 'paid' %}<span class="tag con">bezahlt gemeldet</span>
         {% else %}<span class="tag mine">bestätigt</span>{% endif %}
       </td>
-      <td>
+      <td style="display:flex;gap:.4rem;flex-wrap:wrap">
+        {% if inv.is_payable %}
+        <a class="btn small" href="{% url 'pay_invoice' inv.id %}">Online bezahlen</a>
+        {% endif %}
         {% if inv.status == 'open' %}
         <form method="post" onsubmit="return confirm('Rechnung {{ inv.number }} als bezahlt melden?');">{% csrf_token %}
           <input type="hidden" name="action" value="mark_paid">
           <input type="hidden" name="invoice_id" value="{{ inv.id }}">
-          <button class="btn small" type="submit">Habe ich bezahlt</button>
+          <button class="btn small ghost" type="submit">Habe ich überwiesen</button>
         </form>
         {% endif %}
       </td>

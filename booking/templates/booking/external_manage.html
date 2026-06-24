@@ -29,7 +29,13 @@
     </span>
   </div>
   <p class="muted" style="margin:.3rem 0">Betrag {{ r.b.total_gross }} €{% if r.b.invoice %}
-    · Rechnung {{ r.b.invoice.number }} ({{ r.b.invoice.get_status_display }}){% endif %}</p>
+    · Rechnung {{ r.b.invoice.number }}
+    ({% if r.b.invoice.paid_online %}online bezahlt{% else %}{{ r.b.invoice.get_status_display }}{% endif %}){% endif %}</p>
+
+  {% if payments_active and r.payable %}
+  <p style="margin:.3rem 0"><a class="btn small" href="{% url 'external_pay' guest.token %}?booking={{ r.b.id }}">
+    {{ r.b.invoice.total_gross }} € online bezahlen</a></p>
+  {% endif %}
 
   {% if r.cancellable %}
   <p class="muted" style="font-size:.85rem">Bei Storno heute: Erstattung

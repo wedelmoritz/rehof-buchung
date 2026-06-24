@@ -10,9 +10,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
 
-from .models import Invoice, Product, ProductGroup
-from . import services as svc
+from .models import Invoice, Payment, Product, ProductGroup
+from . import payments, services as svc
 
 
 def _member(request):
@@ -169,3 +171,84 @@ def invoice_pdf(request, invoice_id: int):
     resp = HttpResponse(pdf.invoice_pdf_bytes(invoice), content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="{invoice.number}.pdf"'
     return resp
+
+
+# --------------------------------------------------------------------------- #
+# Online-Bezahlung (Mollie) – für Mitglieder (hier) und Gäste (booking/external)
+# --------------------------------------------------------------------------- #
+
+@login_required
+def pay_invoice(request, invoice_id: int):
+    """Mitglied startet die Online-Bezahlung einer eigenen Rechnung."""
+    member = _member(request)
+    if not member:
+        return redirect("shop_invoices")
+    invoice = get_object_or_404(Invoice, id=invoice_id, member=member)
+    if not payments.payments_enabled():
+        messages.error(request, "Online-Bezahlung ist derzeit deaktiviert.")
+        return redirect("shop_invoice", invoice.id)
+    if not invoice.is_payable:
+        messages.info(request, "Diese Rechnung ist bereits beglichen.")
+        return redirect("shop_invoice", invoice.id)
+    pay = payments.start_payment(invoice, request=request)
+    return redirect(pay.checkout_url)
+
+
+def payment_sandbox(request, token):
+    """Eingebaute TEST-Bezahlseite (kein Mollie-Konto/keine Gebühren). Simuliert
+    eine Zahlung; login-frei, da über den unfälschbaren Token geschützt."""
+    pay = get_object_or_404(Payment, token=token)
+    if request.method == "POST":
+        if pay.status == Payment.OPEN:
+            if request.POST.get("action") == "pay":
+                payments.settle_payment(pay)
+            else:
+                payments.cancel_payment(pay)
+        return redirect("payment_return", token=pay.token)
+    return render(request, "shop/payment_sandbox.html",
+                  {"pay": pay, "invoice": pay.invoice})
+
+
+def payment_return(request, token):
+    """Rückkehrseite nach der Bezahlung (Mollie oder Sandbox)."""
+    pay = get_object_or_404(Payment, token=token)
+    # Echtes Mollie: Status nachziehen, falls der Webhook noch nicht durch ist.
+    if not pay.is_sandbox and pay.status == Payment.OPEN and pay.provider_id:
+        _refresh_mollie(pay)
+    inv = pay.invoice
+    back_url = None
+    if inv.member_id:
+        back_url = reverse("shop_invoice", args=[inv.id])
+    elif inv.guest_id:
+        back_url = reverse("external_manage", args=[inv.guest.token])
+    return render(request, "shop/payment_return.html",
+                  {"pay": pay, "invoice": inv, "back_url": back_url})
+
+
+@csrf_exempt
+def payment_webhook(request):
+    """Mollie-Webhook (nur Echtbetrieb): meldet eine Zahlungs-ID, wir fragen den
+    Status sicher serverseitig nach."""
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    pid = request.POST.get("id")
+    if pid:
+        try:
+            _refresh_mollie(Payment.objects.get(provider_id=pid))
+        except Payment.DoesNotExist:
+            pass
+    return HttpResponse("ok")
+
+
+def _refresh_mollie(pay: Payment) -> None:
+    try:
+        from . import mollie_api
+        from .models import ShopConfig
+        st = mollie_api.payment_status(
+            ShopConfig.get_solo().mollie_api_key.strip(), pay.provider_id)
+        if st == "paid":
+            payments.settle_payment(pay)
+        elif st in ("expired", "failed", "canceled"):
+            payments.cancel_payment(pay, status=st)
+    except Exception:  # noqa: BLE001
+        pass

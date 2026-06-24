@@ -12,17 +12,27 @@
 
 <div class="card">
   <h2 style="margin-top:0">So bezahlst du</h2>
-  <div class="pay-box">
-    <strong>Online-Direktbezahlung aktuell noch nicht möglich</strong>
-    <p class="muted" style="margin:.3rem 0 0">Kreditkarte, PayPal und Apple/Google&nbsp;Pay
-      folgen in Kürze. Bitte überweise den Betrag wie unten beschrieben.</p>
+  {% if payments_active and invoice.is_payable %}
+  <div class="pay-box" style="border-color:var(--sage)">
+    <strong>Bequem online bezahlen</strong>
+    <p class="muted" style="margin:.3rem 0 .5rem">Kreditkarte, PayPal, Apple/Google&nbsp;Pay –
+      sicher über Mollie.</p>
+    <a class="btn" href="{% url 'external_pay' booking.guest.token %}?booking={{ booking.id }}">
+      Jetzt {{ invoice.total_gross }} € online bezahlen</a>
   </div>
+  <details><summary class="muted" style="cursor:pointer">…oder per Überweisung</summary>
+    <p style="margin:.4rem 0 0">Überweise <strong>{{ invoice.total_gross }} €</strong> bis
+       <strong>{{ invoice.due_date|date:"d.m.Y" }}</strong> auf:<br>
+       IBAN: <strong>{{ invoice.iban|default:"—" }}</strong>{% if invoice.bic %} · BIC: {{ invoice.bic }}{% endif %}<br>
+       Verwendungszweck: <strong>{{ invoice.number }}</strong></p>
+  </details>
+  {% else %}
   <p>Bitte überweise <strong>{{ invoice.total_gross }} €</strong> bis
      <strong>{{ invoice.due_date|date:"d.m.Y" }}</strong> auf:</p>
   <p>IBAN: <strong>{{ invoice.iban|default:"—" }}</strong>{% if invoice.bic %} · BIC: {{ invoice.bic }}{% endif %}<br>
      Verwendungszweck: <strong>{{ invoice.number }}</strong></p>
-  {% if deposit %}<p class="muted">Anzahlung: <strong>{{ deposit }} €</strong> –
-     bitte zuerst überweisen.</p>{% endif %}
+  {% endif %}
+  {% if deposit %}<p class="muted">Anzahlung: <strong>{{ deposit }} €</strong>.</p>{% endif %}
   <p class="muted">Du hast außerdem eine Bestätigung mit allen Angaben per E-Mail
      an <strong>{{ booking.guest.email }}</strong> erhalten.</p>
 </div>

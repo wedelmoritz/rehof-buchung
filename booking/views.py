@@ -741,13 +741,24 @@ def dashboard(request):
     open_sum = sum((i.total_gross for i in open_inv), Decimal(0))
     overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
 
-    # Rechnungssicht: filterbar (offen / überfällig / bezahlt gemeldet / alle).
+    # Online (Mollie) bezahlte Rechnungen – fürs Dashboard separat ausweisbar.
+    online_qs = Invoice.objects.exclude(payment_method="")
+    online_total_count = online_qs.count()
+    online_month = [i for i in online_qs.select_related("member", "guest")
+                    if i.paid_online_at and i.paid_online_at.year == year
+                    and i.paid_online_at.month == month]
+    online_sum = sum((i.total_gross for i in online_month), Decimal(0))
+
+    # Rechnungssicht: filterbar (offen / überfällig / bezahlt gemeldet / online / alle).
     inv_filter = request.GET.get("inv", "open")
     if inv_filter == "overdue":
         invoices_view = sorted(overdue, key=lambda i: (i.due_date or today, i.number))
     elif inv_filter == "paid":
         invoices_view = list(Invoice.objects.filter(status=Invoice.PAID)
                              .select_related("member").order_by("-paid_reported_at"))
+    elif inv_filter == "online":
+        invoices_view = list(online_qs.select_related("member", "guest")
+                             .order_by("-paid_online_at"))
     elif inv_filter == "all":
         invoices_view = list(Invoice.objects.select_related("member")
                              .order_by("-year", "-month", "number"))
@@ -773,6 +784,8 @@ def dashboard(request):
         "open_sum": open_sum, "overdue_sum": overdue_sum,
         "invoices_view": invoices_view, "inv_filter": inv_filter,
         "inv_view_sum": inv_view_sum,
+        "online_total_count": online_total_count, "online_sum": online_sum,
+        "online_count": len(online_month),
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
     })
 
@@ -819,6 +832,64 @@ def dashboard_export(request, kind: str, fmt: str):
             fmt, f"rechnungen-{status}", f"Rechnungen {status}",
             shop_svc.INVOICE_COLUMNS, shop_svc.invoice_export_rows(qs))
     return redirect("dashboard")
+
+
+@login_required
+def dashboard_products(request):
+    """Hofladen-Katalog im Verwaltungs-Dashboard pflegen (Verwaltung-Rolle):
+    Produkte anlegen/ändern/aktiv schalten und Gruppen anlegen – ohne Backend."""
+    if not _staff_required(request):
+        messages.error(request, "Dieser Bereich ist der Verwaltung vorbehalten.")
+        return redirect("overview")
+    from decimal import Decimal, InvalidOperation
+    from shop.models import Product, ProductGroup
+
+    def _price(raw, fallback="0"):
+        return Decimal(str(raw or fallback).replace(",", ".").strip())
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "add_group":
+                name = (request.POST.get("name") or "").strip()
+                if name:
+                    ProductGroup.objects.get_or_create(
+                        name=name, defaults={"emoji": (request.POST.get("emoji") or "").strip()})
+                    messages.success(request, f"Gruppe „{name}“ angelegt.")
+                else:
+                    messages.error(request, "Bitte einen Gruppennamen angeben.")
+            elif action == "add_product":
+                grp = ProductGroup.objects.get(id=request.POST.get("group"))
+                name = (request.POST.get("name") or "").strip()
+                if not name:
+                    raise ValueError("kein Name")
+                Product.objects.create(
+                    group=grp, name=name, price=_price(request.POST.get("price")),
+                    unit=request.POST.get("unit", "stueck"),
+                    vat_rate=int(request.POST.get("vat_rate", 7)),
+                    kind=request.POST.get("kind", "ware"))
+                messages.success(request, f"Produkt „{name}“ angelegt.")
+            elif action == "update_product":
+                p = Product.objects.get(id=request.POST.get("product"))
+                p.name = (request.POST.get("name") or p.name).strip()
+                p.price = _price(request.POST.get("price"), str(p.price))
+                p.unit = request.POST.get("unit", p.unit)
+                p.vat_rate = int(request.POST.get("vat_rate", p.vat_rate))
+                p.active = bool(request.POST.get("active"))
+                p.save()
+                messages.success(request, f"„{p.name}“ gespeichert.")
+        except (ProductGroup.DoesNotExist, Product.DoesNotExist):
+            messages.error(request, "Eintrag nicht gefunden.")
+        except (ValueError, InvalidOperation, TypeError):
+            messages.error(request, "Eingaben bitte prüfen (Name/Preis).")
+        return redirect("dashboard_products")
+
+    groups = [{"group": g, "products": list(g.products.all())}
+              for g in ProductGroup.objects.prefetch_related("products")]
+    return render(request, "booking/dashboard_products.html", {
+        "groups": groups, "all_groups": list(ProductGroup.objects.all()),
+        "units": Product.UNITS, "vat_choices": Product.VAT_CHOICES,
+        "kinds": Product.KIND})
 
 
 @login_required
@@ -916,10 +987,12 @@ def external_book(request):
             zip_code=request.POST.get("zip_code", ""),
             city=request.POST.get("city", ""))
         if booking:
+            from shop import payments as pay_svc
             return render(request, "booking/external_confirm.html", {
                 "booking": booking, "invoice": booking.invoice,
                 "deposit": cfg.deposit_for(booking.total_gross),
-                "cancellation_text": cfg.cancellation_text})
+                "cancellation_text": cfg.cancellation_text,
+                "payments_active": pay_svc.payments_enabled()})
         messages.error(request, err or "Buchung nicht möglich.")
 
     # Review/Eingabe-Seite (GET oder fehlgeschlagener POST)
@@ -963,12 +1036,38 @@ def external_manage(request, token):
                 f"({preview['percent']} %).")
         return redirect("external_manage", token=token)
     cfg = svc.ExternalConfig.get_solo()
+    from shop import payments as pay_svc
     today = date.today()
     rows = [{"b": b, "cancellable": b.status == b.CONFIRMED and b.start > today,
+             "payable": bool(b.invoice_id and b.invoice.is_payable),
              "preview": svc.external_cancellation_preview(b, cfg)}
             for b in bookings]
     return render(request, "booking/external_manage.html", {
-        "guest": guest, "rows": rows, "cfg": cfg, "today": today})
+        "guest": guest, "rows": rows, "cfg": cfg, "today": today,
+        "payments_active": pay_svc.payments_enabled()})
+
+
+def external_pay(request, token):
+    """Externer Gast startet die Online-Bezahlung einer seiner Buchungen
+    (login-frei über den Magic-Link-Token)."""
+    bookings = svc.guest_bookings_by_token(token)
+    if not bookings:
+        return render(request, "booking/external_manage.html",
+                      {"unknown": True}, status=404)
+    bid = request.GET.get("booking") or request.POST.get("booking")
+    booking = next((b for b in bookings if str(b.id) == str(bid)), None)
+    from shop import payments as pay_svc
+    if not booking or not booking.invoice_id:
+        messages.error(request, "Buchung/Rechnung nicht gefunden.")
+        return redirect("external_manage", token=token)
+    if not pay_svc.payments_enabled():
+        messages.error(request, "Online-Bezahlung ist derzeit deaktiviert.")
+        return redirect("external_manage", token=token)
+    if not booking.invoice.is_payable:
+        messages.info(request, "Diese Rechnung ist bereits beglichen.")
+        return redirect("external_manage", token=token)
+    pay = pay_svc.start_payment(booking.invoice, request=request)
+    return redirect(pay.checkout_url)
 
 
 @login_required
