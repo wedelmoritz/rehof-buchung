@@ -40,6 +40,18 @@
   </form>
 </div>
 
+{% if sel_start %}
+<div class="sel-bar">
+  <span class="sel-text">
+    <span class="cap-chip">Anreise</span> {{ eff_start|date:"D d.m." }}
+    {% if sel_end %}&nbsp;→&nbsp; <span class="cap-chip">Abreise</span> {{ eff_end|date:"D d.m." }}
+      &nbsp;·&nbsp; <strong>{{ nights_selected }}</strong> Nächte{% else %}
+      &nbsp;→&nbsp; <span class="hint">jetzt Abreisetag wählen</span>{% endif %}
+  </span>
+  <a class="btn small ghost reset" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Zurücksetzen</a>
+</div>
+{% endif %}
+
 <div class="card">
   {% include "booking/_calnav.html" %}
 
@@ -49,9 +61,10 @@
       {% for week in cal.weeks %}
       <tr>
         {% for d in week %}
-        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %}"
+        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %} {% if d.is_end %}is-end{% endif %}"
             {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
-          {% if d.is_start %}<span class="start-flag">Anreise</span>{% endif %}
+          {% if d.is_start %}<span class="cap-flag start">Anreise</span>{% endif %}
+          {% if d.is_end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.in_month and not d.is_past and d.level != 'none' %}
             <a class="dlink" href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">
               <span class="d-num">{{ d.day }}{% if d.mine %} <span class="mine-dot">●</span>{% endif %}</span>
@@ -102,7 +115,7 @@
       {% if sel_end %}&ndash; Abreise <strong>{{ eff_end }}</strong> ({{ nights_selected }} Nächte){% else %}
       &ndash; <span class="muted">jetzt Abreisetag wählen (oder 1 Nacht buchen)</span>{% endif %}
       · {{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}</span>
-    <a class="muted" style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
+    <a class="btn small ghost" style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
   </div>
 
   {% if too_short %}
@@ -167,11 +180,25 @@
   td.out.lvl-free, td.out.lvl-many, td.out.lvl-few, td.out.lvl-full { opacity:.45; }
   table.book-cal td { position:relative; }
   table.book-cal td.today { outline:2px dotted #9d958a; outline-offset:-2px; }
-  td.in-range { background-image:linear-gradient(rgba(138,169,127,.18),rgba(138,169,127,.18)); }
-  td.is-start { box-shadow: inset 0 0 0 3px var(--accent-deep); }
-  td.is-start .d-num { color:var(--accent-deep); font-weight:700; }
-  .start-flag { position:absolute; top:0; right:0; background:var(--accent-deep); color:#fff;
-    font-size:.6rem; line-height:1; padding:2px 4px; border-bottom-left-radius:5px; z-index:1; }
+  /* Auswahl-Band: sattes Akzent, überdeckt die Ampelfarbe, damit Anreise→Abreise klar lesbar ist */
+  td.in-range { background:rgba(176,106,72,.18) !important; }
+  td.is-start, td.is-end { background:rgba(176,106,72,.34) !important;
+    box-shadow: inset 0 0 0 3px var(--accent-deep); }
+  td.is-start { border-top-left-radius:13px; border-bottom-left-radius:13px; }
+  td.is-end { border-top-right-radius:13px; border-bottom-right-radius:13px; }
+  td.is-start .d-num, td.is-end .d-num { color:var(--accent-deep); font-weight:700; }
+  .cap-flag { position:absolute; top:0; background:var(--accent-deep); color:#fff;
+    font-size:.58rem; line-height:1; padding:2px 4px; z-index:2; }
+  .cap-flag.start { right:0; border-bottom-left-radius:5px; }
+  .cap-flag.end { left:0; border-bottom-right-radius:5px; }
+  .sel-bar { position:sticky; top:8px; z-index:6; display:flex; align-items:center; gap:.6rem;
+    flex-wrap:wrap; background:var(--accent-deep); color:#fff; border-radius:12px;
+    padding:.5rem .85rem; margin-bottom:.6rem; box-shadow:0 3px 10px rgba(0,0,0,.14); }
+  .sel-bar .sel-text { font-size:.95rem; }
+  .sel-bar .cap-chip { background:rgba(255,255,255,.22); border-radius:6px; padding:1px 6px;
+    font-size:.78rem; font-weight:600; }
+  .sel-bar .hint { opacity:.85; }
+  .sel-bar .reset { margin-left:auto; border-color:rgba(255,255,255,.65); color:#fff; background:transparent; }
   .dlink { display:flex; flex-direction:column; justify-content:space-between;
     height:100%; min-height:72px; padding:3px 5px; text-decoration:none; color:var(--ink); }
   .dlink:hover { background:rgba(255,255,255,.35); }

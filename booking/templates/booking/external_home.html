@@ -14,6 +14,17 @@
     (1. Klick) und deinen <strong>Abreisetag</strong> (2. Klick) – oder gib den
     Zeitraum direkt ein.</p>
 
+  {% if start %}
+  <div class="sel-bar">
+    <span class="sel-text">
+      <span class="cap-chip">Anreise</span> {{ start|date:"D d.m." }}
+      {% if end %}&nbsp;→&nbsp; <span class="cap-chip">Abreise</span> {{ end|date:"D d.m." }}{% else %}
+      &nbsp;→&nbsp; <span class="hint">jetzt Abreisetag wählen</span>{% endif %}
+    </span>
+    <a class="btn small ghost reset" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}">Zurücksetzen</a>
+  </div>
+  {% endif %}
+
   {% if cal %}
   {% include "booking/_calnav.html" %}
   <table class="cal ext-cal">
@@ -22,8 +33,9 @@
       {% for week in cal.weeks %}
       <tr>
         {% for d in week %}
-        <td class="{% if d.available %}avail{% else %}blocked{% endif %} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if start and d.date == start %}is-start{% endif %} {% if start and end and start <= d.date and d.date < end %}in-range{% endif %}">
-          {% if start and d.date == start %}<span class="start-flag">Anreise</span>{% endif %}
+        <td class="{% if d.available %}avail{% else %}blocked{% endif %} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if start and d.date == start %}is-start{% endif %} {% if end and d.date == end %}is-end{% endif %} {% if start and end and start <= d.date and d.date < end %}in-range{% endif %}">
+          {% if start and d.date == start %}<span class="cap-flag start">Anreise</span>{% endif %}
+          {% if end and d.date == end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.available and d.in_month %}
             <a class="dlink" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if start and not end and d.date > start %}&start={{ start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}&start={{ d.iso }}{% endif %}">
               <span class="d-num">{{ d.day }}</span>
@@ -87,8 +99,22 @@
   table.ext-cal td.blocked { background:#ece8df; }
   table.ext-cal td.out { opacity:.45; }
   table.ext-cal td.today { outline:2px dotted #9d958a; outline-offset:-2px; }
-  table.ext-cal td.in-range { background-image:linear-gradient(rgba(138,169,127,.22),rgba(138,169,127,.22)); }
-  table.ext-cal td.is-start { box-shadow: inset 0 0 0 3px var(--accent-deep); }
+  table.ext-cal td.in-range { background:rgba(176,106,72,.18) !important; }
+  table.ext-cal td.is-start, table.ext-cal td.is-end { background:rgba(176,106,72,.34) !important;
+    box-shadow: inset 0 0 0 3px var(--accent-deep); }
+  table.ext-cal td.is-start { border-top-left-radius:12px; border-bottom-left-radius:12px; }
+  table.ext-cal td.is-end { border-top-right-radius:12px; border-bottom-right-radius:12px; }
+  .ext-cal .cap-flag, .cap-flag { position:absolute; top:0; background:var(--accent-deep); color:#fff;
+    font-size:.56rem; line-height:1; padding:2px 4px; z-index:2; }
+  .cap-flag.start { right:0; border-bottom-left-radius:5px; }
+  .cap-flag.end { left:0; border-bottom-right-radius:5px; }
+  .sel-bar { position:sticky; top:8px; z-index:6; display:flex; align-items:center; gap:.6rem;
+    flex-wrap:wrap; background:var(--accent-deep); color:#fff; border-radius:12px;
+    padding:.5rem .85rem; margin-bottom:.6rem; box-shadow:0 3px 10px rgba(0,0,0,.14); }
+  .sel-bar .cap-chip { background:rgba(255,255,255,.22); border-radius:6px; padding:1px 6px;
+    font-size:.78rem; font-weight:600; }
+  .sel-bar .hint { opacity:.85; }
+  .sel-bar .reset { margin-left:auto; border-color:rgba(255,255,255,.65); color:#fff; background:transparent; }
   .ext-cal .dlink { display:flex; align-items:center; justify-content:center;
     height:100%; min-height:50px; text-decoration:none; color:var(--ink); font-weight:600; }
   .ext-cal .dlink:hover { background:rgba(255,255,255,.45); border-radius:10px; }

@@ -20,11 +20,13 @@ def is_admin(user) -> bool:
 
 
 def is_verwaltung(user) -> bool:
-    """Verwaltung = Gruppe „Verwaltung" ODER Admin ODER (Bestandsschutz) Staff.
-    Berechtigt zum Verwaltungs-Dashboard – ändert aber Buchungen/Losung nicht."""
+    """Verwaltung = Mitglied der Gruppe „Verwaltung" ODER Admin (Superuser).
+    Berechtigt zum Verwaltungs-Dashboard – ändert aber Buchungen/Losung nicht.
+    Bewusst NICHT an `is_staff` gekoppelt: ein reines Staff-Flag (für ein
+    enges Backend-Recht) soll nicht das ganze Dashboard freischalten."""
     if not getattr(user, "is_authenticated", False):
         return False
-    if user.is_superuser or user.is_staff:
+    if user.is_superuser:
         return True
     return user.groups.filter(name=VERWALTUNG_GROUP).exists()
 

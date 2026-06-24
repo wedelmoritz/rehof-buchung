@@ -190,7 +190,11 @@ def pay_invoice(request, invoice_id: int):
     if not invoice.is_payable:
         messages.info(request, "Diese Rechnung ist bereits beglichen.")
         return redirect("shop_invoice", invoice.id)
-    pay = payments.start_payment(invoice, request=request)
+    try:
+        pay = payments.start_payment(invoice, request=request)
+    except payments.PaymentUnavailable:
+        messages.error(request, "Online-Bezahlung ist derzeit nicht möglich.")
+        return redirect("shop_invoice", invoice.id)
     return redirect(pay.checkout_url)
 
 

@@ -578,6 +578,7 @@ def build_booking_calendar(
                 "mine": d in own_days,
                 "in_range": in_range,
                 "is_start": sel_start == d,
+                "is_end": bool(sel_end) and sel_end == d,
             })
         grid.append(row)
 
@@ -647,6 +648,7 @@ def build_wish_calendar(
                 "level": level, "demand": demand,
                 "own_sub": own_sub, "own_draft": own_draft,
                 "in_range": in_range, "is_start": sel_start == d,
+                "is_end": bool(sel_end) and sel_end == d,
             })
         grid.append(row)
 

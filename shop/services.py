@@ -296,9 +296,11 @@ def confirm_invoice(invoice: Invoice) -> None:
 # --------------------------------------------------------------------------- #
 
 def open_invoices(qs=None):
-    """Alle offenen (noch nicht als bezahlt gemeldeten) Rechnungen."""
+    """Alle offenen (noch nicht als bezahlt gemeldeten) Rechnungen.
+    `prefetch_related("items")` vermeidet N+1 beim Summieren von `total_gross`."""
     qs = qs if qs is not None else Invoice.objects.all()
-    return qs.filter(status=Invoice.OPEN).select_related("member")
+    return (qs.filter(status=Invoice.OPEN)
+            .select_related("member", "guest").prefetch_related("items"))
 
 
 def overdue_invoices(qs=None):

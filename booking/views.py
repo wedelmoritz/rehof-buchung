@@ -742,9 +742,10 @@ def dashboard(request):
     overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
 
     # Online (Mollie) bezahlte Rechnungen – fürs Dashboard separat ausweisbar.
-    online_qs = Invoice.objects.exclude(payment_method="")
+    online_qs = (Invoice.objects.exclude(payment_method="")
+                 .select_related("member", "guest").prefetch_related("items"))
     online_total_count = online_qs.count()
-    online_month = [i for i in online_qs.select_related("member", "guest")
+    online_month = [i for i in online_qs
                     if i.paid_online_at and i.paid_online_at.year == year
                     and i.paid_online_at.month == month]
     online_sum = sum((i.total_gross for i in online_month), Decimal(0))
@@ -755,12 +756,13 @@ def dashboard(request):
         invoices_view = sorted(overdue, key=lambda i: (i.due_date or today, i.number))
     elif inv_filter == "paid":
         invoices_view = list(Invoice.objects.filter(status=Invoice.PAID)
-                             .select_related("member").order_by("-paid_reported_at"))
+                             .select_related("member", "guest")
+                             .prefetch_related("items").order_by("-paid_reported_at"))
     elif inv_filter == "online":
-        invoices_view = list(online_qs.select_related("member", "guest")
-                             .order_by("-paid_online_at"))
+        invoices_view = list(online_qs.order_by("-paid_online_at"))
     elif inv_filter == "all":
-        invoices_view = list(Invoice.objects.select_related("member")
+        invoices_view = list(Invoice.objects.select_related("member", "guest")
+                             .prefetch_related("items")
                              .order_by("-year", "-month", "number"))
     else:
         inv_filter = "open"
@@ -1150,7 +1152,11 @@ def external_pay(request, token):
     if not booking.invoice.is_payable:
         messages.info(request, "Diese Rechnung ist bereits beglichen.")
         return redirect("external_manage", token=token)
-    pay = pay_svc.start_payment(booking.invoice, request=request)
+    try:
+        pay = pay_svc.start_payment(booking.invoice, request=request)
+    except pay_svc.PaymentUnavailable:
+        messages.error(request, "Online-Bezahlung ist derzeit nicht möglich.")
+        return redirect("external_manage", token=token)
     return redirect(pay.checkout_url)
 
 

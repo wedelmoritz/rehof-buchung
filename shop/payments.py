@@ -18,8 +18,18 @@ from django.utils import timezone
 from .models import Invoice, Payment, ShopConfig
 
 
+class PaymentUnavailable(Exception):
+    """Online-Bezahlung ist aus/fehlkonfiguriert (z. B. Echtbetrieb ohne Key)."""
+
+
 def payments_enabled() -> bool:
-    return ShopConfig.get_solo().payments_active
+    """Aktiv UND korrekt konfiguriert: Test-Modus ODER ein Mollie-Key vorhanden.
+    Verhindert die gefährliche Fehlkonfiguration „aktiv, Echtbetrieb, kein Key“
+    (die früher still in den Simulationsmodus gefallen wäre)."""
+    cfg = ShopConfig.get_solo()
+    if not cfg.payments_active:
+        return False
+    return cfg.payments_test_mode or bool(cfg.mollie_api_key.strip())
 
 
 def _abs(request, path: str) -> str:
@@ -34,7 +44,12 @@ def start_payment(invoice: Invoice, *, request=None, amount=None,
     cfg = ShopConfig.get_solo()
     amt = Decimal(amount) if amount is not None else invoice.total_gross
     desc = (description or f"Re:Hof Rechnung {invoice.number}")[:140]
-    sandbox = not bool(cfg.mollie_api_key.strip())
+    # Sandbox NUR im expliziten Test-Modus – NICHT als stiller Fallback bei
+    # fehlendem Key (sonst würden Rechnungen ohne Zahlung „bezahlt“).
+    sandbox = cfg.payments_test_mode
+    if not sandbox and not cfg.mollie_api_key.strip():
+        raise PaymentUnavailable(
+            "Echtbetrieb ohne Mollie-Key: Online-Bezahlung nicht möglich.")
     pay = Payment.objects.create(
         invoice=invoice, amount=amt, description=desc,
         is_sandbox=sandbox, provider="mollie")
@@ -56,7 +71,10 @@ def start_payment(invoice: Invoice, *, request=None, amount=None,
 @transaction.atomic
 def settle_payment(pay: Payment) -> None:
     """Verbucht eine erfolgreiche Zahlung: Rechnung gilt als online beglichen
-    (Status „bestätigt/archiviert“, `payment_method`). Idempotent."""
+    (Status „bestätigt/archiviert“, `payment_method`). Idempotent und gegen
+    Doppelverbuchung gesperrt (Webhook + Rückkehrseite gleichzeitig)."""
+    # Zeile sperren, damit nebenläufige Settler serialisieren (TOCTOU-Schutz).
+    pay = Payment.objects.select_for_update().get(pk=pay.pk)
     if pay.status == Payment.PAID:
         return
     now = timezone.now()

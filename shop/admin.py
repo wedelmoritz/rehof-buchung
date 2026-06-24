@@ -52,12 +52,13 @@ class ShopConfigAdmin(admin.ModelAdmin):
                            "Zahlungsziel bestimmt, ab wann eine Rechnung als "
                            "überfällig gilt (für die Zahlungserinnerung)."}),
         ("Online-Bezahlung (Mollie)", {
-            "fields": ("payments_active", "mollie_api_key"),
-            "description": "EIN Zahlsystem für Hofladen UND externe Gäste. Ohne "
-                           "API-Key läuft alles im eingebauten TEST-Modus (simuliert, "
-                           "ohne Konto/Gebühren). Ein „test_…“-Key nutzt Mollies "
-                           "kostenlose Testumgebung, ein „live_…“-Key die echte "
-                           "Bezahlung."}),
+            "fields": ("payments_active", "payments_test_mode", "mollie_api_key"),
+            "description": "EIN Zahlsystem für Hofladen UND externe Gäste. Im "
+                           "TEST-Modus (Standard) wird simuliert – kein echtes Geld, "
+                           "kein Konto, keine Gebühren. Für den Echtbetrieb den "
+                           "Test-Modus AUSschalten UND einen Mollie-Key hinterlegen "
+                           "(„test_…“ = kostenlose Mollie-Testumgebung, „live_…“ = "
+                           "echte Bezahlung)."}),
     )
 
     def has_add_permission(self, request):
