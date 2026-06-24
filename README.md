@@ -118,6 +118,12 @@ ist das Konto freigeschaltet und kann buchen.
   passender Betrag wird automatisch verbucht). Unter **„Produkte“**
   (`/verwaltung/produkte/`) pflegt die Verwaltung den **Hofladen-Katalog**
   (Produkte/Gruppen, Preise, aktiv) ganz ohne Backend.
+- **Beds24-Import** (`/verwaltung/beds24-import/`, **nur Admin**): bestehende
+  Buchungen aus Beds24 als **CSV** hochladen; der Assistent schlägt je Zeile
+  per unscharfem Namensabgleich ein **Mitglied** und **Quartier** vor, die du
+  **manuell** bestätigst (oder direkt ein neues Mitglied anlegst). Übernommene
+  Zeilen werden als Buchung angelegt – **ohne** Rechnung, da diese Buchungen
+  bereits bezahlt sind.
 
 ### 3) Als Testnutzer:in testen
 

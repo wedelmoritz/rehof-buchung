@@ -27,6 +27,7 @@ urlpatterns = [
     path("extern/widget/", views.external_embed, name="external_embed"),
     path("verwaltung/", views.dashboard, name="dashboard"),
     path("verwaltung/produkte/", views.dashboard_products, name="dashboard_products"),
+    path("verwaltung/beds24-import/", views.beds24_import, name="beds24_import"),
     path("verwaltung/export/<str:kind>.<str:fmt>", views.dashboard_export,
          name="dashboard_export"),
 ]

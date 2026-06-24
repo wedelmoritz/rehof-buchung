@@ -11,13 +11,39 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 from .models import (
-    Allocation, BookingPeriod, BookingPolicy, EquivalenceClass, ExternalBooking,
+    Allocation, Beds24Import, Beds24ImportRow, BookingPeriod, BookingPolicy,
+    EquivalenceClass, ExternalBooking,
     ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
     NightTransfer,
     Notification, OpsConfig, OutboxEmail, Quarter, QuarterPrice, SchoolHoliday,
     SeasonRule, Share, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
 )
 from .services import confirm_lottery, rollback_lottery, run_period_lottery
+
+
+class Beds24ImportRowInline(admin.TabularInline):
+    model = Beds24ImportRow
+    extra = 0
+    can_delete = False
+    fields = ("guest_name", "arrival", "departure", "unit", "persons",
+              "suggested_member", "suggested_score", "chosen_member",
+              "chosen_quarter", "status", "note")
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Beds24Import)
+class Beds24ImportAdmin(admin.ModelAdmin):
+    """Beds24-Migrations-Läufe (Audit). Der eigentliche Abgleich läuft über den
+    Assistenten unter /verwaltung/beds24-import/ (nur Admin)."""
+    list_display = ("created_at", "filename", "n_rows", "n_imported")
+    inlines = [Beds24ImportRowInline]
+    readonly_fields = ("created_at", "filename", "n_rows", "n_imported")
+
+    def has_add_permission(self, request):
+        return False
 
 # Branding der Verwaltung
 admin.site.site_header = "ReHof-Verwaltung"

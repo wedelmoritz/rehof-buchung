@@ -893,6 +893,84 @@ def dashboard_products(request):
 
 
 @login_required
+def beds24_import(request):
+    """Migrations-Assistent: bestehende Beds24-Buchungen per CSV importieren.
+    Nur Admin (legt echte Buchungen an). Ablauf: CSV hochladen → automatischer
+    Vorschlag je Zeile → manuell Mitglied/Quartier abgleichen → übernehmen."""
+    from .permissions import is_admin
+    if not is_admin(request.user):
+        messages.error(request, "Der Import ist der Admin-Rolle vorbehalten.")
+        return redirect("dashboard")
+    from .models import Beds24Import, Beds24ImportRow
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "upload":
+            f = request.FILES.get("csv")
+            if not f:
+                messages.error(request, "Bitte eine CSV-Datei auswählen.")
+                return redirect("beds24_import")
+            try:
+                raw = f.read()
+                text = raw.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                text = raw.decode("latin-1", errors="replace")
+            batch = svc.beds24_stage(text, f.name)
+            messages.success(
+                request, f"{batch.n_rows} Buchungszeilen gelesen. Bitte abgleichen.")
+            return redirect(f"{reverse('beds24_import')}?batch={batch.id}")
+
+        batch = get_object_or_404(Beds24Import, id=request.POST.get("batch"))
+        if action == "create_member":
+            row = get_object_or_404(Beds24ImportRow, id=request.POST.get("row"),
+                                    batch=batch)
+            member = svc.beds24_create_member(row.guest_name,
+                                              row.raw.get("email", "") if row.raw else "")
+            row.chosen_member = member
+            row.save(update_fields=["chosen_member"])
+            messages.success(request, f"Mitglied „{member.display_name}“ angelegt "
+                                      "und der Zeile zugeordnet.")
+            return redirect(f"{reverse('beds24_import')}?batch={batch.id}")
+        if action == "apply":
+            decisions = {}
+            for row in batch.rows.all():
+                rid = row.id
+                act = request.POST.get(f"action_{rid}", "")
+                if act not in ("import", "skip"):
+                    continue
+                def _int(name):
+                    v = request.POST.get(name)
+                    return int(v) if v and v.isdigit() else None
+                decisions[rid] = {
+                    "action": act, "member": _int(f"member_{rid}"),
+                    "quarter": _int(f"quarter_{rid}"),
+                    "persons": _int(f"persons_{rid}")}
+            res = svc.beds24_apply(batch, decisions)
+            msg = (f"{res['imported']} Buchung(en) übernommen, "
+                   f"{res['skipped']} übersprungen.")
+            if res["errors"]:
+                msg += f" {len(res['errors'])} unvollständig (übersprungen)."
+            messages.success(request, msg)
+            return redirect(f"{reverse('beds24_import')}?batch={batch.id}")
+        return redirect("beds24_import")
+
+    # GET
+    batch_id = request.GET.get("batch")
+    batch = Beds24Import.objects.filter(id=batch_id).first() if batch_id else None
+    context = {"recent": list(Beds24Import.objects.all()[:8])}
+    if batch:
+        members = list(Member.objects.select_related("user").order_by("display_name"))
+        quarters = list(Quarter.objects.order_by("name"))
+        context.update({
+            "batch": batch,
+            "rows": list(batch.rows.select_related(
+                "suggested_member", "suggested_quarter",
+                "chosen_member", "chosen_quarter").all()),
+            "members": members, "quarters": quarters})
+    return render(request, "booking/beds24_import.html", context)
+
+
+@login_required
 def period_result(request, period_id: int):
     period = get_object_or_404(BookingPeriod, id=period_id)
     member = _current_member(request)

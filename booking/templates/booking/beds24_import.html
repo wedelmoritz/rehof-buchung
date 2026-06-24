@@ -1,0 +1,123 @@
+{% extends "booking/base.html" %}
+{% block title %}Beds24-Import{% endblock %}
+{% block content %}
+<div class="sec-head"><h1 style="margin:0">Beds24-Buchungen importieren</h1>
+  <span class="spacer"></span><a href="{% url 'dashboard' %}">← Dashboard</a></div>
+
+<details class="card help-note">
+  <summary><strong>So funktioniert der Import</strong></summary>
+  <ol>
+    <li>Bei Beds24 die Buchungen exportieren (BOOKINGS → <strong>EXPORT</strong>, CSV).</li>
+    <li>CSV hier hochladen – Spalten (Name, An-/Abreise, Unit, Personen) werden
+      automatisch erkannt.</li>
+    <li>Je Zeile schlägt der Assistent das wahrscheinlichste <strong>Mitglied</strong>
+      und <strong>Quartier</strong> vor (Gäste tippen ihre Namen frei – daher nur
+      Vorschläge). Du gleichst manuell ab; passt keiner, kannst du direkt ein
+      <strong>neues Mitglied anlegen</strong>.</li>
+    <li>„Übernehmen“ legt die Buchungen an – <strong>ohne Rechnung</strong>, da diese
+      Buchungen bereits bezahlt sind.</li>
+  </ol>
+</details>
+
+<div class="card">
+  <h2 style="margin-top:0">CSV hochladen</h2>
+  <form method="post" enctype="multipart/form-data" class="import-form">{% csrf_token %}
+    <input type="hidden" name="action" value="upload">
+    <input type="file" name="csv" accept=".csv,.txt,.tsv" required>
+    <button class="btn" type="submit">Hochladen &amp; vorschlagen</button>
+  </form>
+  {% if recent %}
+  <p class="muted" style="margin:.6rem 0 0">Letzte Importe:
+    {% for b in recent %}<a href="?batch={{ b.id }}">{{ b.created_at|date:"d.m. H:i" }}
+      ({{ b.n_imported }}/{{ b.n_rows }})</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+  {% endif %}
+</div>
+
+{% if batch %}
+<form method="post">{% csrf_token %}
+  <input type="hidden" name="action" value="apply">
+  <input type="hidden" name="batch" value="{{ batch.id }}">
+<div class="card">
+  <div class="sec-head"><h2 style="margin:0">Abgleich – {{ rows|length }} Zeilen</h2>
+    <span class="spacer"></span><button class="btn" type="submit">Auswahl übernehmen</button></div>
+  <p class="muted" style="margin:.2rem 0 .6rem">Treffergüte: 🟢 sicher · 🟡 prüfen ·
+    🔴 kein Vorschlag. Aktion „übernehmen“ ist bei sicheren Treffern vorausgewählt.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr>
+      <th>Gast (Beds24)</th><th>Zeitraum</th><th>Unit</th><th>Pers.</th>
+      <th>Mitglied</th><th>Quartier</th><th>Aktion</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="{% if r.status == 'imported' %}ok-row{% elif not r.valid %}danger-row{% endif %}">
+        <td>{{ r.guest_name }}
+          {% if r.suggested_score >= 0.7 %}🟢{% elif r.suggested_member %}🟡{% else %}🔴{% endif %}
+          {% if r.note %}<br><span class="muted" style="font-size:.8rem">{{ r.note }}</span>{% endif %}</td>
+        <td>{{ r.arrival|date:"d.m.y" }}–{{ r.departure|date:"d.m.y" }}<br>
+          <span class="muted">{{ r.nights }} N</span></td>
+        <td>{{ r.unit|default:"—" }}</td>
+        <td><input type="number" name="persons_{{ r.id }}" value="{{ r.persons }}" min="1" style="width:3.2rem"></td>
+        <td>
+          {% if r.status == 'imported' %}<strong>{{ r.chosen_member }}</strong>
+          {% else %}
+          <select name="member_{{ r.id }}" style="min-width:11rem">
+            <option value="">— wählen —</option>
+            {% for m in members %}<option value="{{ m.id }}" {% if r.chosen_member_id == m.id %}selected{% endif %}>{{ m.display_name }}</option>{% endfor %}
+          </select>
+          <button class="btn small ghost" type="button" data-cm="{{ r.id }}"
+            title="Neues Mitglied aus dem Gastnamen anlegen">+ Mitglied</button>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.status == 'imported' %}{{ r.chosen_quarter }}
+          {% else %}
+          <select name="quarter_{{ r.id }}" style="min-width:9rem">
+            <option value="">— wählen —</option>
+            {% for q in quarters %}<option value="{{ q.id }}" {% if r.chosen_quarter_id == q.id %}selected{% endif %}>{{ q.name }}</option>{% endfor %}
+          </select>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.status == 'imported' %}<span class="tag" style="background:#e1efd6;color:#41663a">übernommen</span>
+          {% else %}
+          <select name="action_{{ r.id }}">
+            <option value="">offen</option>
+            <option value="import" {% if r.valid and r.chosen_member_id and r.chosen_quarter_id %}selected{% endif %}>übernehmen</option>
+            <option value="skip">überspringen</option>
+          </select>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="actions"><button class="btn" type="submit">Auswahl übernehmen</button></div>
+</div>
+</form>
+
+{# Separate Mini-Formulare je Zeile für „+ Mitglied" (eigener Submit, kein Pflichtfeld-Zwang) #}
+<div style="display:none">
+{% for r in rows %}{% if r.status != 'imported' %}
+  <form method="post" id="cm{{ r.id }}">{% csrf_token %}
+    <input type="hidden" name="action" value="create_member">
+    <input type="hidden" name="batch" value="{{ batch.id }}">
+    <input type="hidden" name="row" value="{{ r.id }}"></form>
+{% endif %}{% endfor %}
+</div>
+{% endif %}
+
+<style>
+  .ok-row td { background:#f2f8ec; }
+  .import-form { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+  table.grid select, table.grid input { padding:.3rem .35rem; }
+</style>
+<script>
+  // „+ Mitglied"-Knopf: reicht das zugehörige Mini-Formular der Zeile ein.
+  document.querySelectorAll('button[data-cm]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var f = document.getElementById('cm' + btn.getAttribute('data-cm'));
+      if (f) f.submit();
+    });
+  });
+</script>
+{% endblock %}

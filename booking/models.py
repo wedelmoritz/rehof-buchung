@@ -417,6 +417,7 @@ class Allocation(models.Model):
         ("lottery", "Losung"),
         ("spontaneous", "Spontanbuchung"),
         ("external", "Externe Buchung"),
+        ("import", "Beds24-Import"),
     ]
     member = models.ForeignKey(
         Member, on_delete=models.CASCADE, related_name="allocations",
@@ -1013,3 +1014,77 @@ class FairnessSimConfig(models.Model):
     @classmethod
     def get_solo(cls) -> "FairnessSimConfig":
         return cls.objects.first() or cls.objects.create()
+
+
+class Beds24Import(models.Model):
+    """Ein Lauf des Beds24-Migrations-Assistenten (CSV-Upload). Hält Eckdaten;
+    die einzelnen Buchungszeilen stehen als `Beds24ImportRow` zum manuellen
+    Abgleich (Mitglied/Quartier zuordnen → als Buchung übernehmen)."""
+    created_at = models.DateTimeField("Hochgeladen am", auto_now_add=True)
+    filename = models.CharField("Datei", max_length=200, blank=True)
+    n_rows = models.PositiveIntegerField("Zeilen gesamt", default=0)
+    n_imported = models.PositiveIntegerField("Übernommen", default=0)
+
+    class Meta:
+        verbose_name = "Beds24-Import"
+        verbose_name_plural = "Beds24-Importe"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Beds24-Import {self.created_at:%d.%m.%Y %H:%M} ({self.filename})"
+
+
+class Beds24ImportRow(models.Model):
+    """Eine Buchungszeile aus dem Beds24-CSV im Abgleich. `suggested_member`/
+    `suggested_quarter` sind die automatischen Vorschläge; `chosen_*` setzt die
+    Verwaltung beim manuellen Abgleich. Beim Übernehmen entsteht `allocation`."""
+    PENDING, IMPORTED, SKIPPED = "pending", "imported", "skipped"
+    STATUS = [(PENDING, "Offen"), (IMPORTED, "Übernommen"), (SKIPPED, "Übersprungen")]
+
+    batch = models.ForeignKey(Beds24Import, on_delete=models.CASCADE,
+                              related_name="rows", verbose_name="Import")
+    guest_name = models.CharField("Gastname (Beds24)", max_length=200)
+    arrival = models.DateField("Anreise", null=True, blank=True)
+    departure = models.DateField("Abreise", null=True, blank=True)
+    unit = models.CharField("Unit/Quartier (Beds24)", max_length=200, blank=True)
+    persons = models.PositiveIntegerField("Personen", default=1)
+    ref = models.CharField("Referenz", max_length=80, blank=True)
+    raw = models.JSONField("Originalzeile", default=dict, blank=True)
+
+    suggested_member = models.ForeignKey(
+        Member, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Vorschlag Mitglied")
+    suggested_score = models.FloatField("Treffergüte", default=0.0)
+    suggested_quarter = models.ForeignKey(
+        Quarter, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Vorschlag Quartier")
+    chosen_member = models.ForeignKey(
+        Member, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Mitglied")
+    chosen_quarter = models.ForeignKey(
+        Quarter, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Quartier")
+    status = models.CharField("Status", max_length=10, choices=STATUS, default=PENDING)
+    allocation = models.ForeignKey(
+        "Allocation", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Erzeugte Buchung")
+    note = models.CharField("Hinweis", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "Beds24-Buchungszeile"
+        verbose_name_plural = "Beds24-Buchungszeilen"
+        ordering = ["arrival", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.guest_name} {self.arrival}–{self.departure}"
+
+    @property
+    def nights(self) -> int:
+        if self.arrival and self.departure:
+            return max(0, (self.departure - self.arrival).days)
+        return 0
+
+    @property
+    def valid(self) -> bool:
+        return bool(self.guest_name and self.arrival and self.departure
+                    and self.departure > self.arrival)
