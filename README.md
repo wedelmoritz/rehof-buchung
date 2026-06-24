@@ -123,13 +123,20 @@ ist das Konto freigeschaltet und kann buchen.
   per unscharfem Namensabgleich ein **Mitglied** und **Quartier** vor, die du
   **manuell** bestätigst (oder direkt ein neues Mitglied anlegst). Übernommene
   Zeilen werden als Buchung angelegt – **ohne** Rechnung, da diese Buchungen
-  bereits bezahlt sind.
+  bereits bezahlt sind. Der Assistent wird i. d. R. nur einmalig beim Umzug
+  gebraucht und lässt sich danach in den **Betriebs-Einstellungen**
+  (`beds24_import_enabled`) abschalten – dann ist er im Dashboard ausgeblendet
+  und gesperrt (auch für Admins).
 
 ### 3) Als Testnutzer:in testen
 
-- **Übersicht**: einen Tag anklicken → wer ist da, was ist frei.
-- **Buchen**: Personen einstellen, im Ampel-Kalender An-/Abreise klicken, Quartier
-  wählen, optional **Endreinigung** mitbuchen; ist alles belegt → **Warteliste**.
+- **Übersicht**: einen Tag anklicken → wer ist da, was ist frei. Oben zwischen
+  **Kalender** (Monatsraster) und **Belegung** (Zeitstrahl je Unterkunft, ein
+  Balken pro Aufenthalt) umschalten.
+- **Buchen**: Personen einstellen, im Ampel-Kalender An-/Abreise klicken
+  (Anreise und Abreise sind je mit einem Fähnchen markiert, die gewählten Nächte
+  als Band), Quartier wählen, optional **Endreinigung** mitbuchen; ist alles
+  belegt → **Warteliste** (eigene Einträge unter *Meine Buchungen*).
 - **Wunschliste**: Wünsche fürs Folgejahr eintragen, priorisieren, **einreichen**.
   Nach der (bestätigten) Losung das Ergebnis unter **Meine Buchungen** sehen.
 - **Meine Buchungen**: stornieren; **Wechselwunsch** an ein anderes Mitglied.
@@ -387,9 +394,9 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 
 | Funktion | Funktional (was es tut) | Technik (Datei · Funktion/Klasse) |
 |---|---|---|
-| Übersicht | Community-Monatskalender; Klick auf einen Tag zeigt, wer da ist und was frei ist | `booking/views.py::overview` · `services.build_community_calendar`, `day_detail` |
+| Übersicht | Community-Monatskalender mit Umschalter **Kalender/Belegung** (Belegung = Zeitstrahl je Unterkunft); Klick auf einen Tag zeigt, wer da ist und was frei ist | `booking/views.py::overview` · `services.build_community_calendar`, `build_occupancy_timeline`, `day_detail` |
 | Buchen / Spontanbuchung | Ampel-Kalender, Quartierwahl nach Personen/Barrierefreiheit, Mindestnächte-Hinweis, Bestätigungsschritt | `views.py::book`, `book_confirm` · `services.book_spontaneous`, `split_quarters_for_range`, `range_is_released`, `min_nights_for_range` |
-| Warteliste | Auf belegten Zeitraum warten; Benachrichtigung, sobald frei | `services.add_waitlist_entry`, `notify_waitlist_if_free` · `models.WaitlistEntry` |
+| Warteliste | Auf belegten Zeitraum warten; Benachrichtigung, sobald frei; eigene offene Einträge unter „Meine Wartelisten-Einträge“ in *Meine Buchungen* | `services.add_waitlist_entry`, `notify_waitlist_if_free` · `models.WaitlistEntry` |
 | Wunschliste | Wünsche fürs Folgejahr eintragen, priorisieren (Drag/Pfeiltasten), einreichen | `views.py::wishlist` · `services.add_wish`, `move_wish`, `submit_wishlist`, `build_wish_calendar` · `models.Wish` |
 | Losverfahren | Gewichtete Ziehung, Runden-Prinzip, Ausweichquartiere, Karma | `booking/lottery.py::run_lottery`, `weighted_random_order` · `services.run_period_lottery` |
 | Ergebnis-/Auditansicht | Eigenes Ergebnis + Gemeinschafts-Zuteilungen + (Staff) Protokoll | `views.py::period_result` · `lottery.render_log_text` |
@@ -418,7 +425,7 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Kontoabgleich | Auszug (CSV/CAMT) importieren → eindeutige Treffer automatisch verbuchen + benachrichtigen | `shop/bankimport.py::parse_csv/parse_camt` · `shop/reconcile.py::import_bank_statement`, `book_payment` |
 | Losung steuern | Durchführen, **bestätigen** (veröffentlichen), **zurücknehmen** | `services.confirm_lottery`, `rollback_lottery` · `admin.BookingPeriodAdmin`, `LotteryRunAdmin` |
 | Stammdaten & Regeln | Mitglieder/Anteile, Quartiere, Saison-Regeln, Perioden | `booking/admin.py`, `shop/admin.py` |
-| Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag | `models.OpsConfig` |
+| Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag, **Beds24-Import an/aus** | `models.OpsConfig` |
 | Genossenschaftsdaten / Zahlung | Name, Anschrift, Steuernummer, IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel + Online-Bezahlung (an/aus, Mollie-Key) | `shop/models.py::ShopConfig` |
 
 ### Betrieb (Scheduler/Cron) & reine Logik
@@ -523,6 +530,9 @@ Anpassen im Admin (Äquivalenzklassen + Quartiere) oder in `seed_demo.py`.
 - TLS terminiert Caddy; der Web-Container ist nur an `127.0.0.1` gebunden.
 - `install.sh` erzeugt einen langen zufälligen `SECRET_KEY` und ein DB-Passwort;
   die `.env` ist `.gitignore`-geschützt.
+- **Datei-Uploads gehärtet:** Kontoauszug- und Beds24-CSV-Uploads sind auf
+  **10 MB** begrenzt; der CAMT-Import lehnt `DOCTYPE`/`ENTITY` in der XML ab
+  (Schutz vor Entity-Expansion).
 - **Authentifizierungs-Naht:** Für später ist ein Wechsel auf Keycloak/OIDC
   vorgesehen (z.B. `mozilla-django-oidc`), ohne die übrige App umzubauen – die
   Stelle ist in `config/settings.py` markiert.

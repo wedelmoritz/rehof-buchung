@@ -84,3 +84,14 @@ class Beds24AccessTests(TestCase):
         adm = User.objects.create_superuser("adm", "a@e.de", "x")
         self.client.force_login(adm)
         self.assertEqual(self.client.get(reverse("beds24_import")).status_code, 200)
+
+    def test_deaktivierbar_per_opsconfig(self):
+        from booking.models import OpsConfig
+        adm = User.objects.create_superuser("adm2", "a2@e.de", "x")
+        self.client.force_login(adm)
+        cfg = OpsConfig.get_solo()
+        cfg.beds24_import_enabled = False
+        cfg.save()
+        # Auch Admin wird bei deaktiviertem Import aufs Dashboard umgeleitet.
+        r = self.client.get(reverse("beds24_import"))
+        self.assertRedirects(r, reverse("dashboard"))

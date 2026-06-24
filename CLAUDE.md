@@ -73,7 +73,8 @@ buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitte
 Buchungen“), `LotteryRun`, `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
-Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag),
+Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
+`beds24_import_enabled` = Beds24-Import an/aus),
 `SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
 `SchoolHoliday`, `FairnessSimConfig` (Singleton: Parameter + letztes Ergebnis
@@ -113,17 +114,26 @@ Online-Bezahlung) und gilt für Gäste wie Mitglieder gleichermaßen.
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
 farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
-unten, wer da ist und was noch frei ist), `book` (Ampel-Kalender → Personen/
+unten, wer da ist und was noch frei ist; **Umschalter „Kalender / Belegung“** –
+„Belegung“ zeigt pro Unterkunft EINE Zeile mit Balken Anreise→Abreise [Farbe je
+Mitglied, externe Gäste neutral], also „von wann bis wann ist wer wo“ auf einen
+Blick; Service `services.build_occupancy_timeline`; das Monatsraster bleibt
+Standard), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
 eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
-Eignung und Mindestaufenthalt werden vorab angezeigt), `book_confirm`
+Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
+je eigen markiert [Fähnchen „Anreise“/„Abreise“], das gewählte Band ist deutlich,
+sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf – ebenso in
+Wunsch-/Externen-Kalendern), `book_confirm`
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
-„Verbindlich buchen“ legt die `Allocation` an; gewählte Dienstleistungen werden
-als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
+„Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
+Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
+werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
 bleiben bewusst änderbar), `my_bookings` (eigene Buchungen + Storno **mit
 Rückfrage**; je Buchung „wer ist gleichzeitig da“ + Wechselwunsch an andere
-Mitglieder, die zustimmen/ablehnen können), `transfer` (**zweistufig**: Vorschau
+Mitglieder, die zustimmen/ablehnen können; Karte **„Meine Wartelisten-Einträge“**
+listet die eigenen offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Vorschau
 mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
 des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
@@ -232,6 +242,8 @@ Native Libs (Pango/Cairo) im `Dockerfile`; CI-Integrationsjob testet `booking sh
 **Kontoabgleich:** Kontoauszug im Dashboard hochladen (`reconcile.import_bank_statement`);
 Parser je Format in `shop/bankimport.py` (normalisierte `ParsedTxn`; `csv` flexibel
 über Header-Stichwörter, `camt` = CAMT.053-XML; MT940 später trivial ergänzbar).
+**Härtung:** Auszug- und Beds24-CSV-Uploads sind auf **10 MB** begrenzt; der
+CAMT-Parser lehnt `DOCTYPE`/`ENTITY` ab (Schutz vor Entity-Expansion).
 `shop/reconcile.py` legt `BankTransaction`/`BankImport` an (Dedup über
 `fingerprint`) und verbucht **eindeutige** Treffer (Rechnungsnummer im
 Verwendungszweck + exakter Betrag) automatisch: `confirm_invoice` → `confirmed`,
@@ -249,6 +261,10 @@ mit `Beds24ImportRow`-Zeilen an und hängt Vorschläge Mitglied/Quartier an),
 `beds24_create_member` (legt für nicht zuordenbare Gäste ein Mitglied + Anteil an).
 Gäste tippen ihre Namen bei Beds24 frei → es gibt **nur Vorschläge**, der Abgleich
 ist **manuell** (Review-Seite mit Mitglied-/Quartier-Dropdown + „+ Mitglied"-Knopf).
+Der Import wird i. d. R. nur einmalig beim Umzug gebraucht und ist über
+`OpsConfig.beds24_import_enabled` (Betriebs-Einstellungen, Abschnitt
+„Beds24-Migration“) **abschaltbar** – ausgeschaltet ist der Assistent im
+Dashboard ausgeblendet und gesperrt (auch für Admins).
 **Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
 `docs/BETRIEB-SICHERHEIT.md`.
 

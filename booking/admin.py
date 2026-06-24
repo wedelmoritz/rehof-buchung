@@ -454,6 +454,11 @@ class OpsConfigAdmin(admin.ModelAdmin):
             "description": "An diesem Tag des Monats geht die Übersicht der "
                            "Buchungen des Folgemonats automatisch an die Verwaltung "
                            "(per Cron/Scheduler)."}),
+        ("Beds24-Migration", {
+            "fields": ("beds24_import_enabled",),
+            "description": "Der Beds24-Import wird i. d. R. nur einmalig beim Umzug "
+                           "gebraucht. Danach hier ausschalten – dann ist der "
+                           "Assistent im Dashboard ausgeblendet und gesperrt."}),
     )
 
     def has_add_permission(self, request):

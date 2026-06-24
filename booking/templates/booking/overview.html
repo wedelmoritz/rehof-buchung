@@ -2,6 +2,11 @@
 {% block title %}Übersicht{% endblock %}
 {% block content %}
 <h1>Übersicht – wer ist wann da</h1>
+<p class="muted" style="margin-top:-.3rem">Deine Startseite: Hier siehst du auf einen
+  Blick, wer wann in welchem Quartier ist. Selbst <a href="{% url 'book' %}">buchen</a>,
+  <a href="{% url 'wishlist' %}">Wünsche</a> fürs Losverfahren eintragen oder den
+  <a href="{% url 'shop_index' %}">Hofladen</a> nutzt du über die Navigation
+  (links bzw. unten am Bildschirmrand).</p>
 
 {% include "booking/_notifications.html" %}
 
@@ -14,8 +19,53 @@
 {% endif %}
 
 <div class="card">
+  <div class="view-toggle" role="tablist" aria-label="Ansicht wählen">
+    <a class="vt {% if view_mode != 'timeline' %}on{% endif %}" role="tab" title="Monatsraster" aria-selected="{% if view_mode != 'timeline' %}true{% else %}false{% endif %}"
+       href="?year={{ cal.year }}&month={{ cal.month }}">Kalender</a>
+    <a class="vt {% if view_mode == 'timeline' %}on{% endif %}" role="tab" title="Zeitstrahl je Unterkunft" aria-selected="{% if view_mode == 'timeline' %}true{% else %}false{% endif %}"
+       href="?year={{ cal.year }}&month={{ cal.month }}&view=timeline">Belegung</a>
+  </div>
+
   {% include "booking/_calnav.html" %}
 
+  {% if view_mode == 'timeline' %}
+  <p class="muted" style="margin:.2rem 0 .5rem">Pro Unterkunft eine Zeile – die Balken
+    zeigen, von wann bis wann jemand da ist. Balken anklicken für die Tagesansicht.</p>
+  <div class="occ" tabindex="0" aria-label="Belegungs-Zeitstrahl pro Unterkunft">
+    <div class="occ-table" style="--days:{{ timeline.days_in_month }}">
+      <div class="occ-row occ-header">
+        <div class="occ-qname"></div>
+        <div class="occ-track">
+          {% for d in timeline.days %}
+          <div class="occ-day {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %} {% if d.holiday %}hol{% endif %}"
+               style="grid-column:{{ forloop.counter }};grid-row:1"{% if d.holiday %} title="{{ d.holiday }}"{% endif %}>{{ d.day }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% for row in timeline.rows %}
+      <div class="occ-row">
+        <div class="occ-qname" title="{{ row.quarter.name }}">{{ row.quarter.name }}</div>
+        <div class="occ-track">
+          {% for d in timeline.days %}
+          <div class="occ-cell {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %}"
+               style="grid-column:{{ forloop.counter }};grid-row:1"></div>
+          {% endfor %}
+          {% for b in row.bars %}
+          <a class="occ-bar {% if b.mine %}mine{% endif %}"
+             style="grid-column:{{ b.col }} / span {{ b.span }};grid-row:1;background:{{ b.color }}"
+             href="?year={{ cal.year }}&month={{ cal.month }}&view=timeline&day={{ b.start|date:'Y-m-d' }}#tag"
+             title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if not b.external %} · {{ b.persons }} Pers.{% endif %}">{{ b.who }}{% if not b.external %} ({{ b.persons }}){% endif %}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="muted" style="margin:.2rem 0 .5rem">Jede Farbe steht für ein Mitglied
+    (Legende unten). Tippe einen Tag an, um zu sehen, <strong>wer da ist und was
+    noch frei ist</strong>. Mit „Belegung" siehst du je Unterkunft, von wann bis
+    wann jemand da ist.</p>
   <table class="cal community-cal">
     <thead><tr>
       <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
@@ -41,6 +91,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
 
   <div class="legend">
     <span><i class="sw today"></i> heute</span>
@@ -116,5 +167,37 @@
   .who-item { display:inline-flex; align-items:center; }
   .who-item .sw { width:14px; height:14px; border-radius:4px; margin-right:5px; }
   .who-item.mine { color:var(--ink); font-weight:600; }
+
+  /* Ansicht-Umschalter Kalender/Belegung */
+  .view-toggle { display:inline-flex; gap:2px; background:#efe8db; border-radius:10px;
+    padding:2px; margin-bottom:.6rem; }
+  .view-toggle .vt { padding:.3rem .8rem; border-radius:8px; font-size:.85rem;
+    text-decoration:none; color:var(--muted); }
+  .view-toggle .vt.on { background:#fff; color:var(--ink); font-weight:600;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+  /* Belegungs-Zeitstrahl (pro Unterkunft eine Zeile, Balken Anreise→Abreise) */
+  .occ { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .occ-table { min-width:680px; }
+  .occ-row { display:flex; align-items:stretch; gap:2px; }
+  .occ-qname { flex:0 0 8.5rem; position:sticky; left:0; z-index:3; background:var(--card);
+    font-size:.74rem; font-weight:600; display:flex; align-items:center; padding:2px 6px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .occ-track { flex:1 1 auto; display:grid;
+    grid-template-columns:repeat(var(--days),minmax(0,1fr)); grid-auto-rows:minmax(28px,auto); }
+  .occ-cell { border-right:1px solid #efe9dd; min-height:28px; }
+  .occ-cell.we { background:#f3eee4; }
+  .occ-cell.today { box-shadow: inset 0 0 0 2px rgba(176,106,72,.4); }
+  .occ-header .occ-qname { background:transparent; }
+  .occ-day { text-align:center; font-size:.6rem; color:var(--muted); padding:2px 0; }
+  .occ-day.we { background:#f3eee4; }
+  .occ-day.today { color:var(--accent-deep); font-weight:700; }
+  .occ-day.hol { color:#a06a3a; }
+  .occ-bar { align-self:center; height:calc(100% - 4px); margin:2px 0; border-radius:6px;
+    font-size:.64rem; line-height:1.6; padding:0 6px; overflow:hidden; white-space:nowrap;
+    text-overflow:ellipsis; color:#332c25; text-decoration:none; display:flex; align-items:center;
+    box-shadow:0 1px 2px rgba(0,0,0,.08); }
+  .occ-bar.mine { box-shadow: inset 0 0 0 2px var(--accent-deep); font-weight:600; }
+  .occ-bar:hover { filter:brightness(1.04); }
 </style>
 {% endblock %}

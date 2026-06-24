@@ -22,6 +22,10 @@ from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
 
 
+# Obergrenze für hochgeladene Dateien (Kontoauszug/Beds24-CSV) – Schutz vor
+# versehentlichem Speicher-DoS durch riesige Uploads.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 # Pastell-Palette zur Unterscheidung der Mitglieder in der Übersicht.
 MEMBER_COLORS = [
     "#cfe6c7", "#f6dcc0", "#d9e3f3", "#f3d9e2", "#e7dcf0", "#cfe7e6",
@@ -117,17 +121,28 @@ def overview(request):
                     legend.append({"name": b["who"], "color": color_map[mid],
                                    "mine": b["mine"]})
                 b["color"] = color_map[mid]
+    # Optionaler Belegungs-Zeitstrahl (pro Unterkunft eine Zeile mit Balken).
+    view_mode = "timeline" if request.GET.get("view") == "timeline" else "grid"
+    timeline = None
+    if view_mode == "timeline":
+        timeline = svc.build_occupancy_timeline(member, year, month)
+        for row in timeline["rows"]:
+            for bar in row["bars"]:
+                bar["color"] = (timeline["extern_color"] if bar["external"]
+                                else color_map.get(bar["member_id"], "#d8cfc0"))
     sel_day = _parse_date(request.GET.get("day"))
     detail = svc.day_detail(member, sel_day) if sel_day else None
     return render(request, "booking/overview.html", {
         "member": member,
         "cal": cal,
+        "timeline": timeline,
+        "view_mode": view_mode,
         "today": today,
         "year": today.year,
         "legend": legend,
         "sel_day": sel_day,
         "detail": detail,
-        "nav_qs": "",
+        "nav_qs": "&view=timeline" if view_mode == "timeline" else "",
         "show_today": True,
         **_cal_nav(cal),
         "nights_remaining": (
@@ -397,6 +412,7 @@ def my_bookings(request):
     upcoming, past = [], []
     incoming_swaps = []
     submitted_wishes = []
+    my_waitlist = []
     wish_period = None
     if member:
         for a in member.allocations.select_related("quarter").filter(
@@ -406,6 +422,9 @@ def my_bookings(request):
             a.waiters = svc.waiters_for_allocation(a)
             a.concurrent = svc.concurrent_allocations(a)
         incoming_swaps = svc.pending_swaps_for(member)
+        my_waitlist = list(
+            member.waitlist_entries.filter(fulfilled=False, end__gte=today)
+            .select_related("quarter").order_by("start"))
         wish_period = BookingPeriod.objects.filter(status__in=[
             BookingPeriod.WISHES_OPEN, BookingPeriod.LOTTERY_READY]).first()
         if wish_period:
@@ -424,6 +443,7 @@ def my_bookings(request):
         "past": past,
         "incoming_swaps": incoming_swaps,
         "submitted_wishes": submitted_wishes,
+        "my_waitlist": my_waitlist,
         "wish_period": wish_period,
         "notifications": svc.unread_notifications(member),
     })
@@ -678,6 +698,7 @@ def dashboard(request):
 
     from shop import services as shop_svc
     from shop.models import Invoice
+    from .models import OpsConfig
     from decimal import Decimal
 
     today = date.today()
@@ -718,6 +739,8 @@ def dashboard(request):
             fmt = request.POST.get("fmt", "csv")
             if not f:
                 messages.error(request, "Bitte eine Datei auswählen.")
+            elif f.size and f.size > MAX_UPLOAD_BYTES:
+                messages.error(request, "Datei zu groß (max. 10 MB).")
             else:
                 try:
                     batch = reconcile.import_bank_statement(f.read(), fmt, f.name)
@@ -789,6 +812,7 @@ def dashboard(request):
         "online_total_count": online_total_count, "online_sum": online_sum,
         "online_count": len(online_month),
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
+        "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
     })
 
 
@@ -903,7 +927,11 @@ def beds24_import(request):
     if not is_admin(request.user):
         messages.error(request, "Der Import ist der Admin-Rolle vorbehalten.")
         return redirect("dashboard")
-    from .models import Beds24Import, Beds24ImportRow
+    from .models import Beds24Import, Beds24ImportRow, OpsConfig
+    if not OpsConfig.get_solo().beds24_import_enabled:
+        messages.info(request, "Der Beds24-Import ist deaktiviert "
+                               "(Betriebs-Einstellungen im Backend).")
+        return redirect("dashboard")
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -911,6 +939,9 @@ def beds24_import(request):
             f = request.FILES.get("csv")
             if not f:
                 messages.error(request, "Bitte eine CSV-Datei auswählen.")
+                return redirect("beds24_import")
+            if f.size and f.size > MAX_UPLOAD_BYTES:
+                messages.error(request, "Datei zu groß (max. 10 MB).")
                 return redirect("beds24_import")
             try:
                 raw = f.read()

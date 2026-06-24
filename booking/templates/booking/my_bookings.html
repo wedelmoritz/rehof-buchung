@@ -94,6 +94,22 @@
 <div class="card"><p class="muted">Keine bevorstehenden Buchungen. <a href="{% url 'book' %}">Jetzt buchen →</a></p></div>
 {% endif %}
 
+{% if my_waitlist %}
+<div class="card">
+  <h2 style="margin-top:0">Meine Wartelisten-Einträge</h2>
+  <p class="muted" style="margin-top:0">Du wirst benachrichtigt, sobald ein Zeitraum frei wird.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Pers.</th></tr></thead>
+    <tbody>
+    {% for w in my_waitlist %}
+      <tr><td>{{ w.quarter.name }}</td><td>{{ w.start|date:"d.m.Y" }}</td>
+        <td>{{ w.end|date:"d.m.Y" }}</td><td>{{ w.persons }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
 {% if submitted_wishes %}
 <div class="card">
   <h2>Wunschliste fürs nächste Jahr</h2>

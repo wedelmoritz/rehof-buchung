@@ -4,7 +4,7 @@ Erwartet: cal, months, years, nav_qs (Query-Suffix zum Erhalten der Auswahl),
 show_today (bool).
 {% endcomment %}
 <div class="cal-head">
-  <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ nav_qs }}" title="Vormonat">&lsaquo;</a>
+  <a class="btn small ghost" href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ nav_qs }}" title="Vormonat" aria-label="Vormonat">&lsaquo;</a>
   <span class="cal-jump">
     <select aria-label="Monat" onchange="location.href='?year={{ cal.year }}&month='+this.value+'{{ nav_qs }}'">
       {% for m in months %}<option value="{{ m.num }}" {% if m.num == cal.month %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
@@ -13,7 +13,7 @@ show_today (bool).
       {% for y in years %}<option value="{{ y }}" {% if y == cal.year %}selected{% endif %}>{{ y }}</option>{% endfor %}
     </select>
   </span>
-  <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ nav_qs }}" title="Folgemonat">&rsaquo;</a>
+  <a class="btn small ghost" href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ nav_qs }}" title="Folgemonat" aria-label="Folgemonat">&rsaquo;</a>
   {% if show_today %}<a class="btn small" style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ nav_qs }}">Heute</a>{% endif %}
 </div>
 <style>

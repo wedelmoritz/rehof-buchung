@@ -609,6 +609,11 @@ class OpsConfig(models.Model):
                   "Folgemonats automatisch an die Verwaltung.")
     last_admin_notice = models.DateField(
         "Zuletzt benachrichtigt am", null=True, blank=True, editable=False)
+    beds24_import_enabled = models.BooleanField(
+        "Beds24-Import anzeigen", default=True,
+        help_text="Der Beds24-Migrations-Assistent wird i. d. R. nur EINMALIG "
+                  "gebraucht. Nach dem Umzug hier ausschalten, dann ist er im "
+                  "Dashboard ausgeblendet und gesperrt.")
 
     class Meta:
         verbose_name = "Betriebs-Einstellungen"

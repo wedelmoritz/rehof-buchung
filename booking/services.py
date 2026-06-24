@@ -1247,6 +1247,68 @@ def build_community_calendar(member, year, month) -> dict:
     }
 
 
+def build_occupancy_timeline(member, year, month) -> dict:
+    """Belegungs-Zeitstrahl: pro Quartier EINE Zeile, jede Buchung als Balken über
+    die Tage des Monats (Anreise→Abreise). Beantwortet „von wann bis wann ist wer
+    in welcher Unterkunft" auf einen Blick. Nutzt dieselben Daten wie die
+    Monatsmatrix (keine zusätzlichen Buchungs-Queries pro Tag)."""
+    days_in_month = _calendar.monthrange(year, month)[1]
+    m_first = date(year, month, 1)
+    m_end = m_first + timedelta(days=days_in_month)   # exklusiv
+    today = date.today()
+    hols = school_holidays_in_range(m_first, m_end)
+
+    days = []
+    for i in range(days_in_month):
+        d = m_first + timedelta(days=i)
+        days.append({
+            "date": d, "day": d.day, "is_today": d == today,
+            "is_weekend": d.weekday() >= 5,
+            "holiday": next((h.name for h in hols if h.start <= d < h.end), None),
+        })
+
+    allocs = list(Allocation.objects.select_related("quarter", "member").filter(
+        start__lt=m_end, end__gt=m_first, provisional=False).order_by("start"))
+    externals = list(ExternalBooking.objects.select_related("quarter").filter(
+        status=ExternalBooking.CONFIRMED, start__lt=m_end, end__gt=m_first
+    ).order_by("start"))
+    own_id = member.id if member else None
+    quarters = list(Quarter.objects.order_by("name"))
+    by_q: dict[int, list] = {q.id: [] for q in quarters}
+    any_external = False
+
+    def add_bar(qid, start, end, who, member_id, persons, external, mine):
+        cs = max(start, m_first)
+        ce = min(end, m_end)
+        span = (ce - cs).days
+        if span <= 0:
+            return
+        by_q.setdefault(qid, []).append({
+            "who": who, "member_id": member_id, "persons": persons,
+            "external": external, "mine": mine,
+            "col": (cs - m_first).days + 1, "span": span,   # 1-basierter Tag
+            "start": cs, "end": ce,
+        })
+
+    for a in allocs:
+        add_bar(a.quarter_id, a.start, a.end, a.member.display_name, a.member_id,
+                a.persons, False, a.member_id == own_id)
+    for b in externals:
+        any_external = True
+        add_bar(b.quarter_id, b.start, b.end, "extern", None, b.persons, True, False)
+
+    rows = [{"quarter": q, "bars": by_q.get(q.id, [])} for q in quarters]
+    prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return {
+        "days": days, "rows": rows, "days_in_month": days_in_month,
+        "label": f"{GERMAN_MONTHS[month]} {year}", "year": year, "month": month,
+        "prev": {"year": prev_month[0], "month": prev_month[1]},
+        "next": {"year": next_month[0], "month": next_month[1]},
+        "any_external": any_external, "extern_color": EXTERN_COLOR,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Stornierung
 # --------------------------------------------------------------------------- #
