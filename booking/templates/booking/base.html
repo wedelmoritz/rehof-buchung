@@ -294,6 +294,9 @@
       h1 { font-size: 1.3rem; margin-bottom: .8rem; }
       .card { padding: 1rem .9rem; }
       input, select { min-width: 0; width: 100%; max-width: 100%; }
+      /* Kontrollkästchen/Radios NICHT auf volle Breite ziehen – sonst rutscht
+         z.B. das „barrierearm/-frei“-Häkchen beim Buchen nach rechts weg. */
+      input[type=checkbox], input[type=radio] { width: auto; max-width: none; }
       .form-row { gap: .7rem; }
       .form-row > * { flex: 1 1 100%; }
       .stat .num { font-size: 1.5rem; }

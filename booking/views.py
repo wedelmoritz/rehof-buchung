@@ -387,6 +387,16 @@ def my_bookings(request):
             ok, err = svc.cancel_allocation(member, request.POST.get("allocation_id"))
             messages.success(request, "Buchung storniert.") if ok \
                 else messages.error(request, err or "Stornierung nicht möglich.")
+        elif action == "adjust":
+            ns = _parse_date(request.POST.get("new_start"))
+            ne = _parse_date(request.POST.get("new_end"))
+            if not ns or not ne:
+                messages.error(request, "Bitte An- und Abreise angeben.")
+            else:
+                ok, err = svc.adjust_allocation(
+                    member, request.POST.get("allocation_id"), ns, ne)
+                messages.success(request, "Buchung angepasst.") if ok \
+                    else messages.error(request, err or "Anpassung nicht möglich.")
         elif action == "read_notifications":
             svc.mark_notifications_read(member)
         elif action == "swap_request":
@@ -420,7 +430,8 @@ def my_bookings(request):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
             a.waiters = svc.waiters_for_allocation(a)
-            a.concurrent = svc.concurrent_allocations(a)
+            a.concurrent = svc.concurrent_split(a)
+            a.min_nights = svc.min_nights_for_range(a.start, a.end)
         incoming_swaps = svc.pending_swaps_for(member)
         my_waitlist = list(
             member.waitlist_entries.filter(fulfilled=False, end__gte=today)

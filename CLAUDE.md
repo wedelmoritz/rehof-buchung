@@ -131,9 +131,16 @@ angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
 bleiben bewusst änderbar), `my_bookings` (eigene Buchungen + Storno **mit
-Rückfrage**; je Buchung „wer ist gleichzeitig da“ + Wechselwunsch an andere
-Mitglieder, die zustimmen/ablehnen können; Karte **„Meine Wartelisten-Einträge“**
-listet die eigenen offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Vorschau
+Rückfrage**; je Buchung „wer ist gleichzeitig da“ – aufgeteilt in **exakt gleiche
+An-/Abreise** und **nur überlappend** [`services.concurrent_split`] – mit
+Wechselwunsch an andere Mitglieder [auch bei Überlappung möglich, mit Hinweis;
+Empfänger:in stimmt zu/lehnt ab]; **Zeitraum anpassen** je Buchung
+[`services.adjust_allocation`]: **verlängern** spontan, solange die zusätzlichen
+Nächte frei/freigeschaltet/im Budget sind, **verkürzen** nur wenn der
+Mindestaufenthalt gewahrt bleibt UND die frei werdenden Nächte ≥7 Tage entfernt
+sind – dann In-App-Meldung **an alle** [`_broadcast_spontaneously_free`] + E-Mail
+an die Warteliste; Karte **„Meine Wartelisten-Einträge“** listet die eigenen
+offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Vorschau
 mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
 des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative

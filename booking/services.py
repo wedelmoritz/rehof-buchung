@@ -1009,6 +1009,19 @@ def concurrent_allocations(allocation: Allocation):
     )
 
 
+def concurrent_split(allocation: Allocation) -> dict:
+    """Wie `concurrent_allocations`, aber aufgeteilt in
+    `exact` = exakt gleiche An- UND Abreise (echter Tausch sinnvoll) und
+    `overlap` = nur überlappend (Tausch nur eingeschränkt/abzusprechen)."""
+    exact, overlap = [], []
+    for a in concurrent_allocations(allocation):
+        if a.start == allocation.start and a.end == allocation.end:
+            exact.append(a)
+        else:
+            overlap.append(a)
+    return {"exact": exact, "overlap": overlap}
+
+
 @transaction.atomic
 def create_swap_request(from_member, from_allocation, to_allocation, message=""):
     """Legt einen Wechselwunsch an und benachrichtigt das Gegenüber."""
@@ -1327,6 +1340,97 @@ def cancel_allocation(member: Member, allocation_id) -> tuple[bool, str | None]:
     quarter, start, end = a.quarter, a.start, a.end
     a.delete()
     notify_waitlist_if_free(quarter, start, end)
+    return True, None
+
+
+def _broadcast_spontaneously_free(quarter, start, end, exclude_member=None) -> int:
+    """In-App-Benachrichtigung an ALLE Mitglieder: eine Unterkunft ist spontan
+    frei geworden (z.B. durch Verkürzung). E-Mails laufen gezielt über die
+    Warteliste (`notify_waitlist_if_free`), nicht an alle."""
+    nights = (end - start).days
+    msg = (f"Spontan frei: {quarter.name} "
+           f"{start:%d.%m.}–{end:%d.%m.} ({nights} Nächte)")
+    qs = Member.objects.all()
+    if exclude_member is not None:
+        qs = qs.exclude(id=exclude_member.id)
+    Notification.objects.bulk_create([
+        Notification(member=m, message=msg, url="/buchen/") for m in qs])
+    return qs.count()
+
+
+@transaction.atomic
+def adjust_allocation(member: Member, allocation_id, new_start: date,
+                      new_end: date) -> tuple[bool, str | None]:
+    """Verlängert oder verkürzt eine eigene (zukünftige) Buchung im selben
+    Quartier.
+
+    * Verlängern: spontan möglich, solange die zusätzlichen Nächte frei,
+      freigeschaltet und im Tage-Budget sind.
+    * Verkürzen: nur wenn die Restdauer den Mindestaufenthalt einhält UND die
+      frei werdenden Nächte mindestens 7 Tage in der Zukunft liegen. Die frei
+      werdende Unterkunft wird allen Mitgliedern gemeldet (In-App) und der
+      Warteliste (E-Mail).
+    """
+    try:
+        a = member.allocations.select_related("quarter").get(id=allocation_id)
+    except Allocation.DoesNotExist:
+        return False, "Buchung nicht gefunden."
+    if (new_end - new_start).days <= 0:
+        return False, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+    if a.end <= date.today():
+        return False, "Vergangene Buchungen können nicht angepasst werden."
+    if new_start == a.start and new_end == a.end:
+        return False, "Keine Änderung am Zeitraum."
+
+    quarter = a.quarter
+    today = date.today()
+    old_nights = (a.end - a.start).days
+    new_nights = (new_end - new_start).days
+
+    # Hinzukommende Teile (vorne/hinten) müssen frei + freigeschaltet sein.
+    added = []
+    if new_start < a.start:
+        added.append((new_start, a.start))
+    if new_end > a.end:
+        added.append((a.end, new_end))
+    for s, e in added:
+        if not range_is_released(quarter, s, e):
+            return False, "Der zusätzliche Zeitraum ist nicht buchbar (Saison/Freigabe)."
+        if not quarter_is_free(quarter, s, e):
+            return False, "Der zusätzliche Zeitraum ist nicht mehr frei."
+
+    # Budget: nur die zusätzlichen Nächte zählen.
+    extra = new_nights - old_nights
+    if extra > 0:
+        remaining = member.nights_remaining_in_year(new_start.year)
+        if remaining < extra:
+            return False, (f"Nicht genügend Tage ({remaining} übrig, "
+                           f"{extra} zusätzlich nötig).")
+
+    # Mindestaufenthalt der NEUEN Dauer.
+    min_n = min_nights_for_range(new_start, new_end)
+    if new_nights < min_n:
+        return False, f"Mindestaufenthalt {min_n} Nächte (neu wären es {new_nights})."
+
+    # Frei werdende Teile (Verkürzung): mind. 7 Tage Vorlauf.
+    freed = []
+    if new_start > a.start:
+        freed.append((a.start, new_start))
+    if new_end < a.end:
+        freed.append((new_end, a.end))
+    if freed:
+        earliest = min(s for s, _ in freed)
+        if earliest < today + timedelta(days=7):
+            return False, ("Verkürzen ist nur möglich, wenn die frei werdenden "
+                           "Nächte mindestens eine Woche in der Zukunft liegen.")
+
+    a.start, a.end = new_start, new_end
+    a.save(update_fields=["start", "end"])
+
+    # Frei gewordene Zeiträume melden.
+    for s, e in freed:
+        _broadcast_spontaneously_free(quarter, s, e, exclude_member=member)
+        notify_waitlist_if_free(quarter, s, e)
     return True, None
 
 
