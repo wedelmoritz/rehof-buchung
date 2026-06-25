@@ -115,16 +115,24 @@
     </details>
 
     <details class="adjust">
-      <summary>Zeitraum anpassen (verlängern / verkürzen)</summary>
-      <p class="muted hint">Verlängern geht spontan, solange die zusätzlichen
-        Nächte frei und im Budget sind. Verkürzen nur, wenn der Mindestaufenthalt
-        ({{ a.min_nights }} Nächte) gewahrt bleibt und die frei werdenden Nächte
-        mindestens eine Woche entfernt sind. Frei werdende Zeit wird allen gemeldet.</p>
-      <form method="post" class="adjust-row" onsubmit="return confirm('Zeitraum dieser Buchung ändern?');">{% csrf_token %}
+      <summary>Buchung ändern (Unterkunft · Zeitraum · Personen)</summary>
+      <p class="muted hint">Du kannst die <strong>Unterkunft</strong> wechseln (es
+        werden nur freie angeboten), den <strong>Zeitraum</strong> verlängern/verkürzen
+        und die <strong>Personenzahl</strong> anpassen. Verlängern/Wechseln geht spontan,
+        solange frei und im Budget. Verkürzen nur, wenn der Mindestaufenthalt
+        ({{ a.min_nights }} Nächte) bleibt und die frei werdenden Nächte ≥1 Woche
+        entfernt sind. Frei werdende Zeit/Unterkunft wird allen gemeldet.</p>
+      <form method="post" class="adjust-row" onsubmit="return confirm('Buchung ändern?');">{% csrf_token %}
         <input type="hidden" name="action" value="adjust">
         <input type="hidden" name="allocation_id" value="{{ a.id }}">
+        <label>Unterkunft
+          <select name="new_quarter">
+            <option value="{{ a.quarter.id }}">{{ a.quarter.name }} (aktuell)</option>
+            {% for q in a.switch_options %}<option value="{{ q.id }}">{{ q.name }} (frei)</option>{% endfor %}
+          </select></label>
         <label>Anreise <input type="date" name="new_start" value="{{ a.start|date:'Y-m-d' }}"></label>
         <label>Abreise <input type="date" name="new_end" value="{{ a.end|date:'Y-m-d' }}"></label>
+        <label>Personen <input type="number" name="new_persons" value="{{ a.persons }}" min="1" max="12" style="width:4.2rem"></label>
         <button class="btn small" type="submit">Übernehmen</button>
       </form>
     </details>

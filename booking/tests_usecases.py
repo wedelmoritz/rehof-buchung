@@ -1010,3 +1010,49 @@ class BuchungAnpassenTests(UseCaseBase):
         split = svc.concurrent_split(a)
         self.assertEqual([c.member.display_name for c in split["exact"]], ["bob"])
         self.assertEqual([c.member.display_name for c in split["overlap"]], ["carla"])
+
+    def test_unterkunft_wechseln_meldet_altes_frei(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4))
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_quarter=self.k2)
+        self.assertTrue(ok, err)
+        a.refresh_from_db()
+        self.assertEqual(a.quarter_id, self.k2.id)
+        self.assertTrue(Notification.objects.filter(
+            member=self.bob, message__icontains="Spontan frei").exists())
+
+    def test_wechsel_auf_belegtes_quartier_blockiert(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4))
+        svc.book_spontaneous(self.bob, self.k2, s, s + timedelta(days=4))
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_quarter=self.k2)
+        self.assertFalse(ok)
+
+    def test_personenzahl_aendern(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4),
+                                    persons=2)
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_persons=3)
+        self.assertTrue(ok, err)
+        a.refresh_from_db()
+        self.assertEqual(a.persons, 3)
+
+    def test_personenzahl_ueber_max_blockiert(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4),
+                                    persons=2)
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_persons=99)
+        self.assertFalse(ok)
+
+    def test_freie_alternativen_listen(self):
+        s = date(NEXT_YEAR, 6, 10)
+        svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4))
+        free = svc.free_quarters_for(s, s + timedelta(days=4), 2,
+                                     exclude_id=self.k1.id)
+        ids = {q.id for q in free}
+        self.assertIn(self.k2.id, ids)
+        self.assertNotIn(self.k1.id, ids)
