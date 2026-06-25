@@ -8,6 +8,9 @@
 <details class="card help-note">
   <summary><strong>Was du hier tun kannst</strong></summary>
   <ul>
+    <li><strong>Statistik</strong>: Anzahl Mitglieder/Benutzerkonten, Auslastung der
+      Unterkünfte (aktueller + kommender Monat) und das Ergebnis der letzten
+      Verlosung (erfüllte / nicht erfüllte Wünsche).</li>
     <li><strong>Kennzahlen</strong> des gewählten Monats (Anreisen, Endreinigungen,
       offene/überfällige Rechnungen, online bezahlte).</li>
     <li><strong>Reinigungsliste</strong>: alle Abreisen des Monats (= Reinigungstage),
@@ -42,6 +45,34 @@
     <span class="lbl">überfällig<br>{{ overdue_sum }} €</span></div>
   <div class="card kpi"><span class="num">{{ online_count }}</span>
     <span class="lbl">online bezahlt<br>{{ online_sum }} € · {{ month_label }}</span></div>
+</div>
+
+{# --- Statistik ------------------------------------------------------------ #}
+<div class="card">
+  <h2 style="margin-top:0">Statistik</h2>
+  <div class="stat-grid">
+    <div class="stat-box">
+      <div class="stat-line"><span class="stat-num">{{ stats.n_members }}</span> Mitglieder</div>
+      <div class="stat-line"><span class="stat-num">{{ stats.n_users }}</span> Benutzerkonten</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-cap">Auslastung Unterkünfte</div>
+      <div class="stat-line"><span class="stat-num">{{ stats.occ_current.pct }} %</span>
+        {{ stats.occ_current.label }} <span class="muted">({{ stats.occ_current.booked }}/{{ stats.occ_current.possible }} Nächte)</span></div>
+      <div class="stat-line"><span class="stat-num">{{ stats.occ_next.pct }} %</span>
+        {{ stats.occ_next.label }} <span class="muted">({{ stats.occ_next.booked }}/{{ stats.occ_next.possible }} Nächte)</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-cap">Letzte Verlosung{% if stats.last_lottery %} · {{ stats.last_lottery.period }}{% endif %}</div>
+      {% if stats.last_lottery %}
+      <div class="stat-line"><span class="stat-num">{{ stats.last_lottery.fulfilled }}</span> Wünsche erfüllt</div>
+      <div class="stat-line"><span class="stat-num">{{ stats.last_lottery.unfulfilled }}</span> nicht erfüllt
+        <span class="muted">(von {{ stats.last_lottery.total }})</span></div>
+      {% else %}
+      <div class="muted">Noch keine bestätigte Verlosung.</div>
+      {% endif %}
+    </div>
+  </div>
 </div>
 
 {# --- Monatsauswahl -------------------------------------------------------- #}
@@ -243,6 +274,11 @@
   .kpi .num { font-size:1.9rem; font-weight:700; line-height:1; color:var(--accent-deep); }
   .kpi .lbl { font-size:.8rem; color:var(--muted); line-height:1.25; }
   .kpi.danger .num { color:#b3261e; }
+  .stat-grid { display:flex; gap:1.2rem; flex-wrap:wrap; }
+  .stat-box { flex:1 1 200px; }
+  .stat-cap { font-size:.78rem; color:var(--muted); margin-bottom:.3rem; text-transform:uppercase; letter-spacing:.03em; }
+  .stat-line { font-size:.92rem; margin:.15rem 0; }
+  .stat-num { font-size:1.15rem; font-weight:700; color:var(--accent-deep); }
   .monthbar { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
   .inline-form { display:inline-flex; gap:.8rem; align-items:flex-end; flex-wrap:wrap; }
   .inline-form label { font-size:.8rem; color:var(--muted); display:flex; flex-direction:column; gap:.2rem; }

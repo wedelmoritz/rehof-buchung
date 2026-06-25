@@ -940,3 +940,119 @@ class LosungBestaetigungTests(UseCaseBase):
         svc.run_period_lottery(period, seed=1)
         loser.refresh_from_db()
         self.assertAlmostEqual(loser.factor, 1.1, places=5)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Buchung anpassen (verlängern/verkürzen) + Wechselwunsch-Gruppen
+# --------------------------------------------------------------------------- #
+
+class BuchungAnpassenTests(UseCaseBase):
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+
+    def test_verlaengern_wenn_frei(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, err = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=3))
+        self.assertIsNotNone(a, err)
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=5))
+        self.assertTrue(ok, err)
+        a.refresh_from_db()
+        self.assertEqual((a.end - a.start).days, 5)
+
+    def test_verlaengern_blockiert_wenn_belegt(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=3))
+        svc.book_spontaneous(self.bob, self.k1, s + timedelta(days=3),
+                             s + timedelta(days=6))
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=5))
+        self.assertFalse(ok)
+
+    def test_verkuerzen_meldet_allen_und_haelt_mindestnaechte(self):
+        p = BookingPolicy.get_solo(); p.default_min_nights = 3; p.save()
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=7))
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4))
+        self.assertTrue(ok, err)
+        a.refresh_from_db()
+        self.assertEqual((a.end - a.start).days, 4)
+        self.assertTrue(Notification.objects.filter(
+            member=self.bob, message__icontains="Spontan frei").exists())
+        # Wer verkürzt, bekommt selbst KEINE „spontan frei"-Meldung.
+        self.assertFalse(Notification.objects.filter(
+            member=self.alice, message__icontains="Spontan frei").exists())
+
+    def test_verkuerzen_unter_mindestnaechte_blockiert(self):
+        p = BookingPolicy.get_solo(); p.default_min_nights = 3; p.save()
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=5))
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=2))
+        self.assertFalse(ok)
+        self.assertIn("Mindestaufenthalt", err)
+
+    def test_verkuerzen_zu_kurzfristig_blockiert(self):
+        today = date.today()
+        a = Allocation.objects.create(
+            member=self.alice, quarter=self.k1, start=today + timedelta(days=3),
+            end=today + timedelta(days=10), persons=1, source="spontaneous",
+            provisional=False)
+        ok, err = svc.adjust_allocation(
+            self.alice, a.id, a.start, today + timedelta(days=6))
+        self.assertFalse(ok)
+        self.assertIn("Woche", err)
+
+    def test_concurrent_split_exakt_vs_ueberlappend(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4))
+        svc.book_spontaneous(self.bob, self.k2, s, s + timedelta(days=4))
+        svc.book_spontaneous(self.carla, self.k3, s + timedelta(days=2),
+                             s + timedelta(days=6))
+        split = svc.concurrent_split(a)
+        self.assertEqual([c.member.display_name for c in split["exact"]], ["bob"])
+        self.assertEqual([c.member.display_name for c in split["overlap"]], ["carla"])
+
+    def test_unterkunft_wechseln_meldet_altes_frei(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4))
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_quarter=self.k2)
+        self.assertTrue(ok, err)
+        a.refresh_from_db()
+        self.assertEqual(a.quarter_id, self.k2.id)
+        self.assertTrue(Notification.objects.filter(
+            member=self.bob, message__icontains="Spontan frei").exists())
+
+    def test_wechsel_auf_belegtes_quartier_blockiert(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4))
+        svc.book_spontaneous(self.bob, self.k2, s, s + timedelta(days=4))
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_quarter=self.k2)
+        self.assertFalse(ok)
+
+    def test_personenzahl_aendern(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4),
+                                    persons=2)
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_persons=3)
+        self.assertTrue(ok, err)
+        a.refresh_from_db()
+        self.assertEqual(a.persons, 3)
+
+    def test_personenzahl_ueber_max_blockiert(self):
+        s = date(NEXT_YEAR, 6, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4),
+                                    persons=2)
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=4),
+                                        new_persons=99)
+        self.assertFalse(ok)
+
+    def test_freie_alternativen_listen(self):
+        s = date(NEXT_YEAR, 6, 10)
+        svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4))
+        free = svc.free_quarters_for(s, s + timedelta(days=4), 2,
+                                     exclude_id=self.k1.id)
+        ids = {q.id for q in free}
+        self.assertIn(self.k2.id, ids)
+        self.assertNotIn(self.k1.id, ids)

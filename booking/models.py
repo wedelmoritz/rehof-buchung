@@ -495,6 +495,11 @@ class LotteryRun(models.Model):
     # vorbereiteten, noch nicht zugestellten Benachrichtigungen.
     karma_snapshot = models.JSONField("Karma vor dem Lauf", default=dict, blank=True)
     notices = models.JSONField("Vorbereitete Benachrichtigungen", default=list, blank=True)
+    # Kennzahlen des Laufs (für die Verwaltungs-Statistik).
+    n_allocations = models.PositiveIntegerField("Erfüllte Wünsche (Zuteilungen)",
+                                                default=0)
+    n_losses = models.PositiveIntegerField("Nicht erfüllte Wünsche (Verluste)",
+                                           default=0)
 
     class Meta:
         verbose_name = "Losdurchlauf"

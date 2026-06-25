@@ -70,7 +70,8 @@ Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; Tage-/Wunsch-Budget =
 sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
-Buchungen“), `LotteryRun`, `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
+Buchungen“), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
+erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
@@ -131,9 +132,20 @@ angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
 bleiben bewusst änderbar), `my_bookings` (eigene Buchungen + Storno **mit
-Rückfrage**; je Buchung „wer ist gleichzeitig da“ + Wechselwunsch an andere
-Mitglieder, die zustimmen/ablehnen können; Karte **„Meine Wartelisten-Einträge“**
-listet die eigenen offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Vorschau
+Rückfrage**; je Buchung „wer ist gleichzeitig da“ – aufgeteilt in **exakt gleiche
+An-/Abreise** und **nur überlappend** [`services.concurrent_split`] – mit
+Wechselwunsch an andere Mitglieder [auch bei Überlappung möglich, mit Hinweis;
+Empfänger:in stimmt zu/lehnt ab]; **Buchung ändern** je Buchung
+[`services.adjust_allocation`] deckt neben dem **Zeitraum** auch
+**Unterkunft-Wechsel** [nur freie – `services.free_quarters_for` listet sie] und
+die **Personenzahl** ab: **verlängern** spontan, solange die zusätzlichen
+Nächte frei/freigeschaltet/im Budget sind, **verkürzen** nur wenn der
+Mindestaufenthalt gewahrt bleibt UND die frei werdenden Nächte ≥7 Tage entfernt
+sind – dann In-App-Meldung **an alle** [`_broadcast_spontaneously_free`] + E-Mail
+an die Warteliste; der **Unterkunft-Wechsel** geht spontan und meldet das alte
+Quartier ebenso als „spontan frei“ an alle (die 7-Tage-Frist gilt nur fürs reine
+Verkürzen im selben Quartier); Karte **„Meine Wartelisten-Einträge“** listet die eigenen
+offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Vorschau
 mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
 des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
@@ -271,6 +283,10 @@ Dashboard ausgeblendet und gesperrt (auch für Admins).
 **Verwaltungs-Dashboard (`dashboard`, Rolle Verwaltung **oder** Admin,
 `/verwaltung/`):** operative
 Seite fürs kleine Team – Kennzahlen (inkl. KPI **„online bezahlt (Monat)“**),
+**Statistik** (`services.dashboard_stats`: Anzahl **Mitglieder** und
+**Benutzerkonten**, **Auslastung** der Unterkünfte [gebuchte vs. mögliche
+Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis der
+**letzten bestätigten Verlosung** = erfüllte vs. nicht erfüllte Wünsche),
 **Reinigungsliste** (alle Abreisen des
 gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
 **anstehende Buchungen** und **offene/überfällige/online bezahlte Rechnungen**

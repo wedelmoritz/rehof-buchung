@@ -115,7 +115,10 @@ ist das Konto freigeschaltet und kann buchen.
   (Export/Versand), anstehende Buchungen (Export/Versand), **Rechnungen** (Filter
   offen/überfällig/**online bezahlt**/alle, „überfällige erinnern“, Export) und
   **Kontoabgleich** (Test-CSV hochladen – Rechnungsnummer im Verwendungszweck +
-  passender Betrag wird automatisch verbucht). Unter **„Produkte“**
+  passender Betrag wird automatisch verbucht). Oben eine **Statistik**
+  (Mitglieder- und Benutzer-Zahl, **Auslastung** der Unterkünfte für aktuellen +
+  kommenden Monat, Ergebnis der **letzten Verlosung**: erfüllte vs. nicht erfüllte
+  Wünsche). Unter **„Produkte“**
   (`/verwaltung/produkte/`) pflegt die Verwaltung den **Hofladen-Katalog**
   (Produkte/Gruppen, Preise, aktiv) ganz ohne Backend.
 - **Beds24-Import** (`/verwaltung/beds24-import/`, **nur Admin**): bestehende
@@ -139,7 +142,9 @@ ist das Konto freigeschaltet und kann buchen.
   belegt → **Warteliste** (eigene Einträge unter *Meine Buchungen*).
 - **Wunschliste**: Wünsche fürs Folgejahr eintragen, priorisieren, **einreichen**.
   Nach der (bestätigten) Losung das Ergebnis unter **Meine Buchungen** sehen.
-- **Meine Buchungen**: stornieren; **Wechselwunsch** an ein anderes Mitglied.
+- **Meine Buchungen**: stornieren; **Buchung ändern** (Unterkunft wechseln,
+  Zeitraum verlängern/verkürzen, Personenzahl); **Wechselwunsch** an ein anderes
+  Mitglied.
 - **Tage übertragen**: ein paar Tage an ein anderes Mitglied abgeben.
 - **Hofladen**: etwas in den Warenkorb, **Kasse**, **Rechnung** ansehen, **PDF**
   herunterladen, „habe ich bezahlt“ melden – oder direkt **„Online bezahlen“**
@@ -400,7 +405,7 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Wunschliste | Wünsche fürs Folgejahr eintragen, priorisieren (Drag/Pfeiltasten), einreichen | `views.py::wishlist` · `services.add_wish`, `move_wish`, `submit_wishlist`, `build_wish_calendar` · `models.Wish` |
 | Losverfahren | Gewichtete Ziehung, Runden-Prinzip, Ausweichquartiere, Karma | `booking/lottery.py::run_lottery`, `weighted_random_order` · `services.run_period_lottery` |
 | Ergebnis-/Auditansicht | Eigenes Ergebnis + Gemeinschafts-Zuteilungen + (Staff) Protokoll | `views.py::period_result` · `lottery.render_log_text` |
-| Meine Buchungen / Storno | Eigene Buchungen sehen und stornieren (mit Rückfrage) | `views.py::my_bookings` · `services.cancel_allocation` |
+| Meine Buchungen / Storno / ändern | Eigene Buchungen sehen, stornieren (mit Rückfrage) und **ändern** (Unterkunft wechseln, Zeitraum, Personenzahl) | `views.py::my_bookings` · `services.cancel_allocation`, `adjust_allocation`, `free_quarters_for` |
 | Wechselwunsch | Quartiertausch an ein anderes Mitglied anfragen, zustimmen/ablehnen | `services` (Wechselwunsch) · `models.SwapRequest` |
 | Tage übertragen | Eigene Tage an ein anderes Mitglied abgeben (zweistufig) | `views.py::transfer` · `services.transfer_nights` · `models.NightTransfer` |
 | Profil | Anschrift/IBAN + E-Mail-Opt-out selbst pflegen | `views.py::profile` · `forms.ProfileForm` |
@@ -417,6 +422,7 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 |---|---|---|
 | Rollen Admin/Verwaltung | Admin = Superuser (Backend); Verwaltung = Gruppe „Verwaltung“ (nur Dashboard) | `booking/permissions.py::is_admin`, `is_verwaltung`, `ensure_verwaltung_group` · `booking/context_processors.py` |
 | Dashboard | Operative Seite (Verwaltung/Admin): Kennzahlen + Arbeitslisten | `booking/views.py::dashboard` |
+| Statistik | Mitglieder-/Benutzer-Zahl, Auslastung der Unterkünfte (aktueller + kommender Monat), letzte Verlosung (erfüllt/nicht erfüllt) | `booking/services.py::dashboard_stats` · `models.LotteryRun.n_allocations`, `n_losses` |
 | Hofladen-Katalog pflegen | Produkte/Gruppen + Preise im Dashboard, ohne Backend | `booking/views.py::dashboard_products` |
 | Reinigungsliste | Abreisen = Reinigungstage, Filter „Endreinigung“, Export, Versand ans Team | `services.departures_in_range`, `_annotate_cleaning`, `cleaning_rows`, `email_cleaning` |
 | Anstehende Buchungen | Monatsliste, Export, Versand an die Verwaltung | `services.arrivals_in_range`, `booking_rows`, `email_admins` |

@@ -135,6 +135,7 @@ def run_period_lottery(
     return LotteryRun.objects.create(
         period=period, seed=seed, log_text=log_text, summary=summary,
         karma_snapshot=old_factors, notices=notices, confirmed=False,
+        n_allocations=len(result.allocations), n_losses=len(result.losses),
     )
 
 
@@ -872,6 +873,50 @@ def _external_confirmed(**flt):
             .select_related("quarter", "guest"))
 
 
+def _month_occupancy(year: int, month: int) -> dict:
+    """Auslastung eines Monats: gebuchte Unterkunfts-Nächte (Mitglieder + bestätigte
+    externe Gäste) gegen die maximal möglichen (Quartiere × Tage)."""
+    days = _calendar.monthrange(year, month)[1]
+    m_first = date(year, month, 1)
+    m_end = m_first + timedelta(days=days)
+    n_quarters = Quarter.objects.count()
+    possible = n_quarters * days
+    booked = 0
+    for a in Allocation.objects.filter(start__lt=m_end, end__gt=m_first,
+                                       provisional=False):
+        booked += (min(a.end, m_end) - max(a.start, m_first)).days
+    for b in ExternalBooking.objects.filter(
+            status=ExternalBooking.CONFIRMED, start__lt=m_end, end__gt=m_first):
+        booked += (min(b.end, m_end) - max(b.start, m_first)).days
+    pct = round(100 * booked / possible) if possible else 0
+    return {"year": year, "month": month, "label": month_label(year, month),
+            "booked": booked, "possible": possible, "pct": pct}
+
+
+def dashboard_stats() -> dict:
+    """Kennzahlen für die Verwaltung: Nutzer/Mitglieder, Auslastung (aktueller +
+    kommender Monat) und das Ergebnis der letzten (bestätigten) Verlosung."""
+    from django.contrib.auth.models import User
+    today = date.today()
+    ny, nm = next_month(today)
+    run = (LotteryRun.objects.filter(confirmed=True).select_related("period")
+           .order_by("-confirmed_at").first())
+    last_lottery = None
+    if run:
+        last_lottery = {
+            "period": run.period, "fulfilled": run.n_allocations,
+            "unfulfilled": run.n_losses, "when": run.confirmed_at,
+            "total": run.n_allocations + run.n_losses,
+        }
+    return {
+        "n_users": User.objects.count(),
+        "n_members": Member.objects.count(),
+        "occ_current": _month_occupancy(today.year, today.month),
+        "occ_next": _month_occupancy(ny, nm),
+        "last_lottery": last_lottery,
+    }
+
+
 def arrivals_in_range(d_from: date, d_to: date):
     """Anreisen in [d_from, d_to) – Mitglieder UND externe Gäste."""
     qs = _annotate_cleaning(Allocation.objects.filter(
@@ -1007,6 +1052,33 @@ def concurrent_allocations(allocation: Allocation):
             start__lt=allocation.end, end__gt=allocation.start, provisional=False,
         ).exclude(member_id=allocation.member_id).order_by("start", "quarter__name")
     )
+
+
+def free_quarters_for(start: date, end: date, persons: int, exclude_id=None):
+    """Quartiere, die im Zeitraum [start, end) komplett frei + freigeschaltet sind
+    und zur Personenzahl passen (für den Unterkunfts-Wechsel beim Anpassen)."""
+    out = []
+    for q in Quarter.objects.order_by("name"):
+        if exclude_id and q.id == exclude_id:
+            continue
+        if persons < q.min_occupancy or persons > q.max_occupancy:
+            continue
+        if range_is_released(q, start, end) and quarter_is_free(q, start, end):
+            out.append(q)
+    return out
+
+
+def concurrent_split(allocation: Allocation) -> dict:
+    """Wie `concurrent_allocations`, aber aufgeteilt in
+    `exact` = exakt gleiche An- UND Abreise (echter Tausch sinnvoll) und
+    `overlap` = nur überlappend (Tausch nur eingeschränkt/abzusprechen)."""
+    exact, overlap = [], []
+    for a in concurrent_allocations(allocation):
+        if a.start == allocation.start and a.end == allocation.end:
+            exact.append(a)
+        else:
+            overlap.append(a)
+    return {"exact": exact, "overlap": overlap}
 
 
 @transaction.atomic
@@ -1327,6 +1399,115 @@ def cancel_allocation(member: Member, allocation_id) -> tuple[bool, str | None]:
     quarter, start, end = a.quarter, a.start, a.end
     a.delete()
     notify_waitlist_if_free(quarter, start, end)
+    return True, None
+
+
+def _broadcast_spontaneously_free(quarter, start, end, exclude_member=None) -> int:
+    """In-App-Benachrichtigung an ALLE Mitglieder: eine Unterkunft ist spontan
+    frei geworden (z.B. durch Verkürzung). E-Mails laufen gezielt über die
+    Warteliste (`notify_waitlist_if_free`), nicht an alle."""
+    nights = (end - start).days
+    msg = (f"Spontan frei: {quarter.name} "
+           f"{start:%d.%m.}–{end:%d.%m.} ({nights} Nächte)")
+    qs = Member.objects.all()
+    if exclude_member is not None:
+        qs = qs.exclude(id=exclude_member.id)
+    Notification.objects.bulk_create([
+        Notification(member=m, message=msg, url="/buchen/") for m in qs])
+    return qs.count()
+
+
+@transaction.atomic
+def adjust_allocation(member: Member, allocation_id, new_start: date,
+                      new_end: date, new_quarter=None,
+                      new_persons: int | None = None) -> tuple[bool, str | None]:
+    """Ändert eine eigene (zukünftige) Buchung: Zeitraum (verlängern/verkürzen),
+    **Unterkunft** (Wechsel auf ein freies Quartier) und/oder **Personenzahl**.
+
+    * Verlängern/Quartier-Wechsel: spontan möglich, solange die (zusätzlichen
+      bzw. beim Wechsel alle) Nächte frei, freigeschaltet und im Tage-Budget sind.
+    * Verkürzen (im selben Quartier): nur wenn die Restdauer den Mindestaufenthalt
+      einhält UND die frei werdenden Nächte ≥7 Tage in der Zukunft liegen.
+    Frei werdende Unterkünfte werden allen Mitgliedern gemeldet (In-App) und der
+    Warteliste (E-Mail). Beim Quartier-Wechsel gilt die 7-Tage-Frist NICHT (es
+    wird ja nicht das eigene Kontingent gekürzt, nur umgezogen)."""
+    try:
+        a = member.allocations.select_related("quarter").get(id=allocation_id)
+    except Allocation.DoesNotExist:
+        return False, "Buchung nicht gefunden."
+    if (new_end - new_start).days <= 0:
+        return False, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+    if a.end <= date.today():
+        return False, "Vergangene Buchungen können nicht angepasst werden."
+
+    old_q = a.quarter
+    new_q = new_quarter or old_q
+    persons = new_persons if new_persons is not None else a.persons
+    quarter_changed = new_q.id != old_q.id
+    today = date.today()
+    old_nights = (a.end - a.start).days
+    new_nights = (new_end - new_start).days
+
+    if new_start == a.start and new_end == a.end and not quarter_changed \
+            and persons == a.persons:
+        return False, "Keine Änderung."
+
+    # Personenzahl muss zur (ggf. neuen) Unterkunft passen.
+    if persons < new_q.min_occupancy or persons > new_q.max_occupancy:
+        return False, (f"{new_q.name}: {new_q.min_occupancy}–{new_q.max_occupancy} "
+                       f"Personen (gewählt {persons}).")
+
+    # Welche Nächte müssen im (ggf. neuen) Quartier frei + freigeschaltet sein?
+    if quarter_changed:
+        need_free = [(new_start, new_end)]            # ganzer Zeitraum im neuen Q.
+    else:
+        need_free = []                                 # nur die hinzukommenden Teile
+        if new_start < a.start:
+            need_free.append((new_start, a.start))
+        if new_end > a.end:
+            need_free.append((a.end, new_end))
+    for s, e in need_free:
+        if not range_is_released(new_q, s, e):
+            return False, "Der gewählte Zeitraum ist nicht buchbar (Saison/Freigabe)."
+        if not quarter_is_free(new_q, s, e):
+            return False, "Der gewählte Zeitraum ist im Quartier nicht frei."
+
+    # Budget: nur zusätzliche Nächte zählen.
+    extra = new_nights - old_nights
+    if extra > 0:
+        remaining = member.nights_remaining_in_year(new_start.year)
+        if remaining < extra:
+            return False, (f"Nicht genügend Tage ({remaining} übrig, "
+                           f"{extra} zusätzlich nötig).")
+
+    # Mindestaufenthalt der NEUEN Dauer.
+    min_n = min_nights_for_range(new_start, new_end)
+    if new_nights < min_n:
+        return False, f"Mindestaufenthalt {min_n} Nächte (neu wären es {new_nights})."
+
+    # Frei werdende Bereiche bestimmen + 7-Tage-Frist (nur bei Verkürzung im
+    # gleichen Quartier).
+    if quarter_changed:
+        freed = [(old_q, a.start, a.end)]             # altes Quartier ganz frei
+    else:
+        freed = []
+        if new_start > a.start:
+            freed.append((old_q, a.start, new_start))
+        if new_end < a.end:
+            freed.append((old_q, new_end, a.end))
+        if freed:
+            earliest = min(s for _, s, _ in freed)
+            if earliest < today + timedelta(days=7):
+                return False, ("Verkürzen ist nur möglich, wenn die frei werdenden "
+                               "Nächte mindestens eine Woche in der Zukunft liegen.")
+
+    a.quarter, a.start, a.end, a.persons = new_q, new_start, new_end, persons
+    a.save(update_fields=["quarter", "start", "end", "persons"])
+
+    # Frei gewordene Zeiträume melden.
+    for q, s, e in freed:
+        _broadcast_spontaneously_free(q, s, e, exclude_member=member)
+        notify_waitlist_if_free(q, s, e)
     return True, None
 
 

@@ -387,6 +387,29 @@ def my_bookings(request):
             ok, err = svc.cancel_allocation(member, request.POST.get("allocation_id"))
             messages.success(request, "Buchung storniert.") if ok \
                 else messages.error(request, err or "Stornierung nicht möglich.")
+        elif action == "adjust":
+            ns = _parse_date(request.POST.get("new_start"))
+            ne = _parse_date(request.POST.get("new_end"))
+            nq = None
+            qid = request.POST.get("new_quarter")
+            if qid:
+                from .models import Quarter
+                try:
+                    nq = Quarter.objects.get(id=qid)
+                except (Quarter.DoesNotExist, ValueError, TypeError):
+                    nq = None
+            try:
+                npers = int(request.POST.get("new_persons") or 0) or None
+            except (ValueError, TypeError):
+                npers = None
+            if not ns or not ne:
+                messages.error(request, "Bitte An- und Abreise angeben.")
+            else:
+                ok, err = svc.adjust_allocation(
+                    member, request.POST.get("allocation_id"), ns, ne,
+                    new_quarter=nq, new_persons=npers)
+                messages.success(request, "Buchung angepasst.") if ok \
+                    else messages.error(request, err or "Anpassung nicht möglich.")
         elif action == "read_notifications":
             svc.mark_notifications_read(member)
         elif action == "swap_request":
@@ -420,7 +443,12 @@ def my_bookings(request):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
             a.waiters = svc.waiters_for_allocation(a)
-            a.concurrent = svc.concurrent_allocations(a)
+            a.concurrent = svc.concurrent_split(a)
+            a.min_nights = svc.min_nights_for_range(a.start, a.end)
+            # Andere Quartiere, die für den AKTUELLEN Zeitraum + Personen frei
+            # sind (für den Unterkunfts-Wechsel im „Buchung ändern“-Bereich).
+            a.switch_options = svc.free_quarters_for(
+                a.start, a.end, a.persons, exclude_id=a.quarter_id)
         incoming_swaps = svc.pending_swaps_for(member)
         my_waitlist = list(
             member.waitlist_entries.filter(fulfilled=False, end__gte=today)
@@ -813,6 +841,7 @@ def dashboard(request):
         "online_count": len(online_month),
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
         "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
+        "stats": svc.dashboard_stats(),
     })
 
 

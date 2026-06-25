@@ -213,3 +213,22 @@ class InvoiceDashboardTests(TestCase):
             self.client.get(reverse("dashboard") + "?inv=all")
         self.assertLess(len(ctx.captured_queries), 40,
                         f"zu viele Queries: {len(ctx.captured_queries)}")
+
+
+class DashboardStatsTests(TestCase):
+    def test_kennzahlen_und_auslastung(self):
+        ec = EquivalenceClass.objects.create(name="E")
+        q = Quarter.objects.create(name="Q", eq_class=ec, min_occupancy=1,
+                                   max_occupancy=4)
+        u = User.objects.create_user("a", password="x" * 12)
+        m = Member.objects.create(user=u, display_name="A")
+        s = date.today().replace(day=1)
+        Allocation.objects.create(member=m, quarter=q, start=s,
+                                  end=s + timedelta(days=3), persons=1,
+                                  source="spontaneous", provisional=False)
+        st = svc.dashboard_stats()
+        self.assertEqual(st["n_members"], 1)
+        self.assertGreaterEqual(st["n_users"], 1)
+        self.assertEqual(st["occ_current"]["booked"], 3)
+        self.assertGreater(st["occ_current"]["possible"], 0)
+        self.assertIsNone(st["last_lottery"])
