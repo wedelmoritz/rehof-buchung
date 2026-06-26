@@ -2,9 +2,8 @@
 
 ## Status
 
-Accepted (2026-06-26) – Mindestnächte überall erzwungen; Parallel-Limit/Deckel über
-mehrere Buchungen bleiben bewusst auf die normale Buchung beschränkt (siehe Offener
-Punkt)
+Accepted (2026-06-26) – vollständig umgesetzt: Mindestnächte überall, Parallel-Limit
+und Aufenthaltsdeckel jetzt auch in der Losung (siehe „Geltungsbereich der Regeln")
 
 ## Kontext
 
@@ -51,13 +50,30 @@ Wir setzen die Vorgaben als **prüfbare Regel-Logik plus konfigurierbare Stammda
   konfigurierbar (`services.external_min_nights`): **Default = wie intern** (inkl.
   Saison-Mindestnächte), per Schalter `ExternalConfig.min_nights_follow_internal`
   auf einen eigenen, abweichenden Wert umstellbar (siehe ADR 0023).
-- **Offener Punkt:** Das **Parallel-Limit** und der **Aufenthaltsdeckel über
-  mehrere Buchungen** wirken nur bei der normalen Buchung. Sie betreffen mehrere
-  gleichzeitige Einheiten je Mitglied und sind je Einzelwunsch nicht entscheidbar;
-  der Los-Algorithmus (`lottery.run_lottery`) bleibt deshalb bewusst unverändert
-  (Beschluss: Saison-Regeln nur beim Einreichen prüfen). Eine vollständige
-  Durchsetzung in der Losung selbst bliebe ein möglicher Ausbau (Einhängepunkt
-  `run_period_lottery`).
+- **Parallel-Limit** und **Aufenthaltsdeckel über mehrere Buchungen** werden jetzt
+  **auch in der Losung** erzwungen: `lottery.run_lottery` nimmt einen optionalen
+  `rule_check`-Callback und führt je Partei die im Lauf bereits zugeteilten
+  Zeiträume (`party_stays`). `run_period_lottery` baut den Callback aus
+  `rules.validate_booking` + einmalig materialisierten Saison-Regeln (keine
+  N+1-Queries). Würde ein Wunsch den Deckel überschreiten, wird er **terminal
+  übersprungen** – wie ein Budget-Übersprung, **kein** echter Verlust und **kein**
+  Karma-Bonus. Das ist bewusst gewählt: Würde der Deckel als Verlust zählen,
+  ließe sich durch absichtliches Über-Wünschen überlappender Einheiten Karma
+  „farmen" – die Strategiesicherheit bliebe so erhalten (siehe ADR 0003).
+- **Runden-Verhalten (wichtig für die Fairness):** Ein übersprungener Wunsch –
+  ob Deckel, Budget oder echter Verlust – **übergeht die Partei nicht**. Die Losung
+  prüft in **derselben Runde** sofort den **nächsten Wunsch (niedrigere Priorität)
+  derselben Partei** weiter (innerer `while`-Loop in `run_lottery`, jeder Skip macht
+  `pointer += 1; continue`). Die Partei verliert also ihren Zug nicht; erst eine
+  erfolgreiche Buchung beendet ihre Runde. Beispiel: Prio 1 ist gedeckelt → die
+  Partei bekommt in derselben Runde ggf. Prio 2 zugeteilt. Belegt durch
+  `tests/test_lottery.py::test_rule_skip_prueft_naechste_prioritaet_in_gleicher_runde`
+  und den Integrationstest `LosungDeckelReihenfolgeTests`.
+- **Grenze (dokumentiert):** Der Deckel-Check betrachtet nur die **innerhalb des
+  Losdurchlaufs** zugeteilten Zeiträume – konsistent zum „leeren Start" der Losung
+  (sie lädt auch für die Verfügbarkeit keine bestehenden Buchungen). Zum
+  Losungszeitpunkt (Folgejahr im Voraus) existieren normalerweise noch keine
+  anderen Buchungen der Partei.
 
 ## Betrachtete Alternativen
 
@@ -73,9 +89,10 @@ Wir setzen die Vorgaben als **prüfbare Regel-Logik plus konfigurierbare Stammda
 - Regel-Logik schnell und isoliert testbar.
 
 **Negativ**
-- Das Parallel-Limit/der Mehrfach-Deckel greifen nicht in der Losung (siehe Offener
-  Punkt) – bewusst, da je Einzelwunsch nicht entscheidbar.
-- Mindestnächte werden an mehreren Stellen geprüft (Buchung, Wunsch-Eintrag,
-  Wunsch-Einreichen, extern) – die gemeinsame Logik liegt zentral in
-  `services`/`rules.py`, muss aber konsistent eingebunden bleiben.
+- Die Regeln werden an mehreren Stellen geprüft (Buchung, Wunsch-Eintrag,
+  Wunsch-Einreichen, Losung, extern) – die gemeinsame Logik liegt zentral in
+  `rules.py`, muss aber überall konsistent eingebunden bleiben.
+- Der Deckel-Check in der Losung sieht nur die laufeigenen Zuteilungen, nicht
+  bereits bestehende Buchungen der Partei (dokumentierte Grenze, in der Praxis
+  unkritisch).
 - Pflege der jährlichen Termine bleibt eine wiederkehrende Verwaltungsaufgabe.

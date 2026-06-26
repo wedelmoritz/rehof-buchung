@@ -1115,3 +1115,86 @@ class WunschSaisonRegelnTests(UseCaseBase):
         n, err = svc.submit_wishlist(self.alice, self.period)
         self.assertIsNone(err)
         self.assertEqual(n, 1)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case 16: Parallel-Limit/Aufenthaltsdeckel greifen auch in der LOSUNG
+#   (Beschluss: gedeckelter Wunsch wird übersprungen – kein Verlust, kein Karma)
+# --------------------------------------------------------------------------- #
+
+class LosungDeckelTests(UseCaseBase):
+    """Die Saison-Regeln über mehrere Buchungen (max. gleichzeitige Einheiten,
+    Aufenthaltsdeckel) werden jetzt auch im Los-Algorithmus erzwungen."""
+
+    def setUp(self):
+        super().setUp()
+        SeasonRule.objects.create(
+            name="Sommerferien BB", start_month=7, start_day=1, end_month=9, end_day=1,
+            max_parallel_units=2, max_stay_nights=14, active=True)
+        self.period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_parallel_limit_in_losung_ueberspringt_ohne_karma(self):
+        # Drei gleichzeitige Einheiten gewünscht -> Losung teilt nur zwei zu.
+        s, e = date(NEXT_YEAR, 7, 13), date(NEXT_YEAR, 7, 20)  # 7 Nächte
+        for q in (self.k1, self.k2, self.k3):
+            svc.add_wish(self.alice, self.period, q, s, e)
+        n, err = svc.submit_wishlist(self.alice, self.period)
+        self.assertIsNone(err)
+        svc.run_period_lottery(self.period, seed=1)
+        allocs = Allocation.objects.filter(period=self.period, member=self.alice)
+        self.assertEqual(allocs.count(), 2)        # Parallel-Limit 2
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.factor, 1.0)   # kein Verlust -> kein Karma
+
+    def test_aufenthaltsdeckel_in_losung(self):
+        # Drei nicht-überlappende Sommerwochen, Deckel 14 Nächte -> zwei Wochen ok.
+        weeks = [(date(NEXT_YEAR, 7, 1), date(NEXT_YEAR, 7, 8)),
+                 (date(NEXT_YEAR, 7, 8), date(NEXT_YEAR, 7, 15)),
+                 (date(NEXT_YEAR, 7, 15), date(NEXT_YEAR, 7, 22))]
+        for (s, e) in weeks:
+            svc.add_wish(self.alice, self.period, self.k1, s, e)
+        svc.submit_wishlist(self.alice, self.period)
+        svc.run_period_lottery(self.period, seed=1)
+        allocs = Allocation.objects.filter(period=self.period, member=self.alice)
+        self.assertEqual(allocs.count(), 2)        # 14-Nächte-Deckel
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.factor, 1.0)
+
+
+class LosungDeckelReihenfolgeTests(UseCaseBase):
+    """Ein wegen Deckel übersprungener Wunsch übergeht die Partei NICHT: in
+    derselben Losung wird der nächste (niedrigere) Wunsch derselben Partei geprüft
+    und ggf. zugeteilt."""
+
+    def setUp(self):
+        super().setUp()
+        SeasonRule.objects.create(
+            name="Nur eine Einheit", start_month=7, start_day=1, end_month=9,
+            end_day=1, max_parallel_units=1, active=True)
+        self.period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_naechste_prioritaet_wird_in_derselben_losung_zugeteilt(self):
+        wa = (date(NEXT_YEAR, 7, 6), date(NEXT_YEAR, 7, 13))   # Woche A
+        wc = (date(NEXT_YEAR, 7, 20), date(NEXT_YEAR, 7, 27))  # Woche C (separat)
+        svc.add_wish(self.alice, self.period, self.k1, *wa)   # Prio 1 (Woche A)
+        svc.add_wish(self.alice, self.period, self.k2, *wa)   # Prio 2 (Woche A -> Deckel)
+        svc.add_wish(self.alice, self.period, self.k3, *wc)   # Prio 3 (Woche C)
+        svc.submit_wishlist(self.alice, self.period)
+        svc.run_period_lottery(self.period, seed=1)
+        allocs = list(Allocation.objects.filter(period=self.period, member=self.alice))
+        quarters = {a.quarter_id for a in allocs}
+        # Prio 1 + Prio 3 zugeteilt; Prio 2 (überlappend, Parallel-Limit 1) übersprungen
+        self.assertEqual(len(allocs), 2)
+        self.assertIn(self.k1.id, quarters)
+        self.assertIn(self.k3.id, quarters)
+        self.assertNotIn(self.k2.id, quarters)
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.factor, 1.0)   # kein Verlust -> kein Karma

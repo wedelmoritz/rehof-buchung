@@ -29,6 +29,7 @@ beweisbar optimal.
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -163,6 +164,8 @@ def run_lottery(
     factor_cap: float = 1.5,
     reset_on_contested_win: bool = True,
     order: list[str] | None = None,
+    rule_check: Callable[[str, date, date, list[tuple[date, date]]], str | None]
+    | None = None,
 ) -> LotteryResult:
     """Führt eine Jahres-Losung durch.
 
@@ -173,6 +176,13 @@ def run_lottery(
       reset_on_contested_win  Faktor bei Gewinn eines umkämpften Slots auf 1.0.
       order                   Optionale feste Reihenfolge (für Tests/Audit);
                               wenn None, wird gewichtet ausgelost.
+      rule_check              Optionaler Callback der Saison-Regeln über mehrere
+                              Buchungen (Parallel-Limit/Aufenthaltsdeckel). Aufruf
+                              `rule_check(party_id, start, end, bisherige_stays)`;
+                              gibt es einen Grund (str) zurück, wird der Wunsch
+                              TERMINAL übersprungen (kein echter Verlust, kein
+                              Karma – wie ein Budget-Übersprung; das wahrt die
+                              Strategiesicherheit). None = erlaubt.
 
     Karma-Regel (Spezifikation 3.3), Auflösung bei gemischtem Ausgang:
       - Hatte die Partei IRGENDWO einen echten Verlust  -> Faktor + step (gedeckelt)
@@ -221,6 +231,9 @@ def run_lottery(
     nights_used: dict[str, int] = {p.id: 0 for p in parties}
     had_genuine_loss: dict[str, bool] = {p.id: False for p in parties}
     won_contested: dict[str, bool] = {p.id: False for p in parties}
+    # Bereits in DIESEM Lauf zugeteilte Zeiträume je Partei – Grundlage für die
+    # Saison-Regeln über mehrere Buchungen (Parallel-Limit/Aufenthaltsdeckel).
+    party_stays: dict[str, list[tuple[date, date]]] = {p.id: [] for p in parties}
 
     allocations: list[Allocation] = []
     losses: list[Wish] = []
@@ -254,6 +267,23 @@ def run_lottery(
                     pointer[pid] += 1
                     continue
 
+                # (1b) Saison-Regeln über mehrere Buchungen (Parallel-Limit/
+                # Aufenthaltsdeckel)? Wäre der Deckel mit den schon zugeteilten
+                # Zeiträumen überschritten -> terminal überspringen, KEIN Verlust
+                # (die Partei hat ihren Saison-Anteil bereits; wahrt die
+                # Strategiesicherheit – Über-Wünschen bringt kein Karma).
+                if rule_check is not None:
+                    blocked = rule_check(pid, w.start, w.end, party_stays[pid])
+                    if blocked:
+                        log.append({
+                            "event": "rule_skip", "round": round_no, "party": pid,
+                            "wish_quarter": w.quarter_id, "priority": w.priority,
+                            "reason": blocked,
+                            "start": w.start.isoformat(), "end": w.end.isoformat(),
+                        })
+                        pointer[pid] += 1
+                        continue
+
                 # (2) Konkretes Wunschquartier frei?
                 target: str | None = None
                 via_sub = False
@@ -286,6 +316,7 @@ def run_lottery(
                 # (5) Zuteilen
                 _occupy(occ, target, w.start, w.end)
                 nights_used[pid] += n
+                party_stays[pid].append((w.start, w.end))
                 contested = is_contested(w, pid)
                 if contested:
                     won_contested[pid] = True
@@ -367,6 +398,11 @@ def render_log_text(
             lines.append(
                 f"R{e['round']}: {P(e['party'])} übersprungen "
                 f"(Budget {e['nights_used']}/{e['budget']} Nächte erreicht)"
+            )
+        elif ev == "rule_skip":
+            lines.append(
+                f"R{e['round']}: {P(e['party'])} übersprungen "
+                f"(Saison-Regel: {e['reason']})"
             )
     lines.append("")
     lines.append("=== NEUE AUSGLEICHSFAKTOREN ===")

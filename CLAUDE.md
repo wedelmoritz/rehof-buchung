@@ -363,11 +363,16 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   Buchungen** erzwungen. Der Externen-Mindestaufenthalt ist im Backend einstellbar
   (`services.external_min_nights`): **Default identisch zu intern** (inkl. Saison),
   per `ExternalConfig.min_nights_follow_internal` auf einen abweichenden festen Wert
-  umstellbar. Das
-  **Parallel-Limit** (mehrere gleichzeitige Einheiten je Mitglied) wird bewusst nur
-  bei der normalen Buchung geprüft – es ist je Einzelwunsch nicht prüfbar; der
-  Los-Algorithmus (`lottery.run_lottery`) bleibt unverändert (Beschluss: Saison-
-  Regeln nur beim Einreichen prüfen).
+  umstellbar. **Parallel-Limit** und **Aufenthaltsdeckel über mehrere Buchungen**
+  werden bei der normalen Buchung **und in der Losung** erzwungen: `run_lottery`
+  nimmt einen `rule_check`-Callback (gebaut in `run_period_lottery` aus
+  `rules.validate_booking` + einmalig materialisierten Saison-Regeln) und führt je
+  Partei die schon zugeteilten Zeiträume (`party_stays`). Ein gedeckelter Wunsch
+  wird **übersprungen** (kein Verlust, kein Karma – wie ein Budget-Übersprung; wahrt
+  die Strategiesicherheit). Ein Skip übergeht die Partei **nicht**: der innere
+  `while`-Loop prüft in **derselben Runde** sofort den nächsten Wunsch derselben
+  Partei (kein „erst nächste Runde"). Der Deckel-Check sieht nur die laufeigenen
+  Zuteilungen (dokumentierte Grenze, s. ADR 0009).
 - **Schulferien (`SchoolHoliday`):** ebenfalls **jährlich wiederkehrend**;
   werden im Kalender angezeigt UND setzen, wenn aktiv und mit Regelfeldern
   versehen, im Zeitraum dieselben Regeln durch wie eine Saison-Regel (leere
@@ -472,10 +477,14 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
 
 ## Offene Punkte / Roadmap (Kandidaten für Change-Requests)
 
-- Saison-**Mindestnächte** gelten jetzt auch für Wunschliste/Losung (beim
-  Einreichen) und externe Buchungen (**erledigt**). Offen bleibt nur das
-  **Parallel-Limit/Deckel über mehrere Buchungen** in der Losung selbst (je
-  Einzelwunsch nicht prüfbar; Einhängepunkt wäre `lottery.run_lottery`).
+- Saison-Regeln gelten jetzt vollständig auch für Wunschliste/Losung: **Mindest-
+  nächte** beim Einreichen, **Parallel-Limit/Aufenthaltsdeckel** im Los-Algorithmus
+  (`run_lottery`-`rule_check`, gedeckelte Wünsche werden übersprungen) sowie für
+  externe Buchungen (**erledigt**, s. ADR 0009).
+- **Zahlungsanbindung:** Voll-Bezahlung der Rechnung ist umgesetzt (Mollie/Sandbox).
+  **Offen:** Online-**Anzahlung** (heute informativ) und automatische **Storno-
+  Erstattung** (heute manuell) – Konzept/Naht in ADR 0038, `shop/mollie_api.py` um
+  `create_refund` + `payments.refund_payment` zu erweitern.
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
 - Externe Gäste (buchen + zahlen via Mollie, Gast-Checkout) – **erledigt**
   (Buchung + Online-Bezahlung aktiv, s.o.); Konzept in `docs/EXTERNE-GAESTE.md`.

@@ -240,10 +240,11 @@ Brandenburg sind nahezu identisch).
 > Buchung**, **beim Eintragen/Einreichen der Wunschliste** und bei **externen
 > Buchungen** geprüft (ein zu kurzer Wunsch lässt sich gar nicht erst einreichen,
 > ein Losgewinn kann also nicht an den Mindestnächten scheitern). Das
-> **Parallel-Limit** und der **Aufenthaltsdeckel über mehrere Buchungen** sind
-> dagegen nur bei der normalen Buchung prüfbar (sie betreffen mehrere gleichzeitige
-> Einheiten und lassen sich je Einzelwunsch nicht entscheiden); der
-> Los-Algorithmus bleibt daher bewusst unverändert.
+> **Parallel-Limit** und der **Aufenthaltsdeckel über mehrere Buchungen** gelten
+> bei der normalen Buchung **und in der Losung**: Würde ein Wunsch den Deckel
+> überschreiten (die Partei hat in der Saison schon ihr Maximum), wird er in der
+> Losung **übersprungen** – das zählt **nicht** als Verlust und bringt **kein**
+> Karma (so lässt sich durch Über-Wünschen kein Vorteil erzielen).
 >
 > Für **externe Gäste** ist der Mindestaufenthalt im Backend einstellbar
 > (Externe-Gäste-Einstellungen): standardmäßig **„wie intern“** (inkl. der
@@ -268,6 +269,11 @@ Verfahren: **gewichtete Zufallsreihenfolge im Runden-Prinzip** (fachlich eine
   – ihren *höchsten noch möglichen* Wunsch, in Runde 2 mit *derselben* Reihenfolge
   den nächsten, usw. Pro Runde höchstens **eine** Buchung je Partei – so werden
   knappe Premium-Termine (z.B. Pfingsten) gleichmäßiger verteilt.
+- **Übersprungen kostet nicht den Zug:** Ist der höchste Wunsch wegen Budget oder
+  einer **Saison-Grenze** (Parallel-Limit/Nächte-Deckel) nicht möglich, prüft die
+  Losung **in derselben Runde** sofort den **nächsten Wunsch derselben Partei** –
+  die Partei wird also nicht für die Runde übergangen, nur der eine blockierte
+  Wunsch wird übersprungen (kein Verlust, kein Karma).
 - **Ausweichen:** Ist das konkrete Wunschquartier belegt, wird ein
   **gleichwertiges** Quartier derselben Äquivalenzklasse zugeteilt, bevor ein
   echter Verlust entsteht.
@@ -337,10 +343,10 @@ flowchart TD
     C --> D{"Partei: höchster noch<br/>möglicher Wunsch"}
     D -->|"Wunschquartier frei"| E["✓ zuteilen"]
     D -->|"sonst gleichwertiges frei"| F["✓ Ausweichquartier"]
-    D -->|"Budget voll (25 Wunsch-Nächte)"| H["übersprungen – kein Verlust"]
+    D -->|"Budget voll ODER Saison-Deckel/Parallel-Limit erreicht"| H["übersprungen – kein Verlust"]
     D -->|"nichts frei"| G["✗ echter Verlust<br/>Karma +0,1 (nächstes Jahr)"]
-    H -->|"nächster Wunsch"| D
-    G -->|"nächster Wunsch"| D
+    H -->|"nächster Wunsch – gleiche Runde, gleiche Partei"| D
+    G -->|"nächster Wunsch – gleiche Runde, gleiche Partei"| D
     E --> I["höchstens EINE Buchung pro Partei & Runde"]
     F --> I
     I --> J{"noch offene Wünsche?"}

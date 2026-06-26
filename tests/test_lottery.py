@@ -424,3 +424,75 @@ def test_fairness_ueber_zeit_verlierer_holen_auf():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+# --------------------------------------------------------------------------- #
+# Saison-Regeln über mehrere Buchungen (Parallel-Limit/Deckel) im Algorithmus
+# --------------------------------------------------------------------------- #
+
+def _max_one_parallel(pid, start, end, existing):
+    """Stub-Regel: höchstens EINE gleichzeitige (überlappende) Einheit je Partei."""
+    for s, e in existing:
+        if s < end and start < e:   # Überlappung
+            return "Parallel-Limit (max. 1)"
+    return None
+
+
+def test_rule_check_parallel_limit_ueberspringt_ohne_karma():
+    """Ein gedeckelter Wunsch wird übersprungen wie ein Budget-Übersprung:
+    kein echter Verlust, KEIN Karma-Bonus (wahrt die Strategiesicherheit)."""
+    parties = [Party("a", "A")]
+    s, e = week(0)
+    wishes = [
+        Wish("a", 1, "g_salix", s, e),
+        Wish("a", 2, "p_nord", s, e),   # überlappt -> Deckel greift
+    ]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, rule_check=_max_one_parallel)
+    assert len(res.allocations) == 1
+    assert res.allocations[0].quarter_id == "g_salix"
+    assert res.losses == []                      # KEIN echter Verlust
+    assert res.new_factors["a"] == 1.0           # Karma unverändert
+    assert any(ev["event"] == "rule_skip" for ev in res.log)
+
+
+def test_rule_check_nicht_ueberlappend_beide_ok():
+    """Nicht überlappende Wünsche sind vom Parallel-Limit nicht betroffen."""
+    parties = [Party("a", "A")]
+    s1, e1 = week(0)
+    s2, e2 = week(14)                            # andere Woche -> kein Deckel
+    wishes = [Wish("a", 1, "g_salix", s1, e1), Wish("a", 2, "p_nord", s2, e2)]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, rule_check=_max_one_parallel)
+    assert len(res.allocations) == 2
+
+
+def test_rule_check_ohne_callback_unveraendert():
+    """Ohne rule_check verhält sich die Losung exakt wie bisher (Regression)."""
+    parties = [Party("a", "A")]
+    s, e = week(0)
+    wishes = [Wish("a", 1, "g_salix", s, e), Wish("a", 2, "p_nord", s, e)]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1)
+    assert len(res.allocations) == 2             # beide zugeteilt, kein Deckel
+
+
+def test_rule_skip_prueft_naechste_prioritaet_in_gleicher_runde():
+    """Ein wegen einer Regel übersprungener Wunsch übergeht die Partei NICHT:
+    in DERSELBEN Runde wird der nächste (niedrigere) Wunsch derselben Partei
+    geprüft und ggf. zugeteilt (kein Wechsel 'erst nächste Runde')."""
+    parties = [Party("a", "A")]
+    s, e_long = week(0, length=10)               # Prio 1: 10 Nächte -> geblockt
+    s2, e2 = week(0, length=3)                    # Prio 2: 3 Nächte, anderes Quartier
+    wishes = [Wish("a", 1, "g_salix", s, e_long),
+              Wish("a", 2, "p_nord", s2, e2)]
+
+    def block_long(pid, start, end, existing):
+        return "zu lang" if (end - start).days >= 10 else None
+
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, rule_check=block_long)
+    assert len(res.allocations) == 1
+    assert res.allocations[0].quarter_id == "p_nord"     # Prio 2 zugeteilt
+    # … und zwar in der ERSTEN Runde (nicht erst eine Runde später):
+    assign = next(e for e in res.log if e["event"] == "assign")
+    assert assign["round"] == 1 and assign["priority"] == 2
+    skip = next(e for e in res.log if e["event"] == "rule_skip")
+    assert skip["round"] == 1 and skip["priority"] == 1
+    assert res.losses == [] and res.new_factors["a"] == 1.0

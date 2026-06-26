@@ -86,10 +86,32 @@ def run_period_lottery(
         for w in wishes_qs
     ]
 
+    # Saison-Regeln über mehrere Buchungen (Parallel-Limit/Aufenthaltsdeckel) auch
+    # in der Losung erzwingen. Die Saison-Regeln werden EINMAL für die gesamte
+    # Wunsch-Spanne materialisiert (keine N+1-Queries); der Callback prüft pro
+    # Wunsch die schon im Lauf zugeteilten Zeiträume der Partei. Mindestnächte sind
+    # bereits beim Einreichen geprüft (validate_booking prüft sie hier nur erneut –
+    # für eingereichte Wünsche unschädlich). Verletzt ein Wunsch den Deckel, wird er
+    # in der Losung übersprungen (kein echter Verlust/Karma – wahrt die
+    # Strategiesicherheit).
+    policy = BookingPolicy.get_solo()
+    if wishes_qs:
+        span_start = min(w.start for w in wishes_qs)
+        span_end = max(w.end for w in wishes_qs)
+        _seasons = _materialized_seasons(span_start, span_end)
+    else:
+        _seasons = []
+
+    def _rule_check(_pid, start, end, existing):
+        stays = [R.Stay(start=s, end=e) for (s, e) in existing]
+        return R.validate_booking(_seasons, policy.default_min_nights,
+                                  start, end, stays)
+
     result = L.run_lottery(
         parties, q_payload, w_payload,
         seed=seed, factor_step=factor_step, factor_cap=factor_cap,
         reset_on_contested_win=reset_on_contested_win,
+        rule_check=_rule_check,
     )
 
     # Faktor-Stände VOR dem Lauf festhalten (für ein sauberes Rückgängigmachen).

@@ -21,8 +21,12 @@ Wir verwenden eine **gewichtete Zufallsreihenfolge im Runden-Prinzip**
   (`weighted_random_order`, Schlüssel `u ** (1/factor)`), über `seed`
   reproduzierbar.
 - **Round-Robin statt Greedy:** pro Runde erhält jede Partei höchstens **eine**
-  erfolgreiche Buchung (`run_lottery`, Schleife Zeilen ~235–305, `break` nach
-  einer Zuteilung), damit sich knappe Slots gleichmäßig verteilen.
+  erfolgreiche Buchung (`run_lottery`, innerer `while`-Loop, `break` erst nach einer
+  Zuteilung), damit sich knappe Slots gleichmäßig verteilen.
+- **Skip kostet nicht den Zug:** Wird ein Wunsch übersprungen (Budget/Saison-Deckel)
+  oder ist er ein echter Verlust, geht die Partei **in derselben Runde** zu ihrem
+  **nächsten Wunsch** über (kein Wechsel „erst nächste Runde"). So nutzt jede Partei
+  ihren Zug bestmöglich, statt ihn durch einen blockierten Top-Wunsch zu verlieren.
 - **Ausweichen** auf gleichwertige Quartiere derselben Äquivalenzklasse, bevor ein
   echter Verlust entsteht (Zeilen ~263–271, siehe ADR 0005).
 - **Strategiesicherheit:** Die Wunschliste bestimmt nur *was* man nimmt, nicht
