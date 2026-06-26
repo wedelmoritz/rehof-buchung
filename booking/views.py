@@ -1095,11 +1095,24 @@ def external_home(request):
     today = date.today()
     year, month = _month_from_request(request, today)
     cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
+    # Mindestaufenthalt für die Gäste-Hilfe: „wie intern" zeigt den internen
+    # Standard (in der Hauptsaison ggf. mehr), sonst den eigenen festen Wert.
+    if cfg.min_nights_follow_internal:
+        from .models import BookingPolicy, SchoolHoliday, SeasonRule
+        ext_min_base = BookingPolicy.get_solo().default_min_nights
+        ext_min_seasonal = (
+            SeasonRule.objects.filter(active=True, min_nights__gt=ext_min_base).exists()
+            or SchoolHoliday.objects.filter(
+                active=True, min_nights__gt=ext_min_base).exists())
+    else:
+        ext_min_base = cfg.min_nights
+        ext_min_seasonal = False
     return render(request, "booking/external_home.html", {
         "cfg": cfg, "shop_cfg": shop_cfg, "today": today,
         "start": start, "end": end,
         "persons": persons, "offers": offers,
         "searched": bool(start and end),
+        "ext_min_base": ext_min_base, "ext_min_seasonal": ext_min_seasonal,
         "payments_active": pay_svc.payments_enabled(),
         "cancellation_text": cfg.cancellation_text,
         "cal": cal, "nav_qs": _ext_nav_qs(start, end, persons),

@@ -310,3 +310,14 @@ class ExternalSeasonMinNightsTests(TestCase):
             self.q, self.start, self.start + timedelta(days=7), 2,
             name="Max", email="max@example.org")
         self.assertIsNotNone(b, err)
+
+    def test_eigener_wert_weicht_ab(self):
+        # Schalter „wie intern" AUS -> eigener fester Wert (2) gilt, die
+        # Saison-Mindestnächte (7) greifen dann NICHT mehr.
+        self.cfg.min_nights_follow_internal = False
+        self.cfg.min_nights = 2
+        self.cfg.save()
+        b, err = svc.create_external_booking(
+            self.q, self.start, self.start + timedelta(days=3), 2,
+            name="Max", email="max@example.org")
+        self.assertIsNotNone(b, err)

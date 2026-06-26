@@ -244,6 +244,11 @@ Brandenburg sind nahezu identisch).
 > dagegen nur bei der normalen Buchung prüfbar (sie betreffen mehrere gleichzeitige
 > Einheiten und lassen sich je Einzelwunsch nicht entscheiden); der
 > Los-Algorithmus bleibt daher bewusst unverändert.
+>
+> Für **externe Gäste** ist der Mindestaufenthalt im Backend einstellbar
+> (Externe-Gäste-Einstellungen): standardmäßig **„wie intern“** (inkl. der
+> Saison-Mindestnächte), bei Bedarf auf einen eigenen, **abweichenden** Wert
+> umstellbar (Haken „Mindestaufenthalt wie intern“ entfernen).
 
 ---
 

@@ -418,6 +418,21 @@ def min_nights_for_range(start: date, end: date) -> int:
                season_min_nights(start, end))
 
 
+def external_min_nights(start: date, end: date, cfg=None) -> int:
+    """Mindestaufenthalt für externe Buchungen in [start, end).
+
+    Standard (`ExternalConfig.min_nights_follow_internal=True`): identisch zu den
+    internen Mindestnächten (`min_nights_for_range` = Standard-Mindestnächte +
+    Saison-Mindestnächte) – Externe und Mitglieder sind dann gleichgestellt. Ist
+    der Schalter im Backend AUS, gilt der eigene feste Wert
+    (`ExternalConfig.min_nights`), der bewusst von den internen Vorgaben abweichen
+    darf (höher ODER niedriger, ohne Saison-Verschärfung)."""
+    cfg = cfg or ExternalConfig.get_solo()
+    if cfg.min_nights_follow_internal:
+        return min_nights_for_range(start, end)
+    return cfg.min_nights or 0
+
+
 def wish_rule_error(start: date, end: date) -> str | None:
     """Saison-Regeln für einen EINZELNEN Wunsch: Mindestnächte (Standard + Saison)
     und der Aufenthaltsdeckel als Obergrenze einer einzelnen Buchung. Das
@@ -1698,13 +1713,9 @@ def external_available_quarters(start: date, end: date) -> list[tuple]:
         return []
     ok, _reason = external_allowed(
         start, end, today=date.today(), allowed_weekdays=cfg.allowed_weekday_set,
-        min_nights=cfg.min_nights, max_nights=cfg.max_nights,
+        min_nights=external_min_nights(start, end, cfg), max_nights=cfg.max_nights,
         lead_days=cfg.lead_days, horizon_days=cfg.horizon_days)
     if not ok:
-        return []
-    # Konfigurierte Saison-Mindestnächte (z.B. 7 im Sommer) gelten für Externe
-    # zusätzlich zu deren eigenem Mindestaufenthalt – das strengere zählt.
-    if (end - start).days < season_min_nights(start, end):
         return []
     out = []
     for q in Quarter.objects.filter(
@@ -1732,15 +1743,10 @@ def create_external_booking(quarter: Quarter, start: date, end: date, persons: i
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
     ok, reason = external_allowed(
         start, end, today=date.today(), allowed_weekdays=cfg.allowed_weekday_set,
-        min_nights=cfg.min_nights, max_nights=cfg.max_nights,
+        min_nights=external_min_nights(start, end, cfg), max_nights=cfg.max_nights,
         lead_days=cfg.lead_days, horizon_days=cfg.horizon_days)
     if not ok:
         return None, reason
-    # Konfigurierte Saison-Mindestnächte (z.B. 7 im Sommer) gelten auch für Externe.
-    season_min = season_min_nights(start, end)
-    if (end - start).days < season_min:
-        return None, (f"Mindestaufenthalt in diesem Zeitraum: {season_min} Nächte "
-                      f"(gewählt: {(end - start).days}).")
     if not _in_season_range(quarter, start, end):
         return None, f"{quarter.name} ist in diesem Zeitraum nicht buchbar."
     if persons and persons > quarter.max_occupancy:

@@ -47,8 +47,10 @@ Wir setzen die Vorgaben als **prüfbare Regel-Logik plus konfigurierbare Stammda
   **Wunschliste/Losung** beim Eintragen/Einreichen
   (`services.wish_rule_error` in `add_wish`/`submit_wishlist` – ein zu kurzer
   Wunsch lässt sich nicht einreichen, ein Losgewinn scheitert also nicht daran)
-  und **externe Buchungen** (`services.season_min_nights` in
-  `create_external_booking`/`external_available_quarters`).
+  und **externe Buchungen**. Für Externe ist der Mindestaufenthalt im Backend
+  konfigurierbar (`services.external_min_nights`): **Default = wie intern** (inkl.
+  Saison-Mindestnächte), per Schalter `ExternalConfig.min_nights_follow_internal`
+  auf einen eigenen, abweichenden Wert umstellbar (siehe ADR 0023).
 - **Offener Punkt:** Das **Parallel-Limit** und der **Aufenthaltsdeckel über
   mehrere Buchungen** wirken nur bei der normalen Buchung. Sie betreffen mehrere
   gleichzeitige Einheiten je Mitglied und sind je Einzelwunsch nicht entscheidbar;

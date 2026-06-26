@@ -561,11 +561,14 @@ class ExternalConfigAdmin(admin.ModelAdmin):
             "fields": ("active",),
             "description": "Globaler Schalter für die externe Buchung."}),
         ("Wann dürfen Externe buchen?", {
-            "fields": ("allowed_weekdays", "min_nights", "max_nights",
-                       "lead_days", "horizon_days"),
+            "fields": ("allowed_weekdays", "min_nights_follow_internal",
+                       "min_nights", "max_nights", "lead_days", "horizon_days"),
             "description": "„Erlaubte Übernachtungs-Wochentage“ z. B. 0,1,2,3 = Mo–Do "
                            "(Wochenenden bleiben Mitgliedern). Leer = alle Tage. "
-                           "Unabhängig von der tatsächlichen Belegung."}),
+                           "Mindestaufenthalt: standardmäßig „wie intern“ (inkl. "
+                           "Saison-Mindestnächte); zum Abweichen den Haken entfernen "
+                           "und den eigenen Wert setzen. Unabhängig von der "
+                           "tatsächlichen Belegung."}),
         ("Preise & Zahlung", {
             "fields": ("cleaning_fee", "cleaning_vat", "stay_vat", "payment_term_days"),
             "description": "Preis/Nacht steht je Quartier (inkl. Saisonpreise). "

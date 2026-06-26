@@ -82,8 +82,10 @@ Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 des Fairness-Nachweises). (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 **Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login, mit
 `token` für den Magic-Link), `ExternalConfig` (Singleton: Regeln Mo–Do/
-Mindestnächte/Vorlauf, Reinigung, USt **+ Anzahlung `deposit_percent`, Storno-
-Staffel `free/partial_cancel_days`+`partial_refund_percent`, `late_fee`, `terms`**),
+Mindestaufenthalt [`min_nights_follow_internal` = wie intern inkl. Saison, Default
+an; sonst eigener `min_nights`]/Vorlauf, Reinigung, USt **+ Anzahlung
+`deposit_percent`, Storno-Staffel
+`free/partial_cancel_days`+`partial_refund_percent`, `late_fee`, `terms`**),
 `ExternalBooking` (Reservierung; blockiert die Verfügbarkeit; verknüpft mit einer
 `shop.Invoice`). `Quarter` hat `external_bookable`/`price_per_night`; **saisonale
 Preise** über `QuarterPrice` (jährlich wiederkehrende Staffel, `Quarter.price_for_night(day)`
@@ -358,8 +360,10 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   datumsbasiert. **Mindestnächte** (+ Einzel-Aufenthaltsdeckel) werden bei der
   normalen Buchung, **beim Eintragen/Einreichen der Wunschliste**
   (`services.wish_rule_error` in `add_wish`/`submit_wishlist`) **und bei externen
-  Buchungen** (`services.season_min_nights` in
-  `create_external_booking`/`external_available_quarters`) erzwungen. Das
+  Buchungen** erzwungen. Der Externen-Mindestaufenthalt ist im Backend einstellbar
+  (`services.external_min_nights`): **Default identisch zu intern** (inkl. Saison),
+  per `ExternalConfig.min_nights_follow_internal` auf einen abweichenden festen Wert
+  umstellbar. Das
   **Parallel-Limit** (mehrere gleichzeitige Einheiten je Mitglied) wird bewusst nur
   bei der normalen Buchung geprüft – es ist je Einzelwunsch nicht prüfbar; der
   Los-Algorithmus (`lottery.run_lottery`) bleibt unverändert (Beschluss: Saison-
