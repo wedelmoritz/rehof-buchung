@@ -1056,3 +1056,62 @@ class BuchungAnpassenTests(UseCaseBase):
         ids = {q.id for q in free}
         self.assertIn(self.k2.id, ids)
         self.assertNotIn(self.k1.id, ids)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case 15: Saison-Regeln greifen für die Wunschliste/Losung
+#   (Beschluss: nur beim Eintragen/Einreichen prüfen, Los-Algorithmus unverändert)
+# --------------------------------------------------------------------------- #
+
+class WunschSaisonRegelnTests(UseCaseBase):
+    """Die konfigurierten Saison-Mindestnächte werden beim Eintragen UND beim
+    Einreichen der Wunschliste erzwungen – ein Losgewinn kann so nicht an einer
+    Regel scheitern."""
+
+    def setUp(self):
+        super().setUp()
+        SeasonRule.objects.create(
+            name="Hochsaison", start_month=7, start_day=1, end_month=9, end_day=1,
+            min_nights=7, active=True)
+        self.period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_kurzer_wunsch_in_hochsaison_wird_abgelehnt(self):
+        w, err = svc.add_wish(self.alice, self.period, self.qa,
+                              date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 14))  # 4<7
+        self.assertIsNone(w)
+        self.assertIn("7 Nächte", err)
+
+    def test_langer_wunsch_in_hochsaison_ok(self):
+        w, err = svc.add_wish(self.alice, self.period, self.qa,
+                              date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 17))  # 7
+        self.assertIsNotNone(w, err)
+
+    def test_wunsch_ausserhalb_saison_unveraendert(self):
+        # Außerhalb der Saison gilt nur der Standard (3 Nächte)
+        w, err = svc.add_wish(self.alice, self.period, self.qa,
+                              date(NEXT_YEAR, 5, 10), date(NEXT_YEAR, 5, 14))  # 4
+        self.assertIsNotNone(w, err)
+
+    def test_einreichen_blockt_regelverletzenden_altwunsch(self):
+        """Wunsch direkt angelegt (Regel danach ergänzt) -> Einreichen blockt alle."""
+        from booking.models import Wish
+        Wish.objects.create(
+            member=self.alice, period=self.period, quarter=self.qa,
+            start=date(NEXT_YEAR, 7, 10), end=date(NEXT_YEAR, 7, 14),
+            priority=1, submitted=False)
+        n, err = svc.submit_wishlist(self.alice, self.period)
+        self.assertEqual(n, 0)
+        self.assertIn("7 Nächte", err or "")
+        self.assertFalse(Wish.objects.filter(
+            member=self.alice, period=self.period, submitted=True).exists())
+
+    def test_einreichen_ok_wenn_alle_wuensche_regelkonform(self):
+        svc.add_wish(self.alice, self.period, self.qa,
+                     date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 17))  # 7 Nächte
+        n, err = svc.submit_wishlist(self.alice, self.period)
+        self.assertIsNone(err)
+        self.assertEqual(n, 1)

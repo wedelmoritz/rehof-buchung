@@ -31,11 +31,26 @@ Ein **öffentlicher, login-freier Buchungsweg** mit Magic-Link statt Gast-Accoun
   und das einbettbare Widget `external_embed` (`@xframe_options_exempt`).
 - **Abrechnung** läuft über dieselbe generalisierte `Invoice` wie der Hofladen
   (siehe ADR 0016); intern erscheinen Gäste neutral als „extern“.
+- **Mindestaufenthalt – konfigurierbar, Standard wie intern:** Der Mindest-
+  aufenthalt für Externe ist im Backend einstellbar (`ExternalConfig`). Schalter
+  `min_nights_follow_internal` (**Default an**): Externe haben denselben
+  Mindestaufenthalt wie Mitglieder, **inkl. Saison-Mindestnächte** (z. B. 7 im
+  Sommer) – berechnet über `services.external_min_nights` → `min_nights_for_range`.
+  Aus: es gilt der eigene feste Wert `ExternalConfig.min_nights`, der bewusst von
+  den internen Vorgaben **abweichen** darf (höher oder niedriger, ohne Saison-
+  Verschärfung). So bleibt der Standard fair-identisch zu intern, ohne die
+  Möglichkeit einer abweichenden Externen-Regel aufzugeben.
 
 ## Betrachtete Alternativen
 
 - **Gast-Accounts mit Passwort:** Hürde für einmalige Buchungen; mehr Konten-/
   Passwort-Verwaltung.
+- **Externen-Mindestaufenthalt fix an die internen Regeln koppeln:** einfacher,
+  aber die Genossenschaft könnte für Gäste keinen abweichenden Mindestaufenthalt
+  setzen – verworfen zugunsten des Schalters (Default = identisch zu intern).
+- **Externen-Mindestaufenthalt komplett unabhängig (kein „wie intern“):** würde
+  den Normalfall (gleiche Regeln wie Mitglieder) zur manuellen Pflege machen und
+  Saison-Mindestnächte für Gäste leicht übersehen lassen.
 - **Externe Buchungen nur über die Verwaltung:** kein Self-Service, mehr manuelle
   Arbeit.
 - **Separates Rechnungssystem für Gäste:** doppelte Logik (verworfen, siehe 0016).

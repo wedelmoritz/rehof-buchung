@@ -138,7 +138,8 @@
       <li>Auf der Bestätigungsseite deine Daten eingeben und verbindlich buchen.</li>
     </ol>
     <p class="muted" style="margin:.2rem 0">Es gelten mindestens
-      <strong>{{ cfg.min_nights }} Nächte</strong>, eine Vorlaufzeit von
+      <strong>{{ ext_min_base }} Nächte</strong>{% if ext_min_seasonal %}
+      (in der Hauptsaison mehr){% endif %}, eine Vorlaufzeit von
       <strong>{{ cfg.lead_days }} Tag(en)</strong>; Anreisetage sind in der Regel
       Mo–Do (Wochenenden bleiben den Mitgliedern vorbehalten).</p>
 

@@ -53,8 +53,10 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 
 ## Offene Punkte (in ADRs markiert)
 
-- **Saison-Regeln in der Losung erzwingen** – siehe ADR 0009 (aktuell nur bei der
-  normalen Buchung umgesetzt).
+- **Parallel-Limit/Mehrfach-Deckel in der Losung** – siehe ADR 0009. Die
+  Saison-**Mindestnächte** gelten inzwischen auch für Wunschliste/Losung (beim
+  Einreichen) und externe Buchungen; offen bleibt nur das Parallel-Limit/der
+  Deckel über mehrere Buchungen im Los-Algorithmus selbst.
 - **OIDC/Keycloak-Anbindung** – siehe ADR 0015 (Naht vorhanden, nicht umgesetzt).
 - **Backup & weiteres Hardening** – siehe ADR 0037 (Blueprint vorhanden, vor dem
   Wirkbetrieb umzusetzen).

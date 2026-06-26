@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted (2026-06-26) – teilweise umgesetzt (Saison-Regeln noch nicht in der Losung)
+Accepted (2026-06-26) – Mindestnächte überall erzwungen; Parallel-Limit/Deckel über
+mehrere Buchungen bleiben bewusst auf die normale Buchung beschränkt (siehe Offener
+Punkt)
 
 ## Kontext
 
@@ -39,10 +41,23 @@ Wir setzen die Vorgaben als **prüfbare Regel-Logik plus konfigurierbare Stammda
   Losung (`lottery.Party.wish_night_budget`, Default 25). Kein Übertrag, weil die
   Rechnung je Kalenderjahr neu erfolgt.
 
-**Offener Punkt:** Die Saison-Regeln (Parallel-Limit/Deckel) werden **aktuell nur
-bei der normalen Buchung** erzwungen (`services.validate_booking`-Pfad), **noch
-nicht in der Losung** (`run_period_lottery` ruft `rules.py` nicht auf). `rules.py`
-ist dafür bereits entkoppelt; Einhängepunkt wäre `run_period_lottery`.
+**Geltungsbereich der Regeln:**
+- **Mindestnächte** (+ Einzel-Aufenthaltsdeckel als Obergrenze einer einzelnen
+  Buchung) werden überall erzwungen: normale Buchung (`check_booking_rules`),
+  **Wunschliste/Losung** beim Eintragen/Einreichen
+  (`services.wish_rule_error` in `add_wish`/`submit_wishlist` – ein zu kurzer
+  Wunsch lässt sich nicht einreichen, ein Losgewinn scheitert also nicht daran)
+  und **externe Buchungen**. Für Externe ist der Mindestaufenthalt im Backend
+  konfigurierbar (`services.external_min_nights`): **Default = wie intern** (inkl.
+  Saison-Mindestnächte), per Schalter `ExternalConfig.min_nights_follow_internal`
+  auf einen eigenen, abweichenden Wert umstellbar (siehe ADR 0023).
+- **Offener Punkt:** Das **Parallel-Limit** und der **Aufenthaltsdeckel über
+  mehrere Buchungen** wirken nur bei der normalen Buchung. Sie betreffen mehrere
+  gleichzeitige Einheiten je Mitglied und sind je Einzelwunsch nicht entscheidbar;
+  der Los-Algorithmus (`lottery.run_lottery`) bleibt deshalb bewusst unverändert
+  (Beschluss: Saison-Regeln nur beim Einreichen prüfen). Eine vollständige
+  Durchsetzung in der Losung selbst bliebe ein möglicher Ausbau (Einhängepunkt
+  `run_period_lottery`).
 
 ## Betrachtete Alternativen
 
@@ -58,6 +73,9 @@ ist dafür bereits entkoppelt; Einhängepunkt wäre `run_period_lottery`.
 - Regel-Logik schnell und isoliert testbar.
 
 **Negativ**
-- Inkonsistenz, solange die Saison-Regeln in der Losung fehlen (siehe Offener Punkt) –
-  ein bewusst dokumentierter Rückstand.
+- Das Parallel-Limit/der Mehrfach-Deckel greifen nicht in der Losung (siehe Offener
+  Punkt) – bewusst, da je Einzelwunsch nicht entscheidbar.
+- Mindestnächte werden an mehreren Stellen geprüft (Buchung, Wunsch-Eintrag,
+  Wunsch-Einreichen, extern) – die gemeinsame Logik liegt zentral in
+  `services`/`rules.py`, muss aber konsistent eingebunden bleiben.
 - Pflege der jährlichen Termine bleibt eine wiederkehrende Verwaltungsaufgabe.

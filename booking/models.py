@@ -868,7 +868,16 @@ class ExternalConfig(models.Model):
         help_text="Komma-getrennt 0=Mo … 6=So. Jede Nacht muss auf einen dieser "
                   "Wochentage fallen. Beispiel „0,1,2,3“ = Mo–Do (Anreise So–Mi, "
                   "Abreise bis Do). Leer = alle Wochentage.")
-    min_nights = models.PositiveSmallIntegerField("Mindestnächte", default=2)
+    min_nights_follow_internal = models.BooleanField(
+        "Mindestaufenthalt wie intern", default=True,
+        help_text="An (Standard): Externe haben denselben Mindestaufenthalt wie "
+                  "Mitglieder – inkl. Saison-Mindestnächte (z. B. 7 im Sommer). "
+                  "Aus: stattdessen gilt der eigene feste Wert unten.")
+    min_nights = models.PositiveSmallIntegerField(
+        "Eigener Mindestaufenthalt (Nächte)", default=2,
+        help_text="Nur wirksam, wenn „Mindestaufenthalt wie intern“ AUS ist. "
+                  "Darf von den internen Vorgaben abweichen (höher oder niedriger; "
+                  "ohne Saison-Verschärfung).")
     max_nights = models.PositiveSmallIntegerField(
         "Höchstnächte (0 = unbegrenzt)", default=0)
     lead_days = models.PositiveSmallIntegerField(

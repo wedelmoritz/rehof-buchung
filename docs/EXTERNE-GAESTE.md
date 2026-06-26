@@ -99,6 +99,14 @@ Neues Konfig-Modell **`ExternalPolicy`** (global und/oder je Quartier):
 - **Min/Max-Nächte**, **Vorlauf/Cutoff** (frühestens/spätestens buchbar),
 - optional „keine Einzelnacht-Lücken zwischen Mitgliederbuchungen reißen“.
 
+> Umgesetzt (`ExternalConfig`): Der **Mindestaufenthalt für Externe** ist im
+> Backend konfigurierbar. Standard `min_nights_follow_internal=True` = **wie für
+> Mitglieder**, inkl. der **Saison-Mindestnächte** (z. B. 7 im Sommer). Schalter
+> aus → es gilt der eigene feste Wert `min_nights`, der bewusst von den internen
+> Vorgaben **abweichen** darf (ohne Saison-Verschärfung). Logik:
+> `services.external_min_nights` in
+> `create_external_booking`/`external_available_quarters`.
+
 Konzeptuell analog zu den vorhandenen `SeasonRule`s; die reine Logik kann in ein
 Modul `external.py` (Django-frei, testbar) wie `rules.py`/`availability.py`.
 
