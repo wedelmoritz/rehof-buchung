@@ -236,10 +236,14 @@ sich jährlich und werden im Admin gepflegt; der Seed legt die realen
 Berlin/Brandenburg-Termine des laufenden Jahres als Startpunkt an (Berlin und
 Brandenburg sind nahezu identisch).
 
-> Hinweis: Diese Regeln werden bei der **normalen Buchung** geprüft. Für die
-> **Losung** (die das Folgejahr im Voraus vergibt) sind sie als Ausbaustufe
-> vorgesehen – die Prüflogik (`booking/rules.py`) ist bereits so gekapselt,
-> dass sie sich dort einhängen lässt.
+> Hinweis: Die **Mindestnächte** (z. B. 7 im Sommer) werden bei der **normalen
+> Buchung**, **beim Eintragen/Einreichen der Wunschliste** und bei **externen
+> Buchungen** geprüft (ein zu kurzer Wunsch lässt sich gar nicht erst einreichen,
+> ein Losgewinn kann also nicht an den Mindestnächten scheitern). Das
+> **Parallel-Limit** und der **Aufenthaltsdeckel über mehrere Buchungen** sind
+> dagegen nur bei der normalen Buchung prüfbar (sie betreffen mehrere gleichzeitige
+> Einheiten und lassen sich je Einzelwunsch nicht entscheiden); der
+> Los-Algorithmus bleibt daher bewusst unverändert.
 
 ---
 

@@ -539,9 +539,12 @@ def wishlist(request):
             return _redirect_month("wishlist", p_year, p_month)
 
         if action == "submit_wishlist" and not is_submitted:
-            n = svc.submit_wishlist(member, period)
-            messages.success(
-                request, f"{n} Wunsch/Wünsche in den Lostopf eingereicht.")
+            n, serr = svc.submit_wishlist(member, period)
+            if serr:
+                messages.error(request, serr)
+            else:
+                messages.success(
+                    request, f"{n} Wunsch/Wünsche in den Lostopf eingereicht.")
             return _redirect_month("wishlist", p_year, p_month)
 
         if action == "withdraw_wishlist":

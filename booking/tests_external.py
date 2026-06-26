@@ -11,7 +11,7 @@ from django.urls import reverse
 from booking.external import external_allowed
 from booking.models import (
     EquivalenceClass, ExternalBooking, ExternalConfig, Guest, Quarter,
-    QuarterPrice,
+    QuarterPrice, SeasonRule,
 )
 from booking import services as svc
 from shop.models import Invoice, ShopConfig
@@ -268,3 +268,45 @@ class MagicLinkAndCalendarTests(TestCase):
         import uuid
         r = self.client.get(reverse("external_manage", args=[uuid.uuid4()]))
         self.assertEqual(r.status_code, 404)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class ExternalSeasonMinNightsTests(TestCase):
+    """Konfigurierte Saison-Mindestnächte (SeasonRule) gelten auch für externe
+    Gäste – zusätzlich zu deren eigenem Mindestaufenthalt; das strengere zählt."""
+
+    def setUp(self):
+        ShopConfig.objects.create(iban="DE111", invoice_prefix="HL")
+        self.cfg = ExternalConfig.objects.create(
+            active=True, allowed_weekdays="", min_nights=2, lead_days=0,
+            cleaning_fee=Decimal("0.00"))
+        ec = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(
+            name="Gartenhaus", eq_class=ec, min_occupancy=1, max_occupancy=4,
+            external_bookable=True, price_per_night=Decimal("80.00"))
+        # Buchung sicher in der Zukunft; Saison-Fenster aus dem Datum ableiten,
+        # damit der Test unabhängig vom Lauf-Datum stabil ist.
+        self.start = date.today() + timedelta(days=10)
+        lo = self.start - timedelta(days=2)
+        hi = self.start + timedelta(days=12)
+        SeasonRule.objects.create(
+            name="Mindestnächte-Test", start_month=lo.month, start_day=lo.day,
+            end_month=hi.month, end_day=hi.day, min_nights=7, active=True)
+
+    def test_zu_kurz_wird_abgelehnt(self):
+        b, err = svc.create_external_booking(
+            self.q, self.start, self.start + timedelta(days=3), 2,
+            name="Max", email="max@example.org")
+        self.assertIsNone(b)
+        self.assertIn("7 Nächte", err or "")
+
+    def test_keine_angebote_unter_saison_mindestnaechte(self):
+        offers = svc.external_available_quarters(
+            self.start, self.start + timedelta(days=3))
+        self.assertEqual(offers, [])
+
+    def test_ausreichend_lang_ok(self):
+        b, err = svc.create_external_booking(
+            self.q, self.start, self.start + timedelta(days=7), 2,
+            name="Max", email="max@example.org")
+        self.assertIsNotNone(b, err)

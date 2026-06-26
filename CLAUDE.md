@@ -355,8 +355,15 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   Wohneinheiten), `max_stay_nights` (Einheiten-Nächte-Deckel). Der Service
   materialisiert sie pro Jahr zu konkreten Daten (`services._materialized_seasons`,
   Helfer `availability.recurring_range`), die reine Logik in `rules.py` bleibt
-  datumsbasiert. **Aktuell nur bei der normalen Buchung erzwungen, NICHT in der
-  Losung** (offener Punkt, s.u.).
+  datumsbasiert. **Mindestnächte** (+ Einzel-Aufenthaltsdeckel) werden bei der
+  normalen Buchung, **beim Eintragen/Einreichen der Wunschliste**
+  (`services.wish_rule_error` in `add_wish`/`submit_wishlist`) **und bei externen
+  Buchungen** (`services.season_min_nights` in
+  `create_external_booking`/`external_available_quarters`) erzwungen. Das
+  **Parallel-Limit** (mehrere gleichzeitige Einheiten je Mitglied) wird bewusst nur
+  bei der normalen Buchung geprüft – es ist je Einzelwunsch nicht prüfbar; der
+  Los-Algorithmus (`lottery.run_lottery`) bleibt unverändert (Beschluss: Saison-
+  Regeln nur beim Einreichen prüfen).
 - **Schulferien (`SchoolHoliday`):** ebenfalls **jährlich wiederkehrend**;
   werden im Kalender angezeigt UND setzen, wenn aktiv und mit Regelfeldern
   versehen, im Zeitraum dieselben Regeln durch wie eine Saison-Regel (leere
@@ -461,9 +468,10 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
 
 ## Offene Punkte / Roadmap (Kandidaten für Change-Requests)
 
-- Saison-Regeln (Parallel-Limit/Deckel) **auch in der Losung** erzwingen —
-  `rules.py` ist dafür bereits entkoppelt; Einhängepunkt wäre `services.
-  run_period_lottery` bzw. `lottery.run_lottery`.
+- Saison-**Mindestnächte** gelten jetzt auch für Wunschliste/Losung (beim
+  Einreichen) und externe Buchungen (**erledigt**). Offen bleibt nur das
+  **Parallel-Limit/Deckel über mehrere Buchungen** in der Losung selbst (je
+  Einzelwunsch nicht prüfbar; Einhängepunkt wäre `lottery.run_lottery`).
 - Dienste & Waren (Endreinigung, Sauna) als buchbare Posten.
 - Externe Gäste (buchen + zahlen via Mollie, Gast-Checkout) – **erledigt**
   (Buchung + Online-Bezahlung aktiv, s.o.); Konzept in `docs/EXTERNE-GAESTE.md`.

@@ -399,14 +399,39 @@ def schedule_blocker(
     return check_booking_rules(member, start, end)
 
 
-def min_nights_for_range(start: date, end: date) -> int:
-    """Effektiver Mindestaufenthalt für [start, end): Standard-Mindestnächte,
-    verschärft durch überlappende Saison-/Schulferien-Regeln."""
-    required = BookingPolicy.get_solo().default_min_nights or 0
+def season_min_nights(start: date, end: date) -> int:
+    """Strengste Saison-Mindestnächte (SeasonRule/Schulferien) für [start, end) –
+    OHNE den globalen Standard. 0, wenn keine Saison-Regel greift. Wird für externe
+    Gäste genutzt: deren eigener Mindestaufenthalt steht separat in der
+    ExternalConfig, die Saison-Mindestnächte gelten zusätzlich (das strengere zählt)."""
+    required = 0
     for s in _materialized_seasons(start, end):
         if s.min_nights and s.start < end and s.end > start:
             required = max(required, s.min_nights)
     return required
+
+
+def min_nights_for_range(start: date, end: date) -> int:
+    """Effektiver Mindestaufenthalt für [start, end): Standard-Mindestnächte,
+    verschärft durch überlappende Saison-/Schulferien-Regeln."""
+    return max(BookingPolicy.get_solo().default_min_nights or 0,
+               season_min_nights(start, end))
+
+
+def wish_rule_error(start: date, end: date) -> str | None:
+    """Saison-Regeln für einen EINZELNEN Wunsch: Mindestnächte (Standard + Saison)
+    und der Aufenthaltsdeckel als Obergrenze einer einzelnen Buchung. Das
+    **Parallel-Limit** betrifft mehrere gleichzeitige Buchungen und ist je Einzel-
+    wunsch nicht prüfbar; es wird in der Losung bewusst nicht erzwungen (Beschluss:
+    Saison-Regeln nur beim Eintragen/Einreichen der Wunschliste prüfen, der Los-
+    Algorithmus bleibt unverändert). Gibt einen Fehlertext zurück oder None."""
+    policy = BookingPolicy.get_solo()
+    # Leere „existing"-Liste: prüft Mindestnächte + Einzel-Deckel, nicht das
+    # (cross-buchungs-)Parallel-Limit.
+    return R.validate_booking(
+        _materialized_seasons(start, end), policy.default_min_nights,
+        start, end, [],
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -1538,6 +1563,11 @@ def add_wish(member, period, quarter, start, end) -> tuple[Wish | None, str | No
         return None, (f"{quarter.name} ist in diesem Zeitraum nicht durchgängig "
                       "buchbar (Quartier-Saison). Bitte den gesamten Zeitraum "
                       "innerhalb der Saison wählen.")
+    # Saison-Regeln (Mindestnächte/Deckel) schon beim Eintragen prüfen, damit ein
+    # Losgewinn nicht an einer Regel scheitern würde.
+    rule_err = wish_rule_error(start, end)
+    if rule_err:
+        return None, rule_err
     last = (
         Wish.objects.filter(member=member, period=period)
         .order_by("-priority").first()
@@ -1591,12 +1621,27 @@ def delete_wish(member, period, wish_id) -> None:
 
 
 @transaction.atomic
-def submit_wishlist(member, period) -> int:
-    """Reicht alle Entwurfs-Wünsche des Mitglieds in den Lostopf ein."""
+@transaction.atomic
+def submit_wishlist(member, period) -> tuple[int, str | None]:
+    """Reicht alle Entwurfs-Wünsche des Mitglieds in den Lostopf ein. Prüft jeden
+    Wunsch zuvor gegen die Saison-Regeln (Mindestnächte/Deckel) – verletzt einer
+    eine Regel (z.B. weil eine Regel nach dem Eintragen ergänzt wurde), wird
+    NICHTS eingereicht und der Grund zurückgegeben. Liefert (Anzahl, Fehler|None)."""
+    drafts = list(Wish.objects.filter(
+        member=member, period=period, submitted=False).select_related("quarter"))
+    problems = [
+        f"„{w.quarter.name} {w.start:%d.%m.}–{w.end:%d.%m.}“: {err}"
+        for w in drafts
+        if (err := wish_rule_error(w.start, w.end))
+    ]
+    if problems:
+        return 0, ("Einreichen nicht möglich – bitte diese Wünsche anpassen oder "
+                   "entfernen:\n" + "\n".join(problems))
     _renumber_wishes(member, period)
-    return Wish.objects.filter(
+    n = Wish.objects.filter(
         member=member, period=period, submitted=False,
     ).update(submitted=True, submitted_at=timezone.now())
+    return n, None
 
 
 @transaction.atomic
@@ -1657,6 +1702,10 @@ def external_available_quarters(start: date, end: date) -> list[tuple]:
         lead_days=cfg.lead_days, horizon_days=cfg.horizon_days)
     if not ok:
         return []
+    # Konfigurierte Saison-Mindestnächte (z.B. 7 im Sommer) gelten für Externe
+    # zusätzlich zu deren eigenem Mindestaufenthalt – das strengere zählt.
+    if (end - start).days < season_min_nights(start, end):
+        return []
     out = []
     for q in Quarter.objects.filter(
             active=True, external_bookable=True).order_by("name"):
@@ -1687,6 +1736,11 @@ def create_external_booking(quarter: Quarter, start: date, end: date, persons: i
         lead_days=cfg.lead_days, horizon_days=cfg.horizon_days)
     if not ok:
         return None, reason
+    # Konfigurierte Saison-Mindestnächte (z.B. 7 im Sommer) gelten auch für Externe.
+    season_min = season_min_nights(start, end)
+    if (end - start).days < season_min:
+        return None, (f"Mindestaufenthalt in diesem Zeitraum: {season_min} Nächte "
+                      f"(gewählt: {(end - start).days}).")
     if not _in_season_range(quarter, start, end):
         return None, f"{quarter.name} ist in diesem Zeitraum nicht buchbar."
     if persons and persons > quarter.max_occupancy:
