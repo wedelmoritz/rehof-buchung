@@ -1,371 +1,288 @@
 {% extends "booking/base.html" %}
-{% block title %}Hilfe & Erklärung{% endblock %}
+{% block title %}Hilfe{% endblock %}
 {% block content %}
-<h1>Hilfe &amp; Erklärung</h1>
+<h1>Hilfe</h1>
+<p class="lead">Kurz erklärt, wie alles funktioniert – spring direkt zu deinem Thema.</p>
 
-<div class="card" id="ueberblick">
-  <h2 style="margin-top:0">Was du hier tun kannst</h2>
-  <ul>
-    <li><strong>Übersicht:</strong> sehen, wer wann in welchem Quartier ist; pro Tag,
-      wer da ist und was noch frei ist. Oben kannst du zwischen <strong>Kalender</strong>
-      (Monatsraster) und <strong>Belegung</strong> (Zeitstrahl je Unterkunft – ein
-      Balken pro Aufenthalt) umschalten.</li>
-    <li><strong>Buchen:</strong> über den Ampel-Kalender freie Zeiträume spontan buchen
-      – mit Personenzahl, optionaler Endreinigung; ist alles belegt, auf die
-      <strong>Warteliste</strong> setzen (Benachrichtigung, sobald frei).</li>
-    <li><strong>Wunschliste &amp; Auslosung:</strong> begehrte Zeiträume fürs nächste
-      Jahr fair verlosen lassen (siehe unten).</li>
-    <li><strong>Meine Buchungen:</strong> eigene Buchungen sehen, stornieren und
-      <strong>ändern</strong> – Unterkunft wechseln (nur freie), Zeitraum
-      verlängern/verkürzen und Personenzahl anpassen – oder einen
-      <strong>Wechselwunsch</strong> an andere Mitglieder stellen. „Wer ist
-      gleichzeitig da?“ ist getrennt nach <em>exakt gleicher</em> und nur
-      <em>überlappender</em> Zeit.</li>
-    <li><strong>Tage übertragen:</strong> eigene Tage an ein anderes Mitglied abgeben.</li>
-    <li><strong>Hofladen &amp; Rechnungen:</strong> Waren/Dienstleistungen kaufen,
-      monatliche Sammelrechnung, Rechnung als <strong>PDF</strong>, „bezahlt“ melden.</li>
-    <li><strong>Profil:</strong> Name, Anschrift, IBAN und E-Mail-Benachrichtigungen
-      pflegen.</li>
-    <li><strong>App installieren:</strong> die Seite lässt sich aufs Handy „zum
-      Startbildschirm hinzufügen“ und funktioniert auch offline grundlegend.</li>
-  </ul>
-</div>
+<nav class="toc-chips card" aria-label="Themen">
+  <a href="#begriffe">Begriffe &amp; Tage</a>
+  <a href="#uebersicht">Übersicht</a>
+  <a href="#buchen">Buchen</a>
+  <a href="#aendern">Buchung ändern</a>
+  <a href="#warteliste">Warteliste</a>
+  <a href="#losung">Wunschliste &amp; Auslosung</a>
+  <a href="#hofladen">Hofladen &amp; Zahlung</a>
+  <a href="#tage">Tage übertragen</a>
+  <a href="#profil">Profil &amp; App</a>
+</nav>
 
-<div class="card toc">
-  <strong>Inhalt</strong>
-  <ul>
-    <li><a href="#begriffe">Begriffe: Anteil, Voll-/Teil-Mitglied, Tage</a></li>
-    <li><a href="#buchen">Buchen (Ampel-Kalender)</a></li>
-    <li><a href="#losung">So funktioniert die Auslosung</a></li>
-    <li><a href="#hofladen">Hofladen &amp; Rechnungen</a></li>
-  </ul>
+<div class="card">
+  <h2 style="margin-top:0">Auf einen Blick</h2>
+  <table class="quickref">
+    <tbody>
+      <tr><td>Wer ist wann wo?</td><td><a href="{% url 'overview' %}">Übersicht</a></td></tr>
+      <tr><td>Jetzt einen freien Zeitraum buchen</td><td><a href="{% url 'book' %}">Buchen</a></td></tr>
+      <tr><td>Begehrte Zeiten fürs nächste Jahr verlosen lassen</td><td><a href="{% url 'wishlist' %}">Wunschliste</a></td></tr>
+      <tr><td>Eigene Buchung ändern, stornieren, tauschen</td><td><a href="{% url 'my_bookings' %}">Meine Buchungen</a></td></tr>
+      <tr><td>Tage an ein anderes Mitglied abgeben</td><td><a href="{% url 'transfer' %}">Tage übertragen</a></td></tr>
+      <tr><td>Einkaufen &amp; Rechnungen bezahlen</td><td><a href="{% url 'shop_index' %}">Hofladen</a> · <a href="{% url 'shop_invoices' %}">Rechnungen</a></td></tr>
+      <tr><td>Anschrift, IBAN, Benachrichtigungen</td><td><a href="{% url 'profile' %}">Profil</a></td></tr>
+    </tbody>
+  </table>
 </div>
 
 <div class="card" id="begriffe">
-  <h2>Begriffe: Anteil, Voll-/Teil-Mitglied, Tage</h2>
-  <ul>
-    <li><strong>Mitglieds-Anteil</strong> = eine Vielleben-eG-Nummer mit einem
-      Jahres-Tagebudget (Standard 50 Tage/Jahr).</li>
-    <li><strong>Voll-Mitglied:</strong> du hältst einen Anteil allein (z. B. 50 Tage).</li>
-    <li><strong>Teil-Mitglied / Tandem:</strong> mehrere Personen teilen sich einen
-      Anteil (z. B. 50 Tage → 25/25). Jede Person bucht aus ihrem eigenen Anteil.</li>
-    <li>Bist du an <strong>mehreren Anteilen</strong> beteiligt, ist dein Budget die
-      <strong>Summe</strong> der Anteile (ganze Tage, wird abgerundet).</li>
-    <li><strong>Tage:</strong> gelten je Kalenderjahr frisch (<em>kein</em> Übertrag
-      ins Folgejahr), können aber <a href="{% url 'transfer' %}">an andere Mitglieder
-      übertragen</a> werden – das ist verbindlich und vorher privat abzusprechen.</li>
-    <li>Davon sind max. 25 Tage über die <a href="{% url 'wishlist' %}">Wunschliste</a>
-      (Losverfahren) buchbar.</li>
+  <h2>Begriffe &amp; Tage</h2>
+  <ul class="tight">
+    <li><strong>Anteil</strong> = eine Genossenschafts-Nummer mit Jahresbudget (Standard <strong>50 Tage/Jahr</strong>).</li>
+    <li><strong>Voll-Mitglied</strong> hält einen Anteil allein; <strong>Teil-Mitglied/Tandem</strong> teilt ihn (z. B. 50 → 25/25). Mehrere Anteile → Budgets <strong>summieren</strong> sich.</li>
+    <li><strong>Tage</strong> gelten je Kalenderjahr frisch (<em>kein</em> Übertrag), sind aber <a href="{% url 'transfer' %}">übertragbar</a>. Höchstens <strong>25 Tage</strong> davon laufen über die <a href="#losung">Auslosung</a>.</li>
+  </ul>
+</div>
+
+<div class="card" id="uebersicht">
+  <h2>Übersicht</h2>
+  <ul class="tight">
+    <li>Zeigt, <strong>wer wann in welchem Quartier</strong> ist. Tippe einen Tag an → wer da ist und was noch frei ist.</li>
+    <li>Oben umschaltbar: <strong>Kalender</strong> (Monatsraster) oder <strong>Belegung</strong> (Zeitstrahl – ein Balken je Aufenthalt pro Unterkunft).</li>
   </ul>
 </div>
 
 <div class="card" id="buchen">
-  <h2>Buchen (Ampel-Kalender)</h2>
-  <ul>
-    <li>Oben Personenzahl (und ggf. „barrierearm/-frei“) einstellen.</li>
-    <li>Die <strong>Ampel</strong> zeigt je Tag, wie viel frei ist: grün = alles frei,
-      hellgrün = viele, gelb = wenige, rot = nichts mehr frei.</li>
-    <li><strong>1. Klick</strong> = Anreise, <strong>2. Klick</strong> = Abreise
-      (Check-out), <strong>3. Klick</strong> = neue Anreise. Auch über Monatsgrenzen
-      (oder Datum direkt eingeben).</li>
-    <li><strong>Anreise</strong> und <strong>Abreise</strong> werden im Kalender klar
-      mit einem Fähnchen markiert, die gewählten Nächte erscheinen als
-      durchgehendes <strong>Band</strong> – so siehst du auf einen Blick „von wann
-      bis wann“.</li>
-    <li>Passende Quartiere stehen oben; nicht passende (Personenzahl/Barrierefreiheit)
-      unter „ggf. nicht geeignet“. Greift eine Regel (Mindestnächte, zu wenig Budget),
-      wird das sofort angezeigt.</li>
-    <li>Ist dein Wunschzeitraum belegt, kannst du dich auf die <strong>Warteliste</strong>
-      setzen und wirst benachrichtigt, sobald er frei wird. Unter
-      <a href="{% url 'my_bookings' %}">Meine Buchungen</a> zeigt dir die Karte
-      <strong>„Meine Wartelisten-Einträge“</strong>, wo du gerade wartest.</li>
-    <li>Unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a> siehst du deine
-      Buchungen, kannst stornieren und einen <strong>Wechselwunsch</strong> an andere
-      stellen.</li>
+  <h2>Buchen</h2>
+  <ul class="tight">
+    <li>Oben <strong>Personenzahl</strong> und ggf. <strong>barrierearm/-frei</strong> einstellen.</li>
+    <li><strong>Ampel</strong> je Tag: grün = alles frei, gelb = wenige, rot = voll.</li>
+    <li><strong>1. Klick = Anreise, 2. Klick = Abreise.</strong> Fähnchen und das durchgehende <strong>Band</strong> zeigen „von wann bis wann“ – auch über Monatsgrenzen, oder Datum direkt eingeben.</li>
+    <li>Passende Quartiere stehen oben; Hinweise zu <strong>Mindestnächten</strong> oder zu knappem Budget erscheinen sofort.</li>
+    <li>Alles belegt? → auf die <a href="#warteliste">Warteliste</a>.</li>
+  </ul>
+</div>
+
+<div class="card" id="aendern">
+  <h2>Buchung ändern, stornieren &amp; tauschen</h2>
+  <p class="muted" style="margin-top:0">Alles unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a>:</p>
+  <ul class="tight">
+    <li><strong>Stornieren</strong> (mit Rückfrage) – gibt Zeitraum und Tage wieder frei.</li>
+    <li><strong>Buchung ändern:</strong> <strong>Unterkunft</strong> wechseln (nur freie werden angeboten), <strong>Zeitraum</strong> verlängern/verkürzen, <strong>Personenzahl</strong> anpassen.
+      <span class="muted">Verlängern und Wechseln gehen spontan; Verkürzen nur, wenn der Mindestaufenthalt bleibt und die frei werdenden Nächte ≥ 1 Woche entfernt sind.</span></li>
+    <li><strong>Wechselwunsch</strong> an ein anderes Mitglied (es stimmt zu oder lehnt ab). „Wer ist gleichzeitig da?“ ist getrennt nach <strong>exakt gleicher</strong> und nur <strong>überlappender</strong> Zeit.</li>
+    <li>Wird durch eine Verkürzung etwas frei, geht eine <strong>„spontan frei“-Meldung</strong> an alle Mitglieder.</li>
+  </ul>
+</div>
+
+<div class="card" id="warteliste">
+  <h2>Warteliste</h2>
+  <ul class="tight">
+    <li>Ist dein Zeitraum belegt, trag dich auf die <strong>Warteliste</strong> – du wirst benachrichtigt (In-App &amp; E-Mail), sobald er frei wird.</li>
+    <li>Wo du gerade wartest, zeigt die Karte <strong>„Meine Wartelisten-Einträge“</strong> unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</li>
   </ul>
 </div>
 
 <div class="card" id="losung">
-  <h2>So funktioniert die Auslosung</h2>
-  <p>Für das nächste Jahr werden begehrte Zeiträume nicht „wer zuerst klickt“,
-    sondern <strong>fair per Los</strong> vergeben. Das Verfahren ist eine
-    <em>gewichtete Zufallsreihenfolge im Runden-Prinzip</em> – unten Schritt für
-    Schritt und an einem Beispiel erklärt.</p>
-
-  <ol>
-    <li><strong>Wünsche eintragen &amp; einreichen:</strong> In der
-      <a href="{% url 'wishlist' %}">Wunschliste</a> trägst du deine Wunsch-Zeiträume
-      mit Quartier ein und bringst sie in deine <strong>Prioritäts-Reihenfolge</strong>
-      (Priorität 1 = wichtigster Wunsch). Nur <strong>eingereichte</strong> Wünsche
-      („im Lostopf“) nehmen teil; bis zum Stichtag änderbar. Wünsche dürfen sich mit
-      denen anderer überschneiden.</li>
-    <li><strong>Reihenfolge auslosen – genau einmal:</strong> Zu Beginn wird <em>eine</em>
-      Reihenfolge aller Teilnehmenden gewichtet gezogen (über einen Seed
-      reproduzierbar). Diese Reihenfolge <strong>gilt für die ganze Auslosung</strong> –
-      sie wird <strong>nicht</strong> jede Runde neu gezogen.</li>
-    <li><strong>Karma als Gewicht:</strong> Wer in den Vorjahren Pech hatte, hat einen
-      höheren <em>Ausgleichsfaktor</em> („Karma“) und damit eine bessere Chance auf einen
-      vorderen Platz <em>in genau dieser Ziehung</em>. Das Karma fließt also als
-      <strong>Gewicht in die eine Ziehung</strong> ein.</li>
-    <li><strong>Runden-Prinzip:</strong> Dann geht es reihum: In <strong>Runde 1</strong>
-      bekommt jede Partei – in der gelosten Reihenfolge – ihren <em>höchsten noch
-      möglichen</em> Wunsch. In <strong>Runde 2</strong> folgt mit <em>derselben</em>
-      Reihenfolge der nächste Wunsch, usw. Pro Runde also höchstens <strong>eine</strong>
-      Buchung je Partei – so schlägt der Erstwunsch einer Person den Zweitwunsch einer
-      anderen.</li>
-    <li><strong>Ausweichquartiere:</strong> Ist dein Wunschquartier belegt, weicht die
-      Losung auf ein <em>gleichwertiges</em> Quartier derselben Gruppe
-      (Äquivalenzklasse) aus, bevor du leer ausgehst.</li>
-    <li><strong>Karma neu berechnen – am Ende, fürs nächste Jahr:</strong> Erst wenn alle
-      Runden durch sind, wird das Karma aktualisiert: ein <em>echter</em> Verlust (in der
-      ganzen Gruppe nichts frei) gibt +0,1 (max. 1,5); wer einen <em>umkämpften</em> Slot
-      gewinnt, wird auf 1,0 zurückgesetzt. Aussetzen, weil das eigene Tage-Budget voll
-      ist, zählt <strong>nicht</strong> als Verlust. So gleicht sich Pech über die Jahre aus.</li>
-    <li><strong>Ehrlich angeben lohnt sich:</strong> Das Verfahren ist
-      <em>strategiesicher</em> – die Wunschliste bestimmt nur, <em>was</em> du bekommst,
-      wenn du dran bist, nicht <em>wann</em>. Taktieren bringt keinen Vorteil.</li>
-  </ol>
-
-  <h3>Wie wird die Reihenfolge gewählt – und wie wirkt das Karma?</h3>
-  <p>Die Reihenfolge ist eine <strong>gewichtete Zufallsreihenfolge</strong>. Jede
-    Partei bekommt einen Zufalls-Schlüssel; sortiert man absteigend danach, ergibt
-    sich die Reihenfolge. Der Schlüssel ist</p>
-  <p class="formula">k = u<sup>(1/g)</sup>,&nbsp; u ~ Gleichverteilung auf (0,1)</p>
-  <p>wobei <strong>g</strong> das <em>Karma-Gewicht</em> der Partei ist (Start 1,0).
-    Ein höheres <em>g</em> schiebt den Schlüssel näher an 1 – die Partei landet also
-    <em>tendenziell</em> weiter vorne, aber nie garantiert. Fachlich ist das das
-    <em>Efraimidis-Spirakis-Verfahren</em> für eine gewichtete Zufallsstichprobe
-    ohne Zurücklegen (eine gewichtete Zufalls-Permutation).</p>
-  <p>Die Chance, <strong>Erste:r</strong> zu werden, ist genau gewichtsproportional:</p>
-  <p class="formula">P(Partei i ist vorn) = g<sub>i</sub> / (g<sub>1</sub> + g<sub>2</sub> + … + g<sub>n</sub>)</p>
-  <p>Beispiel: Bei 5 Parteien hat eine mit Karma 1,5 gegen vier mit je 1,0 eine
-    Chance von 1,5 / (1,5 + 4·1,0) = <strong>1,5/5,5 ≈ 27 %</strong> auf Platz 1
-    (statt 1,0/5,5 ≈ 18 % bei gleichem Karma). <strong>Karma</strong> startet bei
-    1,0, steigt um +0,1 je Jahr mit echtem Verlust (Deckel <strong>1,5</strong>) und
-    wird nach dem Gewinn eines umkämpften Slots auf 1,0 zurückgesetzt. Pech tiltet
-    also die Wahrscheinlichkeiten zu deinen Gunsten – bis maximal zur 1,5-fachen
-    Gewichtung –, ersetzt aber nie den Zufall.</p>
-
-  <h3>Was heißt „strategiesicher“ genau?</h3>
-  <p><strong>Strategiesicher</strong> heißt: Es gibt <em>keine</em> Falschangabe –
-    keine getürkte Reihenfolge, keine Tricks –, die dir im Schnitt ein besseres
-    Ergebnis bringt als deine <em>ehrlichen</em>, nach echter Wichtigkeit sortierten
-    Wünsche. Ehrlich angeben ist die <em>dominante Strategie</em>.</p>
-  <p>Warum das so ist: Das Verfahren ist eine <em>(gewichtete) zufällige serielle
-    Diktatur</em>. Entscheidend sind zwei Dinge:</p>
-  <ul>
-    <li>Die <strong>Reihenfolge hängt nur von Karma und Zufall ab – nicht von deiner
-      Wunschliste</strong>. Egal, was oder wie viel du einträgst: <em>wann</em> du
-      dran bist, kannst du damit nicht beeinflussen.</li>
-    <li>Wenn du dran bist, bekommst du deinen <strong>höchsten noch freien</strong>
-      Wunsch. Den wirklich am meisten gewünschten freien Slot zu nehmen ist per
-      Definition das Beste – eine andere Reihenfolge anzugeben könnte dich nur dazu
-      bringen, etwas <em>weniger</em> Gewünschtes zu nehmen.</li>
+  <h2>Wunschliste &amp; Auslosung</h2>
+  <p style="margin-top:0">Begehrte Zeiträume fürs nächste Jahr werden nicht „wer zuerst klickt“,
+    sondern <strong>fair per Los</strong> vergeben. Das Wichtigste:</p>
+  <ul class="tight">
+    <li><strong>Wünsche eintragen &amp; einreichen</strong> (in deiner Prioritäts-Reihenfolge). Nur eingereichte Wünsche nehmen teil; bis zum Stichtag änderbar.</li>
+    <li>Die <strong>Reihenfolge wird genau einmal</strong> gewichtet gezogen. <strong>Karma</strong> (Pech aus Vorjahren) verbessert deine Chance auf einen vorderen Platz – ersetzt aber nie den Zufall.</li>
+    <li>Reihum bekommt jede:r den <strong>höchsten noch freien</strong> Wunsch; ist dein Quartier belegt, wird auf ein <strong>gleichwertiges</strong> ausgewichen.</li>
+    <li><strong>Ehrlich angeben lohnt sich</strong> – Taktieren bringt nichts (das Verfahren ist „strategiesicher“). Über die Losung werden höchstens <strong>25 Nächte</strong> vergeben.</li>
   </ul>
-  <p>Deine Liste bestimmt also nur das <em>Was</em>, nie das <em>Wann</em> – deshalb
-    lohnt Taktieren nicht. Auch <strong>viele</strong> Wünsche einzutragen ist kein
-    „Trick“, sondern bloß ehrliches Angeben deiner Flexibilität: zusätzliche, ehrlich
-    nachgeordnete Wünsche können nur <em>helfen</em> (Rückfalloptionen) und nie schaden
-    – vergeben werden aber höchstens 25 Wunsch-Nächte (siehe unten). Sichergestellt ist
-    das durch einen Test, der über <em>alle</em> möglichen Reihenfolgen nachrechnet,
-    dass ehrliches Angeben nie schlechter abschneidet.</p>
-
-  <div class="msg info" style="margin:.8rem 0">
-    <strong>Beweis durch Zahlen:</strong> Dass gleich gestellte Mitglieder
-    statistisch dieselbe Chance haben (und Karma nachweisbar wirkt), zeigen wir mit
-    einer Monte-Carlo-Simulation über tausende Ziehungen samt Chi-Quadrat-Test.
-    → <a href="{% url 'lottery_fairness' %}">Zum statistischen Fairness-Nachweis</a>
-  </div>
-
-  <h3>Budgets &amp; Wünsche (wichtig!)</h3>
-  <ul>
-    <li>Du hast <strong>50 Tage pro Jahr</strong> insgesamt (Losung + normale Buchung),
-      davon höchstens <strong>25 Tage über die Losung</strong>.</li>
-    <li>Du darfst <strong>mehr als 25 Nächte an Wünschen eintragen</strong> – das ist
-      ausdrücklich okay und sogar sinnvoll (Rückfälle, falls Erstwünsche belegt sind).
-      Die Losung teilt dir aber <strong>höchstens 25 Wunsch-Nächte</strong> zu; sind die
-      erreicht, werden weitere Wünsche einfach <strong>übersprungen</strong> – das ist
-      <em>kein</em> Verlust und kostet kein Karma. Im Schaubild ist das der Zweig
-      „Budget voll → übersprungen“.</li>
-    <li><strong>„Budget voll“ ist keine Buchsperre:</strong> die restlichen Tage (bis
-      zu deinen 50) kannst du danach ganz normal selbst buchen.</li>
-    <li>Mehr Wünsche bringen dir also <em>keinen unfairen Vorteil</em>: deine Position
-      in der Reihenfolge ändert sich nicht, und die 25-Nächte-Grenze deckelt, wie viel
-      die Losung dir überhaupt geben kann.</li>
-  </ul>
-
-  <div class="qa">
-    <strong>Kurz beantwortet</strong>
-    <p><em>Wird nach Runde 1 die Reihenfolge neu gelost?</em> — Nein. Die Reihenfolge
-      wird einmal gezogen und gilt für alle Runden.</p>
-    <p><em>Kommen die Karma-Punkte schon während der Auslosung zur Anwendung?</em> —
-      Ja, aber nur als <strong>Gewicht für die eine Ziehung der Reihenfolge</strong>
-      (aus den Vorjahreswerten). <strong>Neu berechnet</strong> wird Karma erst ganz am
-      Ende – für die <em>nächste</em> Auslosung, nicht zwischen den Runden.</p>
-    <p><em>Kann ich mehr als 25 Tage an Wünschen eintragen?</em> — Ja. Das Eintragen
-      ist nicht begrenzt; vergeben werden über die Losung aber höchstens 25
-      Wunsch-Nächte. Mehr (ehrlich nachgeordnete) Wünsche verschlechtern nie deine
-      Position.</p>
-  </div>
-
-  <h3>Ablauf auf einen Blick</h3>
-  <svg class="flow" viewBox="0 0 600 600" role="img"
-       aria-label="Ablaufdiagramm der Auslosung: Wünsche einreichen, Reihenfolge einmal
-       auslosen, in Runden den höchsten möglichen Wunsch zuteilen (oder Ausweichquartier
-       oder Verlust), höchstens eine Buchung pro Runde, bei offenen Wünschen nächste
-       Runde mit gleicher Reihenfolge, am Ende Karma neu berechnen und Ergebnis
-       veröffentlichen.">
-    <defs>
-      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3"
-              orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M0,0 L7,3 L0,6 z" fill="#8a8076"/>
-      </marker>
-    </defs>
-    <g class="ln">
-      <line x1="300" y1="46"  x2="300" y2="64"  marker-end="url(#arr)"/>
-      <line x1="300" y1="112" x2="300" y2="130" marker-end="url(#arr)"/>
-      <line x1="300" y1="168" x2="300" y2="186" marker-end="url(#arr)"/>
-      <line x1="300" y1="224" x2="124" y2="244" marker-end="url(#arr)"/>
-      <line x1="300" y1="224" x2="300" y2="244" marker-end="url(#arr)"/>
-      <line x1="300" y1="224" x2="478" y2="244" marker-end="url(#arr)"/>
-      <line x1="124" y1="292" x2="298" y2="330" marker-end="url(#arr)"/>
-      <line x1="300" y1="292" x2="300" y2="330" marker-end="url(#arr)"/>
-      <line x1="478" y1="292" x2="302" y2="330" marker-end="url(#arr)"/>
-      <line x1="300" y1="366" x2="300" y2="378" marker-end="url(#arr)"/>
-      <line x1="300" y1="434" x2="300" y2="456" marker-end="url(#arr)"/>
-      <polyline points="186,406 90,406 90,148 158,148" marker-end="url(#arr)"/>
-      <line x1="300" y1="502" x2="300" y2="522" marker-end="url(#arr)"/>
-    </g>
-    <g class="bx">
-      <rect x="150" y="10"  width="300" height="36" rx="9"/>
-      <rect x="100" y="64"  width="400" height="48" rx="9"/>
-      <rect x="158" y="130" width="284" height="36" rx="9"/>
-      <rect x="100" y="186" width="400" height="38" rx="9"/>
-      <rect x="150" y="330" width="300" height="36" rx="9"/>
-      <rect x="100" y="456" width="400" height="46" rx="9"/>
-    </g>
-    <rect class="acc" x="100" y="522" width="400" height="40" rx="9"/>
-    <rect class="win" x="36"  y="246" width="172" height="46" rx="9"/>
-    <rect class="win" x="214" y="246" width="172" height="46" rx="9"/>
-    <rect class="loss" x="392" y="246" width="172" height="46" rx="9"/>
-    <polygon class="dec" points="186,406 300,378 414,406 300,434"/>
-    <g class="tx">
-      <text x="300" y="33">① Wünsche eintragen &amp; einreichen</text>
-      <text x="300" y="84">② Reihenfolge EINMAL auslosen</text>
-      <text x="300" y="100" class="sm">Karma (Vorjahr) = Gewicht für vordere Plätze</text>
-      <text x="300" y="153">③ Runde: Parteien der Reihe nach</text>
-      <text x="300" y="209">höchster noch möglicher Wunsch der Partei</text>
-      <text x="122" y="266">Wunschquartier frei</text>
-      <text x="122" y="282" class="b">✓ zuteilen</text>
-      <text x="300" y="266">gleichwertiges frei</text>
-      <text x="300" y="282" class="b">✓ Ausweichquartier</text>
-      <text x="478" y="266">nichts frei</text>
-      <text x="478" y="282" class="b">✗ Verlust (Karma +0,1)</text>
-      <text x="300" y="313" class="sm">Budget voll (25 Wunsch-Nächte vergeben)? Wunsch übersprungen – kein Verlust.</text>
-      <text x="300" y="352">höchstens EINE Buchung pro Partei &amp; Runde</text>
-      <text x="300" y="404">offene</text>
-      <text x="300" y="418">Wünsche?</text>
-      <text x="300" y="450" class="sm">nein</text>
-      <text x="120" y="120" class="sm">ja · nächste Runde</text>
-      <text x="300" y="475">④ Karma neu berechnen (fürs nächste Jahr):</text>
-      <text x="300" y="491" class="sm">Verlust → +0,1 (max 1,5) · umkämpfter Gewinn → 1,0</text>
-      <text x="300" y="546">⑤ Ergebnis veröffentlicht → Benachrichtigung</text>
-    </g>
-  </svg>
-
-  <h3 id="losung-beispiel">Beispiel: 5 Mitglieder, je 2 Wünsche</h3>
-  <p><strong>Quartiere:</strong> <em>Salix</em> und <em>Lupulus</em> sind
-    <strong>gleichwertig</strong> (Gruppe „Gartenhäuser“), das <em>Pfarrhaus</em> steht
-    allein. Es gibt zwei begehrte Zeiträume: <strong>Pfingsten</strong> (3 Nächte) und
-    eine <strong>Sommerwoche</strong> (7 Nächte). <strong>Karma vorab:</strong> Dora hat
-    aus dem Vorjahr 1,2 (sie ging damals leer aus), alle anderen 1,0.</p>
-
-  <table class="ex">
-    <thead><tr><th>Mitglied</th><th>① Erstwunsch</th><th>② Zweitwunsch</th></tr></thead>
-    <tbody>
-      <tr><td>Anna</td><td>Salix · Pfingsten</td><td>Pfarrhaus · Sommer</td></tr>
-      <tr><td>Ben</td><td>Lupulus · Pfingsten</td><td>Salix · Sommer</td></tr>
-      <tr><td>Cem</td><td>Salix · Pfingsten</td><td>Pfarrhaus · Sommer</td></tr>
-      <tr><td>Dora</td><td>Pfarrhaus · Pfingsten</td><td>Salix · Sommer</td></tr>
-      <tr><td>Eva</td><td>Salix · Pfingsten</td><td>Lupulus · Pfingsten</td></tr>
-    </tbody>
-  </table>
-
-  <p>Dank ihres Karmas landet Dora wahrscheinlich vorn. Angenommen, die (eine!) Ziehung
-    ergibt die Reihenfolge <strong>Dora ▸ Anna ▸ Ben ▸ Cem ▸ Eva</strong>.</p>
-
-  <p><strong>Runde 1</strong> – jede Partei nimmt ihren höchsten noch möglichen Wunsch:</p>
-  <ul class="trace">
-    <li><strong>Dora</strong> → Pfarrhaus · Pfingsten ✓ <span class="sm">(kein anderer
-      will Pfarrhaus zu Pfingsten → nicht umkämpft)</span></li>
-    <li><strong>Anna</strong> → Salix · Pfingsten ✓ <span class="sm">(umkämpft)</span></li>
-    <li><strong>Ben</strong> → Lupulus · Pfingsten ✓ <span class="sm">(umkämpft)</span></li>
-    <li><strong>Cem</strong> → Salix belegt, Lupulus belegt → <em>Verlust</em>; weiter
-      zum Zweitwunsch: Pfarrhaus · Sommer ✓ <span class="sm">(umkämpft mit Anna)</span></li>
-    <li><strong>Eva</strong> → Salix belegt, Lupulus belegt → <em>Verlust</em>; Zweitwunsch
-      Lupulus · Pfingsten ebenfalls belegt → <em>Verlust</em>; diese Runde keine Buchung</li>
-  </ul>
-
-  <p><strong>Runde 2</strong> – gleiche Reihenfolge; nur wer noch offene Wünsche hat
-    (Dora, Anna, Ben):</p>
-  <ul class="trace">
-    <li><strong>Dora</strong> → Salix · Sommer ✓ <span class="sm">(umkämpft mit Ben)</span></li>
-    <li><strong>Anna</strong> → Pfarrhaus · Sommer belegt (Cem) → <em>Verlust</em></li>
-    <li><strong>Ben</strong> → Salix · Sommer belegt (Dora) → Ausweich auf
-      <strong>Lupulus · Sommer</strong> ✓ <span class="sm">(gleichwertig, umkämpft)</span></li>
-  </ul>
-
-  <p><strong>Ergebnis &amp; neues Karma</strong> (gilt fürs <em>nächste</em> Jahr):</p>
-  <table class="ex">
-    <thead><tr><th>Mitglied</th><th>Bekommen</th><th>Karma neu</th></tr></thead>
-    <tbody>
-      <tr><td>Anna</td><td>Salix · Pfingsten</td><td>1,0 → <strong>1,1</strong> (Verlust Sommer)</td></tr>
-      <tr><td>Ben</td><td>Lupulus · Pfingsten + Lupulus · Sommer</td><td>1,0 (umkämpft gewonnen)</td></tr>
-      <tr><td>Cem</td><td>Pfarrhaus · Sommer</td><td>1,0 → <strong>1,1</strong> (Verlust Pfingsten)</td></tr>
-      <tr><td>Dora</td><td>Pfarrhaus · Pfingsten + Salix · Sommer</td><td>1,2 → <strong>1,0</strong> (umkämpft gewonnen → Reset)</td></tr>
-      <tr><td>Eva</td><td>— (leer ausgegangen)</td><td>1,0 → <strong>1,1</strong> (Verlust)</td></tr>
-    </tbody>
-  </table>
-  <p class="sm">Eva geht dieses Jahr leer aus, bekommt aber +0,1 Karma und damit nächstes
-    Jahr eine bessere Ausgangsposition. Dora hat ihren Karma-Vorsprung „eingelöst“ und
-    startet wieder bei 1,0. So bleibt es über die Jahre fair.</p>
-
-  <p><strong>Termin:</strong> Die Verwaltung legt einen Losungstermin fest; die Auslosung
-    läuft dann automatisch. Das Ergebnis siehst du anschließend in
+  <p class="muted">Das Ergebnis erscheint nach dem (von der Verwaltung terminierten) Losungstermin unter
     <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</p>
+
+  <details class="deep">
+    <summary>Budgets &amp; Wünsche – wie viele darf ich eintragen?</summary>
+    <ul class="tight">
+      <li><strong>50 Tage/Jahr</strong> insgesamt, davon höchstens <strong>25 über die Losung</strong>.</li>
+      <li>Du darfst <strong>mehr als 25 Nächte an Wünschen</strong> eintragen – sinnvoll als Rückfall. Sind 25 Wunsch-Nächte vergeben, werden weitere Wünsche <strong>übersprungen</strong> (kein Verlust, kein Karma-Effekt).</li>
+      <li>Die restlichen Tage (bis 50) buchst du danach ganz normal selbst.</li>
+      <li>Mehr Wünsche bringen <strong>keinen unfairen Vorteil</strong>: deine Position in der Reihenfolge ändert sich dadurch nicht.</li>
+    </ul>
+  </details>
+
+  <details class="deep">
+    <summary>Wie wirkt das Karma genau? (Mathematik)</summary>
+    <p>Jede Partei bekommt einen Zufalls-Schlüssel <span class="formula-inline">k = u<sup>(1/g)</sup></span>
+      (u gleichverteilt in (0,1)); absteigend sortiert ergibt das die Reihenfolge. <strong>g</strong> ist
+      das Karma-Gewicht (Start 1,0). Die Chance, Erste:r zu werden, ist genau gewichtsproportional:</p>
+    <p class="formula">P(i ist vorn) = g<sub>i</sub> / (g<sub>1</sub> + … + g<sub>n</sub>)</p>
+    <p>Beispiel: Karma 1,5 gegen vier mit 1,0 → 1,5/5,5 ≈ <strong>27 %</strong> auf Platz 1 (statt 18 %).
+      Karma steigt um +0,1 je Jahr mit echtem Verlust (Deckel <strong>1,5</strong>) und wird nach dem
+      Gewinn eines umkämpften Slots auf 1,0 zurückgesetzt. (Fachlich: Efraimidis-Spirakis-Verfahren.)</p>
+  </details>
+
+  <details class="deep">
+    <summary>Was heißt „strategiesicher“?</summary>
+    <p>Es gibt <em>keine</em> Falschangabe, die dir im Schnitt mehr bringt als deine ehrlichen,
+      nach Wichtigkeit sortierten Wünsche. Grund: deine Liste beeinflusst nur das <em>Was</em> (welchen
+      freien Slot du nimmst), nie das <em>Wann</em> (deine Position hängt nur von Karma &amp; Zufall ab).
+      Zusätzliche, ehrlich nachgeordnete Wünsche können nur helfen und nie schaden.</p>
+  </details>
+
+  <details class="deep">
+    <summary>Ablauf als Diagramm</summary>
+    <svg class="flow" viewBox="0 0 600 600" role="img"
+         aria-label="Ablauf: Wünsche einreichen; Reihenfolge einmal auslosen; in Runden den höchsten möglichen Wunsch zuteilen oder Ausweichquartier oder Verlust; höchstens eine Buchung pro Runde; bei offenen Wünschen nächste Runde mit gleicher Reihenfolge; am Ende Karma neu berechnen und Ergebnis veröffentlichen.">
+      <defs>
+        <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L7,3 L0,6 z" fill="#8a8076"/>
+        </marker>
+      </defs>
+      <g class="ln">
+        <line x1="300" y1="46"  x2="300" y2="64"  marker-end="url(#arr)"/>
+        <line x1="300" y1="112" x2="300" y2="130" marker-end="url(#arr)"/>
+        <line x1="300" y1="168" x2="300" y2="186" marker-end="url(#arr)"/>
+        <line x1="300" y1="224" x2="124" y2="244" marker-end="url(#arr)"/>
+        <line x1="300" y1="224" x2="300" y2="244" marker-end="url(#arr)"/>
+        <line x1="300" y1="224" x2="478" y2="244" marker-end="url(#arr)"/>
+        <line x1="124" y1="292" x2="298" y2="330" marker-end="url(#arr)"/>
+        <line x1="300" y1="292" x2="300" y2="330" marker-end="url(#arr)"/>
+        <line x1="478" y1="292" x2="302" y2="330" marker-end="url(#arr)"/>
+        <line x1="300" y1="366" x2="300" y2="378" marker-end="url(#arr)"/>
+        <line x1="300" y1="434" x2="300" y2="456" marker-end="url(#arr)"/>
+        <polyline points="186,406 90,406 90,148 158,148" marker-end="url(#arr)"/>
+        <line x1="300" y1="502" x2="300" y2="522" marker-end="url(#arr)"/>
+      </g>
+      <g class="bx">
+        <rect x="150" y="10"  width="300" height="36" rx="9"/>
+        <rect x="100" y="64"  width="400" height="48" rx="9"/>
+        <rect x="158" y="130" width="284" height="36" rx="9"/>
+        <rect x="100" y="186" width="400" height="38" rx="9"/>
+        <rect x="150" y="330" width="300" height="36" rx="9"/>
+        <rect x="100" y="456" width="400" height="46" rx="9"/>
+      </g>
+      <rect class="acc" x="100" y="522" width="400" height="40" rx="9"/>
+      <rect class="win" x="36"  y="246" width="172" height="46" rx="9"/>
+      <rect class="win" x="214" y="246" width="172" height="46" rx="9"/>
+      <rect class="loss" x="392" y="246" width="172" height="46" rx="9"/>
+      <polygon class="dec" points="186,406 300,378 414,406 300,434"/>
+      <g class="tx">
+        <text x="300" y="33">① Wünsche eintragen &amp; einreichen</text>
+        <text x="300" y="84">② Reihenfolge EINMAL auslosen</text>
+        <text x="300" y="100" class="sm">Karma (Vorjahr) = Gewicht für vordere Plätze</text>
+        <text x="300" y="153">③ Runde: Parteien der Reihe nach</text>
+        <text x="300" y="209">höchster noch möglicher Wunsch der Partei</text>
+        <text x="122" y="266">Wunschquartier frei</text>
+        <text x="122" y="282" class="b">✓ zuteilen</text>
+        <text x="300" y="266">gleichwertiges frei</text>
+        <text x="300" y="282" class="b">✓ Ausweichquartier</text>
+        <text x="478" y="266">nichts frei</text>
+        <text x="478" y="282" class="b">✗ Verlust (Karma +0,1)</text>
+        <text x="300" y="313" class="sm">Budget voll (25 Wunsch-Nächte)? Wunsch übersprungen – kein Verlust.</text>
+        <text x="300" y="352">höchstens EINE Buchung pro Partei &amp; Runde</text>
+        <text x="300" y="404">offene</text>
+        <text x="300" y="418">Wünsche?</text>
+        <text x="300" y="450" class="sm">nein</text>
+        <text x="120" y="120" class="sm">ja · nächste Runde</text>
+        <text x="300" y="475">④ Karma neu berechnen (fürs nächste Jahr):</text>
+        <text x="300" y="491" class="sm">Verlust → +0,1 (max 1,5) · umkämpfter Gewinn → 1,0</text>
+        <text x="300" y="546">⑤ Ergebnis veröffentlicht → Benachrichtigung</text>
+      </g>
+    </svg>
+  </details>
+
+  <details class="deep" id="losung-beispiel">
+    <summary>Ausführliches Beispiel (5 Mitglieder)</summary>
+    <p><em>Salix</em> und <em>Lupulus</em> sind <strong>gleichwertig</strong> (Gruppe „Gartenhäuser“),
+      das <em>Pfarrhaus</em> steht allein. Begehrt: <strong>Pfingsten</strong> (3 N) und eine
+      <strong>Sommerwoche</strong> (7 N). Karma vorab: Dora 1,2 (Vorjahr leer ausgegangen), Rest 1,0.</p>
+    <table class="ex">
+      <thead><tr><th>Mitglied</th><th>① Erstwunsch</th><th>② Zweitwunsch</th></tr></thead>
+      <tbody>
+        <tr><td>Anna</td><td>Salix · Pfingsten</td><td>Pfarrhaus · Sommer</td></tr>
+        <tr><td>Ben</td><td>Lupulus · Pfingsten</td><td>Salix · Sommer</td></tr>
+        <tr><td>Cem</td><td>Salix · Pfingsten</td><td>Pfarrhaus · Sommer</td></tr>
+        <tr><td>Dora</td><td>Pfarrhaus · Pfingsten</td><td>Salix · Sommer</td></tr>
+        <tr><td>Eva</td><td>Salix · Pfingsten</td><td>Lupulus · Pfingsten</td></tr>
+      </tbody>
+    </table>
+    <p>Gezogene Reihenfolge (Dora vorn dank Karma): <strong>Dora ▸ Anna ▸ Ben ▸ Cem ▸ Eva</strong>.</p>
+    <p><strong>Runde 1:</strong></p>
+    <ul class="trace tight">
+      <li><strong>Dora</strong> → Pfarrhaus · Pfingsten ✓ <span class="sm">(nicht umkämpft)</span></li>
+      <li><strong>Anna</strong> → Salix · Pfingsten ✓ <span class="sm">(umkämpft)</span></li>
+      <li><strong>Ben</strong> → Lupulus · Pfingsten ✓</li>
+      <li><strong>Cem</strong> → Salix/Lupulus belegt → Verlust; Zweitwunsch Pfarrhaus · Sommer ✓</li>
+      <li><strong>Eva</strong> → beide Wünsche belegt → diese Runde keine Buchung</li>
+    </ul>
+    <p><strong>Runde 2</strong> (nur mit offenen Wünschen):</p>
+    <ul class="trace tight">
+      <li><strong>Dora</strong> → Salix · Sommer ✓</li>
+      <li><strong>Anna</strong> → Pfarrhaus · Sommer belegt → Verlust</li>
+      <li><strong>Ben</strong> → Salix · Sommer belegt → Ausweich auf <strong>Lupulus · Sommer</strong> ✓</li>
+    </ul>
+    <table class="ex">
+      <thead><tr><th>Mitglied</th><th>Bekommen</th><th>Karma neu</th></tr></thead>
+      <tbody>
+        <tr><td>Anna</td><td>Salix · Pfingsten</td><td>1,0 → <strong>1,1</strong></td></tr>
+        <tr><td>Ben</td><td>Lupulus · Pfingsten + Sommer</td><td>1,0 (umkämpft gewonnen)</td></tr>
+        <tr><td>Cem</td><td>Pfarrhaus · Sommer</td><td>1,0 → <strong>1,1</strong></td></tr>
+        <tr><td>Dora</td><td>Pfarrhaus · Pfingsten + Salix · Sommer</td><td>1,2 → <strong>1,0</strong> (Reset)</td></tr>
+        <tr><td>Eva</td><td>— leer</td><td>1,0 → <strong>1,1</strong></td></tr>
+      </tbody>
+    </table>
+    <p class="sm">Eva geht leer aus, hat aber nächstes Jahr eine bessere Ausgangsposition. So bleibt es über die Jahre fair.</p>
+  </details>
+
+  <p class="msg info" style="margin:.8rem 0 0">
+    <strong>Beweis durch Zahlen:</strong> Dass gleich gestellte Mitglieder dieselbe Chance haben (und Karma
+    wirkt), zeigen wir per Monte-Carlo-Simulation mit Chi-Quadrat-Test →
+    <a href="{% url 'lottery_fairness' %}">Statistischer Fairness-Nachweis</a>.
+  </p>
 </div>
 
 <div class="card" id="hofladen">
-  <h2>Hofladen &amp; Rechnungen</h2>
-  <ul>
-    <li>Im <a href="{% url 'shop_index' %}">Hofladen</a> wählst du Produkte (und
-      Dienstleistungen wie Sauna), gibst die Menge an und legst sie in den Warenkorb.
-      Preise sind <strong>brutto</strong>; der Preis zum Kaufzeitpunkt wird
-      gespeichert.</li>
-    <li>Am <strong>Monatsende</strong> entsteht automatisch eine
-      <strong>Sammelrechnung</strong> über alle offenen Positionen.</li>
-    <li>Du überweist den Betrag mit der <strong>Rechnungsnummer als
-      Verwendungszweck</strong> auf die angegebene IBAN und meldest die Rechnung in der
-      App als „bezahlt“. Die Verwaltung bestätigt den Eingang.</li>
-    <li><strong>Oder online bezahlen:</strong> Bei jeder offenen Rechnung kannst du
-      auch direkt <strong>„Online bezahlen“</strong> wählen (Kreditkarte, PayPal,
-      Apple&nbsp;Pay, Google&nbsp;Pay über Mollie). Nach erfolgreicher Zahlung gilt die
-      Rechnung sofort als bestätigt – ein Überweisen entfällt dann.</li>
-    <li>Deine Rechnungs-/Profildaten (Name, Anschrift, IBAN) pflegst du selbst unter
-      <a href="{% url 'profile' %}">Profil</a> – sie sind nur für dich sichtbar.</li>
+  <h2>Hofladen &amp; Zahlung</h2>
+  <ul class="tight">
+    <li>Im <a href="{% url 'shop_index' %}">Hofladen</a> Produkte und Dienstleistungen (z. B. Sauna) in den Warenkorb legen. Preise sind <strong>brutto</strong>; der Preis zum Kaufzeitpunkt wird gespeichert.</li>
+    <li>Am Monatsende entsteht automatisch eine <strong>Sammelrechnung</strong> (auch als <strong>PDF</strong>).</li>
+    <li><strong>Bezahlen – zwei Wege:</strong>
+      <ul class="tight">
+        <li><strong>Überweisung</strong> mit der <strong>Rechnungsnummer als Verwendungszweck</strong>, dann in der App „bezahlt“ melden (die Verwaltung bestätigt den Eingang); oder</li>
+        <li><strong>Online bezahlen</strong> (Kreditkarte, PayPal, Apple/Google Pay über Mollie) – die Rechnung gilt sofort als bestätigt.</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<div class="card" id="tage">
+  <h2>Tage übertragen</h2>
+  <p style="margin:0">Unter <a href="{% url 'transfer' %}">Tage übertragen</a> gibst du Tage an ein
+    anderes Mitglied ab (zweistufig mit Bestätigung). Das ist <strong>verbindlich</strong> – die Basis
+    dafür regelt ihr vorher privat.</p>
+</div>
+
+<div class="card" id="profil">
+  <h2>Profil &amp; App</h2>
+  <ul class="tight">
+    <li><a href="{% url 'profile' %}">Profil</a>: Name, Anschrift, IBAN und E-Mail-Benachrichtigungen pflegen – nur für dich sichtbar.</li>
+    <li><strong>Als App installieren:</strong> im Browser „Zum Startbildschirm hinzufügen“ – läuft auch grundlegend offline.</li>
   </ul>
 </div>
 
 <style>
-  .toc ul { margin:.4rem 0 0; padding-left:1.1rem; }
-  .card h2 { margin-top:0; }
-  .card h3 { margin:1.2rem 0 .5rem; }
-  .card ol, .card ul { line-height:1.6; }
-  .qa { background:var(--accent-soft); border-radius:12px; padding:.7rem .9rem; margin:.8rem 0; }
-  .qa p { margin:.4rem 0 0; }
+  .lead { font-size:1.05rem; color:var(--muted); margin:-.3rem 0 1rem; }
+  .toc-chips { display:flex; flex-wrap:wrap; gap:.4rem; }
+  .toc-chips a { display:inline-block; padding:.32rem .7rem; border-radius:999px;
+    background:var(--accent-soft); color:var(--accent-deep); text-decoration:none;
+    font-size:.86rem; font-weight:600; }
+  .toc-chips a:hover { filter:brightness(.97); }
+  .quickref { width:100%; border-collapse:collapse; }
+  .quickref td { padding:.4rem .2rem; border-bottom:1px solid var(--line); vertical-align:top; }
+  .quickref td:last-child { text-align:right; white-space:nowrap; padding-left:1rem; }
+  .card h2 { margin-top:0; scroll-margin-top:72px; }
+  .card[id] { scroll-margin-top:72px; }
+  ul.tight { line-height:1.55; margin:.3rem 0; }
+  ul.tight ul { margin:.25rem 0; }
+  details.deep { border:1px solid var(--line); border-radius:10px; padding:.1rem .7rem; margin:.5rem 0; background:#fffdf8; }
+  details.deep > summary { cursor:pointer; font-weight:600; color:var(--accent-deep); padding:.5rem 0; }
+  details.deep[open] > summary { margin-bottom:.3rem; }
+  .formula-inline { font-family:"DejaVu Serif",Georgia,serif; }
   .formula { font-family:"DejaVu Serif",Georgia,serif; font-size:1.05rem; text-align:center;
     background:#faf7f1; border:1px solid var(--line); border-radius:8px; padding:.5rem .6rem; margin:.5rem 0; }
-  .formula sup, .formula sub { font-size:.72em; }
+  .formula sup, .formula sub, .formula-inline sup { font-size:.72em; }
   .flow { display:block; width:100%; max-width:560px; height:auto; margin:.4rem auto .2rem; }
   .flow .bx rect { fill:#fff; stroke:var(--line); }
   .flow .acc { fill:var(--accent-soft); stroke:var(--accent); }
@@ -379,7 +296,7 @@
   table.ex { width:100%; border-collapse:collapse; margin:.4rem 0 .8rem; font-size:.92rem; }
   table.ex th, table.ex td { text-align:left; padding:.42rem .55rem; border-bottom:1px solid var(--line); }
   table.ex th { font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
-  ul.trace { line-height:1.7; }
+  ul.trace { line-height:1.6; }
   ul.trace .sm, p .sm, td .sm, .card .sm { color:var(--muted); font-size:.86rem; }
 </style>
 {% endblock %}
