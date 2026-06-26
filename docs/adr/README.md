@@ -35,9 +35,26 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0020](0020-betriebsmodell-docker-compose-caddy.md) | Betriebsmodell: Docker-Compose (web + PostgreSQL) hinter separatem Caddy | Accepted |
 | [0021](0021-hintergrund-scheduler-container.md) | Hintergrund-Scheduler-Container statt System-Cron | Accepted |
 | [0022](0022-zwei-ebenen-teststrategie-ci.md) | Zwei-Ebenen-Teststrategie und CI inkl. Migrations-Resilienz | Accepted |
+| [0023](0023-externe-gaeste-magic-link.md) | Externe Gäste: öffentlicher Gast-Checkout mit Magic-Link | Accepted |
+| [0024](0024-buchungsfluss-ampel-zweistufig.md) | Buchungsfluss: Ampel-Kalender + zweistufige Bestätigung | Accepted |
+| [0025](0025-warteliste-spontan-frei.md) | Warteliste und „spontan frei"-Benachrichtigung | Accepted |
+| [0026](0026-buchung-aendern-wechselwunsch.md) | Buchung ändern und Wechselwunsch (auch bei Überlappung) | Accepted |
+| [0027](0027-benachrichtigungen-inapp-outbox.md) | Benachrichtigungen: In-App plus entkoppelte E-Mail-Outbox | Accepted |
+| [0028](0028-rechnungs-pdf-weasyprint.md) | Rechnungs-PDF mit WeasyPrint (Inhalt von Ausgabe getrennt) | Accepted |
+| [0029](0029-kontoabgleich-bankimport.md) | Kontoabgleich: Bank-Import (CSV/CAMT) mit automatischer Verbuchung | Accepted |
+| [0030](0030-beds24-migrations-assistent.md) | Beds24-Migrations-Assistent: einmaliger CSV-Import mit manuellem Abgleich | Accepted |
+| [0031](0031-fairness-nachweis-monte-carlo.md) | Fairness-Nachweis per Monte-Carlo-Simulation | Accepted |
+| [0032](0032-bookingperiod-lebenszyklus.md) | BookingPeriod: eine Periode pro Jahr, statusgesteuerter Lebenszyklus | Accepted |
+| [0033](0033-mitglieds-datenmodell-membership-member-share.md) | Mitglieds-Datenmodell: Membership / Member / Share | Accepted |
+| [0034](0034-konfiguration-singleton-modelle.md) | Konfiguration über Singleton-Modelle | Accepted |
+| [0035](0035-pwa-offline-responsive.md) | PWA: installierbar, offline-fähig, responsive Navigation | Accepted |
+| [0036](0036-lizenz-agpl-v3.md) | Lizenz: GNU AGPL v3 | Accepted |
+| [0037](0037-backup-haertung-zurueckgestellt.md) | Backup und weiteres Hardening bewusst zurückgestellt | Proposed |
 
 ## Offene Punkte (in ADRs markiert)
 
 - **Saison-Regeln in der Losung erzwingen** – siehe ADR 0009 (aktuell nur bei der
   normalen Buchung umgesetzt).
 - **OIDC/Keycloak-Anbindung** – siehe ADR 0015 (Naht vorhanden, nicht umgesetzt).
+- **Backup & weiteres Hardening** – siehe ADR 0037 (Blueprint vorhanden, vor dem
+  Wirkbetrieb umzusetzen).
