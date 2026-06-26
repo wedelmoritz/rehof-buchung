@@ -472,3 +472,27 @@ def test_rule_check_ohne_callback_unveraendert():
     wishes = [Wish("a", 1, "g_salix", s, e), Wish("a", 2, "p_nord", s, e)]
     res = run_lottery(parties, QUARTERS, wishes, seed=1)
     assert len(res.allocations) == 2             # beide zugeteilt, kein Deckel
+
+
+def test_rule_skip_prueft_naechste_prioritaet_in_gleicher_runde():
+    """Ein wegen einer Regel übersprungener Wunsch übergeht die Partei NICHT:
+    in DERSELBEN Runde wird der nächste (niedrigere) Wunsch derselben Partei
+    geprüft und ggf. zugeteilt (kein Wechsel 'erst nächste Runde')."""
+    parties = [Party("a", "A")]
+    s, e_long = week(0, length=10)               # Prio 1: 10 Nächte -> geblockt
+    s2, e2 = week(0, length=3)                    # Prio 2: 3 Nächte, anderes Quartier
+    wishes = [Wish("a", 1, "g_salix", s, e_long),
+              Wish("a", 2, "p_nord", s2, e2)]
+
+    def block_long(pid, start, end, existing):
+        return "zu lang" if (end - start).days >= 10 else None
+
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, rule_check=block_long)
+    assert len(res.allocations) == 1
+    assert res.allocations[0].quarter_id == "p_nord"     # Prio 2 zugeteilt
+    # … und zwar in der ERSTEN Runde (nicht erst eine Runde später):
+    assign = next(e for e in res.log if e["event"] == "assign")
+    assert assign["round"] == 1 and assign["priority"] == 2
+    skip = next(e for e in res.log if e["event"] == "rule_skip")
+    assert skip["round"] == 1 and skip["priority"] == 1
+    assert res.losses == [] and res.new_factors["a"] == 1.0

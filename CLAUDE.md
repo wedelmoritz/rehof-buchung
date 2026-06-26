@@ -369,8 +369,10 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   `rules.validate_booking` + einmalig materialisierten Saison-Regeln) und führt je
   Partei die schon zugeteilten Zeiträume (`party_stays`). Ein gedeckelter Wunsch
   wird **übersprungen** (kein Verlust, kein Karma – wie ein Budget-Übersprung; wahrt
-  die Strategiesicherheit). Der Deckel-Check sieht nur die laufeigenen Zuteilungen
-  (dokumentierte Grenze, s. ADR 0009).
+  die Strategiesicherheit). Ein Skip übergeht die Partei **nicht**: der innere
+  `while`-Loop prüft in **derselben Runde** sofort den nächsten Wunsch derselben
+  Partei (kein „erst nächste Runde"). Der Deckel-Check sieht nur die laufeigenen
+  Zuteilungen (dokumentierte Grenze, s. ADR 0009).
 - **Schulferien (`SchoolHoliday`):** ebenfalls **jährlich wiederkehrend**;
   werden im Kalender angezeigt UND setzen, wenn aktiv und mit Regelfeldern
   versehen, im Zeitraum dieselben Regeln durch wie eine Saison-Regel (leere

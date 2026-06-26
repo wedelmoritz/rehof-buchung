@@ -60,6 +60,15 @@ Wir setzen die Vorgaben als **prüfbare Regel-Logik plus konfigurierbare Stammda
   Karma-Bonus. Das ist bewusst gewählt: Würde der Deckel als Verlust zählen,
   ließe sich durch absichtliches Über-Wünschen überlappender Einheiten Karma
   „farmen" – die Strategiesicherheit bliebe so erhalten (siehe ADR 0003).
+- **Runden-Verhalten (wichtig für die Fairness):** Ein übersprungener Wunsch –
+  ob Deckel, Budget oder echter Verlust – **übergeht die Partei nicht**. Die Losung
+  prüft in **derselben Runde** sofort den **nächsten Wunsch (niedrigere Priorität)
+  derselben Partei** weiter (innerer `while`-Loop in `run_lottery`, jeder Skip macht
+  `pointer += 1; continue`). Die Partei verliert also ihren Zug nicht; erst eine
+  erfolgreiche Buchung beendet ihre Runde. Beispiel: Prio 1 ist gedeckelt → die
+  Partei bekommt in derselben Runde ggf. Prio 2 zugeteilt. Belegt durch
+  `tests/test_lottery.py::test_rule_skip_prueft_naechste_prioritaet_in_gleicher_runde`
+  und den Integrationstest `LosungDeckelReihenfolgeTests`.
 - **Grenze (dokumentiert):** Der Deckel-Check betrachtet nur die **innerhalb des
   Losdurchlaufs** zugeteilten Zeiträume – konsistent zum „leeren Start" der Losung
   (sie lädt auch für die Verfügbarkeit keine bestehenden Buchungen). Zum
