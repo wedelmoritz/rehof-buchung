@@ -374,7 +374,7 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 # 1) Reine Logik (schnell, ohne DB) — erwartet: 53 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 31 passed
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 168 passed
 python manage.py test booking
 ```
 

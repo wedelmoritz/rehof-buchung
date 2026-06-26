@@ -51,8 +51,9 @@ Caddy holt das TLS-Zertifikat automatisch und proxyt auf `127.0.0.1:8000`
 
 ## Test-Anleitung (POC)
 
-Ziel: in wenigen Minuten **zwei Rollen** ausprobieren – eine:n **Verwalter:in**
-(Staff) und eine:n **Testnutzer:in** (Mitglied).
+Ziel: in wenigen Minuten die **drei Rollen** ausprobieren – **Admin** (Superuser,
+volles Backend), **Verwaltung** (Gruppe „Verwaltung“, nur Dashboard) und
+**Mitglied** (Testnutzer:in). Siehe „Zwei Rollen (Admin vs. Verwaltung)“ unten.
 
 ### 1) Daten & Konten anlegen
 
@@ -60,7 +61,7 @@ Am schnellsten mit Demo-Daten (echte Quartiere, Perioden, ein paar Mitglieder):
 
 ```bash
 docker compose exec web python manage.py seed_demo --reset   # Demo-Stammdaten
-docker compose exec web python manage.py createsuperuser     # Verwalter:in (Staff)
+docker compose exec web python manage.py createsuperuser     # Admin-Konto (Superuser)
 ```
 
 **Großes Test-Szenario** (kompletter Wipe inkl. Superuser, dann reich befüllt –
@@ -456,11 +457,11 @@ Zwei Ebenen:
 ```bash
 # 1) Reine Logik (Losverfahren + Buchungszeiträume/Tage + Saison-Regeln) – ohne DB
 pip install pytest
-PYTHONPATH=. python -m pytest tests/ -v          # -> 41 passed
+PYTHONPATH=. python -m pytest tests/ -v          # -> 53 passed
 
 # 2) Integrationstests (DB-Ebene: Gate, Buchung, Losung-Workflow, Dashboard,
 #    Hofladen, Kontoabgleich)
-python manage.py test booking shop               # -> 110 passed (1 skip ohne WeasyPrint)
+python manage.py test booking shop               # -> 168 passed (1 skip ohne WeasyPrint)
 ```
 
 Abgedeckt: Determinismus, Budget, Ausweich-Logik, Karma (Bonus/Deckel/Reset),

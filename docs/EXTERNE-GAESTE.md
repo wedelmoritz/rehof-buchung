@@ -18,11 +18,11 @@ Verfügbarkeits-/Regel-Logik, der öffentliche Einstieg `/extern/` mit
 reine Logik in `booking/external.py::cancellation_refund`) und die **Abrechnung per
 Rechnung** (über die generalisierte `shop.Invoice`, inkl. Kontoabgleich/Mahnung). In
 der **internen Übersicht** werden externe Gäste in einer einheitlichen Farbe und nur
-als „extern“ ausgewiesen. Im Bezahlbereich steht ein **Platzhalter** „Online-
-Direktbezahlung aktuell noch nicht möglich“. Das **einbettbare Website-Widget**
-(`/extern/widget/`, s. Abschnitt 0) ist umgesetzt. **Offen:** nur noch der
-**Online-Bezahlprozess (Mollie)** – als Naht vorbereitet (Status `pending`,
-`hold_expires_at`, Anzahlung/Refund-Quoten bereits berechnet).
+als „extern“ ausgewiesen. Die **Online-Bezahlung (Mollie)** ist umgesetzt und aktiv:
+Gäste zahlen ihre `shop.Invoice` über den Magic-Link (`external_pay`) – im Standard
+im eingebauten Test-Modus (ohne Konto/Gebühren), mit `test_…`/`live_…`-Key gegen
+echtes Mollie (s. `shop/payments.py`). Das **einbettbare Website-Widget**
+(`/extern/widget/`, s. Abschnitt 0) ist ebenfalls umgesetzt.
 
 ## 0. Website-Einbindung (Widget)
 
