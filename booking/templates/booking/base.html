@@ -32,11 +32,20 @@
       --radius: 14px;
     }
     * { box-sizing: border-box; }
+    /* Die Seite darf NIE horizontal scrollen – sonst spannt der sticky-Banner nur
+       über die ursprüngliche Handybreite und „bricht ab“. Breite Inhalte (Zeit-
+       strahl, Tabellen) scrollen in ihrem eigenen Wrapper, nicht auf Seitenebene.
+       `clip` statt `hidden`, damit das sticky-Verhalten des Kopfs erhalten bleibt. */
+    html { overflow-x: clip; }
     body {
       margin: 0; background: var(--bg); color: var(--ink);
       font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
       -webkit-font-smoothing: antialiased;
+      overflow-x: clip; max-width: 100%;
     }
+    /* Lange, nicht umbrechbare Zeichenketten (z.B. in Benachrichtigungen oder
+       Systemmeldungen) dürfen die Seite nicht über die Handybreite hinaus dehnen. */
+    .msg, .notif li, .notif-detail { overflow-wrap: anywhere; }
     a { color: var(--accent-deep); }
 
     /* Kopf / Navigation */
@@ -52,7 +61,8 @@
     }
     header .brand img { width: 26px; height: 26px; display: block; border-radius: 7px; }
     header .spacer { margin-left: auto; }
-    header .who { color: var(--muted); font-size: .9rem; }
+    header .who { color: var(--muted); font-size: .9rem; min-width: 0;
+      overflow-wrap: anywhere; }
 
     /* Inhalt + rechte, einklappbare Navigationsleiste */
     .shell {
@@ -275,9 +285,14 @@
       header form.inline { order: 3; }
       header .spacer { display: none; }
 
-      .shell { flex-direction: column; gap: 0;
+      /* Am Handy enthält die Shell nur noch den Hauptinhalt (Sidebar aus, Tab-
+         Leiste ist position:fixed). Als BLOCK statt Flex-Spalte kann ein breiter
+         Inhalt (Zeitstrahl/Tabelle) den Hauptbereich nicht über die Bildschirm-
+         breite dehnen – er scrollt stattdessen in seinem eigenen Wrapper. */
+      .shell { display: block; gap: 0;
                padding-left: calc(.8rem + env(safe-area-inset-left));
                padding-right: calc(.8rem + env(safe-area-inset-right)); }
+      .shell > main { min-width: 0; max-width: 100%; }
       /* Statt seitlicher Leiste: feste Tab-Leiste unten (daumenfreundlich) +
          „Mehr“-Sheet. Die Desktop-Sidebar wird ausgeblendet. */
       .sidenav { display: none; }

@@ -205,8 +205,15 @@ Django-Admin/Stammdaten – **nur Admin/Superuser**). Die Navigation erscheint f
 Mitglieder UND für Verwaltungs-/Admin-Konten (auch ohne Mitglieds-Profil). Das Layout ist responsiv
 (Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
-`sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das Manifest liegt
-unter `/static/` und ist damit ohnehin frei).
+**Kein seitliches Seiten-Scrollen am Handy:** `html`/`body` haben `overflow-x:clip`
+(damit der sticky-Banner nie „abbricht“), die `.shell` ist am Handy ein **Block**
+(nicht Flex-Spalte), sodass breite Inhalte (Belegungs-Zeitstrahl `.occ`, Tabellen)
+**in ihrem eigenen Wrapper** horizontal scrollen statt die Seite zu dehnen; lange
+Zeichenketten (Benachrichtigungen/Meldungen) brechen um (`overflow-wrap:anywhere`).
+Im **Hofladen** gibt es am Handy einen **schwebenden Warenkorb-Knopf** (`.cart-fab`,
+Symbol + Anzahl + Summe), der zum Warenkorb springt (sonst steht der Korb unter dem
+ganzen Katalog). `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das
+Manifest liegt unter `/static/` und ist damit ohnehin frei).
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
