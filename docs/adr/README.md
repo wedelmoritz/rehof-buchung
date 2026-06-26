@@ -21,7 +21,7 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0006](0006-losung-unabhaengig-von-buchungszeitraum.md) | Losung bewusst unabhängig von den Buchungszeiträumen | Accepted |
 | [0007](0007-nur-eingereichte-wuensche.md) | Nur eingereichte Wünsche nehmen an der Losung teil | Accepted |
 | [0008](0008-losung-review-workflow.md) | Losung-Review-Workflow: vorläufig prüfen, bestätigen oder zurücknehmen | Accepted |
-| [0009](0009-buchungsregeln-der-genossenschaft.md) | Buchungsregeln der Genossenschaft umgesetzt | Accepted (teilw.) |
+| [0009](0009-buchungsregeln-der-genossenschaft.md) | Buchungsregeln der Genossenschaft umgesetzt | Accepted |
 | [0010](0010-tage-uebertragung-an-mitglieder.md) | Tage-Übertragung an andere Mitglieder | Accepted |
 | [0011](0011-schulferien-informativ-getrennt.md) | Schulferien als rein informatives, vom Regelwerk getrenntes Modell | Accepted |
 | [0012](0012-buchungszeitraeume-schnittmengen-semantik.md) | Buchungszeiträume mit Schnittmengen-Semantik | Accepted |
@@ -50,13 +50,15 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0035](0035-pwa-offline-responsive.md) | PWA: installierbar, offline-fähig, responsive Navigation | Accepted |
 | [0036](0036-lizenz-agpl-v3.md) | Lizenz: GNU AGPL v3 | Accepted |
 | [0037](0037-backup-haertung-zurueckgestellt.md) | Backup und weiteres Hardening bewusst zurückgestellt | Proposed |
+| [0038](0038-zahlungsanbindung-anzahlung-storno-erstattung.md) | Zahlungsanbindung: Anzahlung und Storno-Erstattung | Proposed |
 
 ## Offene Punkte (in ADRs markiert)
 
-- **Parallel-Limit/Mehrfach-Deckel in der Losung** – siehe ADR 0009. Die
-  Saison-**Mindestnächte** gelten inzwischen auch für Wunschliste/Losung (beim
-  Einreichen) und externe Buchungen; offen bleibt nur das Parallel-Limit/der
-  Deckel über mehrere Buchungen im Los-Algorithmus selbst.
 - **OIDC/Keycloak-Anbindung** – siehe ADR 0015 (Naht vorhanden, nicht umgesetzt).
 - **Backup & weiteres Hardening** – siehe ADR 0037 (Blueprint vorhanden, vor dem
   Wirkbetrieb umzusetzen).
+- **Zahlungsanbindung: Anzahlung & Storno-Erstattung** – siehe ADR 0038 (Voll-
+  Bezahlung umgesetzt; Anzahlung informativ, Erstattung manuell).
+
+Die Saison-Regeln (Mindestnächte **und** Parallel-Limit/Aufenthaltsdeckel) gelten
+inzwischen vollständig auch in der Losung – siehe ADR 0009 (kein offener Punkt mehr).

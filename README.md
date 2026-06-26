@@ -240,10 +240,11 @@ Brandenburg sind nahezu identisch).
 > Buchung**, **beim Eintragen/Einreichen der Wunschliste** und bei **externen
 > Buchungen** geprüft (ein zu kurzer Wunsch lässt sich gar nicht erst einreichen,
 > ein Losgewinn kann also nicht an den Mindestnächten scheitern). Das
-> **Parallel-Limit** und der **Aufenthaltsdeckel über mehrere Buchungen** sind
-> dagegen nur bei der normalen Buchung prüfbar (sie betreffen mehrere gleichzeitige
-> Einheiten und lassen sich je Einzelwunsch nicht entscheiden); der
-> Los-Algorithmus bleibt daher bewusst unverändert.
+> **Parallel-Limit** und der **Aufenthaltsdeckel über mehrere Buchungen** gelten
+> bei der normalen Buchung **und in der Losung**: Würde ein Wunsch den Deckel
+> überschreiten (die Partei hat in der Saison schon ihr Maximum), wird er in der
+> Losung **übersprungen** – das zählt **nicht** als Verlust und bringt **kein**
+> Karma (so lässt sich durch Über-Wünschen kein Vorteil erzielen).
 >
 > Für **externe Gäste** ist der Mindestaufenthalt im Backend einstellbar
 > (Externe-Gäste-Einstellungen): standardmäßig **„wie intern“** (inkl. der
