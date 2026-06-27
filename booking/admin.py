@@ -131,12 +131,12 @@ class MemberProfileInline(admin.StackedInline):
             "fields": ("legal_name", "street", "zip_code", "city", "iban"),
         }),
         ("Hofladen-Terminal vor Ort", {
-            "classes": ("collapse",),
             "fields": ("terminal_enabled",),
             "description": (
-                "Erlaubt dieser Person, am Vor-Ort-Terminal (PIN) auf die "
-                "Monatsrechnung einzukaufen. Die <b>PIN</b> setzt die Person selbst "
-                "im Profil; ohne PIN erscheint sie nicht am Terminal."),
+                "Standardmäßig an: die Person darf am Vor-Ort-Terminal (PIN) auf die "
+                "Monatsrechnung einkaufen. Die <b>PIN</b> setzt die Person selbst im "
+                "Profil; ohne PIN erscheint sie nicht am Terminal. Die Person kann das "
+                "auch selbst im Profil ausschalten."),
         }),
     )
 

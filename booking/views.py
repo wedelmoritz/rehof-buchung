@@ -737,14 +737,25 @@ def profile(request):
             member.save(update_fields=["email_opt_in"])
             messages.success(request, "Benachrichtigungs-Einstellung gespeichert.")
             return redirect("profile")
-        elif action == "set_terminal_pin" and member.terminal_enabled:
+        elif action == "terminal_prefs":
+            # Teilnahme am Hofladen-Terminal selbst an/aus + optional PIN setzen.
             pin = (request.POST.get("pin") or "").strip()
-            if len(pin) == 6 and pin.isdigit():
+            if pin and not (len(pin) == 6 and pin.isdigit()):
+                messages.error(request, "Die PIN muss genau 6 Ziffern haben.")
+                return redirect("profile")
+            member.terminal_enabled = bool(request.POST.get("terminal_enabled"))
+            fields = ["terminal_enabled"]
+            if pin:
                 member.set_terminal_pin(pin)
-                member.save(update_fields=["terminal_pin"])
+                fields.append("terminal_pin")
+            member.save(update_fields=fields)
+            if not member.terminal_enabled:
+                messages.success(request, "Hofladen-Terminal ausgeschaltet – eine "
+                                 "gesetzte PIN ist damit inaktiv.")
+            elif pin:
                 messages.success(request, "Hofladen-Terminal-PIN gespeichert.")
             else:
-                messages.error(request, "Die PIN muss genau 6 Ziffern haben.")
+                messages.success(request, "Einstellung gespeichert.")
             return redirect("profile")
         else:
             form = ProfileForm(request.POST, instance=member)

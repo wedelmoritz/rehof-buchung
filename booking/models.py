@@ -198,10 +198,11 @@ class Member(models.Model):
     zip_code = models.CharField("PLZ", max_length=10, blank=True)
     city = models.CharField("Ort", max_length=120, blank=True)
     iban = models.CharField("IBAN", max_length=34, blank=True)
-    # Hofladen-Terminal (ADR 0053): von der Verwaltung freigeschaltet; das Mitglied
-    # vergibt selbst eine 6-stellige PIN (gehasht). Nur damit landet das Konto in der
-    # Terminal-Roster und kann am Vor-Ort-Gerät auf die Monatsrechnung einkaufen.
-    terminal_enabled = models.BooleanField("Hofladen-Terminal erlaubt", default=False)
+    # Hofladen-Terminal (ADR 0053): standardmäßig für alle an; das Mitglied vergibt
+    # selbst eine 6-stellige PIN (gehasht) – ERST damit landet das Konto in der
+    # Terminal-Roster. Wer nicht teilnehmen will, schaltet es im Profil aus (dann ist
+    # auch eine evtl. gesetzte PIN inaktiv).
+    terminal_enabled = models.BooleanField("Hofladen-Terminal erlaubt", default=True)
     terminal_pin = models.CharField("Terminal-PIN (gehasht)", max_length=128, blank=True)
 
     def set_terminal_pin(self, pin: str) -> None:

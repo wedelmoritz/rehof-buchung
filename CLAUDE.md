@@ -236,13 +236,16 @@ Speichern geht automatisch die „Passwort setzen“-Einladung raus (ADR 0052), 
 Admin-Aktion „Einladung erneut senden“. Tage-Anteile werden am `Membership` zugeordnet.
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
-**Marke/Logo:** Zweifarbiger **Re:hof**-Schriftzug (Re: in Ziegelrot `#C0432E`,
-hof in Salbeigrau `#8C9A91`) als SVG-Wordmark in der Kopfzeile
-(`booking/static/booking/brand/wordmark.svg`; volle Variante mit „Rutenberg“ auf der
-Anmeldeseite, `wordmark-full.svg`); App-Icon = ziegelrote Kachel mit cremefarbenem
-„Re:“ (`icons/logo.svg` + per Pillow erzeugte PNGs `icon-192/512/maskable/apple-touch/
-favicon-32`). Das übrige warme Farbschema (Terrakotta/Salbei/Creme) ist bereits
-markennah; die exakten Website-Farben sind extern nicht abrufbar.
+**Marke/Logo/Farben:** Die **echten Marken-Farben der Re:hof-Website** sind global
+übernommen: **Primär `#BE3E23`** (Ziegelrot, `--accent`) und **Sekundär `#7F8F8C`**
+(Salbeigrau, `--sage`) – sowohl in der Web-App (`base.html :root`) als auch im
+Backend-Theme (`templates/admin/base_site.html`, inkl. lesbarer dunkler Fieldset-/
+Inline-Überschriften statt hellgrau). Zweifarbiger **Re:hof**-Schriftzug als SVG-
+Wordmark in der Kopfzeile (`booking/static/booking/brand/wordmark.svg`; volle Variante
+mit „Rutenberg“ auf der Anmeldeseite, `wordmark-full.svg`); App-Icon = ziegelrote
+Kachel mit cremefarbenem „Re:“ (`icons/logo.svg` + per Pillow erzeugte PNGs
+`icon-192/512/maskable/apple-touch/favicon-32`). Hintergründe bleiben warm-creme
+(`#faf5ee`) für die Lesbarkeit einer Datenanwendung.
 
 **PWA / Mobil:** Die Web-App ist installierbar (iOS „Zum Home-Bildschirm“,
 Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),
@@ -353,9 +356,13 @@ sich nur per **Geräte-Token** (`TerminalConfig`, im Backend änderbar/„neu er
 `Purchase.terminal_ref` auf die Monatsrechnung; **keine Zahlung**). Mehr geben die
 Token-Endpunkte nicht her (keine PII/Profil/Backend) – der Schadensradius bleibt klein.
 PIN-Prüfung läuft **offline im Gerät** gegen den Django-PBKDF2-Hash (Web Crypto),
-Sperre nach N Fehlversuchen + Idle-Logout. Freischaltung: Verwaltung setzt
-`Member.terminal_enabled`, die Person vergibt die **PIN selbst im Profil** (ohne PIN
-nicht in der Roster). Service `services/terminal_ops.py`; SW hält `/terminal/` offline
+Sperre nach N Fehlversuchen + Idle-Logout. `Member.terminal_enabled` ist
+**standardmäßig an** (für alle); die Person vergibt die **PIN selbst im Profil**
+(Aktion `terminal_prefs`: ein/aus **und** PIN; ohne PIN nicht in der Roster) und kann
+die Teilnahme dort auch **ausschalten** (dann ist die PIN inaktiv). Profil + Terminal
+weisen darauf hin, dass eine PIN-Änderung/ein Einkauf wegen des oft **offline** stehenden
+Geräts **nicht sofort** wirkt/erscheint (Sync beim nächsten Online-Sein). Service
+`services/terminal_ops.py`; SW hält `/terminal/` offline
 vor (ADR 0035). **Pflicht-Gerätehärtung** (Kiosk-Mode, Festplatten-Verschlüsselung,
 physische Sicherung) im Deployment-Runbook – ohne sie ist der Modus nicht freizugeben.
 

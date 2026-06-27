@@ -53,9 +53,14 @@ N Fehlversuchen (lokal), **Idle-Auto-Logout**.
 (ADR 0016). Das hält Kartendaten/PCI komplett draußen und entwertet eine geklaute PIN.
 
 **Anlage & Freigabe nur im Normal-System.** Am Terminal kann man sich **nicht**
-registrieren. Die Person registriert sich zuhause/per Handy, die **Verwaltung schaltet
-frei** (`Member.terminal_enabled`), und die Person setzt **selbst** ihre PIN im Profil.
-Ohne gesetzte PIN erscheint sie nicht in der Roster.
+registrieren. Die Person registriert sich zuhause/per Handy. `Member.terminal_enabled`
+ist **standardmäßig an** (für alle Konten) – die eigentliche Aktivierung ist die
+**selbst gesetzte PIN** im Profil (ohne PIN nicht in der Roster). Die Person kann die
+Teilnahme im Profil auch **selbst ausschalten** (dann ist die PIN inaktiv);
+unabhängig davon kann die Verwaltung das Flag im Backend setzen. Profil und Terminal
+weisen auf den **Offline-Versatz** hin: eine neue/geänderte PIN wirkt – und ein am
+Terminal erfasster Einkauf erscheint in App/Rechnung – erst nach der **nächsten
+Synchronisierung** des Geräts.
 
 **UX für ältere Menschen:** große Schrift/Schaltflächen, hoher Kontrast, Emoji-Symbole,
 wenige Schritte (Name antippen → PIN → Artikel antippen → bestätigen → fertig),

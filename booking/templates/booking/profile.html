@@ -51,24 +51,34 @@
   {% endif %}
 </div>
 
-{% if member.terminal_enabled %}
 <div class="card">
   <h2 style="margin-top:0">Hofladen-Terminal (vor Ort)</h2>
-  <p class="muted" style="margin-top:0">Du darfst am <strong>Terminal im Hofladen</strong>
-    einkaufen (auf deine Monatsrechnung). Vergib dafür hier eine <strong>6-stellige
-    PIN</strong> – damit meldest du dich am Gerät an. {% if member.terminal_pin %}<strong>Eine PIN ist gesetzt.</strong> Du kannst sie hier ändern.{% else %}Solange keine PIN gesetzt ist, erscheinst du nicht am Terminal.{% endif %}
-    Am Terminal kann <strong>nicht</strong> bezahlt werden; das läuft über die Monatsrechnung.</p>
-  <form method="post" data-no-ajax autocomplete="off" onsubmit="return /^\d{6}$/.test(this.pin.value)||(alert('Bitte genau 6 Ziffern.'),false)">{% csrf_token %}
-    <input type="hidden" name="action" value="set_terminal_pin">
-    <div class="field">
-      <label for="id_term_pin">Neue 6-stellige PIN</label>
+  <p class="muted" style="margin-top:0">Am <strong>Terminal im Hofladen</strong> kannst
+    du auf deine <strong>Monatsrechnung</strong> einkaufen – praktisch, wenn du kein
+    Handy dabei hast. Bezahlt wird dort <strong>nicht</strong>; das läuft über die
+    Rechnung. Die Teilnahme ist freiwillig: Du <strong>musst keine PIN setzen</strong>,
+    und du kannst die Funktion hier auch ganz ausschalten.</p>
+  <form method="post" data-no-ajax autocomplete="off"
+        onsubmit="var p=this.pin.value; return p===''|| /^\d{6}$/.test(p) || (alert('Die PIN muss genau 6 Ziffern haben (oder leer lassen).'),false)">{% csrf_token %}
+    <input type="hidden" name="action" value="terminal_prefs">
+    <label class="opt" style="display:flex;gap:.5rem;align-items:flex-start">
+      <input type="checkbox" name="terminal_enabled" {% if member.terminal_enabled %}checked{% endif %}>
+      <span>Am Hofladen-Terminal teilnehmen{% if not member.terminal_enabled %} <span class="muted">(zurzeit aus – PIN ist inaktiv)</span>{% endif %}</span>
+    </label>
+    <div class="field" style="margin-top:.6rem">
+      <label for="id_term_pin">{% if member.terminal_pin %}PIN ändern{% else %}6-stellige PIN setzen{% endif %} <span class="muted">(optional)</span></label>
       <input id="id_term_pin" name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6"
-             autocomplete="off" placeholder="z. B. 123456" style="letter-spacing:.3em">
+             autocomplete="off" placeholder="{% if member.terminal_pin %}neue PIN oder leer lassen{% else %}z. B. 123456{% endif %}" style="letter-spacing:.3em">
+      <div class="muted" style="font-size:.85rem">{% if member.terminal_pin %}Eine PIN ist gesetzt. Leer lassen, um sie zu behalten.{% else %}Ohne PIN erscheinst du nicht am Terminal – setze eine, wenn du es nutzen willst.{% endif %}</div>
     </div>
-    <button class="btn" type="submit" style="margin-top:.3rem">PIN speichern</button>
+    <button class="btn" type="submit" style="margin-top:.4rem">Speichern</button>
   </form>
+  <p class="muted" style="font-size:.85rem;margin:.7rem 0 0">ℹ️ Hinweis: Eine neue oder
+    geänderte PIN wirkt am Terminal evtl. <strong>nicht sofort</strong> – das Gerät im
+    Hofladen ist oft <strong>offline</strong> und übernimmt neue Daten erst beim
+    nächsten Internet-Kontakt. Ebenso taucht ein Einkauf vom Terminal erst nach dessen
+    nächster Synchronisierung in der App/Rechnung auf.</p>
 </div>
-{% endif %}
 
 <details class="card">
   <summary style="cursor:pointer;font-weight:600">Anmeldedaten ändern (E-Mail / Passwort)</summary>
