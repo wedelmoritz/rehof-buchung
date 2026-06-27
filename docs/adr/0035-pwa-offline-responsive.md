@@ -59,6 +59,10 @@ ohne native App.
   `_calnav.html`, Monat/Jahr-Selects über `__nav`). Reine Progressive Enhancement –
   ohne JS, bei Fehlern oder Modifier-Klick (neuer Tab) greift das normale Laden;
   ausgenommen sind `multipart`-Uploads und die Auth-Formulare (`data-no-ajax`).
+  Auch das **Verwaltungs-Dashboard** nutzt die GET-AJAX-Naht (Monatswahl/Filter-
+  Chips; die Selects feuern über `requestSubmit()`, da `submit()` kein submit-Event
+  auslöst). Der Submit-Layer respektiert `e.defaultPrevented`, damit ein
+  `onsubmit="return confirm(…)"`-Abbruch nicht doch per AJAX abgeschickt wird.
 
 ## Betrachtete Alternativen
 

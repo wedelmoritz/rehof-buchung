@@ -579,6 +579,10 @@
     }
     document.addEventListener("submit", function (e) {
       var form = e.target;
+      // Hat ein Inline-Handler (z.B. onsubmit="return confirm(...)") schon
+      // abgebrochen, NICHT per AJAX nachschicken – sonst liefe die Aktion trotz
+      // „Abbrechen" weiter.
+      if (e.defaultPrevented) return;
       if (form.getAttribute("method") && form.getAttribute("method").toLowerCase() === "get") {
         if (!form.hasAttribute("data-ajax") || !main.contains(form)) return;
         e.preventDefault();

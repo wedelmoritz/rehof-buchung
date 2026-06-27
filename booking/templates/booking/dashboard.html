@@ -77,13 +77,14 @@
 
 {# --- Monatsauswahl -------------------------------------------------------- #}
 <div class="card monthbar">
-  <form method="get" class="inline-form">
+  <form method="get" data-ajax class="inline-form">
+    {# requestSubmit() (nicht submit()) feuert das submit-Event → AJAX-Layer greift. #}
     <label>Monat
-      <select name="month" onchange="this.form.submit()">
+      <select name="month" onchange="this.form.requestSubmit()">
         {% for m in months %}<option value="{{ m.num }}" {% if m.num == month %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
       </select></label>
     <label>Jahr
-      <select name="year" onchange="this.form.submit()">
+      <select name="year" onchange="this.form.requestSubmit()">
         {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
       </select></label>
     {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
@@ -98,7 +99,7 @@
   <div class="sec-head">
     <h2 style="margin:0">Reinigung – {{ month_label }}</h2>
     <span class="spacer"></span>
-    <a class="btn small ghost" href="?year={{ year }}&month={{ month }}{% if not only_cleaning %}&only_cleaning=1{% endif %}">
+    <a class="btn small ghost" data-ajax href="?year={{ year }}&month={{ month }}{% if not only_cleaning %}&only_cleaning=1{% endif %}">
       {% if only_cleaning %}Alle Abreisen zeigen{% else %}Nur mit Endreinigung{% endif %}</a>
   </div>
   <p class="muted" style="margin:.2rem 0 .7rem">Abreisetag = Reinigungstag. Liste fürs Reinigungsteam.</p>
@@ -174,11 +175,11 @@
     <span class="muted">{{ invoices_view|length }} angezeigt · {{ inv_view_sum }} €</span>
   </div>
   <div class="chips">
-    <a class="chip {% if inv_filter == 'open' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
-    <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
-    <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=paid">Bezahlt gemeldet</a>
-    <a class="chip {% if inv_filter == 'online' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=online">Online bezahlt ({{ online_total_count }})</a>
-    <a class="chip {% if inv_filter == 'all' %}on{% endif %}" href="?year={{ year }}&month={{ month }}&inv=all">Alle</a>
+    <a class="chip {% if inv_filter == 'open' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
+    <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
+    <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=paid">Bezahlt gemeldet</a>
+    <a class="chip {% if inv_filter == 'online' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=online">Online bezahlt ({{ online_total_count }})</a>
+    <a class="chip {% if inv_filter == 'all' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=all">Alle</a>
   </div>
   {% if inv_filter == 'online' %}<p class="muted" style="margin:.2rem 0 .6rem">Per
     Zahldienst (Mollie) beglichene Rechnungen – Eingang ist bereits bestätigt,
