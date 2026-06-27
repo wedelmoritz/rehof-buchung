@@ -378,7 +378,9 @@
 <div class="shell">
   <main>
     {% if messages %}
-      {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+      {# data-toast: NUR diese (Framework-)Meldungen werden zu Toasts. Fest im
+         Template stehende .msg-Banner (Hinweise/Status) bleiben an Ort und Stelle. #}
+      {% for m in messages %}<div class="msg {{ m.tags }}" data-toast>{{ m }}</div>{% endfor %}
     {% endif %}
     {% block content %}{% endblock %}
   </main>
@@ -526,9 +528,11 @@
       var timer = setTimeout(function () { remove(t); }, kind === "error" ? 8000 : 4500);
       t.addEventListener("mouseenter", function () { clearTimeout(timer); });
     }
-    // Inline-.msg eines Bereichs in Toasts umwandeln und entfernen.
+    // NUR als data-toast markierte Meldungen (Django-messages = Feedback auf eine
+    // aktive Aktion) in Toasts umwandeln. Fest im Template stehende .msg-Banner und
+    // die Benachrichtigungs-Karte (.notif) bleiben unangetastet an Ort und Stelle.
     function harvest(scope) {
-      (scope || document).querySelectorAll(".msg").forEach(function (m) {
+      (scope || document).querySelectorAll(".msg[data-toast]").forEach(function (m) {
         var kind = "info";
         ["success", "error", "warning", "info"].forEach(function (k) {
           if (m.classList.contains(k)) kind = k;
@@ -575,6 +579,14 @@
     }
     document.addEventListener("submit", function (e) {
       var form = e.target;
+      if (form.getAttribute("method") && form.getAttribute("method").toLowerCase() === "get") {
+        if (!form.hasAttribute("data-ajax") || !main.contains(form)) return;
+        e.preventDefault();
+        var q = new URLSearchParams(new FormData(form)).toString();
+        var base = (form.getAttribute("action") || window.location.pathname);
+        __nav(base + (q ? "?" + q : ""));
+        return;
+      }
       if (!enhance(form)) return;
       e.preventDefault();
       var data = new FormData(form);
@@ -594,6 +606,34 @@
           if (res && !swap(res.html, res.url)) window.location = res.url;
         })
         .catch(function () { form.submit(); });   // Fallback: normal abschicken
+    });
+
+    // GET-Navigation ohne Neuladen (Kalender: Tag wählen, Monat blättern). Hält
+    // die Scrollposition – kein Sprung nach oben. window.__nav für onchange-Selects.
+    function __nav(url) {
+      fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (r) {
+          if (!r.ok) throw new Error("http " + r.status);
+          if ((r.headers.get("content-type") || "").indexOf("text/html") === -1) {
+            window.location = r.url; return null;
+          }
+          return r.text().then(function (h) { return { html: h, url: r.url }; });
+        })
+        .then(function (res) {
+          if (res && !swap(res.html, res.url)) window.location = res.url;
+        })
+        .catch(function () { window.location = url; });   // Fallback: normal laden
+    }
+    window.__nav = __nav;
+    document.addEventListener("click", function (e) {
+      if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest("a[data-ajax]");
+      if (!a || !main.contains(a)) return;
+      var href = a.getAttribute("href");
+      if (!href || href.charAt(0) === "#") return;
+      if (a.target && a.target !== "_self") return;
+      e.preventDefault();
+      __nav(href);
     });
   })();
 

@@ -66,7 +66,7 @@
           {% if d.is_start %}<span class="cap-flag start">Anreise</span>{% endif %}
           {% if d.is_end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.in_month and not d.is_past and d.level != 'none' %}
-            <a class="dlink" href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">
+            <a class="dlink" data-ajax href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">
               <span class="d-num">{{ d.day }}{% if d.mine %} <span class="mine-dot">●</span>{% endif %}</span>
               <span class="free-badge">{{ d.free }}/{{ d.total }}</span>
             </a>
@@ -97,7 +97,7 @@
 
 <div class="card">
   <strong>Oder Zeitraum direkt eingeben</strong>
-  <form method="get" class="filters" style="margin-top:.5rem">
+  <form method="get" data-ajax class="filters" style="margin-top:.5rem">
     <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
     <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
     <label class="pers">Anreise <input type="date" name="start" value="{{ sel_start|date:'Y-m-d' }}"></label>
@@ -115,7 +115,7 @@
       {% if sel_end %}&ndash; Abreise <strong>{{ eff_end }}</strong> ({{ nights_selected }} Nächte){% else %}
       &ndash; <span class="muted">jetzt Abreisetag wählen (oder 1 Nacht buchen)</span>{% endif %}
       · {{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}</span>
-    <a class="btn small ghost" style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
+    <a class="btn small ghost" data-ajax style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
   </div>
 
   {% if too_short %}

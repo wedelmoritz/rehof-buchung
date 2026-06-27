@@ -219,12 +219,19 @@ Im **Hofladen** gibt es am Handy einen **schwebenden Warenkorb-Knopf** (`.cart-f
 Symbol + Anzahl + Summe), der zum Warenkorb springt (sonst steht der Korb unter dem
 ganzen Katalog). `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das
 Manifest liegt unter `/static/` und ist damit ohnehin frei).
-**Bestätigungen/Meldungen:** Django-`messages` werden NICHT mehr nur als Zeile oben
-gerendert, sondern in `base.html` per JS in **fixierte Toasts** umgewandelt (sichtbar
-egal wie weit gescrollt). POST-Formulare im `<main>` werden **progressiv per `fetch`
-ohne Neuladen** abgeschickt (Antwort nach Redirect geparst, `<main>` getauscht inkl.
-Re-Exec der Inline-Skripte, Scrollposition gehalten); Fallback = normales Abschicken,
-ausgenommen `multipart`/`data-no-ajax` (Auth) (ADR 0035).
+**Bestätigungen/Meldungen:** Django-`messages` (Feedback auf eine aktive Aktion)
+werden in `base.html` per JS in **fixierte Toasts** umgewandelt (sichtbar egal wie
+weit gescrollt). **Nur** die Framework-Meldungen tragen `data-toast` und werden
+eingesammelt (`harvest('.msg[data-toast]')`); fest im Template stehende `.msg`-Banner
+(Status/Hinweise) und die Benachrichtigungs-Karte `.notif` („Aktuelle Nachrichten“
+auf der Übersicht: Losergebnis/Wartelisten-Platz/Rechnung etc.) bleiben **stehen**.
+POST-Formulare im `<main>` werden **progressiv per `fetch` ohne Neuladen** abgeschickt
+(Antwort nach Redirect geparst, `<main>` getauscht inkl. Re-Exec der Inline-Skripte,
+Scrollposition gehalten); ebenso die **GET-Kalendernavigation** (Tag Anreise→Abreise
+wählen, Monat blättern, zurücksetzen) über `window.__nav` – **kein Sprung nach oben**
+mehr. Opt-in per `data-ajax` an Links/GET-Formularen (`book`/`wishlist`/`external_home`
++ gemeinsame `_calnav.html`). Fallback = normales Laden/Abschicken, ausgenommen
+`multipart`/`data-no-ajax` (Auth) und Modifier-Klick/neuer Tab (ADR 0035).
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit

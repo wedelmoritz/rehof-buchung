@@ -21,7 +21,7 @@
       {% if end %}&nbsp;→&nbsp; <span class="cap-chip">Abreise</span> {{ end|date:"D d.m." }}{% else %}
       &nbsp;→&nbsp; <span class="hint">jetzt Abreisetag wählen</span>{% endif %}
     </span>
-    <a class="btn small ghost reset" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}">Zurücksetzen</a>
+    <a class="btn small ghost reset" data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}">Zurücksetzen</a>
   </div>
   {% endif %}
 
@@ -37,7 +37,7 @@
           {% if start and d.date == start %}<span class="cap-flag start">Anreise</span>{% endif %}
           {% if end and d.date == end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.available and d.in_month %}
-            <a class="dlink" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if start and not end and d.date > start %}&start={{ start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}&start={{ d.iso }}{% endif %}">
+            <a class="dlink" data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if start and not end and d.date > start %}&start={{ start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}&start={{ d.iso }}{% endif %}">
               <span class="d-num">{{ d.day }}</span>
             </a>
           {% else %}
