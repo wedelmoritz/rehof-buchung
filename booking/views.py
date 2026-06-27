@@ -11,13 +11,16 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
 
-from .forms import ProfileForm, RegistrationForm, TransferForm, WishForm
+from .forms import (
+    EmailChangeForm, ProfileForm, RegistrationForm, TransferForm, WishForm,
+)
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
 from .validation import strip_controls
@@ -684,20 +687,43 @@ def help_page(request):
 
 @login_required
 def profile(request):
-    """Eigene Profil-/Rechnungsdaten (Name, Anschrift, IBAN) selbst pflegen.
-    Nur die eigenen Daten – `member` stammt aus request.user."""
+    """Eigene Profil-/Rechnungsdaten (Name, Anschrift, IBAN) selbst pflegen sowie
+    E-Mail (= Login) und Passwort ändern. Nur die eigenen Daten."""
     member = _current_member(request)
     if not member:
         return redirect("overview")
+    form = ProfileForm(instance=member)
+    email_form = EmailChangeForm(user=request.user,
+                                 initial={"email": request.user.email})
+    pw_form = PasswordChangeForm(request.user)
     if request.method == "POST":
-        form = ProfileForm(request.POST, instance=member)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Profil gespeichert.")
-            return redirect("profile")
-    else:
-        form = ProfileForm(instance=member)
-    return render(request, "booking/profile.html", {"member": member, "form": form})
+        action = request.POST.get("action", "profile")
+        if action == "change_email":
+            email_form = EmailChangeForm(request.POST, user=request.user)
+            if email_form.is_valid():
+                email_form.save()
+                messages.success(
+                    request, "E-Mail geändert. Bitte künftig mit der neuen "
+                    "E-Mail anmelden.")
+                return redirect("profile")
+        elif action == "change_password":
+            pw_form = PasswordChangeForm(request.user, request.POST)
+            if pw_form.is_valid():
+                user = pw_form.save()
+                # Session-Hash auffrischen, sonst wird der Nutzer ausgeloggt.
+                update_session_auth_hash(request, user)
+                messages.success(request, "Passwort geändert.")
+                return redirect("profile")
+        else:
+            form = ProfileForm(request.POST, instance=member)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Profil gespeichert.")
+                return redirect("profile")
+    return render(request, "booking/profile.html", {
+        "member": member, "form": form,
+        "email_form": email_form, "pw_form": pw_form,
+    })
 
 
 @login_required

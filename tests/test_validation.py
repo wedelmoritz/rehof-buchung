@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from booking.validation import (
-    city_error, email_error, iban_error, membership_number_error, name_error,
+    city_error, email_error, iban_error, name_error,
     normalize_iban, plz_error, street_error, strip_controls,
 )
 
@@ -84,13 +84,7 @@ def test_normalize_iban():
     assert normalize_iban(" de89 3704 ") == "DE893704"
 
 
-# --- Mitgliedsnummer + Freitext --------------------------------------------
-def test_membership_number():
-    assert membership_number_error("VL-2024/17") is None
-    assert membership_number_error("") is None
-    assert membership_number_error("<x>") is not None
-
-
+# --- Freitext ---------------------------------------------------------------
 def test_strip_controls_behaelt_zeilenumbruch():
     assert strip_controls("a\x00\x07b\tc\nd") == "ab\tc\nd"
     assert strip_controls("x" * 10, max_len=3) == "xxx"

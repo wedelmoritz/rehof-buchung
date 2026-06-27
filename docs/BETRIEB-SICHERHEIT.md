@@ -101,6 +101,12 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
   beschränken (`@admin` matcher → `remote_ip`).
 
 ### 4.3 IBAN-Feldverschlüsselung — *Aufwand: mittel, bewusst klein halten*
+- **TBD / temporäre Entscheidung (Profil-Audit Phase 3):** `Member.iban` wird
+  **vorerst weiter erhoben und gespeichert**, weil es heute im Rechnungs-Export
+  der Verwaltung auftaucht (`shop.services.invoice_export_rows`). Es ist aber das
+  sensibelste PII im System; ob es wirklich gebraucht wird (oder die Anschrift als
+  Rechnungsadresse genügt), ist **offen** und im Zuge der Datensparsamkeit (Phase 4
+  DSGVO) erneut zu prüfen. Bis dahin gilt: minimal halten, nicht weiter ausbauen.
 - **Nur** das sensibelste PII verschlüsseln: `Member.iban` (ggf. Anschrift).
 - App-seitig mit **Fernet** (z.B. `django-cryptography` oder eigenes
   `EncryptedCharField`); Schlüssel in `.env` (`FIELD_ENCRYPTION_KEY`), **getrennt**

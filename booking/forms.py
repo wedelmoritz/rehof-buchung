@@ -64,7 +64,7 @@ class ProfileForm(forms.ModelForm):
     class Meta:
         model = Member
         fields = ["legal_name", "street", "zip_code", "city", "iban",
-                  "membership_number", "email_opt_in"]
+                  "email_opt_in"]
 
     def clean_legal_name(self):
         v = (self.cleaned_data.get("legal_name") or "").strip()
@@ -87,13 +87,41 @@ class ProfileForm(forms.ModelForm):
         _check(V.city_error(v, required=False))
         return v
 
-    def clean_membership_number(self):
-        v = (self.cleaned_data.get("membership_number") or "").strip()
-        _check(V.membership_number_error(v))
-        return v
-
     def clean_iban(self):
         return validate_iban(self.cleaned_data.get("iban", ""))
+
+
+class EmailChangeForm(forms.Form):
+    """E-Mail (= Login) selbst ändern. Der Login folgt der E-Mail (wie bei der
+    Registrierung wird der Benutzername auf die E-Mail gesetzt) – der bisherige
+    E-Mail-Login funktioniert danach nicht mehr. E-Mail bleibt eindeutig: kein
+    zweites Konto darf dieselbe E-Mail (auch nicht als Benutzername) tragen."""
+    email = forms.EmailField(label="Neue E-Mail")
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        _check(V.email_error(email, required=True))
+        clash = (User.objects.filter(email__iexact=email)
+                 | User.objects.filter(username__iexact=email))
+        if self.user is not None:
+            clash = clash.exclude(pk=self.user.pk)
+        if clash.exists():
+            raise forms.ValidationError(
+                "Mit dieser E-Mail gibt es bereits ein Konto.")
+        return email
+
+    def save(self):
+        email = self.cleaned_data["email"]
+        # Login folgt der E-Mail: Benutzername = E-Mail (Anmeldung per E-Mail oder
+        # Benutzername; nach dem Wechsel ist beides die neue E-Mail).
+        self.user.email = email
+        self.user.username = email
+        self.user.save(update_fields=["email", "username"])
+        return self.user
 
 
 class WishForm(forms.ModelForm):

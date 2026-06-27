@@ -198,8 +198,6 @@ class Member(models.Model):
     zip_code = models.CharField("PLZ", max_length=10, blank=True)
     city = models.CharField("Ort", max_length=120, blank=True)
     iban = models.CharField("IBAN", max_length=34, blank=True)
-    membership_number = models.CharField(
-        "Mitgliedsnummer (optional)", max_length=40, blank=True)
 
     class Meta:
         verbose_name = "Nutzer-Konto"

@@ -11,6 +11,7 @@
     auf Plausibilität geprüft – z.&nbsp;B. <strong>PLZ</strong> (5&nbsp;Ziffern) und
     <strong>IBAN</strong> (Länge und Prüfsumme).</p>
   <form method="post">{% csrf_token %}
+    <input type="hidden" name="action" value="profile">
     {% for f in form %}
     <div class="field">
       {{ f.label_tag }} {{ f }}
@@ -18,6 +19,41 @@
     </div>
     {% endfor %}
     <button class="btn" type="submit" style="margin-top:.4rem">Speichern</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Anmeldedaten</h2>
+
+  <h3>E-Mail ändern</h3>
+  <p class="muted" style="margin-top:0">Deine E-Mail ist zugleich dein Login. Nach
+    der Änderung meldest du dich mit der <strong>neuen</strong> E-Mail an – die alte
+    funktioniert dann nicht mehr.</p>
+  {# data-no-ajax: Anmeldedaten ändern die Session (Login folgt der E-Mail bzw.
+     Passwort-Hash) – ein sauberer Full-Reload hält die Sitzung zuverlässig,
+     wie bei den Login-/Registrier-Formularen. #}
+  <form method="post" data-no-ajax>{% csrf_token %}
+    <input type="hidden" name="action" value="change_email">
+    {% for f in email_form %}
+    <div class="field">
+      {{ f.label_tag }} {{ f }}
+      {% if f.errors %}<div class="msg error" style="margin-top:.3rem">{{ f.errors|striptags }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn" type="submit" style="margin-top:.4rem">E-Mail ändern</button>
+  </form>
+
+  <h3 style="margin-top:1.2rem">Passwort ändern</h3>
+  <form method="post" data-no-ajax>{% csrf_token %}
+    <input type="hidden" name="action" value="change_password">
+    {% for f in pw_form %}
+    <div class="field">
+      {{ f.label_tag }} {{ f }}
+      {% if f.help_text %}<div class="muted" style="font-size:.85rem">{{ f.help_text|safe }}</div>{% endif %}
+      {% if f.errors %}<div class="msg error" style="margin-top:.3rem">{{ f.errors|striptags }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn" type="submit" style="margin-top:.4rem">Passwort ändern</button>
   </form>
 </div>
 {% endif %}

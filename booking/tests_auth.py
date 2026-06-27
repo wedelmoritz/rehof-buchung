@@ -83,6 +83,53 @@ class LoginTests(TestCase):
         self.assertNotIn("_auth_user_id", self.client.session)
 
 
+class ProfilAnmeldedatenTests(TestCase):
+    """Mitglied ändert E-Mail (= Login) und Passwort selbst im Profil."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("max", "max@example.org", PW)
+        Member.objects.create(user=self.user, display_name="Max")
+        self.client.force_login(self.user)
+
+    def test_email_aendern_setzt_login_und_ist_eindeutig(self):
+        resp = self.client.post(reverse("profile"), {
+            "action": "change_email", "email": "neu@example.org"})
+        self.assertRedirects(resp, reverse("profile"))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "neu@example.org")
+        # Login folgt der E-Mail: Benutzername = neue E-Mail
+        self.assertEqual(self.user.username, "neu@example.org")
+        # Anmeldung mit der neuen E-Mail klappt, mit der alten nicht mehr
+        self.client.logout()
+        self.client.post(reverse("login"),
+                         {"username": "neu@example.org", "password": PW})
+        self.assertIn("_auth_user_id", self.client.session)
+        self.client.logout()
+        self.client.post(reverse("login"),
+                         {"username": "max@example.org", "password": PW})
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_email_aendern_lehnt_fremde_email_ab(self):
+        User.objects.create_user("other", "other@example.org", PW)
+        resp = self.client.post(reverse("profile"), {
+            "action": "change_email", "email": "other@example.org"})
+        self.assertEqual(resp.status_code, 200)   # Formular mit Fehler
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "max@example.org")  # unverändert
+
+    def test_passwort_aendern_bleibt_eingeloggt(self):
+        new_pw = "Drachenflieger9z"
+        resp = self.client.post(reverse("profile"), {
+            "action": "change_password",
+            "old_password": PW,
+            "new_password1": new_pw, "new_password2": new_pw})
+        self.assertRedirects(resp, reverse("profile"))
+        # Session bleibt gültig (update_session_auth_hash)
+        self.assertIn("_auth_user_id", self.client.session)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(new_pw))
+
+
 class RechtstexteTests(TestCase):
     """Impressum (Pflicht), Datenschutz & AGB – öffentlich erreichbar, im Fuß verlinkt."""
 
