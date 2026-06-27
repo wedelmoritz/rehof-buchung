@@ -1350,3 +1350,57 @@ class MitgliedAnonymisierenTests(UseCaseBase):
         m.refresh_from_db()
         self.assertEqual(m.legal_name, "")
         self.assertEqual(m.iban, "")
+
+
+class WebPushTests(UseCaseBase):
+    """Web-Push-Abo speichern/entfernen und sicheres Verhalten ohne VAPID-Keys."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.alice.user)
+
+    def _sub(self, endpoint="https://push.example/abc"):
+        import json
+        return self.client.post(
+            reverse("push_subscribe"),
+            data=json.dumps({"endpoint": endpoint,
+                             "keys": {"p256dh": "KEYDATA", "auth": "AUTHSECRET"}}),
+            content_type="application/json")
+
+    def test_abo_anlegen_und_aktualisieren(self):
+        from booking.models import PushSubscription
+        r = self._sub()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(PushSubscription.objects.filter(member=self.alice).count(), 1)
+        # gleicher Endpoint -> Update statt Duplikat
+        r2 = self._sub()
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(PushSubscription.objects.filter(member=self.alice).count(), 1)
+
+    def test_abmelden_entfernt_abo(self):
+        import json
+        from booking.models import PushSubscription
+        self._sub("https://push.example/xyz")
+        r = self.client.post(
+            reverse("push_unsubscribe"),
+            data=json.dumps({"endpoint": "https://push.example/xyz"}),
+            content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(PushSubscription.objects.count(), 0)
+
+    def test_ungueltige_daten_abgelehnt(self):
+        import json
+        r = self.client.post(reverse("push_subscribe"),
+                             data=json.dumps({"foo": "bar"}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_send_web_push_ohne_keys_ist_geraeuschlos(self):
+        # Ohne VAPID-Keys (Default in Tests) tut der Versand nichts und wirft nicht.
+        from booking.models import PushSubscription, Notification
+        PushSubscription.objects.create(
+            member=self.alice, endpoint="https://push.example/1",
+            p256dh="k", auth="a")
+        self.assertEqual(svc.send_web_push(self.alice, "T", "B", "/"), 0)
+        # Auch das Anlegen einer Benachrichtigung (Signal) bleibt fehlerfrei.
+        Notification.objects.create(member=self.alice, message="hallo")

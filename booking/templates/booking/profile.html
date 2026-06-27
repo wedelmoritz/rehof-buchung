@@ -55,5 +55,51 @@
     <button class="btn" type="submit" style="margin-top:.4rem">Passwort ändern</button>
   </form>
 </div>
+
+{% if push_enabled %}
+<div class="card" id="push-card">
+  <h2 style="margin-top:0">Push-Benachrichtigungen (mobil)</h2>
+  <p class="muted" style="margin-top:0">Erhalte wichtige Hinweise (Losergebnis,
+    Wartelisten-Platz frei, Rechnung) direkt aufs Gerät – auch wenn die App
+    geschlossen ist. Du kannst sie jederzeit wieder abschalten.</p>
+  <p id="push-state" class="muted" style="margin:.2rem 0">Status wird geprüft …</p>
+  <button class="btn" type="button" id="push-toggle" disabled>Bitte warten …</button>
+  <p class="muted" id="push-hint" style="font-size:.85rem;margin:.5rem 0 0"></p>
+</div>
+<script>
+(function () {
+  var card = document.getElementById("push-card");
+  if (!card) return;
+  var btn = document.getElementById("push-toggle");
+  var state = document.getElementById("push-state");
+  var hint = document.getElementById("push-hint");
+  var P = window.__rehofPush;
+  if (!P || !P.supported()) {
+    state.textContent = "Auf diesem Gerät/Browser nicht verfügbar.";
+    btn.style.display = "none";
+    hint.textContent = "Tipp: Auf dem iPhone zuerst die App „Zum Home-Bildschirm“ hinzufügen.";
+    return;
+  }
+  function render(on) {
+    state.textContent = on ? "Aktiviert ✓" : "Nicht aktiviert.";
+    btn.textContent = on ? "Benachrichtigungen ausschalten" : "Benachrichtigungen aktivieren";
+    btn.disabled = false;
+    btn.dataset.on = on ? "1" : "";
+  }
+  P.isSubscribed().then(render).catch(function () { render(false); });
+  btn.addEventListener("click", function () {
+    btn.disabled = true; hint.textContent = "";
+    var on = btn.dataset.on === "1";
+    var act = on ? P.disable() : P.enable();
+    act.then(function () { return P.isSubscribed(); })
+       .then(render)
+       .catch(function (e) {
+         btn.disabled = false;
+         hint.textContent = "Konnte nicht ändern: " + (e && e.message || "Fehler") + ".";
+       });
+  });
+})();
+</script>
+{% endif %}
 {% endif %}
 {% endblock %}

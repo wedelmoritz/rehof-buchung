@@ -2171,6 +2171,7 @@ def anonymize_member(member) -> None:
     Wish.objects.filter(member=member).delete()
     WaitlistEntry.objects.filter(member=member).delete()
     OutboxEmail.objects.filter(member=member).delete()
+    member.push_subscriptions.all().delete()   # Geräte-Endpoints (personenbezogen)
     SwapRequest.objects.filter(
         Q(from_member=member) | Q(to_member=member)).delete()
 
@@ -2201,3 +2202,51 @@ def anonymize_member(member) -> None:
         user.username = f"geloescht_{user.id}"
         user.set_unusable_password()
         user.save()
+
+
+# ---------------------------------------------------------------------------
+# Web-Push (mobil, PWA) – Versand an die abonnierten Geräte eines Mitglieds
+# ---------------------------------------------------------------------------
+# Gekoppelt an die bestehenden In-App-Benachrichtigungen (Signal auf
+# Notification). Ohne gesetzte VAPID-Schlüssel (settings.PUSH_ENABLED) passiert
+# nichts – Push ist dann einfach aus (ADR 0044). Best-effort: Fehler eines
+# einzelnen Geräts kippen weder den Request noch die anderen Zustellungen; tote
+# Abos (404/410 vom Push-Dienst) werden entfernt.
+
+def send_web_push(member, title: str, body: str, url: str = "") -> int:
+    """Schickt eine Web-Push-Nachricht an alle Geräte des Mitglieds. Gibt die
+    Anzahl erfolgreich zugestellter Push-Nachrichten zurück (0, wenn Push aus
+    ist oder kein Abo besteht)."""
+    import json
+    from django.conf import settings
+    if not settings.PUSH_ENABLED:
+        return 0
+    subs = list(member.push_subscriptions.all())
+    if not subs:
+        return 0
+    try:
+        from pywebpush import webpush, WebPushException
+    except Exception:  # pywebpush nicht installiert – Push überspringen
+        return 0
+    payload = json.dumps({"title": title, "body": body, "url": url or "/"})
+    sent = 0
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                },
+                data=payload,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{settings.VAPID_ADMIN_EMAIL or 'admin@localhost'}"},
+                timeout=10,
+            )
+            sent += 1
+        except WebPushException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (404, 410):       # Abo abgelaufen/abgemeldet → entfernen
+                sub.delete()
+        except Exception:                  # Netzfehler o.ä. – nicht kippen lassen
+            pass
+    return sent

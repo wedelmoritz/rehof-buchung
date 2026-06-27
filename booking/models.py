@@ -596,6 +596,28 @@ class Notification(models.Model):
         return f"{self.member}: {self.message}"
 
 
+class PushSubscription(models.Model):
+    """Web-Push-Abo eines Mitglieds (ein Eintrag je Browser/Gerät). Speichert den
+    vom Browser gelieferten Endpoint + Schlüssel; der Versand läuft über
+    `services.send_web_push` (nur wenn VAPID-Schlüssel gesetzt sind)."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="push_subscriptions",
+        verbose_name="Mitglied")
+    endpoint = models.TextField("Endpoint", unique=True)
+    p256dh = models.CharField("Schlüssel (p256dh)", max_length=200)
+    auth = models.CharField("Auth-Secret", max_length=100)
+    user_agent = models.CharField("Gerät/Browser", max_length=300, blank=True)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Push-Abo"
+        verbose_name_plural = "Push-Abos"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Push-Abo {self.member} ({self.endpoint[:40]}…)"
+
+
 class OpsConfig(models.Model):
     """Betriebs-Einstellungen der Verwaltung (Singleton): Empfänger der
     Verwaltungs-Mails (anstehende Buchungen) und der Reinigungsliste."""

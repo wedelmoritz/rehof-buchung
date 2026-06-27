@@ -79,6 +79,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "booking.context_processors.roles",
                 "booking.context_processors.legal",
+                "booking.context_processors.push",
             ],
         },
     },
@@ -157,6 +158,17 @@ if EMAIL_HOST:
     EMAIL_TIMEOUT = 20
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# --- Web-Push (mobil, PWA) -------------------------------------------------
+# VAPID-Schlüsselpaar für Web-Push. Ohne beide Schlüssel ist Push einfach AUS
+# (kein Zwang – wie der Mollie-Sandbox-Default). Erzeugen z.B. mit
+# `python manage.py vapid_keys`. Der öffentliche Schlüssel geht an den Browser,
+# der private bleibt geheim (.env). `VAPID_ADMIN_EMAIL` ist der Kontakt im
+# VAPID-Claim (mailto:) gegenüber dem Push-Dienst.
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_ADMIN_EMAIL = os.environ.get("VAPID_ADMIN_EMAIL", "")
+PUSH_ENABLED = bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
 
 # --- Optionales Redis (Cache + Sessions + Axes-Lockout) --------------------
 # Standardmäßig AUS (DB-Sessions, lokaler Cache). Wird REDIS_URL gesetzt UND der

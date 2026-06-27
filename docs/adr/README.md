@@ -56,6 +56,7 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0041](0041-umsatzsteuer-kleinunternehmer-vs-regelbesteuerung.md) | Umsatzsteuer: Kleinunternehmer (§19) vs. Regelbesteuerung | Accepted |
 | [0042](0042-rechtstexte-impressum-datenschutz-agb.md) | Rechtstexte: Impressum, Datenschutz und AGB konfigurierbar | Accepted |
 | [0043](0043-dsgvo-datensparsamkeit-aufbewahrung-loeschung.md) | DSGVO: Datensparsamkeit, Aufbewahrung, automatische Löschung & Anonymisierung | Accepted |
+| [0044](0044-web-push-und-gezieltes-offline.md) | Web-Push (mobil) und gezieltes Offline-Verhalten | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

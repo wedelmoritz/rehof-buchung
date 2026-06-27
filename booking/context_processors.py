@@ -22,3 +22,13 @@ def legal(request):
         }}
     except Exception:  # noqa: BLE001 – Fußzeile darf das Rendern nie kippen
         return {"footer": {}}
+
+
+def push(request):
+    """Web-Push-Status für alle Templates: der öffentliche VAPID-Schlüssel (für
+    `pushManager.subscribe`) und ob Push überhaupt konfiguriert ist."""
+    from django.conf import settings
+    return {
+        "push_enabled": settings.PUSH_ENABLED,
+        "vapid_public_key": settings.VAPID_PUBLIC_KEY,
+    }

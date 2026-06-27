@@ -14,9 +14,11 @@ from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.http import require_POST
 
 from .forms import (
     EmailChangeForm, ProfileForm, RegistrationForm, TransferForm, WishForm,
@@ -724,6 +726,45 @@ def profile(request):
         "member": member, "form": form,
         "email_form": email_form, "pw_form": pw_form,
     })
+
+
+@login_required
+@require_POST
+def push_subscribe(request):
+    """Speichert ein Web-Push-Abo (vom Browser per `pushManager.subscribe`).
+    Ein Eintrag je Endpoint/Gerät; erneutes Abonnieren aktualisiert die Keys."""
+    import json
+    from .models import PushSubscription
+    member = _current_member(request)
+    if not member:
+        return JsonResponse({"ok": False}, status=403)
+    try:
+        data = json.loads(request.body or "{}")
+        endpoint = data["endpoint"]
+        keys = data.get("keys", {})
+        p256dh, auth = keys["p256dh"], keys["auth"]
+    except (ValueError, KeyError, TypeError):
+        return JsonResponse({"ok": False, "error": "ungültige Daten"}, status=400)
+    PushSubscription.objects.update_or_create(
+        endpoint=endpoint,
+        defaults={"member": member, "p256dh": p256dh, "auth": auth,
+                  "user_agent": request.META.get("HTTP_USER_AGENT", "")[:300]})
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def push_unsubscribe(request):
+    """Entfernt ein Web-Push-Abo (Browser hat sich abgemeldet)."""
+    import json
+    from .models import PushSubscription
+    try:
+        endpoint = json.loads(request.body or "{}").get("endpoint", "")
+    except ValueError:
+        endpoint = ""
+    if endpoint:
+        PushSubscription.objects.filter(endpoint=endpoint).delete()
+    return JsonResponse({"ok": True})
 
 
 @login_required

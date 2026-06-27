@@ -1,10 +1,28 @@
 """Signal-Handler der Buchungs-App."""
 from __future__ import annotations
 
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import Member
+from .models import Member, Notification
+
+
+@receiver(post_save, sender=Notification)
+def notification_web_push(sender, instance: Notification, created: bool, **kwargs):
+    """Jede neue In-App-Benachrichtigung wird – sofern Web-Push konfiguriert ist
+    und das Mitglied ein Gerät abonniert hat – zusätzlich als Push zugestellt.
+    Erst NACH dem Commit (kein Netz-Call in offener Transaktion); best-effort."""
+    if not created:
+        return
+
+    def _deliver():
+        from .services import send_web_push
+        send_web_push(
+            instance.member, "Re:Hof",
+            instance.message, instance.url or "/")
+
+    transaction.on_commit(_deliver)
 
 
 @receiver(post_save, sender=Member)
