@@ -1198,3 +1198,155 @@ class LosungDeckelReihenfolgeTests(UseCaseBase):
         self.assertNotIn(self.k2.id, quarters)
         self.alice.refresh_from_db()
         self.assertEqual(self.alice.factor, 1.0)   # kein Verlust -> kein Karma
+
+
+class DatenAufbewahrungTests(UseCaseBase):
+    """DSGVO: das Aufräum-Kommando löscht/pseudonymisiert abgelaufene Daten
+    anhand der RETENTION_*-Fristen; Rechnungsbezug bleibt unangetastet."""
+
+    def _backdate(self, qs, **fields):
+        # auto_now_add-Felder lassen sich nur per UPDATE in die Vergangenheit setzen.
+        qs.update(**fields)
+
+    def test_cleanup_loescht_abgelaufenes_und_behaelt_frisches(self):
+        from booking.models import OutboxEmail, Beds24Import
+        from shop.models import BankImport, BankTransaction
+        now = timezone.now()
+        old = now - timedelta(days=400)
+        recent = now - timedelta(days=5)
+
+        # OutboxEmail: alt+versendet -> weg, frisch -> bleibt, unversendet alt -> bleibt
+        e_old = OutboxEmail.objects.create(to_email="a@x.de", subject="s", body="b")
+        OutboxEmail.objects.filter(pk=e_old.pk).update(sent_at=old)
+        e_new = OutboxEmail.objects.create(to_email="b@x.de", subject="s", body="b")
+        OutboxEmail.objects.filter(pk=e_new.pk).update(sent_at=recent)
+        e_unsent = OutboxEmail.objects.create(to_email="c@x.de", subject="s", body="b")
+        OutboxEmail.objects.filter(pk=e_unsent.pk).update(created_at=old)
+
+        # Notification: alt -> weg, frisch -> bleibt
+        n_old = Notification.objects.create(member=self.alice, message="alt")
+        Notification.objects.filter(pk=n_old.pk).update(created_at=old)
+        n_new = Notification.objects.create(member=self.bob, message="neu")
+
+        # BankTransaction.raw: alt -> Rohzeile geleert, strukturierte Felder bleiben
+        bt = BankTransaction.objects.create(
+            amount=10, purpose="HL-2020-01-001", fingerprint="fp1", raw="ROH;ZEILE")
+        BankTransaction.objects.filter(pk=bt.pk).update(imported_at=old)
+
+        # Beds24Import: alt -> weg
+        b = Beds24Import.objects.create(filename="b.csv")
+        Beds24Import.objects.filter(pk=b.pk).update(created_at=old)
+
+        # BankImport: alt -> weg
+        bi = BankImport.objects.create(filename="k.csv")
+        BankImport.objects.filter(pk=bi.pk).update(created_at=old)
+
+        # WaitlistEntry: erfüllt+alt -> weg, offen+alt -> bleibt
+        w_done = WaitlistEntry.objects.create(
+            member=self.alice, quarter=self.k1, start=date(2020, 1, 1),
+            end=date(2020, 1, 5), fulfilled=True)
+        WaitlistEntry.objects.filter(pk=w_done.pk).update(created_at=old)
+        w_open = WaitlistEntry.objects.create(
+            member=self.bob, quarter=self.k1, start=date(2020, 1, 1),
+            end=date(2020, 1, 5), fulfilled=False)
+        WaitlistEntry.objects.filter(pk=w_open.pk).update(created_at=old)
+
+        # Wish einer längst beendeten Periode -> weg
+        old_period = BookingPeriod.objects.create(
+            name="alt", target_year=now.year - 3,
+            start=date(now.year - 3, 1, 1), end=date(now.year - 2, 1, 1),
+            status=BookingPeriod.ENDED)
+        Wish.objects.create(member=self.alice, period=old_period, quarter=self.k1,
+                            start=date(now.year - 3, 6, 1), end=date(now.year - 3, 6, 5))
+
+        counts = svc.run_data_retention(now=now)
+
+        self.assertFalse(OutboxEmail.objects.filter(pk=e_old.pk).exists())
+        self.assertTrue(OutboxEmail.objects.filter(pk=e_new.pk).exists())
+        self.assertTrue(OutboxEmail.objects.filter(pk=e_unsent.pk).exists())
+        self.assertFalse(Notification.objects.filter(pk=n_old.pk).exists())
+        self.assertTrue(Notification.objects.filter(pk=n_new.pk).exists())
+        bt.refresh_from_db()
+        self.assertEqual(bt.raw, "")            # Rohzeile geleert
+        self.assertEqual(bt.purpose, "HL-2020-01-001")  # struktur bleibt
+        self.assertFalse(Beds24Import.objects.filter(pk=b.pk).exists())
+        self.assertFalse(BankImport.objects.filter(pk=bi.pk).exists())
+        self.assertFalse(WaitlistEntry.objects.filter(pk=w_done.pk).exists())
+        self.assertTrue(WaitlistEntry.objects.filter(pk=w_open.pk).exists())
+        self.assertEqual(Wish.objects.filter(period=old_period).count(), 0)
+        self.assertGreaterEqual(counts["outbox_emails"], 1)
+
+    def test_cleanup_ist_idempotent(self):
+        # Zweiter Lauf ohne abgelaufene Daten ändert nichts und wirft nicht.
+        first = svc.run_data_retention()
+        second = svc.run_data_retention()
+        self.assertIsInstance(first, dict)
+        self.assertIsInstance(second, dict)
+
+
+class MitgliedAnonymisierenTests(UseCaseBase):
+    """Recht auf Löschung (Art. 17): PII entfernen, Rechnungen erhalten."""
+
+    def test_anonymisieren_entfernt_pii_und_behaelt_rechnung(self):
+        from shop.models import Invoice
+        m = make_member("dora")
+        m.legal_name = "Dora Vollname"
+        m.street = "Hofweg 1"; m.zip_code = "12345"; m.city = "Dorf"
+        m.iban = "DE02120300000000202051"
+        m.save()
+        self.open_full_year_window(date.today().year)
+        alloc = Allocation.objects.create(
+            member=m, quarter=self.k1, start=date.today(),
+            end=date.today() + timedelta(days=3), source="spontaneous",
+            companions="Oma und Opa")
+        Notification.objects.create(member=m, message="hallo")
+        # Eine Rechnung (Snapshot) muss erhalten bleiben.
+        inv = Invoice.objects.create(
+            member=m, number="HL-2024-01-001", year=2024, month=1,
+            recipient_name="Dora Vollname", recipient_address="Hofweg 1\n12345 Dorf")
+
+        svc.anonymize_member(m)
+
+        m.refresh_from_db()
+        self.assertEqual(m.legal_name, "")
+        self.assertEqual(m.iban, "")
+        self.assertEqual(m.street, "")
+        self.assertTrue(m.display_name.startswith("Anonymisiert"))
+        alloc.refresh_from_db()
+        self.assertEqual(alloc.companions, "")          # Freitext-PII geleert
+        self.assertEqual(Notification.objects.filter(member=m).count(), 0)
+        # Login deaktiviert + de-personalisiert
+        m.user.refresh_from_db()
+        self.assertFalse(m.user.is_active)
+        self.assertEqual(m.user.email, "")
+        self.assertTrue(m.user.username.startswith("geloescht_"))
+        self.assertFalse(m.user.has_usable_password())
+        # Rechnung + Snapshot bleiben (10-Jahres-Pflicht)
+        inv.refresh_from_db()
+        self.assertEqual(inv.recipient_name, "Dora Vollname")
+        self.assertEqual(inv.recipient_address, "Hofweg 1\n12345 Dorf")
+
+    def test_admin_aktion_mit_rueckfrage_anonymisiert(self):
+        """Die Admin-Aktion zeigt erst eine Rückfrage und anonymisiert nach
+        Bestätigung (confirm)."""
+        from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+        admin = User.objects.create_superuser("root", "root@example.org", "x" * 12)
+        self.client.force_login(admin)
+        m = make_member("ed")
+        m.legal_name = "Ed Voll"; m.iban = "DE02120300000000202051"; m.save()
+        url = reverse("admin:auth_user_changelist")
+        # 1) Ohne confirm -> Zwischenseite (Rückfrage), noch nichts geändert
+        resp = self.client.post(url, {
+            "action": "anonymize_selected",
+            ACTION_CHECKBOX_NAME: [str(m.user_id)]})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "wirklich anonymisieren")
+        m.refresh_from_db()
+        self.assertEqual(m.legal_name, "Ed Voll")     # unverändert
+        # 2) Mit confirm -> anonymisiert
+        resp = self.client.post(url, {
+            "action": "anonymize_selected", "confirm": "1",
+            ACTION_CHECKBOX_NAME: [str(m.user_id)]}, follow=True)
+        m.refresh_from_db()
+        self.assertEqual(m.legal_name, "")
+        self.assertEqual(m.iban, "")

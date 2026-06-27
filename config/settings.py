@@ -221,3 +221,24 @@ if not DEBUG:
     # Hinter genau einem Proxy (Caddy): echte Client-IP aus X-Forwarded-For, damit
     # django-axes nicht alle Anfragen unter der Proxy-IP zusammenfasst.
     AXES_IPWARE_PROXY_COUNT = 1
+
+
+# --- DSGVO: Aufbewahrungs-/Löschfristen (Tage), per Env überschreibbar -------
+# Das Kommando `cleanup_data` (vom Scheduler täglich aufgerufen) löscht bzw.
+# pseudonymisiert anhand dieser Fristen. Rechnungs-/Zahlungsdaten (10 Jahre,
+# §147 AO / §14b UStG) bleiben bewusst unangetastet (siehe ADR 0043).
+def env_int(key: str, default: int) -> int:
+    try:
+        return int(os.environ.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+RETENTION_OUTBOX_DAYS = env_int("RETENTION_OUTBOX_DAYS", 90)       # versendete Mails (inkl. Anhang)
+RETENTION_NOTIFICATION_DAYS = env_int("RETENTION_NOTIFICATION_DAYS", 180)  # In-App-Benachrichtigungen
+RETENTION_BANK_RAW_DAYS = env_int("RETENTION_BANK_RAW_DAYS", 90)   # Kontoauszug-Rohzeile leeren
+RETENTION_BEDS24_DAYS = env_int("RETENTION_BEDS24_DAYS", 180)      # Beds24-Migrations-Importe
+RETENTION_BANKIMPORT_DAYS = env_int("RETENTION_BANKIMPORT_DAYS", 365)  # Import-Lauf-Metadaten
+RETENTION_SWAP_WAITLIST_DAYS = env_int("RETENTION_SWAP_WAITLIST_DAYS", 180)  # erledigte Wechsel/Warteliste
+RETENTION_WISH_YEARS = env_int("RETENTION_WISH_YEARS", 2)          # Wünsche beendeter Perioden
+RETENTION_AXES_DAYS = env_int("RETENTION_AXES_DAYS", 30)           # Brute-Force-Fehlversuche

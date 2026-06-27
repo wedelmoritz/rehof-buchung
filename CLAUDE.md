@@ -291,7 +291,20 @@ Kontoabgleich) + Benachrichtigung. Konfiguriert am `ShopConfig` (`payments_activ
 **Cron:** `generate_monthly_invoices`
 (monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
 (Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
-`OpsConfig.notify_day`). Rechnung als In-App-HTML **und PDF** (WeasyPrint):
+`OpsConfig.notify_day`), `cleanup_data` (täglich, **DSGVO-Aufräumen**).
+**DSGVO/Datensparsamkeit (ADR 0043):** `cleanup_data` (Service
+`services.run_data_retention`, idempotent, im `run_scheduler` täglich) löscht/
+pseudonymisiert abgelaufene Daten anhand der `RETENTION_*`-Settings (per Env
+überschreibbar): versendete `OutboxEmail` inkl. DB-Anhang (90 T), `Notification`
+(180 T), `BankTransaction.raw` leeren (90 T), `Beds24Import` (180 T), `BankImport`
+(365 T), erledigte `SwapRequest`/`WaitlistEntry` (180 T), `Wish` beendeter Perioden
+(2 J), abgelaufene Sessions, `axes`-Fehlversuche (30 T). **Rechnungen/Zahlungen
+(10 Jahre, §147 AO/§14b UStG) bleiben unangetastet** (`Invoice.member/guest=PROTECT`).
+**Recht auf Löschung (Art. 17):** Admin-Aktion „Mitglied anonymisieren“ am
+Benutzer (`services.anonymize_member`, mit Rückfrage) leert Profil-PII + Freitext
+(`companions`/`note`), entfernt betrieblich kurzlebige PII und deaktiviert das
+Login – die Rechnungs-Snapshots bleiben erhalten. IBAN-Verschlüsselung/Token-
+Rotation bleiben offen (TBD, ADR 0037/0043). Rechnung als In-App-HTML **und PDF** (WeasyPrint):
 `shop/pdf.py` (`invoice_html` rein/testbar getrennt von `invoice_pdf_bytes`),
 Druckvorlage `shop/templates/shop/invoice_pdf.html`, Endpoint `shop_invoice_pdf`
 (eigene; Staff alle). Das PDF hängt als Anhang an der „Rechnung erstellt“-Mail

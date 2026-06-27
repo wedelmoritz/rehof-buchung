@@ -39,8 +39,8 @@ E-Mail: [kontakt@…]
 2. Welche Daten wir verarbeiten und wozu
 Wir verarbeiten personenbezogene Daten, soweit das für den Betrieb der
 Mitglieder- und Buchungsplattform erforderlich ist:
-- Mitglieder: Name, Anschrift, E-Mail, ggf. IBAN, Mitgliedsnummer, Buchungen,
-  Wünsche und Hofladen-Einkäufe.
+- Mitglieder: Name, Anschrift, E-Mail, ggf. IBAN, Buchungen, Wünsche und
+  Hofladen-Einkäufe.
 - Externe Gäste: Name, Anschrift, E-Mail und Buchungsdaten.
 - Abrechnung: Rechnungsdaten (Pflichtangaben nach §14 UStG).
 - Technisch: Server-Protokolle (IP-Adresse, Zeitpunkt) zur Sicherheit und
@@ -62,7 +62,12 @@ Auftragsverarbeitung (Art. 28 DSGVO).
 4. Speicherdauer
 Wir speichern Daten nur so lange, wie es für die genannten Zwecke nötig ist.
 Rechnungs- und steuerrelevante Unterlagen bewahren wir entsprechend den
-gesetzlichen Fristen auf (in der Regel zehn Jahre).
+gesetzlichen Fristen auf (in der Regel zehn Jahre). Darüber hinausgehende Daten
+löschen wir automatisch, sobald sie nicht mehr benötigt werden – etwa versendete
+Benachrichtigungs-E-Mails, In-App-Mitteilungen, Rohdaten aus Kontoauszug-/
+Migrations-Importen sowie Sicherheits-Protokolle (Fehlanmeldungen). Auf Wunsch
+anonymisieren wir das Mitgliedskonto vollständig; gesetzlich aufzubewahrende
+Rechnungen bleiben dabei – ohne weitere Verknüpfung – erhalten.
 
 5. Cookies
 Es werden ausschließlich technisch notwendige Cookies (Anmeldung, Sicherheit)

@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>{{ intro }}</p>
+<ul>
+  {% for u in users %}
+  <li><strong>{{ u.get_username }}</strong>
+      {% if u.member %} — {{ u.member.display_name }}{% endif %}
+      {% if u.invoice_count %}<em>({{ u.invoice_count }} Rechnung(en) bleiben erhalten)</em>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+<form method="post">{% csrf_token %}
+  {% for u in users %}
+  <input type="hidden" name="{{ checkbox_name }}" value="{{ u.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="anonymize_selected">
+  <input type="hidden" name="confirm" value="1">
+  <div class="submit-row">
+    <input type="submit" value="{{ button_label }}" class="default">
+    <a href="{% url 'admin:auth_user_changelist' %}" class="button cancel-link">Abbrechen</a>
+  </div>
+</form>
+{% endblock %}
