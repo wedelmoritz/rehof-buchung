@@ -219,6 +219,12 @@ Im **Hofladen** gibt es am Handy einen **schwebenden Warenkorb-Knopf** (`.cart-f
 Symbol + Anzahl + Summe), der zum Warenkorb springt (sonst steht der Korb unter dem
 ganzen Katalog). `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das
 Manifest liegt unter `/static/` und ist damit ohnehin frei).
+**Bestätigungen/Meldungen:** Django-`messages` werden NICHT mehr nur als Zeile oben
+gerendert, sondern in `base.html` per JS in **fixierte Toasts** umgewandelt (sichtbar
+egal wie weit gescrollt). POST-Formulare im `<main>` werden **progressiv per `fetch`
+ohne Neuladen** abgeschickt (Antwort nach Redirect geparst, `<main>` getauscht inkl.
+Re-Exec der Inline-Skripte, Scrollposition gehalten); Fallback = normales Abschicken,
+ausgenommen `multipart`/`data-no-ajax` (Auth) (ADR 0035).
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit

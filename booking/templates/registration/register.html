@@ -6,7 +6,7 @@
   <p class="muted" style="margin-top:0">Lege ein Konto an. Die Verwaltung schaltet
     dich anschließend frei und ordnet dich deinem Anteil zu – erst dann kannst du
     buchen.</p>
-  <form method="post">{% csrf_token %}
+  <form method="post" data-no-ajax>{% csrf_token %}
     {% for f in form %}
       <div class="field">{{ f.label_tag }} {{ f }}
         {% if f.help_text %}<div class="muted" style="font-size:.85rem">{{ f.help_text|safe }}</div>{% endif %}

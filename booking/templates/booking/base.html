@@ -275,6 +275,27 @@
     .site-footer a:hover { color: var(--accent-deep); text-decoration: underline; }
     .site-footer .sep { opacity: .5; }
 
+    /* Toast-Hinweise: Bestätigungen/Fehler immer gut sichtbar (egal wie weit man
+       gescrollt hat), kurz eingeblendet. Ersetzt die leicht zu übersehende
+       Meldung oben im Inhalt. */
+    #toasts { position: fixed; top: calc(.7rem + env(safe-area-inset-top));
+      left: 50%; transform: translateX(-50%); z-index: 80; width: min(92vw, 30rem);
+      display: flex; flex-direction: column; gap: .5rem; pointer-events: none; }
+    .toast { pointer-events: auto; background: var(--card); color: var(--ink);
+      border: 1px solid var(--line); border-left: 4px solid var(--muted);
+      border-radius: 10px; padding: .7rem 2.2rem .7rem .9rem; position: relative;
+      box-shadow: 0 8px 26px rgba(60,53,47,.20); font-size: .92rem;
+      opacity: 0; transform: translateY(-8px);
+      transition: opacity .2s ease, transform .2s ease; overflow-wrap: anywhere;
+      white-space: pre-line; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-left-color: var(--sage); background: var(--sage-soft); color: #4f7344; }
+    .toast.error { border-left-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
+    .toast.warning, .toast.info { border-left-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+    .toast-x { position: absolute; top: .25rem; right: .4rem; border: 0; background: none;
+      color: inherit; font-size: 1.2rem; line-height: 1; cursor: pointer; opacity: .55; padding: .15rem .25rem; }
+    .toast-x:hover { opacity: 1; }
+
     /* iOS-Standalone: Inhalt nicht unter Notch/Home-Indikator schieben. */
     header { padding-top: calc(.7rem + env(safe-area-inset-top));
              padding-left: calc(1.4rem + env(safe-area-inset-left));
@@ -428,6 +449,8 @@
   {% endif %}
 </div>
 
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
+
 <footer class="site-footer">
   <a href="{% url 'imprint' %}">Impressum</a>
   {% if footer.has_privacy %}<span class="sep">·</span><a href="{% url 'privacy' %}">Datenschutz</a>{% endif %}
@@ -480,6 +503,100 @@
       if (e.key === "Escape") close();
     });
   })();
+  // Meldungen als gut sichtbare, kurz eingeblendete Toasts (statt leicht zu
+  // übersehender Zeile oben im Inhalt). Greift für ALLE Navigationen.
+  (function () {
+    var host = document.getElementById("toasts");
+    if (!host) return;
+    function remove(t) { t.classList.remove("show");
+      setTimeout(function () { if (t.parentNode) t.remove(); }, 250); }
+    function toast(text, kind) {
+      if (!text) return;
+      var t = document.createElement("div");
+      t.className = "toast " + (kind || "info");
+      t.setAttribute("role", kind === "error" ? "alert" : "status");
+      t.textContent = text;
+      var x = document.createElement("button");
+      x.className = "toast-x"; x.type = "button";
+      x.setAttribute("aria-label", "Schließen"); x.innerHTML = "&times;";
+      x.addEventListener("click", function () { remove(t); });
+      t.appendChild(x);
+      host.appendChild(t);
+      requestAnimationFrame(function () { t.classList.add("show"); });
+      var timer = setTimeout(function () { remove(t); }, kind === "error" ? 8000 : 4500);
+      t.addEventListener("mouseenter", function () { clearTimeout(timer); });
+    }
+    // Inline-.msg eines Bereichs in Toasts umwandeln und entfernen.
+    function harvest(scope) {
+      (scope || document).querySelectorAll(".msg").forEach(function (m) {
+        var kind = "info";
+        ["success", "error", "warning", "info"].forEach(function (k) {
+          if (m.classList.contains(k)) kind = k;
+        });
+        toast(m.textContent.trim(), kind);
+        m.remove();
+      });
+    }
+    window.__rehofToasts = { toast: toast, harvest: harvest };
+    harvest(document);   // beim Laden vorhandene Meldungen einsammeln
+  })();
+
+  // AJAX-Formulare: POST ohne Neuladen, Scrollposition halten, Meldung als Toast.
+  // Progressive Enhancement – ohne JS bzw. bei Fehlern normales Abschicken.
+  (function () {
+    var T = window.__rehofToasts;
+    var main = document.querySelector("main");
+    if (!T || !main || !window.fetch || !window.DOMParser || !window.FormData) return;
+
+    function enhance(form) {
+      if ((form.getAttribute("method") || "").toLowerCase() !== "post") return false;
+      if (form.hasAttribute("data-no-ajax")) return false;
+      if ((form.getAttribute("enctype") || "").indexOf("multipart") > -1) return false;
+      return main.contains(form);   // nur Inhalt – nicht Kopf/Logout
+    }
+    function runScripts(scope) {
+      scope.querySelectorAll("script").forEach(function (old) {
+        var s = document.createElement("script");
+        if (old.src) s.src = old.src; else s.textContent = old.textContent;
+        old.parentNode.replaceChild(s, old);
+      });
+    }
+    function swap(html, url) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      var nm = doc.querySelector("main");
+      if (!nm) return false;
+      var y = window.scrollY;
+      main.innerHTML = nm.innerHTML;
+      runScripts(main);
+      T.harvest(main);
+      if (url) { try { history.replaceState({}, "", url); } catch (e) {} }
+      window.scrollTo(0, y);   // Scrollposition halten – kein Sprung nach oben
+      return true;
+    }
+    document.addEventListener("submit", function (e) {
+      var form = e.target;
+      if (!enhance(form)) return;
+      e.preventDefault();
+      var data = new FormData(form);
+      var btn = e.submitter || form.querySelector("[type=submit]");
+      if (btn && btn.name) data.append(btn.name, btn.value || "");
+      var action = form.getAttribute("action") || window.location.href;
+      fetch(action, { method: "POST", body: data, redirect: "follow",
+                      headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (r) {
+          if (!r.ok) throw new Error("http " + r.status);
+          if ((r.headers.get("content-type") || "").indexOf("text/html") === -1) {
+            window.location = r.url; return null;
+          }
+          return r.text().then(function (h) { return { html: h, url: r.url }; });
+        })
+        .then(function (res) {
+          if (res && !swap(res.html, res.url)) window.location = res.url;
+        })
+        .catch(function () { form.submit(); });   // Fallback: normal abschicken
+    });
+  })();
+
   // Service Worker registrieren (PWA/Offline). Läuft nur über HTTPS bzw. localhost.
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {

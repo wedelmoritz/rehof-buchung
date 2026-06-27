@@ -38,6 +38,16 @@ ohne native App.
   ganzen Katalog rutscht, gibt es einen **schwebenden Warenkorb-Knopf** (`.cart-fab`)
   mit Symbol, Artikel-Anzahl und Summe, der zum Korb springt (am Desktop ausgeblendet,
   dort steht der Korb sichtbar in der rechten Spalte).
+- **Sichtbare Bestätigungen (Toasts) + AJAX-Formulare:** Früher landeten Meldungen
+  als Zeile **oben** im Inhalt; nach dem Redirect sprang die Seite nach oben und der
+  Hinweis wurde leicht übersehen. Jetzt werden alle `messages` als **fixierte Toasts**
+  angezeigt (sichtbar unabhängig von der Scrollposition, kurz eingeblendet, in
+  `base.html`). Zusätzlich werden **POST-Formulare progressiv per `fetch` ohne
+  Neuladen** abgeschickt: die Antwort (nach Redirect) wird geparst, der `<main>`-Inhalt
+  getauscht (inkl. Re-Ausführung der Inline-Skripte), die **Scrollposition gehalten**
+  und die Meldung als Toast gezeigt. Reine Progressive Enhancement – ohne JS oder bei
+  Fehlern greift das normale Abschicken; ausgenommen sind `multipart`-Uploads und die
+  Auth-Formulare (`data-no-ajax`).
 
 ## Betrachtete Alternativen
 
@@ -49,6 +59,11 @@ ohne native App.
   Daten aktuell und nutzt den Cache nur als Fallback.
 - **`overflow-x:hidden` gegen Seiten-Überlauf:** macht den Wurzelknoten zum
   Scroll-Container und kann `position:sticky` brechen – deshalb `clip`.
+- **Voll-SPA / htmx-Abhängigkeit für die AJAX-Formulare:** verworfen zugunsten eines
+  kleinen, abhängigkeitsfreien Progressive-Enhancement-Layers, der mit den bestehenden
+  server-gerenderten Views (Redirect-nach-POST) arbeitet.
+- **Meldung nur ans Seitenende verschieben / hochscrollen:** löst die Sichtbarkeit
+  nicht zuverlässig; fixierte Toasts sind scrollunabhängig.
 - **Warenkorb-Knopf direkt zur Kasse:** verworfen zugunsten „springt zum Korb“,
   damit Mengen vor dem Checkout noch prüf-/änderbar bleiben.
 
