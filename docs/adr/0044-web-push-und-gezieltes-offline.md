@@ -43,7 +43,17 @@ network-first-Offline-Fallback. Zwei Lücken blieben:
 - **Alles andere** (Übersicht, **Hofladen-Katalog**, Meine Buchungen, Rechnungen,
   Profil, Hilfe): network-first → Cache-Fallback, also offline durchblätterbar
   (zuletzt geladener Stand).
-- **Schreibende Aktionen offline** (POST: Buchen, Wunsch, Hofladen-Bestellung) werden
+- **Offline-Warenkorb (Hofladen):** Der Warenkorb lässt sich **ohne Netz befüllen und
+  bearbeiten** (vor Ort im Hofladen). „+ Warenkorb" landet offline in einem lokalen
+  Korb (`localStorage`, Engine `window.__offlineCart` in `base.html`); ein Panel
+  „Offline-Warenkorb" auf der Hofladen-Seite zeigt die Artikel mit Mengen-/Lösch-
+  Bearbeitung. **Beim Wiederverbinden** (`online`-Event oder beim nächsten Online-
+  Aufruf) werden die Positionen automatisch über den bestehenden `add`-Endpoint an
+  den Server-Warenkorb übertragen und der lokale Korb geleert. **Nur der Checkout**
+  (Einkauf bestätigen, Rechnung, Bezahlen) bleibt netzpflichtig – „Zur Kasse" ist
+  offline bzw. bei noch nicht übertragenem Offline-Korb gesperrt (Hinweis-Toast,
+  vorher synchronisieren). Rein clientseitig, keine Server-Änderung.
+- **Andere schreibende Aktionen offline** (POST: Buchen, Wunsch, Checkout) werden
   schon im Browser abgefangen: der AJAX-Layer zeigt einen Hinweis-Toast „Offline –
   diese Aktion braucht eine Internetverbindung." statt eines stillen Fehlschlags.
 
@@ -60,8 +70,14 @@ network-first-Offline-Fallback. Zwei Lücken blieben:
   bleibt davon unberührt.
 - **Offline alles aus dem Cache (auch Buchen):** verworfen – Verfügbarkeiten sind
   zeitkritisch; ein veralteter Kalender lädt zu Fehlbuchungen ein.
-- **Hofladen offline voll funktionsfähig (Warenkorb/Checkout):** verworfen – Bezahlung
-  und Bestand brauchen das Netz; nur **Browsen** des Katalogs offline.
+- **Hofladen-Checkout offline:** verworfen – Rechnungsstellung/Bezahlung brauchen das
+  Netz und sind verbindlich. Der **Warenkorb** dagegen ist offline befüllbar und wird
+  beim Wiederverbinden synchronisiert (vor Ort einkaufen, später abrechnen).
+- **Offline-Korb serverseitig pro Gerät spiegeln:** verworfen – unnötige Server-/
+  Modell-Komplexität; ein lokaler `localStorage`-Korb mit Replay über den vorhandenen
+  `add`-Endpoint genügt. Grenze: rein lokal, nicht geräteübergreifend, und das
+  Mengen-Editieren am Server-Korb bleibt offline gesperrt (nur der lokale Korb ist
+  offline bearbeitbar).
 
 ## Konsequenzen
 

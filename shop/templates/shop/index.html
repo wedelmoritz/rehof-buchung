@@ -30,7 +30,11 @@
       <h2>{{ entry.group.emoji }} {{ entry.group.name }}</h2>
       <div class="tiles">
         {% for p in entry.products %}
-        <form method="post" class="tile">{% csrf_token %}
+        <form method="post" class="tile" data-offline-cart
+              data-product="{{ p.id }}" data-name="{{ p.name }}"
+              data-price="{{ p.price }}" data-unit="{{ p.get_unit_display }}"
+              data-step="{{ p.quantity_step }}"
+              data-needs-date="{% if p.needs_date %}1{% else %}0{% endif %}">{% csrf_token %}
           <input type="hidden" name="action" value="add">
           <input type="hidden" name="product" value="{{ p.id }}">
           <div class="tile-name">{{ p.name }}</div>
@@ -53,6 +57,16 @@
   </div>
 
   <aside class="shop-cart" id="warenkorb">
+    <div class="card oc-card" id="offline-cart" hidden>
+      <h2>Offline-Warenkorb</h2>
+      <p class="muted oc-note" id="oc-note">Diese Artikel hast du ohne Verbindung
+        hinzugefügt. Sie werden automatisch übertragen, sobald du wieder online
+        bist – die Endsumme steht dann auf der Rechnung.</p>
+      <div id="oc-rows"></div>
+      <div class="cart-total">geschätzt: <strong id="oc-total">0 €</strong></div>
+      <button class="btn" type="button" id="oc-sync" hidden>Jetzt synchronisieren</button>
+    </div>
+
     <div class="card">
       <h2>Warenkorb</h2>
       {% if items %}
@@ -75,7 +89,7 @@
       </div>
       {% endfor %}
       <div class="cart-total">Summe: <strong>{{ total }} €</strong></div>
-      <a class="btn" href="{% url 'shop_checkout' %}" style="display:block;text-align:center;margin:.6rem 0 .4rem">Zur Kasse &rarr;</a>
+      <a class="btn" id="to-checkout" href="{% url 'shop_checkout' %}" style="display:block;text-align:center;margin:.6rem 0 .4rem">Zur Kasse &rarr;</a>
       <a class="btn ghost small" href="{% url 'shop_invoices' %}">Meine Rechnungen &rarr;</a>
       {% else %}
       <p class="muted">Noch nichts im Korb. Tippe oben auf ein Produkt.</p>
@@ -140,6 +154,126 @@
       align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.25); }
     .cart-fab-total { font-size:.92rem; }
   }
+  .oc-card { border:1px solid var(--accent); }
+  .oc-card .oc-note { font-size:.82rem; margin:.1rem 0 .6rem; }
+  .oc-row { display:flex; align-items:center; gap:.5rem; padding:.4rem 0;
+    border-bottom:1px solid var(--line); font-size:.9rem; flex-wrap:wrap; }
+  .oc-row .oc-name { flex:1 1 100%; }
+  .oc-row input { width:4.5rem; min-width:0; padding:.3rem .4rem; }
+  .oc-row .oc-amount { margin-left:auto; font-variant-numeric:tabular-nums; }
+  #oc-sync { display:block; width:100%; margin-top:.6rem; }
 </style>
+
+<script>
+(function () {
+  // Die Offline-Warenkorb-Engine (window.__offlineCart) wird erst am Ende von
+  // base.html definiert – also ggf. nach diesem Skript. Init verzögern, bis sie da
+  // ist (beim AJAX-Swap existiert sie bereits → sofort).
+  if (window.__offlineCart) { init(); }
+  else { document.addEventListener("DOMContentLoaded", init); }
+
+  function init() {
+  var panel = document.getElementById("offline-cart");
+  if (!panel || !window.__offlineCart) return;
+  var OC = window.__offlineCart;
+  var rows = document.getElementById("oc-rows");
+  var totalEl = document.getElementById("oc-total");
+  var syncBtn = document.getElementById("oc-sync");
+  var note = document.getElementById("oc-note");
+  var checkout = document.getElementById("to-checkout");
+
+  // Bei AJAX-Swap (Online-„+ Warenkorb") läuft dieses Skript erneut – vorherige
+  // Dokument-/Fenster-Listener zuerst abräumen, damit sie sich nicht häufen.
+  if (window.__ocPanelCleanup) window.__ocPanelCleanup();
+
+  function fmt(n) { return (Math.round(n * 100) / 100).toString().replace(".", ",") + " €"; }
+
+  function render() {
+    var items = OC.all();
+    panel.hidden = items.length === 0;
+    if (!items.length) { syncToggle(); return; }
+    rows.innerHTML = "";
+    var total = 0;
+    items.forEach(function (it) {
+      total += (it.price || 0) * it.qty;
+      var row = document.createElement("div");
+      row.className = "oc-row";
+      var name = document.createElement("span");
+      name.className = "oc-name";
+      name.textContent = it.name + (it.serviceDate ? " (" + it.serviceDate + ")" : "");
+      var qty = document.createElement("input");
+      qty.type = "number"; qty.value = it.qty; qty.min = "0";
+      qty.step = it.step || 1; qty.setAttribute("aria-label", "Menge für " + it.name);
+      qty.addEventListener("change", function () {
+        OC.setQty(OC.keyOf(it), parseFloat(qty.value) || 0);
+      });
+      var amount = document.createElement("span");
+      amount.className = "oc-amount";
+      amount.textContent = fmt((it.price || 0) * it.qty);
+      var del = document.createElement("button");
+      del.type = "button"; del.className = "btn small ghost danger";
+      del.title = "Entfernen"; del.innerHTML = "&times;";
+      del.addEventListener("click", function () { OC.remove(OC.keyOf(it)); });
+      row.appendChild(name); row.appendChild(qty);
+      row.appendChild(amount); row.appendChild(del);
+      rows.appendChild(row);
+    });
+    totalEl.textContent = fmt(total);
+    syncToggle();
+  }
+
+  function syncToggle() {
+    var has = OC.all().length > 0;
+    var online = navigator.onLine !== false;
+    syncBtn.hidden = !(has && online);
+    if (note) {
+      note.textContent = online
+        ? "Du bist online – diese Artikel können jetzt in den Warenkorb übertragen werden."
+        : "Diese Artikel hast du ohne Verbindung hinzugefügt. Sie werden übertragen, sobald du wieder online bist.";
+    }
+  }
+
+  function doSync() {
+    if (navigator.onLine === false || !OC.all().length) return;
+    syncBtn.disabled = true;
+    OC.sync().then(function (n) {
+      if (n > 0) window.location.reload();   // sonst Endlosschleife vermeiden
+      else syncBtn.disabled = false;
+    }).catch(function () { syncBtn.disabled = false; });
+  }
+  function onSynced(e) { if (e && e.detail && e.detail.n > 0) window.location.reload(); }
+
+  syncBtn.addEventListener("click", doSync);
+  document.addEventListener("offlinecart:changed", render);
+  document.addEventListener("offlinecart:synced", onSynced);
+  window.addEventListener("online", syncToggle);
+  window.addEventListener("offline", syncToggle);
+  window.__ocPanelCleanup = function () {
+    document.removeEventListener("offlinecart:changed", render);
+    document.removeEventListener("offlinecart:synced", onSynced);
+    window.removeEventListener("online", syncToggle);
+    window.removeEventListener("offline", syncToggle);
+  };
+
+  // Checkout braucht Netz UND einen leeren Offline-Korb (erst übertragen).
+  if (checkout) checkout.addEventListener("click", function (e) {
+    if (navigator.onLine === false) {
+      e.preventDefault();
+      if (window.__rehofToasts) window.__rehofToasts.toast(
+        "Zur Kasse brauchst du eine Internetverbindung.", "warning");
+    } else if (OC.all().length) {
+      e.preventDefault();
+      if (window.__rehofToasts) window.__rehofToasts.toast(
+        "Bitte erst den Offline-Warenkorb synchronisieren.", "warning");
+      doSync();
+    }
+  });
+
+  render();
+  // Beim Laden online + offene Offline-Artikel: gleich übertragen.
+  if (navigator.onLine !== false && OC.all().length) doSync();
+  }
+})();
+</script>
 {% endif %}
 {% endblock %}

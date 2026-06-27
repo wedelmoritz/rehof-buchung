@@ -589,9 +589,13 @@
       }
       if (!enhance(form)) return;
       e.preventDefault();
-      // Offline: schreibende Aktionen (Buchen, Wunsch, Hofladen) brauchen Netz –
-      // statt eines stillen Fehlschlags ein klarer Hinweis.
+      // Offline: schreibende Aktionen brauchen i.d.R. Netz – Ausnahme ist der
+      // Hofladen-Warenkorb (data-offline-cart): lokal befüllen, später syncen.
       if (navigator.onLine === false) {
+        if (form.hasAttribute("data-offline-cart") && window.__offlineCart) {
+          window.__offlineCart.addFromForm(form);
+          return;
+        }
         T.toast("Offline – diese Aktion braucht eine Internetverbindung.", "warning");
         return;
       }
@@ -640,6 +644,93 @@
       if (a.target && a.target !== "_self") return;
       e.preventDefault();
       __nav(href);
+    });
+  })();
+
+  // Offline-Warenkorb (Hofladen): vor Ort ohne Netz befüllen/bearbeiten, beim
+  // Wiederverbinden automatisch an den Server-Warenkorb übertragen. Nur der
+  // Checkout (Rechnung/Bezahlen) braucht weiterhin eine Verbindung. (ADR 0044)
+  (function () {
+    var T = window.__rehofToasts;
+    var KEY = "rehofOfflineCart";
+    function load() {
+      try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; }
+    }
+    function save(items) {
+      try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) {}
+      document.dispatchEvent(new CustomEvent("offlinecart:changed"));
+    }
+    function keyOf(it) { return it.productId + "|" + (it.serviceDate || ""); }
+    var api = {
+      all: load,
+      keyOf: keyOf,
+      addFromForm: function (form) {
+        var needsDate = form.getAttribute("data-needs-date") === "1";
+        var dateEl = form.querySelector("[name=service_date]");
+        var serviceDate = needsDate && dateEl ? dateEl.value : "";
+        if (needsDate && !serviceDate) {
+          if (T) T.toast("Bitte zuerst einen Termin angeben.", "warning");
+          return;
+        }
+        var qEl = form.querySelector("[name=quantity]");
+        var step = parseFloat(form.getAttribute("data-step")) || 1;
+        var qty = parseFloat(qEl && qEl.value) || step;
+        this.add({
+          productId: form.getAttribute("data-product"),
+          name: form.getAttribute("data-name"),
+          price: parseFloat(form.getAttribute("data-price")) || 0,
+          unit: form.getAttribute("data-unit") || "",
+          step: step, needsDate: needsDate, serviceDate: serviceDate, qty: qty
+        });
+        if (T) T.toast("Offline in den Warenkorb gelegt – wird übertragen, sobald du online bist.", "info");
+      },
+      add: function (it) {
+        var items = load(), found = null;
+        for (var i = 0; i < items.length; i++) if (keyOf(items[i]) === keyOf(it)) found = items[i];
+        if (found) found.qty = Math.round((found.qty + it.qty) * 1000) / 1000; else items.push(it);
+        save(items);
+      },
+      setQty: function (k, qty) {
+        var items = load().map(function (x) { if (keyOf(x) === k) x.qty = qty; return x; })
+          .filter(function (x) { return x.qty > 0; });
+        save(items);
+      },
+      remove: function (k) {
+        save(load().filter(function (x) { return keyOf(x) !== k; }));
+      },
+      sync: function () {
+        var items = load();
+        if (!items.length || navigator.onLine === false) return Promise.resolve(0);
+        var tok = document.querySelector("input[name=csrfmiddlewaretoken]");
+        if (!tok) return Promise.resolve(0);
+        var url = "{% url 'shop_index' %}", done = [];
+        function step(i) {
+          if (i >= items.length) return Promise.resolve();
+          var it = items[i], body = new URLSearchParams();
+          body.set("csrfmiddlewaretoken", tok.value);
+          body.set("action", "add");
+          body.set("product", it.productId);
+          body.set("quantity", it.qty);
+          if (it.serviceDate) body.set("service_date", it.serviceDate);
+          return fetch(url, { method: "POST", body: body, redirect: "follow",
+                              headers: { "X-Requested-With": "XMLHttpRequest" } })
+            .then(function (r) { if (r.ok) done.push(keyOf(it)); })
+            .catch(function () {})
+            .then(function () { return step(i + 1); });
+        }
+        return step(0).then(function () {
+          save(load().filter(function (x) { return done.indexOf(keyOf(x)) === -1; }));
+          return done.length;
+        });
+      }
+    };
+    window.__offlineCart = api;
+    window.addEventListener("online", function () {
+      if (!load().length) return;
+      api.sync().then(function (n) {
+        if (n > 0 && T) T.toast(n + " Artikel aus dem Offline-Warenkorb übertragen.", "success");
+        document.dispatchEvent(new CustomEvent("offlinecart:synced", { detail: { n: n } }));
+      });
     });
   })();
 

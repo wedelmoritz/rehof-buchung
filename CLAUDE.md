@@ -204,7 +204,13 @@ Template `booking/sw.js`, Root-Scope) mit network-first + Offline-Fallback
 (ADR 0044):** Buchen/Wunsch (`/buchen/`, `/wunschliste/`, `/extern/buchen/`) zeigen
 offline KEINE Cache-Kopie (veraltete Verfügbarkeiten), sondern „Buchen braucht eine
 Verbindung"; alles andere inkl. **Hofladen-Katalog** ist offline durchblätterbar.
-Schreibende POSTs offline fängt der AJAX-Layer mit Hinweis-Toast ab. **Web-Push
+**Offline-Warenkorb (Hofladen):** „+ Warenkorb" funktioniert offline (lokaler Korb in
+`localStorage`, Engine `window.__offlineCart` in `base.html`; Panel „Offline-Warenkorb"
+in `shop/index.html` mit Mengen-/Lösch-Bearbeitung). Beim Wiederverbinden (`online`-Event)
+werden die Positionen automatisch über den `add`-Endpoint an den Server-Warenkorb
+übertragen und der lokale Korb geleert; **nur der Checkout** (Rechnung/Bezahlen) braucht
+Netz (sonst Hinweis-Toast). Rein clientseitig, keine Server-Änderung. Übrige schreibende
+POSTs offline fängt der AJAX-Layer mit Hinweis-Toast ab. **Web-Push
 (ADR 0044):** `PushSubscription` je Gerät am `Member`; ein `post_save`-Signal auf
 `Notification` stellt jede Benachrichtigung zusätzlich als Push zu
 (`services.send_web_push` via pywebpush, best-effort über `transaction.on_commit`,
