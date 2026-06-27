@@ -20,11 +20,12 @@ entstanden mit einem unbrauchbaren Passwort und ohne Weg, eines zu setzen.
 Vom Backend **oder** vom Import angelegte Benutzer **setzen ihr Passwort selbst**
 über einen Einladungs-Link – Admins vergeben kein Passwort mehr.
 
-- **Mechanik:** wiederverwendet Djangos Token-Mechanismus (`default_token_generator`
-  + `urlsafe_base64_encode(user.pk)`), exakt wie der Passwort-Reset – nur mit eigener
-  „Passwort setzen"-Sprache. Zwei Views auf Basis von `PasswordResetConfirmView` /
-  `PasswordResetCompleteView` (`/passwort-setzen/<uidb64>/<token>/`,
-  `/passwort-gesetzt/`), eigene Templates unter `registration/`.
+- **Mechanik:** **ein** Token-Mechanismus (`default_token_generator` +
+  `urlsafe_base64_encode(user.pk)`) für **beides** – die Einladung neuer Konten **und**
+  „Passwort vergessen". Es sind die **Standard-Django-Reset-Views/-Namen**
+  (`password_reset` → `password_reset_done` → `password_reset_confirm` →
+  `password_reset_complete`) mit deutschen Pfaden und eigenen Templates unter
+  `registration/`. Die Einladungs-Mail verlinkt dieselbe `password_reset_confirm`-Seite.
 - **Versand:** `services.send_account_invite(user)` baut den absoluten Link
   (`PUBLIC_BASE_URL`) und reiht die Mail über die Outbox ein (ADR 0027). Voraussetzung
   ist eine **E-Mail-Adresse** – sie ist daher beim Anlegen Pflicht.
@@ -60,7 +61,10 @@ Vom Backend **oder** vom Import angelegte Benutzer **setzen ihr Passwort selbst*
 - **Ohne E-Mail keine Einladung:** Konten ohne Adresse müssen manuell nachbearbeitet
   werden (E-Mail nachtragen → Einladung erneut senden). Der Backend-Flow erzwingt die
   E-Mail daher.
-- Der Link ist zeitlich begrenzt (Django-Default); abgelaufene Links erfordern ein
-  erneutes Senden bzw. „Passwort vergessen".
-- Eine öffentliche „Passwort vergessen"-Selbstbedienung ist (noch) nicht verdrahtet –
-  abgelaufene Einladungen löst aktuell die Verwaltung per Admin-Aktion neu aus.
+- Der Link ist zeitlich begrenzt (Django-Default); abgelaufene Links löst die Person
+  selbst über **„Passwort vergessen"** (auf der Anmeldeseite verlinkt) neu aus, oder
+  die Verwaltung sendet die Einladung per Admin-Aktion erneut.
+- **„Passwort vergessen" findet nur Konten mit bereits gesetztem Passwort**
+  (Djangos `PasswordResetForm` schließt unbrauchbare Passwörter aus). Ein neues Konto,
+  dessen Einladung abgelaufen ist, **bevor** ein Passwort gesetzt wurde, braucht also
+  die erneute Admin-Einladung – die Selbstbedienung greift erst danach.

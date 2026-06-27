@@ -92,8 +92,26 @@ class Beds24StageTests(TestCase):
         r = batch.rows.get()
         self.assertEqual(r.email, "anchor@example.org")
         self.assertEqual(r.suggested_member, bob)
-        self.assertEqual(r.suggested_score, 1.0)
+        self.assertEqual(r.match_kind, Beds24ImportRow.EMAIL)
         self.assertEqual(r.chosen_member, bob)   # sicher -> vorausgewählt
+
+    def test_einzelner_namens_treffer_ist_gelb(self):
+        # Genau ein passendes Mitglied, ohne E-Mail -> NAME (gelb), vorgeschlagen.
+        batch = svc.beds24_stage(CSV, "x.csv")
+        r1 = batch.rows.get(guest_name="Anna Schmidt")
+        self.assertEqual(r1.match_kind, Beds24ImportRow.NAME)
+        self.assertEqual(r1.chosen_member, self.anna)   # bequem vorgeschlagen
+
+    def test_mehrere_namens_treffer_sind_gelb_ohne_vorauswahl(self):
+        # Zwei Mitglieder mit demselben Namen -> MULTI (gelb), KEINE Vorauswahl.
+        u2 = User.objects.create_user("anna1", password="x")
+        Member.objects.create(user=u2, display_name="Anna (anna1)",
+                              legal_name="Anna Schmidt")
+        batch = svc.beds24_stage(CSV, "x.csv")
+        r1 = batch.rows.get(guest_name="Anna Schmidt")
+        self.assertEqual(r1.match_kind, Beds24ImportRow.MULTI)
+        self.assertIsNone(r1.chosen_member)    # mehrdeutig -> Admin muss wählen
+        self.assertIsNotNone(r1.suggested_member)  # Vorschlag bleibt sichtbar
 
 
 class Beds24RowCheckTests(TestCase):

@@ -10,6 +10,7 @@
     {% if form.errors %}<div class="msg error">Anmeldung fehlgeschlagen. Nach mehreren Fehlversuchen wird das Konto vorübergehend gesperrt.</div>{% endif %}
     <button class="btn" type="submit">Anmelden</button>
   </form>
+  <p class="muted" style="margin:.6rem 0 0"><a href="{% url 'password_reset' %}">Passwort vergessen?</a></p>
   <p class="muted" style="margin-bottom:0">Anmeldung mit E-Mail oder Benutzername.
     Noch kein Konto? <a href="{% url 'register' %}">Registrieren</a>.</p>
 </div>
