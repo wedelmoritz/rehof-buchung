@@ -110,18 +110,6 @@ def street_error(value: str | None, *, required: bool = True,
     return None
 
 
-def membership_number_error(value: str | None, *, max_len: int = 40) -> str | None:
-    """Mitgliedsnummer (optional): Buchstaben/Ziffern und ``- / .``."""
-    v = (value or "").strip()
-    if not v:
-        return None
-    if len(v) > max_len:
-        return f"Die Mitgliedsnummer ist zu lang (höchstens {max_len} Zeichen)."
-    if not all(ch.isalnum() or ch in "-/." for ch in v):
-        return "Die Mitgliedsnummer darf nur Buchstaben, Ziffern und - / . enthalten."
-    return None
-
-
 def email_error(value: str | None, *, required: bool = True) -> str | None:
     """Einfache E-Mail-Plausibilität (genau ein @, Punkt in der Domain, keine
     Leer-/Steuerzeichen). Die echte Zustellbarkeit zeigt sich erst beim Versand."""

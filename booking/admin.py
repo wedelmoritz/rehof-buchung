@@ -127,8 +127,7 @@ class MemberProfileInline(admin.StackedInline):
                 "der Losung automatisch gepflegt – im Normalfall nicht ändern."),
         }),
         ("Rechnungsdaten (Hofladen)", {
-            "fields": ("legal_name", "street", "zip_code", "city", "iban",
-                       "membership_number"),
+            "fields": ("legal_name", "street", "zip_code", "city", "iban"),
         }),
     )
 

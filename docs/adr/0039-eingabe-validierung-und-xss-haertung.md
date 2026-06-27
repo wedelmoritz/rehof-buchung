@@ -28,7 +28,7 @@ plus dünne Anbindung in Formularen/Service-Layer und Härtung der Exporte.
   `city_error` (Buchstaben + `- . ' ( ) /`, z. B. „Frankfurt (Oder)"),
   `street_error` (inkl. Hausnummer), `email_error`,
   `iban_error` (Format + **länderspezifische Länge** + **Mod-97-Prüfsumme**,
-  ISO 13616), `membership_number_error`. `strip_controls` säubert Freitext.
+  ISO 13616). `strip_controls` säubert Freitext.
 - **Anbindung:** `RegistrationForm.clean_name`, `ProfileForm.clean_*`
   (`forms.py`); `services.create_external_booking` prüft die Gastdaten und gibt
   bei Verstoß einen Fehlertext zurück (die Eingabeseite zeigt ihn an). Freitext

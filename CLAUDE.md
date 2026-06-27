@@ -169,7 +169,11 @@ für Massenmails. Provider-neutral über `EMAIL_*`/`PUBLIC_BASE_URL` (ohne
 `EMAIL_HOST` → Konsole). Ereignisse: Losergebnis, Wartelisten-Platz frei,
 Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
 Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
-das Mitglied selbst unter `profile`. Eine `help`-Seite erklärt Abläufe und die
+das Mitglied selbst unter `profile`; dort kann es auch **E-Mail (= Login, folgt
+der E-Mail; eindeutig pro Konto) und Passwort** ändern (`EmailChangeForm` +
+Djangos `PasswordChangeForm`, `update_session_auth_hash` hält die Sitzung).
+Die frühere `membership_number` (Mitgliedsnummer) wurde als ungenutzt **entfernt**
+(Datensparsamkeit; sie floss nirgends in Rechnung/Export/PDF). Eine `help`-Seite erklärt Abläufe und die
 Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
 (`lottery_fairness`, `/losung-fairness/`, login-pflichtig, von der Hilfe verlinkt):
 zeigt per **Monte-Carlo-Simulation** (reine Logik `booking/fairness.py` auf dem
