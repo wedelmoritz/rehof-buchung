@@ -84,9 +84,9 @@
   </aside>
 </div>
 
-{# Mobiler Schnellzugriff: schwebender Warenkorb-Knopf mit Anzahl + Summe.
-   Springt zum Warenkorb (der am Handy unter dem Katalog steht). Nur sichtbar,
-   wenn etwas im Korb liegt – CSS blendet ihn am Desktop aus. #}
+{% comment %}Mobiler Schnellzugriff: schwebender Warenkorb-Knopf (Symbol + Anzahl
++ Summe), springt zum Warenkorb. Nur mit Inhalt; am Desktop per CSS ausgeblendet.
+{% endcomment %}
 {% if items %}
 <a href="#warenkorb" class="cart-fab" aria-label="Zum Warenkorb – {{ items|length }} Artikel, Summe {{ total }} €">
   <svg class="cart-fab-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#ic-shop"/></svg>
