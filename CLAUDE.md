@@ -245,10 +245,15 @@ Stammdaten der Genossenschaft im `ShopConfig`-Singleton („Hofladen-Einstellung
 Django-Admin = Admin-Rolle). Geldlogik/Tests in
 `shop/services.py` bzw. `shop/tests.py`.
 **Steuer-/Kassenrecht:** Abrechnung bewusst **ohne TSE** (keine Vor-Ort-Zahlung →
-keine Kassenfunktion nach KassenSichV/§146a AO, ADR 0040). **Umsatzsteuer** heute
-Regelbesteuerung (per-Artikel `vat_rate`, Beherbergung 7 % / Zusatz 19 %); ein
-**Kleinunternehmer-Modus (§19, ohne MwSt-Ausweis)** ist offen und der USt-Status vor
-Go-Live mit dem Steuerberater zu klären (ADR 0041). Keine Rechtsberatung.
+keine Kassenfunktion nach KassenSichV/§146a AO, ADR 0040). **Umsatzsteuer**
+umschaltbar im Backend (`ShopConfig.small_business`): Regelbesteuerung (per-Artikel
+`vat_rate`, Beherbergung 7 % / Zusatz 19 %) **oder** §19-Kleinunternehmer (Rechnung
+ohne MwSt-Ausweis + Hinweis). Die USt-Behandlung wird je `Invoice` gesnapshotet
+(`Invoice.small_business`/`tax_note`); USt-Status vor Go-Live mit dem Steuerberater
+klären (ADR 0041, keine Rechtsberatung). **Rechtstexte** (ADR 0042): Impressum
+(Pflicht, §5 DDG), Datenschutz (DSGVO) und AGB sind im `ShopConfig` konfigurierbar,
+öffentliche Seiten `imprint`/`privacy`/`terms` (`/impressum/`, `/datenschutz/`,
+`/agb/`), auf jeder Seite im Fuß verlinkt (Context-Processor `legal` + `base.html`).
 **Online-Bezahlung (Mollie, EIN System für Hofladen UND externe Gäste):** auf
 `Invoice`-Ebene (Mitglied wie Gast haben eine `Invoice`). Reine Naht in
 `shop/payments.py` (`start_payment`/`settle_payment`/`cancel_payment`,

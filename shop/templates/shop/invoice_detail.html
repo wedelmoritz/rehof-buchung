@@ -29,10 +29,10 @@
   </div>
 
   <div class="table-wrap"><table class="inv-items">
-    <tr><th>Bezeichnung</th><th>Menge</th><th>Einzel</th><th>MwSt</th><th>Betrag</th></tr>
+    <tr><th>Bezeichnung</th><th>Menge</th><th>Einzel</th>{% if not invoice.small_business %}<th>MwSt</th>{% endif %}<th>Betrag</th></tr>
     {% for g in purchase_groups %}
     <tr class="purchase-head">
-      <td colspan="5">Einkauf vom
+      <td colspan="{% if invoice.small_business %}4{% else %}5{% endif %}">Einkauf vom
         {% if g.purchase %}{{ g.purchase.confirmed_at|date:"d.m.Y H:i" }}{% else %}{{ invoice.created_at|date:"d.m.Y" }}{% endif %}
         · {{ g.gross }} €</td>
     </tr>
@@ -41,7 +41,7 @@
       <td>{{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date }})</span>{% endif %}</td>
       <td>{{ it.quantity|floatformat:"-3" }} {{ it.get_unit_display|default:it.unit }}</td>
       <td>{{ it.unit_price }} €</td>
-      <td>{{ it.vat_rate }} %</td>
+      {% if not invoice.small_business %}<td>{{ it.vat_rate }} %</td>{% endif %}
       <td>{{ it.gross }} €</td>
     </tr>
     {% endfor %}
@@ -50,11 +50,16 @@
 
   <div class="inv-sums">
     <table>
+      {% if invoice.small_business %}
+      <tr class="grand"><td>Gesamt</td><td>{{ invoice.total_gross }} €</td></tr>
+      <tr><td colspan="2" class="muted">{{ invoice.tax_note }}</td></tr>
+      {% else %}
       {% for b in breakdown %}
       <tr><td>Netto {{ b.rate }} %</td><td>{{ b.net }} €</td></tr>
       <tr><td>MwSt {{ b.rate }} %</td><td>{{ b.vat }} €</td></tr>
       {% endfor %}
       <tr class="grand"><td>Gesamt (brutto)</td><td>{{ invoice.total_gross }} €</td></tr>
+      {% endif %}
     </table>
   </div>
 

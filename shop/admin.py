@@ -45,6 +45,21 @@ class ShopConfigAdmin(admin.ModelAdmin):
             "description": "Stammdaten der Genossenschaft: Absender auf jeder "
                            "Hofladen-Rechnung (§14 UStG) sowie Kontakt im "
                            "Hilfebereich für externe Gäste. Einmalig pflegen."}),
+        ("Umsatzsteuer", {
+            "fields": ("small_business", "small_business_note"),
+            "description": "Kleinunternehmer (§19 UStG) AN = Rechnungen OHNE MwSt + "
+                           "§19-Hinweis (bei Umsatz unter den Grenzen). AUS = "
+                           "Regelbesteuerung mit MwSt-Ausweis je Satz. Falscher Modus "
+                           "hat steuerliche Folgen (§14c) – bitte mit dem Steuerberater "
+                           "klären (ADR 0041)."}),
+        ("Impressum & Rechtstexte", {
+            "fields": ("vat_id", "register_court", "register_number",
+                       "imprint_extra", "privacy_policy", "terms_agb"),
+            "description": "Pflichtangaben fürs Impressum (§5 DDG) und die Rechtstexte "
+                           "der Website. Das Impressum wird aus diesen Feldern + den "
+                           "Genossenschaftsdaten oben erzeugt (/impressum/). "
+                           "Datenschutzerklärung (DSGVO) und AGB werden als Seiten "
+                           "ausgegeben und im Fuß verlinkt, sobald sie ausgefüllt sind."}),
         ("Zahlung", {
             "fields": ("iban", "bic", "invoice_prefix", "payment_term_days"),
             "description": "IBAN/BIC, auf die Mitglieder überweisen. Das Präfix "

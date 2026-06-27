@@ -337,3 +337,35 @@ class KontoabgleichTests(ShopBase):
         self.assertEqual(batch.n_matched, 1)
         self.inv.refresh_from_db()
         self.assertEqual(self.inv.status, Invoice.CONFIRMED)
+
+
+class KleinunternehmerInvoiceTests(ShopBase):
+    """§19-Modus: Rechnung ohne MwSt-Ausweis, mit §19-Hinweis (ADR 0041)."""
+
+    def test_paragraph19_rechnung_ohne_mwst(self):
+        from shop.models import ShopConfig
+        from shop.pdf import invoice_html
+        cfg = ShopConfig.get_solo()
+        cfg.small_business = True
+        cfg.small_business_note = "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."
+        cfg.save()
+        svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
+        inv, _ = svc.generate_invoice_now(self.alice)
+        self.assertTrue(inv.small_business)
+        self.assertIn("§ 19", inv.tax_note)
+        html = invoice_html(inv)
+        self.assertIn("§ 19", html)
+        self.assertNotIn("zzgl. MwSt", html)   # kein Steuerausweis
+
+    def test_regelbesteuerung_weiterhin_mit_mwst(self):
+        from shop.models import ShopConfig
+        from shop.pdf import invoice_html
+        cfg = ShopConfig.get_solo()
+        cfg.small_business = False
+        cfg.save()
+        svc.add_item(self.bob, self.apple, "1")
+        svc.checkout(self.bob)
+        inv, _ = svc.generate_invoice_now(self.bob)
+        self.assertFalse(inv.small_business)
+        self.assertIn("zzgl. MwSt", invoice_html(inv))

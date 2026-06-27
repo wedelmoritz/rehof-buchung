@@ -1,0 +1,35 @@
+{% extends "booking/base.html" %}
+{% block title %}Impressum{% endblock %}
+{% block content %}
+<h1>Impressum</h1>
+<div class="card">
+  <p style="margin-top:0"><strong>Angaben gemäß § 5 DDG</strong></p>
+  <p style="white-space:pre-line">{{ cfg.coop_name }}
+{{ cfg.coop_address }}</p>
+
+  {% if cfg.board %}
+  <p><strong>Vertretungsberechtigter Vorstand:</strong><br>{{ cfg.board }}</p>
+  {% endif %}
+
+  {% if cfg.register_court or cfg.register_number %}
+  <p><strong>Registereintrag:</strong><br>
+    {{ cfg.register_court }}{% if cfg.register_court and cfg.register_number %} · {% endif %}{{ cfg.register_number }}</p>
+  {% endif %}
+
+  {% if cfg.tax_number %}<p><strong>Steuernummer:</strong> {{ cfg.tax_number }}</p>{% endif %}
+  {% if cfg.vat_id %}<p><strong>USt-IdNr. (§ 27a UStG):</strong> {{ cfg.vat_id }}</p>{% endif %}
+  {% if cfg.contact_email %}
+  <p><strong>Kontakt:</strong> <a href="mailto:{{ cfg.contact_email }}">{{ cfg.contact_email }}</a></p>
+  {% endif %}
+
+  {% if cfg.imprint_extra %}
+  <div style="white-space:pre-line; margin-top:.6rem">{{ cfg.imprint_extra }}</div>
+  {% endif %}
+
+  {% if not cfg.coop_address %}
+  <p class="msg warning" style="margin-top:.8rem">Das Impressum ist noch nicht
+    vollständig gepflegt. Die Verwaltung ergänzt die Angaben unter
+    „Hofladen-Einstellungen“ im Backend.</p>
+  {% endif %}
+</div>
+{% endblock %}

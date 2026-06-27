@@ -448,7 +448,9 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Losung steuern | Durchführen, **bestätigen** (veröffentlichen), **zurücknehmen** | `services.confirm_lottery`, `rollback_lottery` · `admin.BookingPeriodAdmin`, `LotteryRunAdmin` |
 | Stammdaten & Regeln | Mitglieder/Anteile, Quartiere, Saison-Regeln, Perioden | `booking/admin.py`, `shop/admin.py` |
 | Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag, **Beds24-Import an/aus** | `models.OpsConfig` |
-| Genossenschaftsdaten / Zahlung | Name, Anschrift, Steuernummer, IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel + Online-Bezahlung (an/aus, Mollie-Key) | `shop/models.py::ShopConfig` |
+| Genossenschaftsdaten / Zahlung | Name, Anschrift, Steuernummer/USt-IdNr., IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel + Online-Bezahlung (an/aus, Mollie-Key) | `shop/models.py::ShopConfig` |
+| Umsatzsteuer (Kleinunternehmer) | Schalter §19 ja/nein → Rechnungen mit/ohne MwSt-Ausweis (ADR 0041) | `shop/models.py::ShopConfig.small_business`, `Invoice.small_business` |
+| Rechtstexte | Impressum (Pflicht §5 DDG, erzeugt), Datenschutz (DSGVO), AGB – konfigurierbar, im Fuß verlinkt (ADR 0042) | `ShopConfig` (`imprint_extra`/`privacy_policy`/`terms_agb`…) · `views.imprint/privacy/terms` |
 
 ### Betrieb (Scheduler/Cron) & reine Logik
 

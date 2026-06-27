@@ -1,0 +1,14 @@
+{% extends "booking/base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<h1>{{ page_title }}</h1>
+<div class="card">
+  {% if body %}
+  <div style="white-space:pre-line; overflow-wrap:anywhere">{{ body }}</div>
+  {% else %}
+  <p class="muted" style="margin:0">Dieser Text ist noch nicht hinterlegt.{% if cfg.contact_email %}
+    Bei Fragen wende dich an
+    <a href="mailto:{{ cfg.contact_email }}">{{ cfg.contact_email }}</a>.{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}

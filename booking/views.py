@@ -642,6 +642,31 @@ def pending(request):
     return render(request, "registration/pending.html", {})
 
 
+# --------------------------------------------------------------------------- #
+# Rechtstexte (öffentlich, ohne Login): Impressum (Pflicht, §5 DDG),
+# Datenschutz (DSGVO) und AGB – Inhalte aus den Hofladen-Einstellungen.
+# --------------------------------------------------------------------------- #
+
+def imprint(request):
+    from shop.models import ShopConfig
+    return render(request, "booking/imprint.html", {"cfg": ShopConfig.get_solo()})
+
+
+def privacy(request):
+    from shop.models import ShopConfig
+    cfg = ShopConfig.get_solo()
+    return render(request, "booking/legal_text.html", {
+        "page_title": "Datenschutzerklärung", "body": cfg.privacy_policy, "cfg": cfg})
+
+
+def terms(request):
+    from shop.models import ShopConfig
+    cfg = ShopConfig.get_solo()
+    return render(request, "booking/legal_text.html", {
+        "page_title": "Allgemeine Geschäftsbedingungen (AGB)",
+        "body": cfg.terms_agb, "cfg": cfg})
+
+
 @login_required
 def help_page(request):
     """Erklärseite: Abläufe, Auslosung im Detail, Tage & Anteile, Hofladen."""

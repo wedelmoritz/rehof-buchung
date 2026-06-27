@@ -179,6 +179,8 @@ def _invoice_items(member, items, year: int, month: int) -> Invoice | None:
         recipient_address=addr,
         coop_name=cfg.coop_name, coop_address=cfg.coop_address,
         tax_number=cfg.tax_number, iban=cfg.iban, bic=cfg.bic,
+        small_business=cfg.small_business,
+        tax_note=cfg.small_business_note if cfg.small_business else "",
     )
     LineItem.objects.filter(id__in=[i.id for i in items]).update(invoice=inv)
     # Benachrichtigung per E-Mail (Outbox). Lazy-Import vermeidet Zirkularität.
@@ -258,6 +260,8 @@ def create_invoice_for_guest(guest, line_specs, due_days: int = 14) -> Invoice:
         recipient_name=guest.name, recipient_address=guest.address,
         coop_name=cfg.coop_name, coop_address=cfg.coop_address,
         tax_number=cfg.tax_number, iban=cfg.iban, bic=cfg.bic,
+        small_business=cfg.small_business,
+        tax_note=cfg.small_business_note if cfg.small_business else "",
     )
     for s in line_specs:
         LineItem.objects.create(

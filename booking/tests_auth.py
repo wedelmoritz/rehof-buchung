@@ -81,3 +81,34 @@ class LoginTests(TestCase):
         # Auch mit korrektem Passwort jetzt gesperrt (django-axes)
         self.client.post(reverse("login"), {"username": "opfer", "password": PW})
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class RechtstexteTests(TestCase):
+    """Impressum (Pflicht), Datenschutz & AGB – öffentlich erreichbar, im Fuß verlinkt."""
+
+    def test_impressum_oeffentlich(self):
+        from shop.models import ShopConfig
+        ShopConfig.objects.create(
+            coop_name="Re:Hof eG", coop_address="Hofweg 1\n12345 Dorf",
+            board="Vorstand X", contact_email="info@example.org")
+        r = self.client.get(reverse("imprint"))      # anonym
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Re:Hof eG")
+        self.assertContains(r, "§ 5 DDG")
+        self.assertContains(r, reverse("imprint"))   # Fuß verlinkt Impressum
+
+    def test_datenschutz_und_agb(self):
+        from shop.models import ShopConfig
+        ShopConfig.objects.create(
+            privacy_policy="Wir schützen deine Daten.", terms_agb="Es gelten AGB.")
+        self.assertContains(self.client.get(reverse("privacy")), "schützen")
+        self.assertContains(self.client.get(reverse("terms")), "AGB")
+        # Im Fuß verlinkt, weil gepflegt
+        self.assertContains(self.client.get(reverse("imprint")), reverse("privacy"))
+
+    def test_nicht_freigeschalteter_nutzer_erreicht_impressum(self):
+        from shop.models import ShopConfig
+        ShopConfig.objects.create(coop_name="Re:Hof eG")
+        u = User.objects.create_user("warte9", "warte9@example.org", PW)
+        self.client.force_login(u)   # eingeloggt, aber kein Mitglied
+        self.assertEqual(self.client.get(reverse("imprint")).status_code, 200)

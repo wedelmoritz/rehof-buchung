@@ -55,6 +55,43 @@ class ShopConfig(models.Model):
         help_text="Für den Echtbetrieb (Test-Modus AUS). Ein „test_…“-Key nutzt "
                   "Mollies kostenlose Testumgebung, ein „live_…“-Key die echte Bezahlung.")
 
+    # --- Umsatzsteuer: Kleinunternehmer (§19) vs. Regelbesteuerung (ADR 0041) ---
+    small_business = models.BooleanField(
+        "Kleinunternehmer (§19 UStG)", default=False,
+        help_text="AN: Rechnungen OHNE Umsatzsteuer-Ausweis, mit §19-Hinweis – "
+                  "wähle das, wenn die Genossenschaft unter den Umsatzgrenzen liegt "
+                  "(Vorjahr ≤ 25.000 € und laufendes Jahr ≤ 100.000 €). AUS "
+                  "(Regelbesteuerung): MwSt wird je Satz ausgewiesen (Lebensmittel/"
+                  "Übernachtung 7 %, Dienstleistungen 19 %). Achtung: Bei AN darf KEINE "
+                  "MwSt auf der Rechnung stehen (sonst §14c UStG), bei AUS MUSS sie "
+                  "ausgewiesen werden. Status bitte mit dem Steuerberater klären.")
+    small_business_note = models.CharField(
+        "§19-Hinweis auf der Rechnung", max_length=200,
+        default="Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmer).",
+        help_text="Wird bei aktivem Kleinunternehmer-Modus auf der Rechnung gedruckt.")
+    # --- Angaben fürs Impressum (§5 DDG) und für Rechnungen ---
+    vat_id = models.CharField(
+        "USt-IdNr. (falls vorhanden)", max_length=20, blank=True,
+        help_text="Umsatzsteuer-Identifikationsnummer nach §27a UStG, z. B. DE123456789.")
+    register_court = models.CharField(
+        "Registergericht", max_length=120, blank=True,
+        help_text="Fürs Impressum, z. B. „Amtsgericht Frankfurt (Oder)“.")
+    register_number = models.CharField(
+        "Genossenschaftsregister-Nr.", max_length=40, blank=True,
+        help_text="Fürs Impressum, z. B. „GnR 123“.")
+    imprint_extra = models.TextField(
+        "Impressum – Zusatztext (optional)", blank=True,
+        help_text="Wird unter den Pflichtangaben ausgegeben (z. B. Aufsichtsbehörde, "
+                  "Hinweis zur Streitschlichtung).")
+    privacy_policy = models.TextField(
+        "Datenschutzerklärung", blank=True,
+        help_text="Pflichttext nach DSGVO (Art. 13). Leer = Seite zeigt nur einen "
+                  "Platzhalter samt Kontakt.")
+    terms_agb = models.TextField(
+        "AGB (Anzeigetext)", blank=True,
+        help_text="Allgemeine Geschäftsbedingungen für die Website/Buchungen. "
+                  "Leer = AGB-Seite wird nicht verlinkt.")
+
     class Meta:
         verbose_name = "Hofladen-Einstellungen"
         verbose_name_plural = "Hofladen-Einstellungen"
@@ -262,6 +299,10 @@ class Invoice(models.Model):
     tax_number = models.CharField("Steuernummer", max_length=40, blank=True)
     iban = models.CharField("IBAN", max_length=34, blank=True)
     bic = models.CharField("BIC", max_length=11, blank=True)
+    # USt-Behandlung zum Zeitpunkt der Erstellung festhalten (ADR 0041): so bleibt
+    # eine alte Rechnung stabil, auch wenn der Kleinunternehmer-Status später kippt.
+    small_business = models.BooleanField("Kleinunternehmer (§19)", default=False)
+    tax_note = models.CharField("Steuer-Hinweis", max_length=200, blank=True)
     # Online-Bezahlung (Mollie): leer = per Überweisung beglichen.
     payment_method = models.CharField(
         "Bezahlt über", max_length=20, blank=True,

@@ -53,7 +53,8 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0038](0038-zahlungsanbindung-anzahlung-storno-erstattung.md) | Zahlungsanbindung: Anzahlung und Storno-Erstattung | Proposed |
 | [0039](0039-eingabe-validierung-und-xss-haertung.md) | Eingabe-Validierung der Benutzereingaben und XSS-/Injektions-Härtung | Accepted |
 | [0040](0040-abrechnungsmodell-ohne-tse.md) | Abrechnungsmodell ohne TSE (KassenSichV / §146a AO) | Accepted |
-| [0041](0041-umsatzsteuer-kleinunternehmer-vs-regelbesteuerung.md) | Umsatzsteuer: Kleinunternehmer (§19) vs. Regelbesteuerung | Proposed |
+| [0041](0041-umsatzsteuer-kleinunternehmer-vs-regelbesteuerung.md) | Umsatzsteuer: Kleinunternehmer (§19) vs. Regelbesteuerung | Accepted |
+| [0042](0042-rechtstexte-impressum-datenschutz-agb.md) | Rechtstexte: Impressum, Datenschutz und AGB konfigurierbar | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 
@@ -62,9 +63,11 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
   Wirkbetrieb umzusetzen).
 - **Zahlungsanbindung: Anzahlung & Storno-Erstattung** – siehe ADR 0038 (Voll-
   Bezahlung umgesetzt; Anzahlung informativ, Erstattung manuell).
-- **Umsatzsteuer-Status klären** – siehe ADR 0041. Regelbesteuerung ist umgesetzt;
-  ein **Kleinunternehmer-Modus (§19, ohne MwSt-Ausweis)** ist noch zu bauen und der
-  USt-Status der Genossenschaft vor Go-Live mit dem Steuerberater zu bestätigen.
+- **Umsatzsteuer-Status festlegen** – siehe ADR 0041. Beide Modi (Regelbesteuerung
+  und §19-Kleinunternehmer) sind umgesetzt und im Backend umschaltbar; der konkrete
+  USt-Status der Genossenschaft ist vor Go-Live mit dem Steuerberater zu bestätigen.
+- **Rechtstexte inhaltlich pflegen** – siehe ADR 0042. Impressum/Datenschutz/AGB sind
+  konfigurierbar (Backend); die Texte muss die Genossenschaft vor Go-Live einpflegen.
 
 Die Saison-Regeln (Mindestnächte **und** Parallel-Limit/Aufenthaltsdeckel) gelten
 inzwischen vollständig auch in der Losung – siehe ADR 0009 (kein offener Punkt mehr).
