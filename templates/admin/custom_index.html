@@ -79,7 +79,71 @@
     </ul>
   </div>
 </details>
-{{ block.super }}
+
+{% comment %}Moderne, ruhige Startseite: Suche über ALLE Begriffe + eingeklappte
+Sektionen. Statt der Standard-Tabellen rendern wir die fachlichen Sektionen
+(ADR 0049) als kollabierbare Karten (Default: zu) mit Volltext-Filter (ab 3 Z.).
+{% endcomment %}
+<div class="rehof-search">
+  <input type="search" id="rehof-q" autocomplete="off" spellcheck="false"
+         placeholder="Im Backend suchen … (ab 3 Zeichen, „/“ fokussiert)" aria-label="Backend durchsuchen">
+  <p id="rehof-empty" class="rehof-empty" hidden>Keine Treffer.</p>
+</div>
+
+<div id="rehof-secs">
+  {% for app in app_list %}
+  <details class="module rehof-sec">
+    <summary>{{ app.name }} <span class="rehof-count">{{ app.models|length }}</span></summary>
+    <ul class="rehof-links">
+      {% for model in app.models %}
+      <li class="rehof-link" data-label="{{ model.name|lower }} {{ app.name|lower }}">
+        {% if model.admin_url %}<a class="rehof-name" href="{{ model.admin_url }}">{{ model.name }}</a>
+        {% else %}<span class="rehof-name">{{ model.name }}</span>{% endif %}
+        {% if model.add_url %}<a class="rehof-add" href="{{ model.add_url }}">+ Neu</a>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endfor %}
+</div>
+
+<script>
+(function () {
+  var q = document.getElementById("rehof-q");
+  var empty = document.getElementById("rehof-empty");
+  if (!q) return;
+  var secs = Array.prototype.slice.call(document.querySelectorAll(".rehof-sec"));
+  function reset() {
+    secs.forEach(function (s) {
+      s.open = false; s.hidden = false;
+      s.querySelectorAll(".rehof-link").forEach(function (l) { l.hidden = false; });
+    });
+    if (empty) empty.hidden = true;
+  }
+  q.addEventListener("input", function () {
+    var term = q.value.trim().toLowerCase();
+    if (term.length < 3) { reset(); return; }
+    var any = false;
+    secs.forEach(function (s) {
+      var hits = 0;
+      s.querySelectorAll(".rehof-link").forEach(function (l) {
+        var hit = l.getAttribute("data-label").indexOf(term) !== -1;
+        l.hidden = !hit; if (hit) hits++;
+      });
+      s.hidden = hits === 0; s.open = hits > 0;
+      if (hits > 0) any = true;
+    });
+    if (empty) empty.hidden = any;
+  });
+  // „/" fokussiert die Suche (schneller Zugriff) – aber nicht, während man in
+  // einem anderen Feld tippt. Esc leert die Suche.
+  document.addEventListener("keydown", function (e) {
+    var t = (document.activeElement || {}).tagName || "";
+    if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(t)) { e.preventDefault(); q.focus(); }
+    if (e.key === "Escape" && document.activeElement === q) { q.value = ""; reset(); q.blur(); }
+  });
+})();
+</script>
 {% endblock %}
 
 {% block extrastyle %}{{ block.super }}
@@ -105,5 +169,44 @@
     background: var(--message-success-bg); }
   .rehof-intro .rehof-roles { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px;
     background: var(--selected-bg); }
+
+  /* hidden-Attribut schlägt das display der Flex-/Block-Regeln (sonst bleiben
+     gefilterte Einträge sichtbar). */
+  #rehof-secs [hidden], .rehof-sec[hidden] { display: none !important; }
+  /* Suche */
+  .rehof-search { margin: 0 0 16px; }
+  .rehof-search input { width: 100%; box-sizing: border-box; padding: 11px 14px;
+    font-size: 15px; border: 1px solid var(--border-color); border-radius: 11px;
+    background: var(--body-bg); color: var(--body-fg);
+    box-shadow: 0 1px 2px rgba(60,53,47,.04); }
+  .rehof-search input:focus { outline: 2px solid var(--selected-bg);
+    border-color: var(--secondary); }
+  .rehof-empty { margin: 8px 2px 0; color: var(--body-quiet-color); }
+
+  /* Kollabierbare Sektionen (Default: eingeklappt) */
+  .rehof-sec { margin-bottom: 12px; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--hairline-color);
+    box-shadow: 0 1px 2px rgba(60,53,47,.035), 0 8px 22px rgba(60,53,47,.04); }
+  .rehof-sec > summary { cursor: pointer; list-style: none; padding: 12px 16px;
+    font-size: 13px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--body-loud-color); background: var(--darkened-bg);
+    display: flex; align-items: center; gap: 10px; }
+  .rehof-sec > summary::-webkit-details-marker { display: none; }
+  .rehof-sec > summary::before { content: "▸"; color: var(--body-quiet-color);
+    font-size: 12px; transition: transform .12s ease; }
+  .rehof-sec[open] > summary::before { content: "▾"; }
+  .rehof-sec > summary:hover { background: #efe2d2; }
+  .rehof-count { margin-left: auto; min-width: 22px; text-align: center;
+    padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0; background: var(--selected-bg); color: var(--secondary); }
+  .rehof-links { list-style: none; margin: 0; padding: 6px; }
+  .rehof-link { display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px; }
+  .rehof-link:hover { background: #fbeede; }
+  .rehof-link .rehof-name { font-weight: 600; flex: 1 1 auto; text-decoration: none; }
+  .rehof-link a.rehof-name:hover { text-decoration: underline; }
+  .rehof-link .rehof-add { font-size: 12px; font-weight: 700; color: var(--secondary);
+    text-decoration: none; opacity: .85; }
+  .rehof-link .rehof-add:hover { opacity: 1; text-decoration: underline; }
 </style>
 {% endblock %}

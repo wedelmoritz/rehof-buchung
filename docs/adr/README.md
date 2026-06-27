@@ -61,6 +61,7 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0046](0046-observability-logging-sentry-healthcheck.md) | Observability: strukturiertes Logging, Sentry und Health-Endpoint | Accepted |
 | [0047](0047-e2e-tests-prod-naher-stack.md) | End-to-End-Tests gegen einen prod-nahen Docker-Stack | Accepted |
 | [0048](0048-uv-und-typcheck-reine-logik.md) | uv als Entwickler-Werkzeug und mypy auf der reinen Logik | Accepted |
+| [0049](0049-backend-fachliche-gliederung.md) | Backend: fachliche Gliederung statt App-Gruppierung | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

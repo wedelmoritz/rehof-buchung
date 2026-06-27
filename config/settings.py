@@ -38,7 +38,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    # Fachlich gegliederte Admin-Site (ADR 0049) statt "django.contrib.admin".
+    "booking.admin_apps.RehofAdminConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

@@ -400,6 +400,17 @@ class Invoice(models.Model):
         )
 
 
+class ExternalInvoice(Invoice):
+    """Proxy auf `Invoice` für die **Rechnungen externer Gäste-Buchungen** – damit
+    sie im Backend unter „Quartiere & Buchungssystem" getrennt von den Hofladen-
+    Rechnungen (Mitglieder) erscheinen. Gleiche Tabelle, nur gefiltert/eigene
+    Admin-Ansicht (ADR 0049)."""
+    class Meta:
+        proxy = True
+        verbose_name = "Rechnung (externe Buchung)"
+        verbose_name_plural = "Rechnungen (externe Buchungen)"
+
+
 class Payment(models.Model):
     """Eine Online-Bezahlung (Mollie) zu einer Rechnung – für Mitglieder UND
     externe Gäste, da beide eine `Invoice` haben. `token` ist die fälschungs-

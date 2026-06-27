@@ -26,8 +26,8 @@
 {% endif %}
 
 <div class="card">
-  <p class="muted" style="margin-top:0">Du hast <strong>{{ nights_remaining }}</strong> Tage verfügbar.
-    Stelle Personenzahl und Merkmale ein, wähle dann im Kalender Anreise (1. Klick) und Abreise (2. Klick).</p>
+  <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage verfügbar.
+    Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
   <form method="get" class="filters">
     <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
     {% if sel_start %}<input type="hidden" name="start" value="{{ sel_start|date:'Y-m-d' }}">{% endif %}
@@ -96,25 +96,23 @@
 </div>
 
 <div class="card">
-  <strong>Oder Zeitraum direkt eingeben</strong>
-  <form method="get" data-ajax class="filters" style="margin-top:.5rem">
-    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-    <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
-    <label class="pers">Anreise <input type="date" name="start" value="{{ sel_start|date:'Y-m-d' }}"></label>
-    <label class="pers">Abreise <input type="date" name="end" value="{{ sel_end|date:'Y-m-d' }}"></label>
-    <button class="btn small" type="submit">Übernehmen</button>
-  </form>
-  <p class="muted" style="margin:.4rem 0 0">Praktisch für Zeiträume über einen Monatswechsel hinweg.</p>
+  <details class="explain">
+    <summary>Zeitraum direkt eingeben (auch über einen Monatswechsel)</summary>
+    <form method="get" data-ajax class="filters" style="margin-top:.5rem">
+      <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+      <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
+      <label class="pers">Anreise <input type="date" name="start" value="{{ sel_start|date:'Y-m-d' }}"></label>
+      <label class="pers">Abreise <input type="date" name="end" value="{{ sel_end|date:'Y-m-d' }}"></label>
+      <button class="btn small" type="submit">Übernehmen</button>
+    </form>
+  </details>
 </div>
 
 {% if sel_start %}
 <div class="card">
   <div style="display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap">
     <h2 style="margin:0">Auswahl</h2>
-    <span>Anreise <strong>{{ eff_start }}</strong>
-      {% if sel_end %}&ndash; Abreise <strong>{{ eff_end }}</strong> ({{ nights_selected }} Nächte){% else %}
-      &ndash; <span class="muted">jetzt Abreisetag wählen (oder 1 Nacht buchen)</span>{% endif %}
-      · {{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}</span>
+    <span class="muted">{{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}{% if not sel_end %} · jetzt Abreisetag wählen (oder 1 Nacht){% endif %}</span>
     <a class="btn small ghost" data-ajax style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
   </div>
 

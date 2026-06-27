@@ -2,11 +2,8 @@
 {% block title %}Übersicht{% endblock %}
 {% block content %}
 <h1>Übersicht – wer ist wann da</h1>
-<p class="muted" style="margin-top:-.3rem">Deine Startseite: Hier siehst du auf einen
-  Blick, wer wann in welchem Quartier ist. Selbst <a href="{% url 'book' %}">buchen</a>,
-  <a href="{% url 'wishlist' %}">Wünsche</a> fürs Losverfahren eintragen oder den
-  <a href="{% url 'shop_index' %}">Hofladen</a> nutzt du über die Navigation
-  (links bzw. unten am Bildschirmrand).</p>
+<p class="muted" style="margin-top:-.3rem">Tippe einen Tag für Details – oder
+  <a href="{% url 'book' %}">buche selbst</a>.</p>
 
 {% include "booking/_notifications.html" %}
 
@@ -29,8 +26,8 @@
   {% include "booking/_calnav.html" %}
 
   {% if view_mode == 'timeline' %}
-  <p class="muted" style="margin:.2rem 0 .5rem">Pro Unterkunft eine Zeile – die Balken
-    zeigen, von wann bis wann jemand da ist. Balken anklicken für die Tagesansicht.</p>
+  <p class="muted" style="margin:.2rem 0 .5rem">Pro Unterkunft eine Zeile; Balken
+    anklicken für die Tagesansicht.</p>
   <div class="occ" tabindex="0" aria-label="Belegungs-Zeitstrahl pro Unterkunft">
     <div class="occ-table" style="--days:{{ timeline.days_in_month }}">
       <div class="occ-row occ-header">
@@ -62,10 +59,8 @@
     </div>
   </div>
   {% else %}
-  <p class="muted" style="margin:.2rem 0 .5rem">Jede Farbe steht für ein Mitglied
-    (Legende unten). Tippe einen Tag an, um zu sehen, <strong>wer da ist und was
-    noch frei ist</strong>. Mit „Belegung" siehst du je Unterkunft, von wann bis
-    wann jemand da ist.</p>
+  <p class="muted" style="margin:.2rem 0 .5rem">Farbe = Mitglied (Legende unten).
+    Tippe einen Tag für <strong>wer da ist und was frei ist</strong>.</p>
   <table class="cal community-cal">
     <thead><tr>
       <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
@@ -118,7 +113,6 @@
     {% for h in cal.holidays %}{{ h.name }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
   </p>
   {% endif %}
-  <p class="muted" style="margin:.5rem 0 0">Tipp: Auf einen Tag klicken zeigt unten, wer da ist und was noch frei ist.</p>
 </div>
 
 {% if sel_day %}

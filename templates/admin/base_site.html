@@ -55,9 +55,15 @@
   }
   /* Kopfzeile abrunden/auflockern */
   #header { border-bottom: 1px solid #e6d8c6; }
-  #branding h1, #branding h1 a:link, #branding h1 a:visited { color: var(--header-branding-color); font-weight: 800; }
+  #branding h1, #branding h1 a:link, #branding h1 a:visited,
+  #site-name a:link, #site-name a:visited { color: var(--header-branding-color); font-weight: 800; }
   div.breadcrumbs { border-bottom: 1px solid #e6d8c6; }
-  .module h2, .module caption, .inline-group h2 { border-radius: 6px 6px 0 0; }
-  .button, input[type=submit], input[type=button], .submit-row input, a.button { border-radius: 8px; }
+  /* Mehr Ruhe: Module mit weichem Schatten + abgerundet, etwas Luft dazwischen. */
+  .module { border-radius: 12px; overflow: hidden; margin-bottom: 1.1rem;
+    box-shadow: 0 1px 2px rgba(60,53,47,.035), 0 8px 22px rgba(60,53,47,.04); }
+  .module h2, .module caption, .inline-group h2 { border-radius: 0; letter-spacing: .01em; }
+  .button, input[type=submit], input[type=button], .submit-row input, a.button { border-radius: 9px; }
+  .object-tools a { border-radius: 9px; }
+  #content-main .module table tbody tr:hover { background: #fbeede; }
 </style>
 {% endblock %}
