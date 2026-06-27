@@ -244,6 +244,11 @@ Stammdaten der Genossenschaft im `ShopConfig`-Singleton („Hofladen-Einstellung
 `payment_term_days` + NEU `board` (Vorstand) und `contact_email`; editierbar nur im
 Django-Admin = Admin-Rolle). Geldlogik/Tests in
 `shop/services.py` bzw. `shop/tests.py`.
+**Steuer-/Kassenrecht:** Abrechnung bewusst **ohne TSE** (keine Vor-Ort-Zahlung →
+keine Kassenfunktion nach KassenSichV/§146a AO, ADR 0040). **Umsatzsteuer** heute
+Regelbesteuerung (per-Artikel `vat_rate`, Beherbergung 7 % / Zusatz 19 %); ein
+**Kleinunternehmer-Modus (§19, ohne MwSt-Ausweis)** ist offen und der USt-Status vor
+Go-Live mit dem Steuerberater zu klären (ADR 0041). Keine Rechtsberatung.
 **Online-Bezahlung (Mollie, EIN System für Hofladen UND externe Gäste):** auf
 `Invoice`-Ebene (Mitglied wie Gast haben eine `Invoice`). Reine Naht in
 `shop/payments.py` (`start_payment`/`settle_payment`/`cancel_payment`,

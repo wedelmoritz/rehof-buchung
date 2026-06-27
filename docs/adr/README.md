@@ -52,6 +52,8 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0037](0037-backup-haertung-zurueckgestellt.md) | Backup und weiteres Hardening bewusst zurückgestellt | Proposed |
 | [0038](0038-zahlungsanbindung-anzahlung-storno-erstattung.md) | Zahlungsanbindung: Anzahlung und Storno-Erstattung | Proposed |
 | [0039](0039-eingabe-validierung-und-xss-haertung.md) | Eingabe-Validierung der Benutzereingaben und XSS-/Injektions-Härtung | Accepted |
+| [0040](0040-abrechnungsmodell-ohne-tse.md) | Abrechnungsmodell ohne TSE (KassenSichV / §146a AO) | Accepted |
+| [0041](0041-umsatzsteuer-kleinunternehmer-vs-regelbesteuerung.md) | Umsatzsteuer: Kleinunternehmer (§19) vs. Regelbesteuerung | Proposed |
 
 ## Offene Punkte (in ADRs markiert)
 
@@ -60,6 +62,9 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
   Wirkbetrieb umzusetzen).
 - **Zahlungsanbindung: Anzahlung & Storno-Erstattung** – siehe ADR 0038 (Voll-
   Bezahlung umgesetzt; Anzahlung informativ, Erstattung manuell).
+- **Umsatzsteuer-Status klären** – siehe ADR 0041. Regelbesteuerung ist umgesetzt;
+  ein **Kleinunternehmer-Modus (§19, ohne MwSt-Ausweis)** ist noch zu bauen und der
+  USt-Status der Genossenschaft vor Go-Live mit dem Steuerberater zu bestätigen.
 
 Die Saison-Regeln (Mindestnächte **und** Parallel-Limit/Aufenthaltsdeckel) gelten
 inzwischen vollständig auch in der Losung – siehe ADR 0009 (kein offener Punkt mehr).

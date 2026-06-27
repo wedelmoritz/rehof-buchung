@@ -33,6 +33,9 @@ eigenem Admin, denselben Webapp-/Login-Mechanismen und einer klaren Geld-Schicht
   `purchase_service` direkt als bestätigter Einkauf.
 - **Stammdaten** im Singleton `ShopConfig` (Name, Anschrift, IBAN, Präfix,
   Zahlungsziel) – editierbar nur im Backend (Admin-Rolle).
+- **Steuer-/Kassenrecht:** Das Abrechnungsmodell ist bewusst **ohne TSE** (keine
+  Vor-Ort-Zahlung, siehe ADR 0040); die Umsatzsteuer-Behandlung (Regelbesteuerung
+  vs. §19-Kleinunternehmer) ist in ADR 0041 geklärt/offen.
 
 ## Betrachtete Alternativen
 
