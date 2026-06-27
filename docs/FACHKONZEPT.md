@@ -317,6 +317,10 @@ und Kassenfrage vor Go-Live mit Steuerberatung klären – keine Rechtsberatung.
 Eine Person erhält die Verwaltungs-Rolle, indem sie der Gruppe „Verwaltung"
 zugeordnet wird. Admin = Django-Superuser.
 
+**Konto-Anlage:** Vom Backend oder per Beds24-Import angelegte Benutzer **vergeben
+ihr Passwort selbst** über einen Einladungs-Link per E-Mail – Admins setzen kein
+Passwort. Die E-Mail-Adresse ist dafür Pflicht (und zugleich der Login).
+
 ---
 
 ## 15. Recht & Datenschutz
@@ -351,6 +355,8 @@ Rechnungs-Snapshots bleiben erhalten.
 Mitglieder werden über relevante Ereignisse informiert – **In-App** (immer), per
 **E-Mail** (Opt-out je Mitglied) und optional als **Web-Push** (Opt-in je Gerät):
 
+- **Konto angelegt** – Einladung, das **Passwort selbst zu setzen** (neue Konten
+  aus Backend/Import; Admins vergeben kein Passwort, § 14),
 - **Losergebnis** (nach Bestätigung der Losung, § 7),
 - **Wartelisten-Platz frei** / **spontan frei** (§ 10),
 - **Rechnung erstellt**, **Zahlungseingang bestätigt** (§ 13),

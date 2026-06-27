@@ -23,7 +23,36 @@
 </div>
 
 <div class="card">
-  <h2 style="margin-top:0">Anmeldedaten</h2>
+  <h2 style="margin-top:0">Benachrichtigungen</h2>
+  <p class="muted" style="margin-top:0"><strong>In-App</strong> (auf der Übersicht)
+    bekommst du wichtige Hinweise immer. Zusätzlich kannst du sie per
+    <strong>E-Mail</strong> und – auf diesem Gerät – per <strong>Push</strong> erhalten.</p>
+
+  <h3>E-Mail</h3>
+  <form method="post" data-no-ajax style="display:flex;gap:.7rem;align-items:center;flex-wrap:wrap">{% csrf_token %}
+    <input type="hidden" name="action" value="notify_prefs">
+    <label class="opt"><input type="checkbox" name="email_opt_in" {% if member.email_opt_in %}checked{% endif %}>
+      E-Mail-Benachrichtigungen erhalten (Losergebnis, Wartelisten-Platz, Rechnung …)</label>
+    <button class="btn small" type="submit">Speichern</button>
+  </form>
+
+  <h3 style="margin-top:1.1rem">Push (dieses Gerät)</h3>
+  {% if push_enabled %}
+  <div id="push-card">
+    <p class="muted" style="margin-top:0">Direkt aufs Gerät – auch wenn die App
+      geschlossen ist. Jederzeit wieder abschaltbar.</p>
+    <p id="push-state" class="muted" style="margin:.2rem 0">Status wird geprüft …</p>
+    <button class="btn" type="button" id="push-toggle" disabled>Bitte warten …</button>
+    <p class="muted" id="push-hint" style="font-size:.85rem;margin:.5rem 0 0"></p>
+  </div>
+  {% else %}
+  <p class="muted" style="margin:0">Push-Benachrichtigungen sind auf diesem Server
+    nicht aktiviert.</p>
+  {% endif %}
+</div>
+
+<details class="card">
+  <summary style="cursor:pointer;font-weight:600">Anmeldedaten ändern (E-Mail / Passwort)</summary>
 
   <h3>E-Mail ändern</h3>
   <p class="muted" style="margin-top:0">Deine E-Mail ist zugleich dein Login. Nach
@@ -31,7 +60,7 @@
     funktioniert dann nicht mehr. Zur Bestätigung genügt dein
     <strong>aktuelles</strong> Passwort – ein neues musst du nur setzen, wenn du
     möchtest (Abschnitt unten).</p>
-  <form method="post" data-no-ajax>{% csrf_token %}
+  <form method="post" data-no-ajax autocomplete="off">{% csrf_token %}
     <input type="hidden" name="action" value="change_email">
     {% for f in email_form %}
     <div class="field">
@@ -43,7 +72,7 @@
   </form>
 
   <h3 style="margin-top:1.2rem">Passwort ändern</h3>
-  <form method="post" data-no-ajax>{% csrf_token %}
+  <form method="post" data-no-ajax autocomplete="off">{% csrf_token %}
     <input type="hidden" name="action" value="change_password">
     {% for f in pw_form %}
     <div class="field">
@@ -54,18 +83,9 @@
     {% endfor %}
     <button class="btn" type="submit" style="margin-top:.4rem">Passwort ändern</button>
   </form>
-</div>
+</details>
 
 {% if push_enabled %}
-<div class="card" id="push-card">
-  <h2 style="margin-top:0">Push-Benachrichtigungen (mobil)</h2>
-  <p class="muted" style="margin-top:0">Erhalte wichtige Hinweise (Losergebnis,
-    Wartelisten-Platz frei, Rechnung) direkt aufs Gerät – auch wenn die App
-    geschlossen ist. Du kannst sie jederzeit wieder abschalten.</p>
-  <p id="push-state" class="muted" style="margin:.2rem 0">Status wird geprüft …</p>
-  <button class="btn" type="button" id="push-toggle" disabled>Bitte warten …</button>
-  <p class="muted" id="push-hint" style="font-size:.85rem;margin:.5rem 0 0"></p>
-</div>
 <script>
 (function () {
   var card = document.getElementById("push-card");

@@ -192,11 +192,21 @@ für Massenmails. Provider-neutral über `EMAIL_*`/`PUBLIC_BASE_URL` (ohne
 `EMAIL_HOST` → Konsole). Ereignisse: Losergebnis, Wartelisten-Platz frei,
 Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
 Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
-das Mitglied selbst unter `profile`; dort kann es auch **E-Mail (= Login, folgt
-der E-Mail; eindeutig pro Konto) und Passwort** ändern (`EmailChangeForm` +
+das Mitglied selbst unter `profile`. Eigene Karte **„Benachrichtigungen“** bündelt
+die Kanäle: **In-App** (immer), **E-Mail** (`email_opt_in`, Aktion `notify_prefs` –
+getrennt aus der Profil-Form gelöst) und **Push** je Gerät (Toggle wenn
+`push_enabled`, sonst Hinweis „nicht aktiviert“). Die **Anmeldedaten** (E-Mail/
+Passwort ändern) stehen in einem **eingeklappten `<details>`** mit `autocomplete="off"`
+– so springt Safari nicht beim Laden auf das Passwortfeld / den Mac-Passwortmanager.
+Dort ändert das Mitglied **E-Mail (= Login, folgt
+der E-Mail; eindeutig pro Konto) und Passwort** (`EmailChangeForm` +
 Djangos `PasswordChangeForm`, `update_session_auth_hash` hält die Sitzung). Der
 E-Mail-Wechsel wird mit dem **aktuellen Passwort** bestätigt (kein neues nötig);
-ein neues Passwort setzt man nur, wenn man will.
+ein neues Passwort setzt man nur, wenn man will. **Neue Konten setzen ihr Passwort
+selbst:** vom Backend oder Beds24-Import angelegte Benutzer vergeben kein Passwort
+durch Admins, sondern bekommen per Mail einen **Einladungs-Link**
+(`services.send_account_invite`, Views `password_set_confirm`/`password_set_done` auf
+Basis von Djangos Reset-Token; ADR 0052).
 Die frühere `membership_number` (Mitgliedsnummer) wurde als ungenutzt **entfernt**
 (Datensparsamkeit; sie floss nirgends in Rechnung/Export/PDF). Eine `help`-Seite erklärt Abläufe und die
 Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
@@ -216,7 +226,10 @@ Wunsch-Losung mit Feiertags-Ballung, offene Hofladen-Rechnungen, davon
 15 externe Mo–Fr-Buchungen; Losung NICHT gezogen). **Verwaltung
 vereinfacht:** ein Benutzer trägt Login **und** Mitglieds-Profil in einem
 Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
-ausgeblendet (nur Autocomplete). Tage-Anteile werden am `Membership` zugeordnet.
+ausgeblendet (nur Autocomplete). **Anlegen ohne Passwort:** das Add-Formular
+(`AdminUserInviteForm`) verlangt nur Benutzername + **E-Mail (Pflicht)**; beim
+Speichern geht automatisch die „Passwort setzen“-Einladung raus (ADR 0052), plus
+Admin-Aktion „Einladung erneut senden“. Tage-Anteile werden am `Membership` zugeordnet.
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
 **PWA / Mobil:** Die Web-App ist installierbar (iOS „Zum Home-Bildschirm“,
@@ -239,7 +252,9 @@ POSTs offline fängt der AJAX-Layer mit Hinweis-Toast ab. **Web-Push
 (`services.send_web_push` via pywebpush, best-effort über `transaction.on_commit`,
 tote Abos werden entfernt). VAPID-Keys per Env (`VAPID_*`, erzeugen mit
 `manage.py vapid_keys`); **ohne Keys ist Push aus** (`settings.PUSH_ENABLED`, wie
-Mollie-Sandbox). Opt-in-Knopf im Profil (`window.__rehofPush`), Endpunkte
+Mollie-Sandbox). Opt-in-Knopf im Profil (`window.__rehofPush`, in der
+„Benachrichtigungen“-Karte neben dem E-Mail-Schalter; ohne `push_enabled` ein
+Hinweis statt Knopf), Endpunkte
 `push_subscribe`/`push_unsubscribe`; SW-`push`/`notificationclick` in `sw.js`.
 **Navigation:** Icons als
 einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
@@ -378,9 +393,18 @@ Django-frei testbar). Service `services.beds24_stage` (parst + legt `Beds24Impor
 mit `Beds24ImportRow`-Zeilen an und hängt Vorschläge Mitglied/Quartier an),
 `beds24_apply` (übernimmt abgeglichene Zeilen als `Allocation`, Quelle **„import"**,
 **ohne** Rechnung – diese Buchungen sind immer bezahlt; idempotent/dedupe) und
-`beds24_create_member` (legt für nicht zuordenbare Gäste ein Mitglied + Anteil an).
+`beds24_create_member` (legt für nicht zuordenbare Gäste ein Mitglied + Anteil an;
+mit **E-Mail** geht automatisch die Passwort-Einladung raus, ADR 0052).
 Gäste tippen ihre Namen bei Beds24 frei → es gibt **nur Vorschläge**, der Abgleich
 ist **manuell** (Review-Seite mit Mitglied-/Quartier-Dropdown + „+ Mitglied"-Knopf).
+**E-Mail als Anker:** die Gast-E-Mail aus dem Export wird je Zeile gespeichert
+(`Beds24ImportRow.email`) und ist der **stärkste** Treffer (Score 1,0, vorausgewählt,
+wenn sie ein bestehendes Konto trifft), sonst greift der Namensabgleich. Neben der
+Treffer-Ampel zeigt der Abgleich zwei weitere Hinweise (`services.beds24_row_checks`,
+nur Anzeige, **nicht blockierend**): **Verfügbarkeit** des Quartiers im Zeitraum
+(🟢 frei / 🔴 belegt, `quarter_is_free`) und eine **Regel-Warnung** (Mindestaufenthalt,
+⚠️). Aktion je Zeile: **übernehmen** (Buchung anlegen) · **überspringen** (verwerfen,
+bleibt vermerkt) · **offen** (noch nichts tun).
 Der Import wird i. d. R. nur einmalig beim Umzug gebraucht und ist über
 `OpsConfig.beds24_import_enabled` (Betriebs-Einstellungen, Abschnitt
 „Beds24-Migration“) **abschaltbar** – ausgeschaltet ist der Assistent im

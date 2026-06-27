@@ -730,6 +730,12 @@ def profile(request):
                 update_session_auth_hash(request, user)
                 messages.success(request, "Passwort geändert.")
                 return redirect("profile")
+        elif action == "notify_prefs":
+            # E-Mail-Benachrichtigungen an/aus (Checkbox). In-App bleibt immer an.
+            member.email_opt_in = bool(request.POST.get("email_opt_in"))
+            member.save(update_fields=["email_opt_in"])
+            messages.success(request, "Benachrichtigungs-Einstellung gespeichert.")
+            return redirect("profile")
         else:
             form = ProfileForm(request.POST, instance=member)
             if form.is_valid():
@@ -1133,12 +1139,15 @@ def beds24_import(request):
         if action == "create_member":
             row = get_object_or_404(Beds24ImportRow, id=request.POST.get("row"),
                                     batch=batch)
-            member = svc.beds24_create_member(row.guest_name,
-                                              row.raw.get("email", "") if row.raw else "")
+            row_email = row.email or (row.raw.get("email", "") if row.raw else "")
+            member = svc.beds24_create_member(row.guest_name, row_email)
             row.chosen_member = member
             row.save(update_fields=["chosen_member"])
+            extra = (" Eine Einladung zum Passwort-Setzen ist unterwegs."
+                     if row_email else
+                     " Hinweis: ohne E-Mail kann die Person noch kein Passwort setzen.")
             messages.success(request, f"Mitglied „{member.display_name}“ angelegt "
-                                      "und der Zeile zugeordnet.")
+                                      "und der Zeile zugeordnet." + extra)
             return redirect(f"{reverse('beds24_import')}?batch={batch.id}")
         if action == "apply":
             decisions = {}
@@ -1170,11 +1179,18 @@ def beds24_import(request):
     if batch:
         members = list(Member.objects.select_related("user").order_by("display_name"))
         quarters = list(Quarter.objects.order_by("name"))
+        rows = list(batch.rows.select_related(
+            "suggested_member", "suggested_quarter",
+            "chosen_member", "chosen_quarter").all())
+        # Zusatz-Ampeln (Verfügbarkeit) + Regel-Warnung je Zeile annotieren.
+        checks = svc.beds24_row_checks(batch)
+        for r in rows:
+            c = checks.get(r.id, {})
+            r.free = c.get("free")
+            r.conflict = c.get("conflict", "")
+            r.rule_warning = c.get("rule_warning", "")
         context.update({
-            "batch": batch,
-            "rows": list(batch.rows.select_related(
-                "suggested_member", "suggested_quarter",
-                "chosen_member", "chosen_quarter").all()),
+            "batch": batch, "rows": rows,
             "members": members, "quarters": quarters})
     return render(request, "booking/beds24_import.html", context)
 

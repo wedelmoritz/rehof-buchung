@@ -11,8 +11,18 @@ from ..models import (
 
 __all__ = [
     '_beds24_member_candidates', '_beds24_quarter_candidates',
-    'beds24_stage', 'beds24_create_member', 'beds24_apply',
+    'beds24_stage', 'beds24_create_member', 'beds24_apply', 'beds24_row_checks',
 ]
+
+
+def _member_by_email_map():
+    """E-Mail (klein) → Mitglied, für den sicheren Abgleich über die Adresse."""
+    out = {}
+    for m in Member.objects.select_related("user").all():
+        e = ((m.user.email or "").strip().lower()) if m.user_id else ""
+        if e:
+            out[e] = m
+    return out
 
 def _beds24_member_candidates():
     """Mitglieder als Match-Kandidaten mit allen Namensvarianten."""
@@ -44,43 +54,81 @@ def beds24_stage(data: str, filename: str):
                                         n_rows=len(rows))
     mcands = _beds24_member_candidates()
     qcands = _beds24_quarter_candidates()
+    email_map = _member_by_email_map()
     for r in rows:
-        mranked = beds24.rank_candidates(r.guest_name, mcands, limit=1)
-        sug_m_id, score = (mranked[0] if mranked else (None, 0.0))
-        sug_m = Member.objects.filter(id=sug_m_id).first() if sug_m_id else None
+        row_email = (getattr(r, "email", "") or "").strip()
+        # E-Mail ist der stärkste Anker: trifft sie ein bestehendes Konto, ist das
+        # ein sicherer Treffer (1.0) – sonst der unscharfe Namensabgleich.
+        m_by_email = email_map.get(row_email.lower()) if row_email else None
+        if m_by_email is not None:
+            sug_m, score = m_by_email, 1.0
+        else:
+            mranked = beds24.rank_candidates(r.guest_name, mcands, limit=1)
+            sug_m_id, score = (mranked[0] if mranked else (None, 0.0))
+            sug_m = Member.objects.filter(id=sug_m_id).first() if sug_m_id else None
         qranked = (beds24.rank_candidates(r.unit, qcands, limit=1, min_score=0.3)
                    if r.unit else [])
         sug_q = (Quarter.objects.filter(id=qranked[0][0]).first()
                  if qranked else None)
         Beds24ImportRow.objects.create(
-            batch=batch, guest_name=r.guest_name[:200], arrival=r.arrival,
+            batch=batch, guest_name=r.guest_name[:200], email=row_email[:254],
+            arrival=r.arrival,
             departure=r.departure, unit=r.unit[:200], persons=r.persons or 1,
             ref=r.ref[:80], raw=r.raw,
             suggested_member=sug_m, suggested_score=score, suggested_quarter=sug_q,
-            # Sehr sicherer Namens-Treffer wird vorausgewählt, sonst manuell.
+            # Sehr sicherer Treffer (E-Mail oder sehr guter Name) wird vorausgewählt.
             chosen_member=sug_m if score >= 0.7 else None,
             chosen_quarter=sug_q,
             note="" if r.valid else "Ungültige Zeile (Name/Datum prüfen)")
     return batch
 
 
+def beds24_row_checks(batch) -> dict:
+    """Zusatz-Ampeln je Zeile (nur Anzeige, blockiert den Import NICHT):
+    **Verfügbarkeit** des (gewählten/vorgeschlagenen) Quartiers im Zeitraum und eine
+    **Regel-Warnung** (Mindestaufenthalt). Liefert `{row_id: {...}}`."""
+    from .slots import quarter_is_free, min_nights_for_range
+    out = {}
+    for row in batch.rows.all():
+        quarter = row.chosen_quarter or row.suggested_quarter
+        free = None       # None = nicht beurteilbar (kein Quartier/Datum)
+        conflict = ""
+        rule_warning = ""
+        if quarter and row.arrival and row.departure and row.departure > row.arrival:
+            free = quarter_is_free(quarter, row.arrival, row.departure)
+            if not free:
+                conflict = "Zeitraum bereits belegt"
+            nights = (row.departure - row.arrival).days
+            need = min_nights_for_range(row.arrival, row.departure)
+            if nights < need:
+                rule_warning = f"Mindestaufenthalt {need} Nächte unterschritten"
+        out[row.id] = {"free": free, "conflict": conflict,
+                       "rule_warning": rule_warning}
+    return out
+
+
 def beds24_create_member(guest_name: str, email: str = "") -> Member:
     """Legt für einen nicht zuordenbaren Gastnamen ein neues Mitglied an
     (Login-Konto ohne Passwort + Voll-Anteil 50 Tage). Für den „Mitglied
-    anlegen"-Knopf im Abgleich."""
+    anlegen"-Knopf im Abgleich. Liegt eine **E-Mail** vor (idealer Anker aus dem
+    Beds24-Export), bekommt die Person automatisch eine „Passwort setzen"-Einladung."""
     import re
     from django.contrib.auth.models import User
     from ..models import Membership, Share
+    email = (email or "").strip()
     base = re.sub(r"[^a-z0-9]+", "", (guest_name or "").lower()) or "gast"
     base = base[:24]
     uname, i = base, 1
     while User.objects.filter(username=uname).exists():
         i += 1
         uname = f"{base}{i}"
-    user = User.objects.create(username=uname, email=(email or "").strip(),
+    user = User.objects.create(username=uname, email=email,
                                first_name=guest_name[:30])
     user.set_unusable_password()
     user.save()
+    if email:
+        from .notify import send_account_invite
+        send_account_invite(user)
     member = Member.objects.create(
         user=user, display_name=guest_name[:120], legal_name=guest_name[:160])
     ms = Membership.objects.create(
