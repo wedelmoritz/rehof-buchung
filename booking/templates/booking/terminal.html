@@ -1,0 +1,424 @@
+{% load static %}<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Hofladen-Terminal</title>
+<link rel="manifest" href="{% static 'booking/manifest.webmanifest' %}">
+<style>
+  :root{ --bg:#f7f1e8; --fg:#2f2a25; --muted:#7c726a; --line:#e3d8c8;
+    --accent:#3f7d4f; --accent-d:#2f6a40; --warn:#b23b2e; --card:#fff; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{ background:var(--bg); color:var(--fg);
+    font:20px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-text-size-adjust:100%; }
+  .wrap{ max-width:1000px; margin:0 auto; padding:18px; min-height:100%;
+    display:flex; flex-direction:column; }
+  h1{ font-size:2rem; margin:.2em 0 .4em; }
+  h2{ font-size:1.5rem; margin:.2em 0; }
+  .big{ font-size:1.4rem; }
+  button{ font:inherit; cursor:pointer; }
+  .btn{ border:0; border-radius:16px; background:var(--accent); color:#fff;
+    font-weight:700; padding:18px 22px; font-size:1.25rem; min-height:64px; }
+  .btn:active{ transform:translateY(1px); }
+  .btn.big{ width:100%; font-size:1.5rem; padding:24px; }
+  .btn.ghost{ background:#fff; color:var(--fg); border:2px solid var(--line); }
+  .btn.warn{ background:var(--warn); }
+  .muted{ color:var(--muted); }
+  .screen{ display:none; flex:1; flex-direction:column; }
+  .screen.on{ display:flex; }
+  /* Namensliste */
+  .names{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+    gap:14px; margin-top:10px; }
+  .names button{ background:#fff; border:2px solid var(--line); border-radius:16px;
+    padding:22px 18px; font-size:1.5rem; font-weight:700; color:var(--fg);
+    text-align:left; }
+  /* PIN */
+  .pindots{ font-size:2.6rem; letter-spacing:.3em; text-align:center; min-height:1.4em; }
+  .keypad{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+    max-width:420px; margin:10px auto; }
+  .keypad button{ background:#fff; border:2px solid var(--line); border-radius:16px;
+    font-size:2rem; font-weight:700; padding:20px 0; color:var(--fg); }
+  /* Shop */
+  .group-title{ font-size:1.3rem; font-weight:800; margin:18px 0 8px; }
+  .products{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    gap:14px; }
+  .product{ background:#fff; border:2px solid var(--line); border-radius:16px;
+    padding:16px; display:flex; flex-direction:column; gap:6px; }
+  .product .pn{ font-size:1.3rem; font-weight:700; }
+  .product .pp{ font-size:1.2rem; color:var(--accent-d); font-weight:700; }
+  .product .add{ margin-top:auto; }
+  .emoji{ font-size:2rem; }
+  /* Warenkorb */
+  .cartbar{ position:sticky; bottom:0; background:var(--bg); padding-top:12px;
+    border-top:2px solid var(--line); margin-top:18px; }
+  .cartline{ display:flex; align-items:center; gap:12px; padding:8px 0;
+    border-bottom:1px solid var(--line); font-size:1.2rem; }
+  .qbtn{ width:54px; height:54px; border-radius:12px; border:2px solid var(--line);
+    background:#fff; font-size:1.6rem; font-weight:800; }
+  .total{ font-size:1.8rem; font-weight:800; }
+  .row{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  .spacer{ flex:1; }
+  .foot{ margin-top:14px; font-size:1rem; }
+  .pill{ display:inline-block; padding:4px 12px; border-radius:999px;
+    background:#fff; border:1px solid var(--line); }
+  .center{ text-align:center; }
+  .shake{ animation:sh .3s; }
+  @keyframes sh{ 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  input[type=text]{ font:inherit; padding:14px; border:2px solid var(--line);
+    border-radius:12px; width:100%; }
+  a.link{ color:var(--accent-d); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- EINRICHTEN (nur einmalig, durch die Verwaltung) -->
+  <section id="s-setup" class="screen">
+    <h1>Terminal einrichten</h1>
+    <p class="muted big">Dieses Gerät ist noch nicht eingerichtet. Bitte das
+      <strong>Geräte-Token</strong> aus dem Backend (Hofladen-Terminal-Einstellungen)
+      eingeben. Das macht die Verwaltung einmalig bei bestehender Internet-Verbindung.</p>
+    <input type="text" id="tokenInput" placeholder="Token einfügen" autocomplete="off">
+    <p id="setupMsg" class="warn" style="color:var(--warn)"></p>
+    <button class="btn big" id="setupSave">Speichern &amp; laden</button>
+  </section>
+
+  <!-- ANMELDEN: Name wählen -->
+  <section id="s-names" class="screen">
+    <h1>🛒 Hofladen</h1>
+    <h2 class="muted">Tippe auf deinen Namen</h2>
+    <div class="names" id="names"></div>
+    <p id="namesEmpty" class="muted big" style="display:none">Noch keine
+      freigeschalteten Konten. Die Verwaltung gibt Konten frei.</p>
+  </section>
+
+  <!-- ANMELDEN: PIN -->
+  <section id="s-pin" class="screen">
+    <h1 id="pinHi">Hallo</h1>
+    <h2 class="muted">Bitte gib deine 6-stellige PIN ein</h2>
+    <div class="pindots" id="pinDots"></div>
+    <p id="pinMsg" class="center" style="color:var(--warn);min-height:1.4em"></p>
+    <div class="keypad" id="keypad"></div>
+    <button class="btn ghost big" id="pinCancel" style="max-width:420px;margin:8px auto 0">Abbrechen</button>
+  </section>
+
+  <!-- EINKAUFEN -->
+  <section id="s-shop" class="screen">
+    <div class="row">
+      <h1 id="shopHi" style="margin:0">Hallo</h1>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="logout">Abmelden</button>
+    </div>
+    <div id="catalog"></div>
+    <div class="cartbar">
+      <div id="cartLines"></div>
+      <div class="row" style="margin-top:10px">
+        <div class="total">Summe: <span id="cartTotal">0,00&nbsp;€</span></div>
+        <span class="spacer"></span>
+        <button class="btn big" id="checkout" style="max-width:520px" disabled>Auf meine Monatsrechnung</button>
+      </div>
+      <p class="muted foot">Hier wird <strong>nicht</strong> bezahlt – dein Einkauf
+        kommt auf die Monatsrechnung.</p>
+    </div>
+  </section>
+
+  <!-- BESTÄTIGEN -->
+  <section id="s-confirm" class="screen center">
+    <h1>Bitte bestätigen</h1>
+    <div id="confirmList" class="big" style="margin:10px 0"></div>
+    <p class="big">Summe: <strong id="confirmTotal"></strong></p>
+    <p class="muted big">Das kommt auf <strong id="confirmName"></strong>s
+      Monatsrechnung. Bezahlt wird später per Rechnung.</p>
+    <div class="row" style="justify-content:center;margin-top:14px">
+      <button class="btn ghost big" id="confirmNo" style="max-width:240px">Zurück</button>
+      <button class="btn big" id="confirmYes" style="max-width:340px">Ja, buchen</button>
+    </div>
+  </section>
+
+  <!-- FERTIG -->
+  <section id="s-done" class="screen center">
+    <h1 style="font-size:2.4rem">✅ Danke!</h1>
+    <p class="big" id="doneMsg"></p>
+    <p class="muted big">Kommt auf deine Monatsrechnung.</p>
+    <button class="btn big" id="doneOk" style="max-width:340px;margin:10px auto 0">Fertig</button>
+  </section>
+
+  <div class="foot row">
+    <span class="pill" id="netState">…</span>
+    <span class="pill" id="syncState" style="display:none"></span>
+    <span class="spacer"></span>
+    <a href="#" class="link" id="setupLink">⚙︎ Einrichten</a>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  // ---- Speicher-Schlüssel ----
+  var K_TOKEN = "rehofTermToken", K_DATA = "rehofTermData",
+      K_QUEUE = "rehofTermQueue", K_FAILS = "rehofTermFails";
+  var DATA = null, CART = {}, CUR = null, PIN = "", IDLE = null;
+
+  function ls(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lss(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  function jget(k,d){ try { return JSON.parse(ls(k)) ?? d; } catch(e){ return d; } }
+  function jset(k,v){ lss(k, JSON.stringify(v)); }
+
+  function show(id){
+    document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("on"); });
+    document.getElementById(id).classList.add("on");
+    window.scrollTo(0,0);
+  }
+  function eur(n){ return (n||0).toFixed(2).replace(".",",") + " €"; }
+  function netUpdate(){
+    var on = navigator.onLine;
+    var el = document.getElementById("netState");
+    el.textContent = on ? "🟢 Online" : "🔌 Offline";
+    var q = jget(K_QUEUE, []);
+    var ss = document.getElementById("syncState");
+    if (q.length){ ss.style.display=""; ss.textContent = "⏳ " + q.length + " wartet auf Übertragung"; }
+    else ss.style.display="none";
+  }
+
+  // ---- Daten laden (online) / aus Cache (offline) ----
+  function token(){ return ls(K_TOKEN) || ""; }
+  function loadData(){
+    DATA = jget(K_DATA, null);
+    if (navigator.onLine && token()){
+      fetch("{% url 'terminal_data' %}", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({token: token()})
+      }).then(function(r){
+        if (r.status === 403) throw new Error("token");
+        return r.json();
+      }).then(function(d){
+        if (d && d.ok){ DATA = d; jset(K_DATA, d); renderNames(); }
+      }).catch(function(e){
+        if (String(e.message)==="token"){ /* falsches Token -> Einrichten */ openSetup("Token ungültig. Bitte erneut einrichten."); }
+      });
+    }
+  }
+
+  // ---- PIN-Prüfung offline (Web Crypto, Django-PBKDF2-Format) ----
+  function b64(buf){ var s=""; var b=new Uint8Array(buf);
+    for (var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+  function verifyPin(pin, encoded){
+    // encoded: "pbkdf2_sha256$<iter>$<salt>$<b64hash>"
+    var p = String(encoded||"").split("$");
+    if (p.length!==4 || p[0]!=="pbkdf2_sha256" || !window.crypto || !crypto.subtle)
+      return Promise.resolve(false);
+    var iter = parseInt(p[1],10), salt = p[2], expected = p[3];
+    var enc = new TextEncoder();
+    return crypto.subtle.importKey("raw", enc.encode(pin), {name:"PBKDF2"}, false, ["deriveBits"])
+      .then(function(key){
+        return crypto.subtle.deriveBits(
+          {name:"PBKDF2", salt: enc.encode(salt), iterations: iter, hash:"SHA-256"},
+          key, 256);
+      }).then(function(bits){ return b64(bits) === expected; })
+      .catch(function(){ return false; });
+  }
+
+  // ---- Bildschirme ----
+  function renderNames(){
+    var box = document.getElementById("names"); box.innerHTML="";
+    var roster = (DATA && DATA.roster) || [];
+    document.getElementById("namesEmpty").style.display = roster.length? "none":"";
+    roster.forEach(function(m){
+      var b = document.createElement("button");
+      b.textContent = m.n;
+      b.onclick = function(){ startPin(m); };
+      box.appendChild(b);
+    });
+  }
+
+  function fails(){ return jget(K_FAILS, {}); }
+  function maxAttempts(){ return (DATA && DATA.config && DATA.config.max_attempts) || 5; }
+
+  function startPin(m){
+    CUR = m; PIN = ""; renderDots(); document.getElementById("pinMsg").textContent="";
+    document.getElementById("pinHi").textContent = "Hallo " + m.n;
+    var f = fails()[m.u] || 0;
+    if (f >= maxAttempts()){
+      document.getElementById("pinMsg").textContent = "Gesperrt – bitte bei der Verwaltung melden.";
+    }
+    show("s-pin"); resetIdle();
+  }
+  function renderDots(){
+    document.getElementById("pinDots").textContent =
+      "●".repeat(PIN.length) + "○".repeat(Math.max(0,6-PIN.length));
+  }
+  function pinDigit(d){
+    var f = fails()[CUR.u] || 0; if (f >= maxAttempts()) return;
+    if (PIN.length>=6) return;
+    PIN += d; renderDots(); resetIdle();
+    if (PIN.length===6) submitPin();
+  }
+  function submitPin(){
+    var pin = PIN, m = CUR;
+    verifyPin(pin, m.p).then(function(ok){
+      if (ok){
+        var fa = fails(); delete fa[m.u]; jset(K_FAILS, fa);
+        CART = {}; openShop();
+      } else {
+        var fa = fails(); fa[m.u] = (fa[m.u]||0)+1; jset(K_FAILS, fa);
+        PIN=""; renderDots();
+        var left = maxAttempts() - fa[m.u];
+        var msg = document.getElementById("pinMsg");
+        msg.textContent = left>0 ? ("Falsche PIN. Noch " + left + " Versuche.")
+                                 : "Gesperrt – bitte bei der Verwaltung melden.";
+        var d = document.getElementById("pinDots");
+        d.classList.remove("shake"); void d.offsetWidth; d.classList.add("shake");
+      }
+    });
+  }
+
+  function openShop(){
+    document.getElementById("shopHi").textContent = "Hallo " + CUR.n;
+    renderCatalog(); renderCart(); show("s-shop"); resetIdle();
+  }
+  function renderCatalog(){
+    var box = document.getElementById("catalog"); box.innerHTML="";
+    var prods = (DATA && DATA.products) || [];
+    var groups = {}; var order = [];
+    prods.forEach(function(p){ if(!(p.group in groups)){ groups[p.group]=[]; order.push(p.group);} groups[p.group].push(p); });
+    order.forEach(function(g){
+      var em = (groups[g][0] && groups[g][0].emoji) || "";
+      var t = document.createElement("div"); t.className="group-title";
+      t.textContent = (em? em+" ":"") + (g||"Hofladen");
+      box.appendChild(t);
+      var grid = document.createElement("div"); grid.className="products";
+      groups[g].forEach(function(p){
+        var c = document.createElement("div"); c.className="product";
+        c.innerHTML = '<div class="emoji">'+(p.emoji||"🧺")+'</div>'+
+          '<div class="pn"></div><div class="pp"></div>';
+        c.querySelector(".pn").textContent = p.name + (p.unit? " ("+p.unit+")":"");
+        c.querySelector(".pp").textContent = eur(parseFloat(p.price));
+        var add = document.createElement("button");
+        add.className="btn add"; add.textContent="＋ In den Korb";
+        add.onclick = function(){ addItem(p); };
+        c.appendChild(add); grid.appendChild(c);
+      });
+      box.appendChild(grid);
+    });
+  }
+  function addItem(p){ CART[p.id] = (CART[p.id]||0)+1; renderCart(); resetIdle(); }
+  function setQty(id,q){ if(q<=0) delete CART[id]; else CART[id]=q; renderCart(); resetIdle(); }
+  function prod(id){ return ((DATA&&DATA.products)||[]).find(function(p){return p.id==id;}); }
+  function cartTotal(){ var t=0; for(var id in CART){ var p=prod(id); if(p) t+=parseFloat(p.price)*CART[id]; } return t; }
+  function renderCart(){
+    var box = document.getElementById("cartLines"); box.innerHTML="";
+    var ids = Object.keys(CART);
+    ids.forEach(function(id){
+      var p = prod(id); if(!p) return;
+      var q = CART[id];
+      var row = document.createElement("div"); row.className="cartline";
+      row.innerHTML = '<span style="flex:1">'+ (p.emoji||"")+" "+p.name +'</span>';
+      var minus=document.createElement("button"); minus.className="qbtn"; minus.textContent="−";
+      minus.onclick=function(){ setQty(id,q-1); };
+      var qs=document.createElement("span"); qs.textContent=q; qs.style.minWidth="2ch"; qs.style.textAlign="center"; qs.style.fontWeight="800";
+      var plus=document.createElement("button"); plus.className="qbtn"; plus.textContent="＋";
+      plus.onclick=function(){ setQty(id,q+1); };
+      var pr=document.createElement("span"); pr.style.minWidth="6ch"; pr.style.textAlign="right";
+      pr.textContent=eur(parseFloat(p.price)*q);
+      row.appendChild(minus); row.appendChild(qs); row.appendChild(plus); row.appendChild(pr);
+      box.appendChild(row);
+    });
+    document.getElementById("cartTotal").textContent = eur(cartTotal());
+    document.getElementById("checkout").disabled = ids.length===0;
+  }
+
+  function openConfirm(){
+    var list = document.getElementById("confirmList"); list.innerHTML="";
+    for (var id in CART){ var p=prod(id); if(!p) continue;
+      var d=document.createElement("div"); d.textContent = CART[id]+"× "+p.name; list.appendChild(d); }
+    document.getElementById("confirmTotal").textContent = eur(cartTotal());
+    document.getElementById("confirmName").textContent = CUR.n;
+    show("s-confirm"); resetIdle();
+  }
+  function book(){
+    var items = []; for (var id in CART){ items.push({id: parseInt(id,10), qty: CART[id]}); }
+    if (!items.length) return;
+    var ref = "t-" + (CUR.u) + "-" + Date.now() + "-" + Math.floor(Math.random()*1e6);
+    var txn = { ref: ref, username: CUR.u, items: items };
+    var q = jget(K_QUEUE, []); q.push(txn); jset(K_QUEUE, q);
+    var total = cartTotal();
+    document.getElementById("doneMsg").textContent = CUR.n + ": " + eur(total);
+    CART = {}; show("s-done"); netUpdate(); flush(); resetIdle();
+  }
+
+  // ---- Sync der Warteschlange ----
+  function flush(){
+    if (!navigator.onLine || !token()) return;
+    var q = jget(K_QUEUE, []); if (!q.length) return;
+    fetch("{% url 'terminal_sync' %}", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({token: token(), transactions: q})
+    }).then(function(r){ return r.ok? r.json(): null; })
+      .then(function(d){
+        if (!d || !d.ok) return;
+        var done = {}; (d.accepted||[]).forEach(function(r){ done[r]=1; });
+        var rest = jget(K_QUEUE, []).filter(function(t){ return !done[t.ref]; });
+        jset(K_QUEUE, rest); netUpdate();
+      }).catch(function(){});
+  }
+
+  // ---- Inaktivitäts-Abmeldung ----
+  function idleSecs(){ return (DATA && DATA.config && DATA.config.idle) || 120; }
+  function resetIdle(){ if (IDLE) clearTimeout(IDLE);
+    IDLE = setTimeout(function(){ logout(); }, idleSecs()*1000); }
+  function logout(){ CART={}; CUR=null; PIN=""; show("s-names"); if(IDLE) clearTimeout(IDLE); }
+
+  // ---- Einrichten ----
+  function openSetup(msg){ document.getElementById("setupMsg").textContent = msg||"";
+    document.getElementById("tokenInput").value = token(); show("s-setup"); }
+
+  // ---- Tastatur (Ziffernblock) aufbauen ----
+  (function(){
+    var kp = document.getElementById("keypad");
+    ["1","2","3","4","5","6","7","8","9","⌫","0","OK"].forEach(function(label){
+      var b=document.createElement("button"); b.textContent=label;
+      b.onclick=function(){
+        if (label==="⌫"){ PIN=PIN.slice(0,-1); renderDots(); resetIdle(); }
+        else if (label==="OK"){ if (PIN.length===6) submitPin(); }
+        else pinDigit(label);
+      };
+      kp.appendChild(b);
+    });
+  })();
+
+  // ---- Knöpfe verdrahten ----
+  document.getElementById("setupSave").onclick=function(){
+    var t=document.getElementById("tokenInput").value.trim();
+    if(!t){ document.getElementById("setupMsg").textContent="Bitte Token eingeben."; return; }
+    lss(K_TOKEN, t); loadData();
+    document.getElementById("setupMsg").textContent="Gespeichert. Lade Daten …";
+    setTimeout(function(){ if (DATA){ renderNames(); show("s-names"); } }, 800);
+  };
+  document.getElementById("setupLink").onclick=function(e){ e.preventDefault(); openSetup(""); };
+  document.getElementById("pinCancel").onclick=function(){ logout(); };
+  document.getElementById("logout").onclick=function(){ logout(); };
+  document.getElementById("checkout").onclick=function(){ openConfirm(); };
+  document.getElementById("confirmNo").onclick=function(){ show("s-shop"); resetIdle(); };
+  document.getElementById("confirmYes").onclick=function(){ book(); };
+  document.getElementById("doneOk").onclick=function(){ logout(); };
+
+  // jede Berührung verlängert die Sitzung
+  document.addEventListener("click", function(){ if (CUR) resetIdle(); });
+  window.addEventListener("online", function(){ netUpdate(); loadData(); flush(); });
+  window.addEventListener("offline", netUpdate);
+
+  // Service Worker (für echtes Offline) registrieren
+  if ("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(function(){}); }
+
+  // ---- Start ----
+  netUpdate();
+  DATA = jget(K_DATA, null);
+  if (!token()){ openSetup(""); }
+  else { renderNames(); show("s-names"); loadData(); flush(); }
+})();
+</script>
+</body>
+</html>

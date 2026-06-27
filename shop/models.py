@@ -200,6 +200,10 @@ class Purchase(models.Model):
         Member, on_delete=models.CASCADE, related_name="purchases",
         verbose_name="Mitglied")
     confirmed_at = models.DateTimeField("Eingekauft am", auto_now_add=True)
+    # Idempotenz-Anker für offline am Hofladen-Terminal erfasste Einkäufe (ADR 0053):
+    # die clientseitig erzeugte ID verhindert beim Nachsyncen Doppelbuchungen.
+    terminal_ref = models.CharField("Terminal-Referenz", max_length=64, blank=True,
+                                    default="", db_index=True)
 
     class Meta:
         verbose_name = "Einkauf"

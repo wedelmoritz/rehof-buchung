@@ -18,6 +18,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -735,6 +736,15 @@ def profile(request):
             member.email_opt_in = bool(request.POST.get("email_opt_in"))
             member.save(update_fields=["email_opt_in"])
             messages.success(request, "Benachrichtigungs-Einstellung gespeichert.")
+            return redirect("profile")
+        elif action == "set_terminal_pin" and member.terminal_enabled:
+            pin = (request.POST.get("pin") or "").strip()
+            if len(pin) == 6 and pin.isdigit():
+                member.set_terminal_pin(pin)
+                member.save(update_fields=["terminal_pin"])
+                messages.success(request, "Hofladen-Terminal-PIN gespeichert.")
+            else:
+                messages.error(request, "Die PIN muss genau 6 Ziffern haben.")
             return redirect("profile")
         else:
             form = ProfileForm(request.POST, instance=member)
@@ -1532,3 +1542,52 @@ def external_embed(request):
         "nav_qs": _ext_nav_qs(start, end, persons),
         **(_cal_nav(cal) if cal else {"months": [], "years": []}),
     })
+
+
+# --------------------------------------------------------------------------- #
+# Hofladen-Terminal vor Ort (ADR 0053): token-authentifiziertes Kiosk-Gerät,
+# offline-fähig. KEIN Mitglieder-Login, KEINE Sitzung – nur Roster/Katalog laden
+# und offline erfasste Einkäufe auf die Monatsrechnung nachreichen.
+# --------------------------------------------------------------------------- #
+
+def terminal_page(request):
+    """Die Kiosk-Seite (offline-fähig, große, einfache Oberfläche). Sie holt ihre
+    Daten per Token über `terminal_data` und arbeitet danach offline weiter."""
+    return render(request, "booking/terminal.html")
+
+
+def _terminal_token_from(request):
+    import json
+    try:
+        data = json.loads(request.body or "{}")
+    except (ValueError, TypeError):
+        return None, {}
+    return data.get("token", ""), data
+
+
+@csrf_exempt
+@require_POST
+def terminal_data(request):
+    """Roster + Katalog + Einstellungen – nur mit gültigem Geräte-Token."""
+    token, _ = _terminal_token_from(request)
+    if not svc.terminal_token_ok(token):
+        return JsonResponse({"ok": False, "error": "token"}, status=403)
+    return JsonResponse(svc.terminal_payload())
+
+
+@csrf_exempt
+@require_POST
+def terminal_sync(request):
+    """Nimmt offline erfasste Einkäufe entgegen (idempotent) und bucht sie auf die
+    Monatsrechnung. Nur mit gültigem Token."""
+    token, data = _terminal_token_from(request)
+    if not svc.terminal_token_ok(token):
+        return JsonResponse({"ok": False, "error": "token"}, status=403)
+    accepted, rejected = [], []
+    for txn in (data.get("transactions") or [])[:200]:
+        ref = str(txn.get("ref", ""))
+        username = str(txn.get("username", ""))
+        pairs = [(it.get("id"), it.get("qty")) for it in (txn.get("items") or [])]
+        ok, _err = svc.terminal_record(username, pairs, ref)
+        (accepted if ok else rejected).append(ref)
+    return JsonResponse({"ok": True, "accepted": accepted, "rejected": rejected})

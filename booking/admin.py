@@ -16,7 +16,8 @@ from .models import (
     ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
     NightTransfer,
     Notification, OpsConfig, OutboxEmail, Quarter, QuarterPrice, SchoolHoliday,
-    SeasonRule, Share, SwapRequest, UpcomingAllocation, WaitlistEntry, Wish,
+    SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
+    WaitlistEntry, Wish,
 )
 from .services import confirm_lottery, rollback_lottery, run_period_lottery
 
@@ -128,6 +129,14 @@ class MemberProfileInline(admin.StackedInline):
         }),
         ("Rechnungsdaten (Hofladen)", {
             "fields": ("legal_name", "street", "zip_code", "city", "iban"),
+        }),
+        ("Hofladen-Terminal vor Ort", {
+            "classes": ("collapse",),
+            "fields": ("terminal_enabled",),
+            "description": (
+                "Erlaubt dieser Person, am Vor-Ort-Terminal (PIN) auf die "
+                "Monatsrechnung einzukaufen. Die <b>PIN</b> setzt die Person selbst "
+                "im Profil; ohne PIN erscheint sie nicht am Terminal."),
         }),
     )
 
@@ -579,6 +588,44 @@ class OpsConfigAdmin(admin.ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         obj = OpsConfig.get_solo()
         return redirect(reverse("admin:booking_opsconfig_change", args=[obj.id]))
+
+
+@admin.register(TerminalConfig)
+class TerminalConfigAdmin(admin.ModelAdmin):
+    """Hofladen-Terminal vor Ort (Singleton). Das **Token** richtet ein Gerät ein;
+    bei Verlust/Diebstahl hier **neu erzeugen** – dann ist das alte sofort ungültig."""
+    fieldsets = (
+        ("Terminal", {
+            "fields": ("enabled", "token", "idle_timeout_seconds", "max_pin_attempts"),
+            "description": (
+                "Das <b>Token</b> wird einmalig im Terminal-Gerät hinterlegt "
+                "(Seite <code>/terminal/</code> → „Einrichten“). Es ist das einzige "
+                "Geräte-Gate – sorgfältig behandeln. Bei Verlust unten neu erzeugen. "
+                "Das Gerät muss zusätzlich betrieblich gehärtet sein (Kiosk-Modus, "
+                "Verschlüsselung) – siehe ADR 0053.")}),
+    )
+    actions = ["regenerate_token"]
+
+    @admin.action(description="Neues Token erzeugen (altes wird ungültig)")
+    def regenerate_token(self, request, queryset):
+        cfg = TerminalConfig.get_solo()
+        cfg.regenerate()
+        self.message_user(
+            request, "Neues Geräte-Token erzeugt. Bestehende Terminals müssen neu "
+            "eingerichtet werden; das alte Token ist ab sofort ungültig.",
+            level=messages.WARNING)
+
+    def has_add_permission(self, request):
+        return not TerminalConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj = TerminalConfig.get_solo()
+        if not obj.token:
+            obj.regenerate()
+        return redirect(reverse("admin:booking_terminalconfig_change", args=[obj.id]))
 
 
 @admin.register(OutboxEmail)

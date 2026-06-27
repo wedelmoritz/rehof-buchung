@@ -332,6 +332,23 @@ Gäste gelten; früher „Hofladen-Einstellungen“): `coop_name`, `coop_address
 AGB. Der Admin springt direkt aufs Singleton (`changelist_view`-Redirect, keine
 Zwischen-Liste). Editierbar nur im Django-Admin (Admin-Rolle). Geldlogik/Tests in
 `shop/services.py` bzw. `shop/tests.py`.
+**Hofladen-Terminal vor Ort (`/terminal/`, ADR 0053):** ein **geteiltes Gerät** im
+Laden, an dem freigeschaltete Gäste per **6-stelliger PIN** auf ihre **Monatsrechnung**
+einkaufen – **offline-fähig** (im Laden kein Netz). Eigenständige, **für ältere
+Menschen** gebaute Kiosk-Seite (große Schrift/Knöpfe, Emoji, Name antippen → PIN →
+Artikel → bestätigen). **Kein** Mitglieder-Login/keine Django-Sitzung: das Gerät weist
+sich nur per **Geräte-Token** (`TerminalConfig`, im Backend änderbar/„neu erzeugen") an
+**zwei** Endpunkten aus – `terminal_data` (Roster: Benutzername/Anzeigename/**PIN-Hash**
++ Katalog) und `terminal_sync` (offline erfasste Einkäufe **idempotent** über
+`Purchase.terminal_ref` auf die Monatsrechnung; **keine Zahlung**). Mehr geben die
+Token-Endpunkte nicht her (keine PII/Profil/Backend) – der Schadensradius bleibt klein.
+PIN-Prüfung läuft **offline im Gerät** gegen den Django-PBKDF2-Hash (Web Crypto),
+Sperre nach N Fehlversuchen + Idle-Logout. Freischaltung: Verwaltung setzt
+`Member.terminal_enabled`, die Person vergibt die **PIN selbst im Profil** (ohne PIN
+nicht in der Roster). Service `services/terminal_ops.py`; SW hält `/terminal/` offline
+vor (ADR 0035). **Pflicht-Gerätehärtung** (Kiosk-Mode, Festplatten-Verschlüsselung,
+physische Sicherung) im Deployment-Runbook – ohne sie ist der Modus nicht freizugeben.
+
 **Steuer-/Kassenrecht:** Abrechnung bewusst **ohne TSE** (keine Vor-Ort-Zahlung →
 keine Kassenfunktion nach KassenSichV/§146a AO, ADR 0040). **Umsatzsteuer**
 umschaltbar im Backend (`ShopConfig.small_business`): Regelbesteuerung (per-Artikel

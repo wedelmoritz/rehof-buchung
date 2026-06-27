@@ -17,8 +17,9 @@ from .wishes import *  # noqa: F401,F403
 from .booking_ops import *  # noqa: F401,F403
 from .dashboard import *  # noqa: F401,F403
 from .external_ops import *  # noqa: F401,F403
+from .terminal_ops import *  # noqa: F401,F403
 
-from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, dashboard, external_ops  # noqa: F401
+from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, dashboard, external_ops, terminal_ops  # noqa: F401
 
 # Parität zur alten `services.py`: dort waren die importierten Modelle und die
 # reinen Logik-Module als Modul-Attribute erreichbar (z.B. `svc.ExternalConfig`,
@@ -73,4 +74,6 @@ __all__ = [
     'external_cancellation_preview', 'cancel_external_booking',
     'external_booking_by_token', 'guest_bookings_by_token',
     'cancel_external_booking_by_token',
+    # Hofladen-Terminal (ADR 0053)
+    'terminal_token_ok', 'terminal_payload', 'terminal_record',
 ]

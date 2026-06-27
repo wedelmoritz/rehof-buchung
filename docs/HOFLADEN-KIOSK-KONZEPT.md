@@ -1,8 +1,13 @@
-# Konzept (Vorschlag, NICHT umgesetzt): Hofladen vor Ort für externe Gäste
+# Konzept: Hofladen vor Ort für externe Gäste
 
-> **Status: Diskussionsvorlage.** Hier ist **nichts implementiert** – dieses Dokument
-> analysiert die Aufgabe nach Best Practices und legt entscheidungsreife Optionen vor.
-> Eine Umsetzung erfolgt erst nach Entscheidung (dann als ADR + Code).
+> **Status: UMGESETZT als Option A** (Entscheidung getroffen). Die Umsetzung ist
+> **offline-fähig** (im Laden gibt es kein Netz) und in **ADR 0053** technisch
+> dokumentiert; Bedienung/Betrieb siehe Deployment-Runbook (`DEPLOYMENT.md`,
+> Abschnitt „Hofladen-Terminal"). Dieses Dokument bleibt als Analyse-/Begründungs-
+> grundlage erhalten. Wesentliche Anpassung gegenüber dem ersten Entwurf: das Gating
+> läuft **rein über das Token** (offline-tauglich), nicht über eine IP-Allowlist, und
+> es gibt **keine** Gäste-Django-Sitzung – das Terminal spricht nur token-geschützte
+> Laden-/Sync-Endpunkte.
 
 ## 1. Aufgabe
 

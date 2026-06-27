@@ -18,6 +18,10 @@ urlpatterns = [
     path("profil/", views.profile, name="profile"),
     path("push/abo/", views.push_subscribe, name="push_subscribe"),
     path("push/abmelden/", views.push_unsubscribe, name="push_unsubscribe"),
+    # Hofladen-Terminal vor Ort (offline-fähig, token-authentifiziert; ADR 0053)
+    path("terminal/", views.terminal_page, name="terminal"),
+    path("terminal/daten/", views.terminal_data, name="terminal_data"),
+    path("terminal/sync/", views.terminal_sync, name="terminal_sync"),
     path("hilfe/", views.help_page, name="help"),
     path("losung-fairness/", views.lottery_fairness, name="lottery_fairness"),
     path("registrieren/", views.register, name="register"),
