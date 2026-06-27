@@ -22,7 +22,7 @@ class ActivationGateMiddleware:
                 and not is_verwaltung(user)
                 and not hasattr(user, "member")):
             allowed = {reverse("pending"), reverse("logout"),
-                       reverse("offline"), reverse("sw"),
+                       reverse("offline"), reverse("sw"), reverse("healthz"),
                        reverse("imprint"), reverse("privacy"), reverse("terms")}
             path = request.path
             if path not in allowed and not path.startswith("/static/"):

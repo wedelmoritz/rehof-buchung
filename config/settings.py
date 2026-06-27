@@ -254,3 +254,44 @@ RETENTION_BANKIMPORT_DAYS = env_int("RETENTION_BANKIMPORT_DAYS", 365)  # Import-
 RETENTION_SWAP_WAITLIST_DAYS = env_int("RETENTION_SWAP_WAITLIST_DAYS", 180)  # erledigte Wechsel/Warteliste
 RETENTION_WISH_YEARS = env_int("RETENTION_WISH_YEARS", 2)          # Wünsche beendeter Perioden
 RETENTION_AXES_DAYS = env_int("RETENTION_AXES_DAYS", 30)           # Brute-Force-Fehlversuche
+
+
+# --- Observability: Logging + Fehler-Tracking (ADR 0046) -------------------
+# Strukturierte Logs nach stdout – Docker/Caddy sammeln sie. Level per Env.
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {"format": "{asctime} {levelname} {name}: {message}", "style": "{"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "verbose"},
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        # 5xx/Anfrage-Fehler sichtbar machen (sonst schluckt Django sie still).
+        "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        "booking": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "shop": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+    },
+}
+
+# Sentry (Fehler-Tracking) ist nur mit gesetztem SENTRY_DSN aktiv – sonst aus,
+# wie VAPID/Mollie. **Keine PII** an Sentry (send_default_pii=False; DSGVO/ADR 0043).
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0")),
+            send_default_pii=False,
+            environment=os.environ.get(
+                "SENTRY_ENVIRONMENT", "dev" if DEBUG else "production"),
+            release=os.environ.get("SENTRY_RELEASE", "") or None,
+        )
+    except Exception:  # sentry-sdk nicht installiert → ohne Tracking weiter
+        pass

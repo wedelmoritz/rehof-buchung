@@ -58,6 +58,7 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0043](0043-dsgvo-datensparsamkeit-aufbewahrung-loeschung.md) | DSGVO: Datensparsamkeit, Aufbewahrung, automatische Löschung & Anonymisierung | Accepted |
 | [0044](0044-web-push-und-gezieltes-offline.md) | Web-Push (mobil) und gezieltes Offline-Verhalten | Accepted |
 | [0045](0045-domaeneninvarianten-im-modell-clean.md) | Domänen-Invarianten am Modell (`clean`) erzwingen, auch im Admin | Accepted |
+| [0046](0046-observability-logging-sentry-healthcheck.md) | Observability: strukturiertes Logging, Sentry und Health-Endpoint | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

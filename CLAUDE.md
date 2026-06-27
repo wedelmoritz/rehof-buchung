@@ -485,8 +485,13 @@ frischer Testlauf NICHT sieht. Vor dem Pull auf die VPS am grünen Häkchen
 erkennbar, ob alles passt.
 
 **Betrieb:** `docker-compose.yml` hat einen **Healthcheck** am `web`-Container
-(scheitert, wenn Gunicorn nicht antwortet, z.B. nach Migrations-Abbruch →
-`docker compose ps` zeigt „unhealthy" statt nur 502 bei Caddy). **Optionales
+(pingt **`/healthz/`** = DB-Query, scheitert wenn Gunicorn ODER DB weg ist, z.B.
+nach Migrations-Abbruch → `docker compose ps` zeigt „unhealthy" statt nur 502 bei
+Caddy). **Observability (ADR 0046):** strukturierte Logs nach stdout
+(`settings.LOGGING`, Level per `LOG_LEVEL`); **Sentry** nur mit `SENTRY_DSN` aktiv
+(sonst aus, `send_default_pii=False` – keine PII, DSGVO); Health-Endpoint
+`views.healthz` (`/healthz/`, ohne Login, von der Aktivierungs-Sperre ausgenommen)
+für Container-Healthcheck **und** externes Uptime-Monitoring. **Optionales
 Redis** (Cache/Sessions/Axes-Lockout) ist über `REDIS_URL` + Profil `cache`
 zuschaltbar (`docker compose --profile cache up -d`); Standard bleibt DB-Sessions.
 **Server-Umzug inkl. DB:** `ops/migrate-server.sh dump|restore` (pg_dump/psql über

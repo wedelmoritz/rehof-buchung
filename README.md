@@ -462,9 +462,17 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Monatsrechnungen | `commands/run_monthly_invoices.py` |
 | E-Mail-Versand (Outbox leeren, mit Anhängen) | `commands/send_outbox.py` |
 | Monats-Mail an die Verwaltung | `commands/notify_admins_upcoming.py` · `services.notify_admins_upcoming` |
+| DSGVO-Aufräumen (täglich) | `commands/cleanup_data.py` · `services.run_data_retention` |
 | Losalgorithmus (rein, ohne DB) | `booking/lottery.py` |
 | Verfügbarkeit & Tage-Rechnung (rein) | `booking/availability.py` |
 | Saison-Regeln: Mindestnächte/Parallel/Deckel (rein) | `booking/rules.py` |
+
+**Observability (ADR 0046):** Logs gehen strukturiert nach stdout
+(`docker compose logs -f web`); **Sentry** ist nur mit gesetztem `SENTRY_DSN` aktiv
+(ohne PII). Der Health-Endpoint **`/healthz/`** (prüft die DB) trägt den
+Container-Healthcheck und eignet sich für **externes Uptime-Monitoring**: einen
+Dienst wie UptimeRobot/Healthchecks.io auf `https://<domain>/healthz/` zeigen lassen
+(erwartet HTTP 200). Env-Variablen siehe `.env.example`.
 
 ---
 

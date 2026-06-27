@@ -143,6 +143,23 @@ class ProfilAnmeldedatenTests(TestCase):
         self.assertTrue(self.user.check_password(new_pw))
 
 
+class HealthCheckTests(TestCase):
+    """/healthz/ ist ohne Login erreichbar und meldet die DB-Erreichbarkeit."""
+
+    def test_healthz_ok_ohne_login(self):
+        r = self.client.get(reverse("healthz"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json().get("status"), "ok")
+
+    def test_healthz_nicht_freigeschaltet_erreichbar(self):
+        # Eingeloggt, aber ohne Mitglieds-Profil – die Aktivierungs-Sperre darf
+        # den Health-Check nicht umleiten.
+        u = User.objects.create_user("warte_h", "warte_h@example.org", PW)
+        self.client.force_login(u)
+        r = self.client.get(reverse("healthz"))
+        self.assertEqual(r.status_code, 200)
+
+
 class RechtstexteTests(TestCase):
     """Impressum (Pflicht), Datenschutz & AGB – öffentlich erreichbar, im Fuß verlinkt."""
 
