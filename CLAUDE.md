@@ -28,10 +28,17 @@ Drei Schichten, strikt getrennt:
    Diese Module sind isoliert mit `pytest` testbar. **Hier ändern, wenn es um
    Rechenregeln geht** — und immer den passenden Test in `tests/` mitziehen.
 
-2. **Service-Layer:** `booking/services.py` — die EINZIGE Brücke zwischen DB
+2. **Service-Layer:** `booking/services/` (Paket; früher eine `services.py`, jetzt
+   fachlich aufgeteilt — ADR 0050) — die EINZIGE Brücke zwischen DB
    (Django-Modelle) und reiner Logik. Persistenz, Verfügbarkeit, Buchung,
    Stornierung, Übertragung, Kalenderaufbau, Losungs-Durchführung.
-   **Hier ändern, wenn es um Datenbank-/Ablauf-Logik geht.**
+   **Hier ändern, wenn es um Datenbank-/Ablauf-Logik geht.** Das `__init__`
+   re-exportiert alle Namen, daher bleibt `from booking import services as svc`
+   und jeder `svc.*`-Aufruf unverändert. Submodule (azyklisch geschichtet):
+   `dates`/`notify`/`slots` (Blätter: Datums-Helfer · Mails/Push · Verfügbarkeit+
+   Regeln), `calendars`, `lottery_ops`, `wishes`, `booking_ops`, `dashboard`,
+   `external_ops`, `beds24_ops`, `retention`. **Neue Service-Funktion ins passende
+   Submodul** legen (nicht zurück in eine Sammeldatei).
 
 3. **Views/Templates:** `booking/views.py` (dünn, nur Dispatch), `*/templates/`.
    **Hier ändern, wenn es um UI/Darstellung geht.**
@@ -50,7 +57,11 @@ booking/
   rules.py              # reine Logik: Mindestnächte/Parallel/Deckel
   validation.py         # reine Logik: Plausibilität der Eingaben (Name/PLZ/IBAN…)
   exports.py            # CSV/xlsx-Export (mit Formel-Injektions-Schutz)
-  services.py           # Brücke DB <-> Logik (gesamte Geschäftslogik)
+  services/             # Brücke DB <-> Logik (gesamte Geschäftslogik; Paket, ADR 0050)
+    __init__.py         #  re-exportiert alles → `svc.*` bleibt unverändert
+    dates.py notify.py slots.py        #  Blätter: Datum · Mail/Push · Verfügbarkeit+Regeln
+    calendars.py lottery_ops.py wishes.py booking_ops.py
+    dashboard.py external_ops.py beds24_ops.py retention.py
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
                         #  (Backend-Startseite mit Erklär-Panel: templates/admin/custom_index.html,

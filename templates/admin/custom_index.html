@@ -1,10 +1,10 @@
 {% extends "admin/index.html" %}
-{# Erklär-Panel oben auf der Backend-Startseite: was kann man hier tun und wie
-   hängen Benutzer, Mitglieder und Anteile zusammen. #}
+{% comment %}Erklär-Panel oben auf der Backend-Startseite: was kann man hier tun und wie
+hängen Benutzer, Mitglieder und Anteile zusammen.{% endcomment %}
 {% block content %}
-{# In #content-main wickeln (float:left), damit die rechte „Neueste Aktionen“-
-   Spalte (#content-related, float:right) wie im Standard oben rechts andockt
-   statt unter den Inhalt zu rutschen. #}
+{% comment %}In #content-main wickeln (float:left), damit die rechte „Neueste Aktionen“-
+Spalte (#content-related, float:right) wie im Standard oben rechts andockt
+statt unter den Inhalt zu rutschen.{% endcomment %}
 <div id="content-main">
 <details class="module rehof-intro" id="rehof-intro">
   <summary>Was kannst du hier tun? <span class="rehof-toggle">(ein-/ausklappen)</span></summary>
