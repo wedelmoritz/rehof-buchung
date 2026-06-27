@@ -217,8 +217,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # --- Sicherheits-Härtung (greift in Produktion, d.h. wenn DEBUG=0) ----------
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)  # Caddy terminiert TLS
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # Secure-Cookies gehören zum TLS-Edge (Caddy). Default an; für eine prod-nahe
+    # Testumgebung OHNE TLS (E2E-CI über http) per Env abschaltbar (ADR 0047).
+    SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", True)
+    CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", True)
     SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True

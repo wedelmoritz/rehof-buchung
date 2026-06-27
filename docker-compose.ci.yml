@@ -1,0 +1,45 @@
+# Prod-naher Stack für die End-to-End-Tests (CI) – ADR 0047.
+#
+# Bewusst dieselbe Kette wie in Produktion: dasselbe Image (`build: .`), derselbe
+# Entrypoint (warte auf DB → migrate → gunicorn), DEBUG=0, echtes PostgreSQL.
+# Unterschiede zur Prod-Compose (nur fürs Testen):
+#   * KEIN Caddy/TLS – der Stack wird direkt über http://localhost:8000 getestet,
+#   * Port 8000 wird auf den Host veröffentlicht (für Playwright),
+#   * Secure-Cookies sind aus (gehören zum TLS-Edge, den die CI nicht hat).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rehof
+      POSTGRES_USER: rehof
+      POSTGRES_PASSWORD: rehof
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rehof -d rehof"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DEBUG: "0"
+      SECRET_KEY: ci-e2e-secret-not-for-production
+      ALLOWED_HOSTS: localhost,127.0.0.1,web
+      CSRF_TRUSTED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+      # Ohne TLS in der CI: Secure-Cookies aus, damit die Session über http hält.
+      SESSION_COOKIE_SECURE: "0"
+      CSRF_COOKIE_SECURE: "0"
+      DATABASE_URL: postgres://rehof:rehof@db:5432/rehof
+      GUNICORN_WORKERS: "2"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=5).status==200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s

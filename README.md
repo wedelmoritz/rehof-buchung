@@ -478,16 +478,21 @@ Dienst wie UptimeRobot/Healthchecks.io auf `https://<domain>/healthz/` zeigen la
 
 ## Tests
 
-Zwei Ebenen:
+Drei Ebenen:
 
 ```bash
 # 1) Reine Logik (Losverfahren + Buchungszeiträume/Tage + Saison-Regeln) – ohne DB
 pip install pytest
-PYTHONPATH=. python -m pytest tests/ -v          # -> 69 passed
+PYTHONPATH=. python -m pytest tests/ -v          # -> 68 passed
 
 # 2) Integrationstests (DB-Ebene: Gate, Buchung, Losung-Workflow, Dashboard,
 #    Hofladen, Kontoabgleich)
-python manage.py test booking shop               # -> 186 passed (3 skips)
+python manage.py test booking shop               # -> 212 passed (3 skips)
+
+# 3) End-to-End (Playwright) gegen einen LAUFENDEN, prod-nahen Stack (ADR 0047).
+#    In der CI vollautomatisch über docker-compose.ci.yml; lokal:
+pip install -r requirements-e2e.txt && python -m playwright install chromium
+python -m pytest tests_e2e/ --base-url http://localhost:8000
 ```
 
 Abgedeckt: Determinismus, Budget, Ausweich-Logik, Karma (Bonus/Deckel/Reset),

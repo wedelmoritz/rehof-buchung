@@ -463,26 +463,34 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 69 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 68 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 186 passed (3 skips)
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 212 passed (3 skips)
 python manage.py test booking shop
+
+# 3) E2E-Smoke-Tests (Playwright, gegen einen LAUFENDEN Stack) — optional lokal
+pip install -r requirements-e2e.txt && python -m playwright install chromium
+python -m pytest tests_e2e/ --base-url http://localhost:8000   # Server muss laufen
 ```
 
 Die Integrationstests liegen in `booking/tests.py` (gezielte Einzelfälle) und
 `booking/tests_usecases.py` (tiefgreifende End-to-End-Szenarien — **hier neue
-Use-Cases ergänzen**). „Fertig" heißt: beide Suiten grün, neue/­geänderte Logik
-durch einen Test abgedeckt, `python manage.py makemigrations --check` zeigt keine
-fehlende Migration.
+Use-Cases ergänzen**). Die **E2E-Smoke-Tests** (`tests_e2e/`, Playwright) prüfen die
+echte Browser-/Server-Naht (gunicorn/Cookies/JS) gegen einen prod-nahen Stack
+(`seed_demo --testdata` liefert die Konten `test`/`admin`/`verwaltung`; ADR 0047).
+„Fertig" heißt: Suiten grün, neue/­geänderte Logik durch einen Test abgedeckt,
+`python manage.py makemigrations --check` zeigt keine fehlende Migration.
 
 **CI:** `.github/workflows/tests.yml` läuft bei jedem Push/PR — Job 1 die reinen
 Tests (ohne DB), Job 2 die Integrationstests gegen echtes PostgreSQL, Job 3
 **Migrations-Resilienz**: migriert eine **befüllte Alt-DB** (Booking auf 0015
 zurück, Duplikate + Cascade-Wunsch erzeugen) vorwärts — fängt DB-spezifische
 Migrationsfehler (Unique auf Duplikaten, „pending trigger events"), die ein
-frischer Testlauf NICHT sieht. Vor dem Pull auf die VPS am grünen Häkchen
-erkennbar, ob alles passt.
+frischer Testlauf NICHT sieht. Job 4 **E2E**: baut den prod-nahen Docker-Stack
+(`docker-compose.ci.yml`, gunicorn + PostgreSQL), wartet auf `/healthz/` und lässt
+Playwright die kritischen Pfade durchspielen. Vor dem Pull auf die VPS am grünen
+Häkchen erkennbar, ob alles passt.
 
 **Betrieb:** `docker-compose.yml` hat einen **Healthcheck** am `web`-Container
 (pingt **`/healthz/`** = DB-Query, scheitert wenn Gunicorn ODER DB weg ist, z.B.

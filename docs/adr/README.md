@@ -59,6 +59,7 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0044](0044-web-push-und-gezieltes-offline.md) | Web-Push (mobil) und gezieltes Offline-Verhalten | Accepted |
 | [0045](0045-domaeneninvarianten-im-modell-clean.md) | Domänen-Invarianten am Modell (`clean`) erzwingen, auch im Admin | Accepted |
 | [0046](0046-observability-logging-sentry-healthcheck.md) | Observability: strukturiertes Logging, Sentry und Health-Endpoint | Accepted |
+| [0047](0047-e2e-tests-prod-naher-stack.md) | End-to-End-Tests gegen einen prod-nahen Docker-Stack | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

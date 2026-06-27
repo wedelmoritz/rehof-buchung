@@ -1,11 +1,13 @@
 # GitHub-Actions-Workflow für die Re:Hof Quartier-Buchung.
 #
-# Zwei getrennte Jobs (laufen parallel):
-#   1) reine-logik   – pytest ohne Datenbank, sehr schnelles Grün/Rot.
-#   2) integration   – Django-Tests gegen echtes PostgreSQL (wie in Produktion).
+# Vier Jobs (laufen parallel):
+#   1) reine-logik         – pytest ohne Datenbank, sehr schnelles Grün/Rot.
+#   2) integration         – Django-Tests gegen echtes PostgreSQL (wie in Produktion).
+#   3) migration-resilienz – Vorwärts-Migration auf einer BEFÜLLTEN Alt-DB.
+#   4) e2e                 – Playwright gegen den prod-nahen Docker-Stack (ADR 0047).
 #
-# So bekommst du sofort Signal aus der reinen Logik, während die
-# Integrationstests in einer produktionsnahen DB laufen.
+# So bekommst du sofort Signal aus der reinen Logik, während die schwereren
+# Jobs in einer produktionsnahen Umgebung laufen.
 
 name: Tests
 
@@ -233,3 +235,57 @@ jobs:
           assert Purchase.objects.count() == 1, "Einkauf nicht nachgetragen"
           print("OK: eine Periode pro Jahr + Hofladen-Einkauf nachgetragen.")
           PY
+
+  # --------------------------------------------------------------------------
+  # 4) End-to-End: Playwright gegen den PROD-NAHEN Docker-Stack (ADR 0047).
+  #    Gleiche Image-/Entrypoint-/Gunicorn-/PostgreSQL-Kette wie in Produktion
+  #    (nur ohne Caddy/TLS). Deckt die echte Browser-/Server-/Cookie-/JS-Naht ab,
+  #    die `manage.py test` (in-process) nicht sieht.
+  # --------------------------------------------------------------------------
+  e2e:
+    name: E2E (Playwright, prod-naher Docker-Stack)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Stack bauen und starten (gunicorn + PostgreSQL)
+        run: docker compose -f docker-compose.ci.yml up -d --build
+
+      - name: Auf /healthz/ warten
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/healthz/ >/dev/null 2>&1; then
+              echo "web ist gesund."; exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::web wurde nicht rechtzeitig gesund"
+          docker compose -f docker-compose.ci.yml logs web
+          exit 1
+
+      - name: Testdaten anlegen (test/admin/verwaltung + Hofladen)
+        run: docker compose -f docker-compose.ci.yml exec -T web
+             python manage.py seed_demo --testdata --yes
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Playwright + Browser installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-e2e.txt
+          python -m playwright install --with-deps chromium
+
+      - name: E2E-Smoke-Tests
+        run: python -m pytest tests_e2e/ --base-url http://localhost:8000 -v
+
+      - name: Server-Logs bei Fehler
+        if: failure()
+        run: docker compose -f docker-compose.ci.yml logs web
+
+      - name: Stack abräumen
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v

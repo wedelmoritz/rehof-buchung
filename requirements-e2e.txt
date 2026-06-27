@@ -1,0 +1,6 @@
+# Abhängigkeiten NUR für die End-to-End-Tests (Playwright), getrennt vom App-Image.
+# Lauf:  pip install -r requirements-e2e.txt
+#        python -m playwright install --with-deps chromium
+#        pytest tests_e2e/ --base-url http://localhost:8000
+pytest>=8.0
+pytest-playwright>=0.5
