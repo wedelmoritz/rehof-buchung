@@ -1,11 +1,13 @@
 """Tests rund um Authentifizierung, Selbstregistrierung und Freischaltung."""
 from __future__ import annotations
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
-from booking.models import Member
+from booking import services as svc
+from booking.models import Member, Membership, OpsConfig, OutboxEmail, Share
+from booking.permissions import VERWALTUNG_GROUP
 
 PW = "Korbflechter7x"
 
@@ -49,6 +51,56 @@ class RegistrierungUndFreischaltungTests(TestCase):
         })
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(User.objects.filter(email="neu2@example.org").exists())
+
+    def test_registrierung_benachrichtigt_verwaltung(self):
+        # Mit hinterlegter Verwaltungs-Adresse geht bei Selbstregistrierung eine
+        # „neuer Benutzer wartet auf Zuordnung"-Mail in die Outbox.
+        cfg = OpsConfig.get_solo()
+        cfg.admin_emails = "verwaltung@example.org"
+        cfg.save()
+        self.client.post(reverse("register"), {
+            "email": "frisch@example.org", "name": "Frisch Konto",
+            "password1": PW, "password2": PW,
+        })
+        mail = OutboxEmail.objects.filter(to_email="verwaltung@example.org").first()
+        self.assertIsNotNone(mail)
+        self.assertIn("Neuer Benutzer", mail.subject)
+        self.assertIn("frisch@example.org", mail.body)
+
+    def test_registrierung_ohne_adresse_keine_mail(self):
+        # Ohne hinterlegte Verwaltungs-Adresse passiert nichts (kein Fehler).
+        self.client.post(reverse("register"), {
+            "email": "frisch2@example.org", "name": "Frisch Zwei",
+            "password1": PW, "password2": PW,
+        })
+        self.assertEqual(OutboxEmail.objects.count(), 0)
+
+
+class NeueBenutzerOhneAnteilTests(TestCase):
+    """`users_without_membership`: liefert genau die noch nicht zugeordneten Konten."""
+
+    def test_listet_konten_ohne_anteil_und_blendet_zugeordnete_aus(self):
+        # 1) Konto ohne Mitglieds-Profil -> wartet auf Zuordnung
+        ohne_profil = User.objects.create_user("ohne", "ohne@e.de", PW)
+        # 2) Konto mit Profil aber ohne Anteil -> wartet ebenfalls
+        mit_profil = User.objects.create_user("mitprofil", "mp@e.de", PW)
+        Member.objects.create(user=mit_profil, display_name="Mit Profil")
+        # 3) Vollständig zugeordnetes Konto -> NICHT in der Liste
+        fertig = User.objects.create_user("fertig", "f@e.de", PW)
+        m = Member.objects.create(user=fertig, display_name="Fertig")
+        ms = Membership.objects.create(label="Anteil A")
+        Share.objects.create(membership=ms, member=m, night_budget=50)
+        # 4) Verwaltungs-Konto -> braucht kein Profil, NICHT in der Liste
+        verw = User.objects.create_user("verw", "v@e.de", PW)
+        verw.groups.add(Group.objects.get_or_create(name=VERWALTUNG_GROUP)[0])
+        # 5) Admin/Superuser -> NICHT in der Liste
+        User.objects.create_superuser("chef", "chef@e.de", PW)
+        # 6) Externer Gast mit Profil -> NICHT in der Liste
+        gast = User.objects.create_user("gast", "g@e.de", PW)
+        Member.objects.create(user=gast, display_name="Gast", is_external=True)
+
+        result = set(svc.users_without_membership().values_list("username", flat=True))
+        self.assertEqual(result, {"ohne", "mitprofil"})
 
 
 class LoginTests(TestCase):

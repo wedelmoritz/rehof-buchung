@@ -648,7 +648,15 @@ Axes-Block). Nutzer können sich **selbst registrieren** (`register` →
 `registration/register.html`); dabei entsteht NUR ein Login-Konto. Bis die
 Verwaltung ein **Mitglieds-Profil** (`Member`) zuordnet, sperrt
 `booking/middleware.py::ActivationGateMiddleware` alles und leitet auf die
-Warte-Seite `pending` um (Verwaltungs-/Admin-Konten ausgenommen). Cookies/Sessions
+Warte-Seite `pending` um (Verwaltungs-/Admin-Konten ausgenommen). **Damit die
+Verwaltung neue Konten schnell freischaltet:** (a) bei jeder Selbstregistrierung
+geht eine E-Mail an die Verwaltung (`services.notify_admins_new_user` →
+`OpsConfig.admin_emails`), und (b) die **Backend-Startseite** zeigt oben den
+Abschnitt **„Neue Benutzer – noch ohne Mitglieds-Anteil"** mit allen noch nicht
+zugeordneten Konten (`services.users_without_membership` = aktive Konten ohne
+`Share`, ohne Admin-/Staff-/Verwaltungs-Konten und ohne externe Gäste; gerendert
+über `RehofAdminSite.index`-Extra-Context in `custom_index.html`, Klick führt
+direkt aufs Benutzer-Formular). Cookies/Sessions
 sind gehärtet (HttpOnly, SameSite=Lax, Secure in Prod). OIDC/Keycloak-Naht
 bleibt in `settings.py` markiert.
 

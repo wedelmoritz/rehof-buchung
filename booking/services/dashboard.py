@@ -17,8 +17,29 @@ __all__ = [
     '_month_occupancy', 'dashboard_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
-    'notify_admins_upcoming',
+    'notify_admins_upcoming', 'users_without_membership',
 ]
+
+
+def users_without_membership():
+    """Aktive Login-Konten, die **noch keinem Mitglieds-Anteil** (`Share`) zugeordnet
+    sind – also die frisch registrierten Benutzer, die die Verwaltung im Backend noch
+    freischalten muss (Mitglieds-Profil + Tage-Anteil). Schließt Admin-/Staff- und
+    Verwaltungs-Konten (brauchen kein Profil) sowie externe Gäste aus. Erfasst sowohl
+    Konten ohne Mitglieds-Profil als auch solche mit Profil, aber ohne Anteil.
+    Neueste zuerst."""
+    from django.contrib.auth.models import User
+    from django.db.models import Count
+    from ..permissions import VERWALTUNG_GROUP
+    return (
+        User.objects.filter(is_active=True, is_superuser=False, is_staff=False)
+        .exclude(groups__name=VERWALTUNG_GROUP)
+        .exclude(member__is_external=True)
+        .annotate(_n_shares=Count("member__shares"))
+        .filter(_n_shares=0)
+        .order_by("-date_joined")
+    )
+
 
 def _annotate_cleaning(qs):
     """Markiert je Buchung, ob eine Endreinigung mitgebucht wurde."""

@@ -12,6 +12,7 @@ __all__ = [
     'unread_notifications', 'mark_notifications_read', 'absolute_url',
     'queue_email', 'email_member', 'queue_email_many', 'email_admins',
     'email_cleaning', 'send_web_push', 'send_account_invite',
+    'notify_admins_new_user',
 ]
 
 def unread_notifications(member):
@@ -106,6 +107,32 @@ def email_admins(subject: str, body: str, html_body: str = ""):
 def email_cleaning(subject: str, body: str, html_body: str = ""):
     from ..models import OpsConfig
     return queue_email_many(OpsConfig.get_solo().cleaning_list(), subject, body, html_body)
+
+
+def notify_admins_new_user(user):
+    """Mailt der Verwaltung, dass sich ein neuer Benutzer registriert hat und noch
+    einem Mitglieds-Anteil zugeordnet werden muss (sonst kann die Person nicht
+    buchen). Empfänger sind die Verwaltungs-Adressen aus den Betriebs-Einstellungen
+    (`OpsConfig.admin_emails`); ohne hinterlegte Adresse passiert nichts."""
+    from django.urls import NoReverseMatch, reverse
+    name = (user.get_full_name() or user.username or "").strip()
+    email = (getattr(user, "email", "") or "").strip()
+    try:
+        link = absolute_url(reverse("admin:auth_user_change", args=[user.pk]))
+    except NoReverseMatch:
+        link = absolute_url("/admin/auth/user/")
+    body = (
+        "Ein neuer Benutzer hat sich registriert und wartet auf die Zuordnung zu "
+        "einem Mitglieds-Anteil:\n\n"
+        f"Benutzer: {user.username}\n"
+        f"Name: {name or '—'}\n"
+        f"E-Mail: {email or '—'}\n\n"
+        "Bitte im Backend das Mitglieds-Profil ausfüllen und einen Tage-Anteil "
+        "zuordnen – erst dann kann die Person buchen:\n"
+        f"{link}\n\n"
+        "Alle noch nicht zugeordneten Benutzer stehen gesammelt oben auf der "
+        "Backend-Startseite.\n\nRe:Hof")
+    return email_admins("Re:Hof: Neuer Benutzer wartet auf Zuordnung", body)
 
 
 def send_web_push(member, title: str, body: str, url: str = "") -> int:

@@ -6,6 +6,30 @@ hängen Benutzer, Mitglieder und Anteile zusammen.{% endcomment %}
 Spalte (#content-related, float:right) wie im Standard oben rechts andockt
 statt unter den Inhalt zu rutschen.{% endcomment %}
 <div id="content-main">
+{% comment %}Abschnitt „Neue Benutzer“: frisch registrierte Konten, die noch keinem
+Mitglieds-Anteil zugeordnet sind (können nicht buchen, warten auf Freischaltung).
+Nur sichtbar, wenn es solche Konten gibt – so fällt es sofort auf.{% endcomment %}
+{% if new_users_count %}
+<section class="module rehof-newusers" id="rehof-newusers">
+  <h2>Neue Benutzer – noch ohne Mitglieds-Anteil <span class="rehof-nu-count">{{ new_users_count }}</span></h2>
+  <div class="rehof-nu-body">
+    <p class="rehof-nu-hint">Diese Konten sind angelegt, aber <strong>noch keinem
+      Mitglieds-Anteil zugeordnet</strong> – sie können noch nicht buchen und warten
+      auf die Freischaltung. Konto öffnen → Mitglieds-Profil ausfüllen → unter
+      <strong>Tage-Anteil</strong> einen Anteil zuordnen.</p>
+    <ul class="rehof-nu-list">
+      {% for u in new_users %}
+      <li class="rehof-nu-item">
+        <a class="rehof-nu-name" href="{% url 'admin:auth_user_change' u.pk %}">
+          {{ u.get_full_name|default:u.username }}</a>
+        <span class="rehof-nu-meta">{{ u.email|default:"ohne E-Mail" }} · registriert {{ u.date_joined|date:"d.m.Y" }}</span>
+        <a class="rehof-nu-go" href="{% url 'admin:auth_user_change' u.pk %}">zuordnen →</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
 <details class="module rehof-intro" id="rehof-intro">
   <summary>Was kannst du hier tun? <span class="rehof-toggle">(ein-/ausklappen)</span></summary>
   <div class="rehof-intro-body">
@@ -174,6 +198,28 @@ Sektionen. Statt der Standard-Tabellen rendern wir die fachlichen Sektionen
     background: var(--message-success-bg); }
   .rehof-intro .rehof-roles { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px;
     background: var(--selected-bg); }
+
+  /* Abschnitt „Neue Benutzer“ – fällt durch den Akzent-Rahmen auf, ohne zu schreien. */
+  .rehof-newusers { margin: 0 0 18px; border-radius: 12px; overflow: hidden;
+    border: 1px solid #efc9bf; border-left: 4px solid var(--primary);
+    box-shadow: 0 1px 2px rgba(60,53,47,.035), 0 8px 22px rgba(60,53,47,.04); }
+  .rehof-newusers > h2 { margin: 0; padding: 12px 16px; font-size: 13px;
+    font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--body-loud-color); background: var(--accent-soft, #fbe9e4);
+    display: flex; align-items: center; gap: 10px; }
+  .rehof-nu-count { margin-left: auto; min-width: 22px; text-align: center;
+    padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0; background: var(--primary); color: #fff; }
+  .rehof-nu-body { padding: 12px 16px 6px; }
+  .rehof-nu-hint { margin: 0 0 10px; color: var(--body-fg); }
+  .rehof-nu-list { list-style: none; margin: 0; padding: 0; }
+  .rehof-nu-item { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    padding: 9px 10px; border-radius: 8px; border-bottom: 1px solid var(--hairline-color); }
+  .rehof-nu-item:last-child { border-bottom: 0; }
+  .rehof-nu-item:hover { background: #fbe9e4; }
+  .rehof-nu-name { font-weight: 700; }
+  .rehof-nu-meta { color: var(--body-quiet-color); font-size: 12px; }
+  .rehof-nu-go { margin-left: auto; font-weight: 700; white-space: nowrap; }
 
   /* hidden-Attribut schlägt das display der Flex-/Block-Regeln (sonst bleiben
      gefilterte Einträge sichtbar). */

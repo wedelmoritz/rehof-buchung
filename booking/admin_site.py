@@ -47,6 +47,17 @@ class RehofAdminSite(admin.AdminSite):
     """Admin-Site mit fachlicher Sektions-Gliederung (site_header/index_template
     werden weiterhin in booking/admin.py gesetzt)."""
 
+    def index(self, request, extra_context=None):
+        """Backend-Startseite um den Abschnitt „Neue Benutzer“ ergänzen: Konten, die
+        noch keinem Mitglieds-Anteil zugeordnet sind und freigeschaltet werden
+        müssen (so sieht die Verwaltung sie sofort und kann sie schnell zuordnen)."""
+        extra_context = extra_context or {}
+        from . import services as svc
+        pending = list(svc.users_without_membership()[:50])
+        extra_context["new_users"] = pending
+        extra_context["new_users_count"] = len(pending)
+        return super().index(request, extra_context)
+
     def get_app_list(self, request, app_label=None):
         app_list = super().get_app_list(request, app_label)
         # Bei App-spezifischer Ansicht (/admin/<app>/) das Standardverhalten lassen.

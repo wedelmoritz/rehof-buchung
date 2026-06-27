@@ -652,6 +652,9 @@ def register(request):
         form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            # Die Verwaltung benachrichtigen: neues Konto wartet auf Zuordnung
+            # eines Mitglieds-Anteils (sonst kann die Person nicht buchen).
+            svc.notify_admins_new_user(user)
             login(request, user,
                   backend="booking.auth.EmailOrUsernameModelBackend")
             return redirect("pending")
