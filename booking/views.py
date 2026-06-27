@@ -515,6 +515,13 @@ def wishlist(request):
                     form.cleaned_data["start"], form.cleaned_data["end"])
                 if werr:
                     messages.error(request, werr)
+                else:
+                    messages.success(
+                        request,
+                        f"Wunsch „{_wish.quarter.name}“ eingetragen "
+                        f"({_wish.start:%d.%m.}–{_wish.end:%d.%m.}). "
+                        "Noch nicht eingereicht – unten in der Wunschliste "
+                        "ordnen und am Ende einreichen.")
             else:
                 messages.error(request, "Bitte einen gültigen Wunsch eingeben.")
             # Auswahl im Kalender erhalten, damit man weitere Wünsche eintragen kann
