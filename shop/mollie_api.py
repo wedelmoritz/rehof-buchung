@@ -1,5 +1,5 @@
 """Dünne Anbindung an die Mollie Payments API – NUR aktiv, wenn in den
-Hofladen-Einstellungen ein `test_…`/`live_…`-Key hinterlegt ist. Bewusst minimal
+„Rechtliche & Zahlungs-Einstellungen“ ein `test_…`/`live_…`-Key hinterlegt ist. Bewusst minimal
 (Zahlung anlegen + Status abfragen) und ohne Fremd-Abhängigkeit (stdlib).
 
 Im Test-Modus (kein Key) wird dieses Modul nie importiert – dann läuft die

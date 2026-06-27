@@ -369,3 +369,16 @@ class KleinunternehmerInvoiceTests(ShopBase):
         inv, _ = svc.generate_invoice_now(self.bob)
         self.assertFalse(inv.small_business)
         self.assertIn("zzgl. MwSt", invoice_html(inv))
+
+
+class ConfigAdminTests(TestCase):
+    """Singleton-Einstellungen: der Admin springt direkt aufs Objekt (keine
+    Zwischen-Liste „… zur Änderung auswählen“)."""
+
+    def test_changelist_redirects_to_object(self):
+        from django.contrib.auth.models import User
+        admin = User.objects.create_superuser("admin9", "admin9@example.org", "x" * 12)
+        self.client.force_login(admin)
+        r = self.client.get("/admin/shop/shopconfig/")
+        self.assertEqual(r.status_code, 302)
+        self.assertRegex(r["Location"], r"/admin/shop/shopconfig/\d+/change/")

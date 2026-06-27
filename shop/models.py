@@ -85,7 +85,9 @@ class ShopConfig(models.Model):
                   "Hinweis zur Streitschlichtung).")
     privacy_policy = models.TextField(
         "Datenschutzerklärung", blank=True,
-        help_text="Pflichttext nach DSGVO (Art. 13). Leer = Seite zeigt nur einen "
+        help_text="Pflichttext nach DSGVO (Art. 13). Eine anpassbare Vorlage samt "
+                  "Checkliste steht in docs/DATENSCHUTZ-VORLAGE.md – Platzhalter "
+                  "[in eckigen Klammern] ersetzen. Leer = Seite zeigt nur einen "
                   "Platzhalter samt Kontakt.")
     terms_agb = models.TextField(
         "AGB (Anzeigetext)", blank=True,
@@ -93,11 +95,13 @@ class ShopConfig(models.Model):
                   "Leer = AGB-Seite wird nicht verlinkt.")
 
     class Meta:
-        verbose_name = "Hofladen-Einstellungen"
-        verbose_name_plural = "Hofladen-Einstellungen"
+        # Übergreifend: betrifft Hofladen UND externe Gäste (Rechnungen, Steuer,
+        # Impressum/Datenschutz/AGB, Zahlung). Daher ein neutraler Name.
+        verbose_name = "Rechtliche & Zahlungs-Einstellungen"
+        verbose_name_plural = "Rechtliche & Zahlungs-Einstellungen"
 
     def __str__(self) -> str:
-        return "Hofladen-Einstellungen"
+        return "Rechtliche & Zahlungs-Einstellungen"
 
     @classmethod
     def get_solo(cls) -> "ShopConfig":

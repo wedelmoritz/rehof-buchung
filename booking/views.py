@@ -644,7 +644,7 @@ def pending(request):
 
 # --------------------------------------------------------------------------- #
 # Rechtstexte (öffentlich, ohne Login): Impressum (Pflicht, §5 DDG),
-# Datenschutz (DSGVO) und AGB – Inhalte aus den Hofladen-Einstellungen.
+# Datenschutz (DSGVO) und AGB – Inhalte aus den „Rechtliche & Zahlungs-Einstellungen“.
 # --------------------------------------------------------------------------- #
 
 def imprint(request):

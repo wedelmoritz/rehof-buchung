@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from django import forms
 from django.contrib import admin, messages
+from django.shortcuts import redirect
+from django.urls import reverse
 
 from . import reconcile, services as svc
 from .models import (
@@ -81,6 +83,12 @@ class ShopConfigAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def changelist_view(self, request, extra_context=None):
+        # Singleton: direkt aufs einzige Objekt – spart die Zwischen-Liste
+        # („… zur Änderung auswählen“).
+        obj = ShopConfig.get_solo()
+        return redirect(reverse("admin:shop_shopconfig_change", args=[obj.id]))
 
 
 @admin.register(ProductGroup)

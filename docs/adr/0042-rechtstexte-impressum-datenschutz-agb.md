@@ -31,6 +31,13 @@ pflegen können.
 - **Stammdaten/Texte** liegen im Singleton `shop.ShopConfig` (dort, wo bereits
   Name/Anschrift/Steuernummer/Kontakt stehen, ADR 0034): neue Felder `vat_id`,
   `register_court`, `register_number`, `imprint_extra`, `privacy_policy`, `terms_agb`.
+  Der Bereich heißt im Backend **„Rechtliche & Zahlungs-Einstellungen“** (statt
+  „Hofladen-Einstellungen“), weil er übergreifend gilt (Rechnungen auch für externe
+  Gäste); der Admin springt per `changelist_view`-Redirect direkt aufs Singleton.
+- **Datenschutz-Vorlage:** Eine einfache, anpassbare Datenschutzerklärung samt
+  Checkliste der individuell zu füllenden Punkte liegt in
+  `docs/DATENSCHUTZ-VORLAGE.md` (auf die tatsächlich anfallenden Verarbeitungen
+  zugeschnitten); das `privacy_policy`-Hilfetextfeld verweist darauf.
 - **Impressum** wird aus den strukturierten Feldern **erzeugt** (`coop_name`,
   `coop_address`, `board` = vertretungsberechtigter Vorstand, `tax_number`/`vat_id`,
   Registergericht/-nummer, Kontakt) – keine Doppelpflege; optionaler `imprint_extra`.

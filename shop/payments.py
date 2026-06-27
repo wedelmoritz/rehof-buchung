@@ -4,7 +4,7 @@ Gäste, weil beide eine `Invoice` haben.
 Ohne hinterlegten Mollie-API-Key läuft alles im eingebauten **TEST-Modus**:
 statt einer echten Mollie-Bezahlseite zeigen wir unsere eigene Sandbox-Seite, auf
 der die Zahlung simuliert wird (bezahlt/abgebrochen) – ohne Konto, ohne Gebühren.
-Sobald ein `test_…`/`live_…`-Key in den Hofladen-Einstellungen steht, wird der
+Sobald ein `test_…`/`live_…`-Key in den „Rechtliche & Zahlungs-Einstellungen“ steht, wird der
 echte Mollie-Dienst über dieselbe Naht angesprochen (`shop/mollie_api.py`).
 """
 from __future__ import annotations
