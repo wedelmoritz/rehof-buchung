@@ -40,18 +40,27 @@
 <div class="card">
   <div class="sec-head"><h2 style="margin:0">Abgleich – {{ rows|length }} Zeilen</h2>
     <span class="spacer"></span><button class="btn" type="submit">Auswahl übernehmen</button></div>
-  <p class="muted" style="margin:.2rem 0 .6rem">Treffergüte: 🟢 sicher · 🟡 prüfen ·
-    🔴 kein Vorschlag. Aktion „übernehmen“ ist bei sicheren Treffern vorausgewählt.</p>
+  <p class="muted" style="margin:.2rem 0 .3rem"><strong>Mitglied-Treffer:</strong>
+    🟢 sicher (E-Mail/Name) · 🟡 prüfen · 🔴 kein Vorschlag.
+    <strong>Verfügbarkeit:</strong> 🟢 Zeitraum frei · 🔴 schon belegt · — nicht
+    prüfbar (Quartier/Datum fehlt). ⚠️ = Buchungsregel-Hinweis (z.&nbsp;B.
+    Mindestaufenthalt) – <em>nur Warnung</em>, der Import ist trotzdem möglich.</p>
+  <p class="muted" style="margin:0 0 .6rem;font-size:.86rem"><strong>Aktion:</strong>
+    <em>übernehmen</em> legt die Buchung an · <em>überspringen</em> verwirft die
+    Zeile bewusst (bleibt als „übersprungen“ vermerkt) · <em>offen</em> = noch nicht
+    entscheiden (es passiert nichts, du kannst später zurückkommen). „übernehmen“ ist
+    bei sicheren Treffern vorausgewählt.</p>
   <div class="table-wrap"><table class="grid">
     <thead><tr>
       <th>Gast (Beds24)</th><th>Zeitraum</th><th>Unit</th><th>Pers.</th>
-      <th>Mitglied</th><th>Quartier</th><th>Aktion</th>
+      <th>Mitglied</th><th>Quartier</th><th>Verfügbar?</th><th>Aktion</th>
     </tr></thead>
     <tbody>
     {% for r in rows %}
       <tr class="{% if r.status == 'imported' %}ok-row{% elif not r.valid %}danger-row{% endif %}">
         <td>{{ r.guest_name }}
           {% if r.suggested_score >= 0.7 %}🟢{% elif r.suggested_member %}🟡{% else %}🔴{% endif %}
+          {% if r.email %}<br><span class="muted" style="font-size:.8rem">{{ r.email }}</span>{% endif %}
           {% if r.note %}<br><span class="muted" style="font-size:.8rem">{{ r.note }}</span>{% endif %}</td>
         <td>{{ r.arrival|date:"d.m.y" }}–{{ r.departure|date:"d.m.y" }}<br>
           <span class="muted">{{ r.nights }} N</span></td>
@@ -65,7 +74,7 @@
             {% for m in members %}<option value="{{ m.id }}" {% if r.chosen_member_id == m.id %}selected{% endif %}>{{ m.display_name }}</option>{% endfor %}
           </select>
           <button class="btn small ghost" type="button" data-cm="{{ r.id }}"
-            title="Neues Mitglied aus dem Gastnamen anlegen">+ Mitglied</button>
+            title="Neues Mitglied aus dem Gastnamen anlegen (mit E-Mail folgt eine Passwort-Einladung)">+ Mitglied</button>
           {% endif %}
         </td>
         <td>
@@ -78,12 +87,18 @@
           {% endif %}
         </td>
         <td>
+          {% if r.free is None %}<span title="Quartier/Datum fehlt – nicht prüfbar">—</span>
+          {% elif r.free %}🟢
+          {% else %}🔴 <span class="muted" style="font-size:.8rem">{{ r.conflict }}</span>{% endif %}
+          {% if r.rule_warning %}<br><span class="warn-note" title="Buchungsregel-Hinweis – blockiert nicht">⚠️ {{ r.rule_warning }}</span>{% endif %}
+        </td>
+        <td>
           {% if r.status == 'imported' %}<span class="tag" style="background:#e1efd6;color:#41663a">übernommen</span>
           {% else %}
           <select name="action_{{ r.id }}">
-            <option value="">offen</option>
+            <option value="">offen (später)</option>
             <option value="import" {% if r.valid and r.chosen_member_id and r.chosen_quarter_id %}selected{% endif %}>übernehmen</option>
-            <option value="skip">überspringen</option>
+            <option value="skip">überspringen (verwerfen)</option>
           </select>
           {% endif %}
         </td>
@@ -110,6 +125,7 @@
   .ok-row td { background:#f2f8ec; }
   .import-form { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
   table.grid select, table.grid input { padding:.3rem .35rem; }
+  .warn-note { color:#9a6a00; font-size:.8rem; }
 </style>
 <script>
   // „+ Mitglied"-Knopf: reicht das zugehörige Mini-Formular der Zeile ein.

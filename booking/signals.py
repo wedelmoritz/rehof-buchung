@@ -31,6 +31,13 @@ def member_freischaltung_email(sender, instance: Member, created: bool, **kwargs
     frei), bekommt die Person eine E-Mail – sofern eine Adresse hinterlegt ist."""
     if not created:
         return
+    # Hat das Konto noch kein Passwort (frisch im Backend angelegt), bekommt die
+    # Person ohnehin die „Passwort setzen"-Einladung – dann hier keine zweite,
+    # verwirrende „du kannst jetzt buchen"-Mail (sie kann sich noch gar nicht
+    # anmelden). Sie folgt automatisch, sobald das Passwort steht, nicht.
+    user = getattr(instance, "user", None)
+    if user is not None and not user.has_usable_password():
+        return
     # Lazy-Import: services importiert models, daher hier erst zur Laufzeit.
     from .services import email_member, absolute_url
     email_member(

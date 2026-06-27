@@ -1119,6 +1119,7 @@ class Beds24ImportRow(models.Model):
     batch = models.ForeignKey(Beds24Import, on_delete=models.CASCADE,
                               related_name="rows", verbose_name="Import")
     guest_name = models.CharField("Gastname (Beds24)", max_length=200)
+    email = models.EmailField("E-Mail (Beds24)", blank=True)
     arrival = models.DateField("Anreise", null=True, blank=True)
     departure = models.DateField("Abreise", null=True, blank=True)
     unit = models.CharField("Unit/Quartier (Beds24)", max_length=200, blank=True)

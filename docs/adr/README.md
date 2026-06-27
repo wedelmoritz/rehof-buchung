@@ -73,6 +73,7 @@ die Regelwerte zu wiederholen.
 | [0049](0049-backend-fachliche-gliederung.md) | Backend: fachliche Gliederung statt App-Gruppierung | Accepted |
 | [0050](0050-services-paket-aufteilung.md) | Service-Layer als Paket: `services.py` in fachliche Submodule aufteilen | Accepted |
 | [0051](0051-belastungs-und-nebenlaeufigkeitstests.md) | Belastungs- und Nebenläufigkeitstests (k6 + Zeilensperren-Test) | Accepted |
+| [0052](0052-konto-einladung-passwort-selbst-setzen.md) | Konto-Einladung: Passwort selbst setzen statt Admin-Vergabe | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

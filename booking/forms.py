@@ -63,8 +63,9 @@ class ProfileForm(forms.ModelForm):
     optional – wird eines ausgefüllt, muss es grundlegend plausibel sein."""
     class Meta:
         model = Member
-        fields = ["legal_name", "street", "zip_code", "city", "iban",
-                  "email_opt_in"]
+        # email_opt_in wird separat in der „Benachrichtigungen"-Karte gepflegt
+        # (neben Push), nicht hier zwischen den Rechnungsdaten.
+        fields = ["legal_name", "street", "zip_code", "city", "iban"]
 
     def clean_legal_name(self):
         v = (self.cleaned_data.get("legal_name") or "").strip()

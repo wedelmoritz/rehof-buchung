@@ -11,7 +11,7 @@ from ..models import (
 __all__ = [
     'unread_notifications', 'mark_notifications_read', 'absolute_url',
     'queue_email', 'email_member', 'queue_email_many', 'email_admins',
-    'email_cleaning', 'send_web_push',
+    'email_cleaning', 'send_web_push', 'send_account_invite',
 ]
 
 def unread_notifications(member):
@@ -61,6 +61,35 @@ def email_member(member, subject: str, body: str, html_body: str = "",
         return None
     return queue_email(email, subject, body, html_body, member,
                        attachment, attachment_name, attachment_mime)
+
+
+def send_account_invite(user) -> "OutboxEmail | None":
+    """Schickt einem (vom Backend/Import) angelegten Benutzer eine Einladung, sein
+    **Passwort selbst zu setzen** – per Token-Link (wie Passwort-Reset, nur mit
+    „Passwort setzen"-Sprache). Admins vergeben also kein Passwort. Voraussetzung:
+    der Benutzer hat eine E-Mail-Adresse. Gibt die eingereihte Mail zurück (oder
+    None, wenn keine Adresse vorliegt)."""
+    from django.contrib.auth.tokens import default_token_generator
+    from django.urls import reverse
+    from django.utils.encoding import force_bytes
+    from django.utils.http import urlsafe_base64_encode
+    email = (getattr(user, "email", "") or "").strip()
+    if not email:
+        return None
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = absolute_url(reverse("password_set_confirm",
+                                kwargs={"uidb64": uid, "token": token}))
+    name = (user.get_full_name() or user.username or "").strip()
+    return queue_email(
+        email,
+        "Re:Hof: Konto angelegt – jetzt Passwort setzen",
+        f"Hallo {name},\n\n"
+        f"für dich wurde ein Re:Hof-Konto angelegt. Vergib bitte über den folgenden "
+        f"Link selbst dein Passwort – danach kannst du dich mit deiner E-Mail-Adresse "
+        f"anmelden:\n\n{link}\n\n"
+        f"Der Link ist aus Sicherheitsgründen nur begrenzt gültig. Brauchst du einen "
+        f"neuen, wende dich bitte an die Verwaltung.\n\nViele Grüße\nRe:Hof")
 
 
 def queue_email_many(recipients, subject: str, body: str, html_body: str = ""):

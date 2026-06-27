@@ -1,7 +1,7 @@
 """Haupt-URL-Konfiguration."""
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import include, path
+from django.urls import include, path, reverse_lazy
 from django.views.generic import TemplateView
 
 urlpatterns = [
@@ -9,6 +9,13 @@ urlpatterns = [
     path("login/", auth_views.LoginView.as_view(
         template_name="registration/login.html"), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    # Passwort selbst setzen (Einladung neuer Konten + Passwort vergessen): Token-Link
+    # wie beim Passwort-Reset, aber mit eigener „Passwort setzen"-Sprache.
+    path("passwort-setzen/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(
+        template_name="registration/password_set_confirm.html",
+        success_url=reverse_lazy("password_set_done")), name="password_set_confirm"),
+    path("passwort-gesetzt/", auth_views.PasswordResetCompleteView.as_view(
+        template_name="registration/password_set_done.html"), name="password_set_done"),
     # Service Worker MUSS im Root-Scope ("/") liegen, um die ganze App zu steuern.
     path("sw.js", TemplateView.as_view(
         template_name="booking/sw.js",

@@ -135,23 +135,80 @@ class MemberProfileInline(admin.StackedInline):
 admin.site.unregister(User)
 
 
+from django import forms
+
+
+class AdminUserInviteForm(forms.ModelForm):
+    """Benutzer anlegen **ohne** Passwort: die E-Mail ist Pflicht, denn der neue
+    Nutzer setzt sein Passwort selbst über einen Einladungs-Link (Admins vergeben
+    kein Passwort)."""
+    class Meta:
+        model = User
+        fields = ("username", "email")
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            raise forms.ValidationError(
+                "E-Mail ist nötig – darüber bekommt die Person den Link zum "
+                "Passwort-Setzen.")
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("Mit dieser E-Mail gibt es bereits ein Konto.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_unusable_password()   # der Nutzer vergibt es selbst per Einladung
+        if commit:
+            user.save()
+        return user
+
+
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
     """Ein Benutzer = eine Person mit Login UND Buchungs-/Rechnungsprofil.
     Tage-Anteile (welche eG-Anteile die Person hält) werden beim jeweiligen
-    „Mitglieds-Anteil“ zugeordnet."""
+    „Mitglieds-Anteil“ zugeordnet. **Anlegen ohne Passwort:** beim Speichern geht
+    automatisch eine „Passwort setzen"-Einladung an die E-Mail des Kontos."""
     inlines = [MemberProfileInline]
-    actions = ["anonymize_selected"]
-    # E-Mail in der Liste zeigen, beim Anlegen abfragen und im Formular pflegbar
-    # halten (die Adresse ist zugleich der Login – siehe EmailOrUsernameBackend).
+    actions = ["send_invite_selected", "anonymize_selected"]
+    # E-Mail in der Liste zeigen; beim Anlegen abfragen (Pflicht, ohne Passwort).
     list_display = ("username", "email", "first_name", "last_name", "is_staff")
     search_fields = ("username", "email", "first_name", "last_name")
+    add_form = AdminUserInviteForm
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
-            "fields": ("username", "email", "password1", "password2"),
+            "description": "Kein Passwort nötig – der neue Nutzer bekommt per "
+                           "E-Mail einen Link, um es selbst zu setzen.",
+            "fields": ("username", "email"),
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if not change:
+            from .services import send_account_invite
+            if send_account_invite(obj):
+                self.message_user(
+                    request,
+                    f"Konto angelegt. Einladung zum Passwort-Setzen an "
+                    f"{obj.email} gesendet.", level=messages.SUCCESS)
+            else:
+                self.message_user(
+                    request,
+                    "Konto angelegt, aber ohne E-Mail – es konnte keine Einladung "
+                    "verschickt werden. E-Mail nachtragen und Einladung erneut "
+                    "senden.", level=messages.WARNING)
+
+    @admin.action(description="Einladung zum Passwort-Setzen (erneut) senden")
+    def send_invite_selected(self, request, queryset):
+        from .services import send_account_invite
+        n = sum(1 for user in queryset if send_account_invite(user))
+        self.message_user(
+            request,
+            f"{n} Einladung(en) gesendet (Konten ohne E-Mail wurden übersprungen).",
+            level=messages.SUCCESS)
 
     @admin.action(description="Mitglied anonymisieren (Recht auf Löschung, DSGVO)")
     def anonymize_selected(self, request, queryset):
