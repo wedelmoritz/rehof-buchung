@@ -255,8 +255,12 @@ POST-Formulare im `<main>` werden **progressiv per `fetch` ohne Neuladen** abges
 Scrollposition gehalten); ebenso die **GET-Kalendernavigation** (Tag Anreise→Abreise
 wählen, Monat blättern, zurücksetzen) über `window.__nav` – **kein Sprung nach oben**
 mehr. Opt-in per `data-ajax` an Links/GET-Formularen (`book`/`wishlist`/`external_home`
-+ gemeinsame `_calnav.html`). Fallback = normales Laden/Abschicken, ausgenommen
-`multipart`/`data-no-ajax` (Auth) und Modifier-Klick/neuer Tab (ADR 0035).
++ gemeinsame `_calnav.html`; **`dashboard`** Monatswahl/Filter-Chips – Selects via
+`requestSubmit()`, nicht `submit()`, sonst feuert das submit-Event nicht). Fallback =
+normales Laden/Abschicken, ausgenommen `multipart`/`data-no-ajax` (Auth) und
+Modifier-Klick/neuer Tab (ADR 0035). Der AJAX-Submit-Layer respektiert
+`e.defaultPrevented`, sodass `onsubmit="return confirm(…)"` (Storno, Löschen,
+„als bezahlt melden") bei **Abbrechen** NICHT doch per AJAX abschickt.
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
@@ -463,30 +467,43 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 69 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 68 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 186 passed (3 skips)
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 212 passed (3 skips)
 python manage.py test booking shop
+
+# 3) E2E-Smoke-Tests (Playwright, gegen einen LAUFENDEN Stack) — optional lokal
+pip install -r requirements-e2e.txt && python -m playwright install chromium
+python -m pytest tests_e2e/ --base-url http://localhost:8000   # Server muss laufen
 ```
 
 Die Integrationstests liegen in `booking/tests.py` (gezielte Einzelfälle) und
 `booking/tests_usecases.py` (tiefgreifende End-to-End-Szenarien — **hier neue
-Use-Cases ergänzen**). „Fertig" heißt: beide Suiten grün, neue/­geänderte Logik
-durch einen Test abgedeckt, `python manage.py makemigrations --check` zeigt keine
-fehlende Migration.
+Use-Cases ergänzen**). Die **E2E-Smoke-Tests** (`tests_e2e/`, Playwright) prüfen die
+echte Browser-/Server-Naht (gunicorn/Cookies/JS) gegen einen prod-nahen Stack
+(`seed_demo --testdata` liefert die Konten `test`/`admin`/`verwaltung`; ADR 0047).
+„Fertig" heißt: Suiten grün, neue/­geänderte Logik durch einen Test abgedeckt,
+`python manage.py makemigrations --check` zeigt keine fehlende Migration.
 
 **CI:** `.github/workflows/tests.yml` läuft bei jedem Push/PR — Job 1 die reinen
 Tests (ohne DB), Job 2 die Integrationstests gegen echtes PostgreSQL, Job 3
 **Migrations-Resilienz**: migriert eine **befüllte Alt-DB** (Booking auf 0015
 zurück, Duplikate + Cascade-Wunsch erzeugen) vorwärts — fängt DB-spezifische
 Migrationsfehler (Unique auf Duplikaten, „pending trigger events"), die ein
-frischer Testlauf NICHT sieht. Vor dem Pull auf die VPS am grünen Häkchen
-erkennbar, ob alles passt.
+frischer Testlauf NICHT sieht. Job 4 **E2E**: baut den prod-nahen Docker-Stack
+(`docker-compose.ci.yml`, gunicorn + PostgreSQL), wartet auf `/healthz/` und lässt
+Playwright die kritischen Pfade durchspielen. Vor dem Pull auf die VPS am grünen
+Häkchen erkennbar, ob alles passt.
 
 **Betrieb:** `docker-compose.yml` hat einen **Healthcheck** am `web`-Container
-(scheitert, wenn Gunicorn nicht antwortet, z.B. nach Migrations-Abbruch →
-`docker compose ps` zeigt „unhealthy" statt nur 502 bei Caddy). **Optionales
+(pingt **`/healthz/`** = DB-Query, scheitert wenn Gunicorn ODER DB weg ist, z.B.
+nach Migrations-Abbruch → `docker compose ps` zeigt „unhealthy" statt nur 502 bei
+Caddy). **Observability (ADR 0046):** strukturierte Logs nach stdout
+(`settings.LOGGING`, Level per `LOG_LEVEL`); **Sentry** nur mit `SENTRY_DSN` aktiv
+(sonst aus, `send_default_pii=False` – keine PII, DSGVO); Health-Endpoint
+`views.healthz` (`/healthz/`, ohne Login, von der Aktivierungs-Sperre ausgenommen)
+für Container-Healthcheck **und** externes Uptime-Monitoring. **Optionales
 Redis** (Cache/Sessions/Axes-Lockout) ist über `REDIS_URL` + Profil `cache`
 zuschaltbar (`docker compose --profile cache up -d`); Standard bleibt DB-Sessions.
 **Server-Umzug inkl. DB:** `ops/migrate-server.sh dump|restore` (pg_dump/psql über
@@ -508,6 +525,14 @@ python manage.py migrate
 python manage.py seed_demo --reset        # Demo-Daten + reale BB-Termine
 python manage.py runserver
 ```
+
+**Mit uv (schneller, reproduzierbar – optional):** Abhängigkeiten + Werkzeuge
+stehen in `pyproject.toml` (Quelle für `uv`; `uv.lock` pinnt die Versionen). Das
+Docker-Image installiert bewusst weiter aus `requirements.txt` (gleiche Pins) –
+beide synchron halten. Lokal: `uv sync --extra dev --extra test` (legt `.venv` an),
+dann `uv run python manage.py …`. **Type-Check:** `mypy` (Konfiguration in
+`pyproject.toml`) prüft die **Django-freie reine Logik** (lottery/availability/
+rules/validation/external/beds24/fairness) – läuft auch im CI-Job „reine Logik".
 
 Ohne `DATABASE_URL` nutzt `settings.py` SQLite (Dev/Test). In Produktion setzt
 `docker-compose.yml` `DATABASE_URL` auf PostgreSQL; TLS macht Caddy auf dem Host,

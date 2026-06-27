@@ -39,6 +39,20 @@ MEMBER_COLORS = [
 ]
 
 
+def healthz(request):
+    """Health-Check für Container-Healthcheck und externes Uptime-Monitoring:
+    prüft die DB-Erreichbarkeit (ein trivialer Query). Ohne Login, ohne
+    Aktivierungs-Sperre. 200 = ok, 503 = DB nicht erreichbar."""
+    from django.db import connection
+    try:
+        with connection.cursor() as cur:
+            cur.execute("SELECT 1")
+            cur.fetchone()
+    except Exception:
+        return JsonResponse({"status": "error"}, status=503)
+    return JsonResponse({"status": "ok"})
+
+
 def _current_member(request) -> Member | None:
     return getattr(request.user, "member", None)
 

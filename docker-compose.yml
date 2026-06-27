@@ -56,12 +56,13 @@ services:
     # KEIN ports: — kein Host-Port nötig, Caddy erreicht web im Docker-Netz.
     expose:
       - "8000"               # für Container im selben Netz (Caddy)
-    # Healthcheck: schlägt fehl, wenn Gunicorn nicht (mehr) antwortet – z.B. weil
-    # eine Migration beim Start abgebrochen ist. So ist ein kaputter Start sofort
-    # an `docker compose ps` (unhealthy) erkennbar, statt nur als 502 bei Caddy.
+    # Healthcheck: /healthz/ prüft zusätzlich die DB-Erreichbarkeit. Schlägt fehl,
+    # wenn Gunicorn nicht (mehr) antwortet ODER die DB weg ist – z.B. weil eine
+    # Migration beim Start abgebrochen ist. So ist ein kaputter Start sofort an
+    # `docker compose ps` (unhealthy) erkennbar, statt nur als 502 bei Caddy.
     healthcheck:
       test: ["CMD", "python", "-c",
-             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/login/', timeout=5).status==200 else 1)"]
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=5).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3

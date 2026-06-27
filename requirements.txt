@@ -7,6 +7,7 @@ django-axes>=8.0
 redis>=5.0          # optional: nur genutzt, wenn REDIS_URL gesetzt ist
 weasyprint>=61      # Rechnungs-PDF (braucht native Libs, siehe Dockerfile)
 pywebpush>=2.0      # Web-Push (mobil); nur genutzt, wenn VAPID-Keys gesetzt sind
+sentry-sdk>=2.0     # Fehler-Tracking; nur aktiv, wenn SENTRY_DSN gesetzt ist
 # Tests
 pytest>=8.0
 pytest-django>=4.8

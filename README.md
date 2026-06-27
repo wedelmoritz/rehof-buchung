@@ -462,24 +462,37 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Monatsrechnungen | `commands/run_monthly_invoices.py` |
 | E-Mail-Versand (Outbox leeren, mit Anhängen) | `commands/send_outbox.py` |
 | Monats-Mail an die Verwaltung | `commands/notify_admins_upcoming.py` · `services.notify_admins_upcoming` |
+| DSGVO-Aufräumen (täglich) | `commands/cleanup_data.py` · `services.run_data_retention` |
 | Losalgorithmus (rein, ohne DB) | `booking/lottery.py` |
 | Verfügbarkeit & Tage-Rechnung (rein) | `booking/availability.py` |
 | Saison-Regeln: Mindestnächte/Parallel/Deckel (rein) | `booking/rules.py` |
+
+**Observability (ADR 0046):** Logs gehen strukturiert nach stdout
+(`docker compose logs -f web`); **Sentry** ist nur mit gesetztem `SENTRY_DSN` aktiv
+(ohne PII). Der Health-Endpoint **`/healthz/`** (prüft die DB) trägt den
+Container-Healthcheck und eignet sich für **externes Uptime-Monitoring**: einen
+Dienst wie UptimeRobot/Healthchecks.io auf `https://<domain>/healthz/` zeigen lassen
+(erwartet HTTP 200). Env-Variablen siehe `.env.example`.
 
 ---
 
 ## Tests
 
-Zwei Ebenen:
+Drei Ebenen:
 
 ```bash
 # 1) Reine Logik (Losverfahren + Buchungszeiträume/Tage + Saison-Regeln) – ohne DB
 pip install pytest
-PYTHONPATH=. python -m pytest tests/ -v          # -> 69 passed
+PYTHONPATH=. python -m pytest tests/ -v          # -> 68 passed
 
 # 2) Integrationstests (DB-Ebene: Gate, Buchung, Losung-Workflow, Dashboard,
 #    Hofladen, Kontoabgleich)
-python manage.py test booking shop               # -> 186 passed (3 skips)
+python manage.py test booking shop               # -> 212 passed (3 skips)
+
+# 3) End-to-End (Playwright) gegen einen LAUFENDEN, prod-nahen Stack (ADR 0047).
+#    In der CI vollautomatisch über docker-compose.ci.yml; lokal:
+pip install -r requirements-e2e.txt && python -m playwright install chromium
+python -m pytest tests_e2e/ --base-url http://localhost:8000
 ```
 
 Abgedeckt: Determinismus, Budget, Ausweich-Logik, Karma (Bonus/Deckel/Reset),

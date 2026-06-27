@@ -7,6 +7,7 @@ from . import views
 urlpatterns = [
     path("offline/", TemplateView.as_view(
         template_name="booking/offline.html"), name="offline"),
+    path("healthz/", views.healthz, name="healthz"),
     path("", views.overview, name="overview"),
     path("buchen/", views.book, name="book"),
     path("buchen/bestaetigen/", views.book_confirm, name="book_confirm"),
