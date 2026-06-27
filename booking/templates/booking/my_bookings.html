@@ -36,8 +36,9 @@
       <div class="lbl">Tage verfügbar ({{ booking_year }}, von {{ annual_budget }})</div></div>
     <div class="stat"><div class="num">{{ nights_used }}</div>
       <div class="lbl">Tage gebucht ({{ booking_year }})</div></div>
-    <div class="stat"><div class="num">{{ member.factor }}</div>
-      <div class="lbl">Ausgleichsfaktor</div></div>
+    <div class="stat" title="Karma: gleicht Losglück über die Jahre aus – höher = bessere Chancen beim nächsten Losverfahren.">
+      <div class="num">{{ member.factor }}</div>
+      <div class="lbl">Ausgleichsfaktor <a href="{% url 'help' %}#losung" style="text-decoration:none">ⓘ</a></div></div>
   </div>
   {% if member.memberships %}
   <p class="muted" style="margin:.6rem 0 0">
