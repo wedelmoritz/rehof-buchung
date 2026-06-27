@@ -424,14 +424,14 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Ergebnis-/Auditansicht | Eigenes Ergebnis + Gemeinschafts-Zuteilungen + (Staff) Protokoll | `views.py::period_result` · `lottery.render_log_text` |
 | Meine Buchungen / Storno / ändern | Eigene Buchungen sehen, stornieren (mit Rückfrage) und **ändern** (Unterkunft wechseln, Zeitraum, Personenzahl) | `views.py::my_bookings` · `services.cancel_allocation`, `adjust_allocation`, `free_quarters_for` |
 | Wechselwunsch | Quartiertausch an ein anderes Mitglied anfragen, zustimmen/ablehnen | `services` (Wechselwunsch) · `models.SwapRequest` |
-| Tage übertragen | Eigene Tage an ein anderes Mitglied abgeben (zweistufig) | `views.py::transfer` · `services.transfer_nights` · `models.NightTransfer` |
+| Tage übertragen | Eigene Tage an ein anderes Mitglied abgeben (zweistufig; Empfänger:in per **Typeahead-Suche** über Name/Benutzername/E-Mail wählen) | `views.py::transfer`, `member_search` · `services.transfer_nights` · `models.NightTransfer` |
 | Profil | Anschrift/IBAN + E-Mail-Opt-out selbst pflegen | `views.py::profile` · `forms.ProfileForm` |
 | Registrierung & Freischaltung | Selbst registrieren; bis Profil-Zuordnung gesperrt (Warteseite) | `views.py::register`, `pending` · `middleware.ActivationGateMiddleware` · `auth.EmailOrUsernameModelBackend` |
 | Benachrichtigungen | In-App **und** E-Mail (Opt-out je Mitglied) | `models.Notification`, `OutboxEmail` · `services.email_member` · `commands/send_outbox.py` |
 | Hofladen | Warenkorb → Kasse → Einkauf; gleiche Artikel zusammengefasst | `shop/services.py::add_item`, `set_cart_quantity`, `checkout` · `shop/models.py::LineItem`, `Purchase` |
 | Rechnung + PDF | Monatliche/sofortige Sammelrechnung (§14), PDF, „bezahlt“ melden | `shop/services.py::generate_monthly_invoices`, `generate_invoice_now`, `mark_paid` · `shop/pdf.py` · `shop/views.py::invoice_pdf` |
 | Online bezahlen | „Online bezahlen“ auf Rechnungen (Mitglied) bzw. „Jetzt bezahlen“ (Gast, Magic-Link); Test-Modus ohne Konto | `shop/payments.py::start_payment`, `settle_payment` · `shop/mollie_api.py` · `shop/models.py::Payment`, `Invoice.paid_online` |
-| PWA / Mobil | Installierbar, offline-Fallback, responsive Navigation (untere Tab-Leiste) | `templates/booking/base.html`, `templates/booking/sw.js`, `static/booking/manifest.webmanifest` |
+| PWA / Mobil | Installierbar, offline-Fallback, responsive Navigation (untere Tab-Leiste); **Web-Push**-Benachrichtigungen (Opt-in im Profil) und **Offline-Warenkorb** im Hofladen (ADR 0044) | `templates/booking/base.html`, `templates/booking/sw.js`, `static/booking/manifest.webmanifest` · `services.send_web_push` · `models.PushSubscription` |
 
 ### Für die Verwaltung
 
@@ -448,6 +448,8 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Kontoabgleich | Auszug (CSV/CAMT) importieren → eindeutige Treffer automatisch verbuchen + benachrichtigen | `shop/bankimport.py::parse_csv/parse_camt` · `shop/reconcile.py::import_bank_statement`, `book_payment` |
 | Losung steuern | Durchführen, **bestätigen** (veröffentlichen), **zurücknehmen** | `services.confirm_lottery`, `rollback_lottery` · `admin.BookingPeriodAdmin`, `LotteryRunAdmin` |
 | Stammdaten & Regeln | Mitglieder/Anteile, Quartiere, Saison-Regeln, Perioden | `booking/admin.py`, `shop/admin.py` |
+| Backend-Gliederung | Django-Admin fachlich in **5 Sektionen** statt nach App (Startseite **und** Seitenleiste); moderne Startseite mit **eingeklappten Karten + Volltext-Suche**; Rechnungen **gesplittet** in Hofladen (Mitglieder) vs. externe Buchungen (Gäste) (ADR 0049) | `booking/admin_site.py::RehofAdminSite` · `templates/admin/custom_index.html` · `shop.ExternalInvoice` |
+| Mitglied anonymisieren | Recht auf Löschung (Art. 17 DSGVO): Profil-PII leeren, Login deaktivieren – Rechnungen bleiben | `services.anonymize_member` · `admin.UserAdmin.anonymize_selected` |
 | Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag, **Beds24-Import an/aus** | `models.OpsConfig` |
 | Genossenschaftsdaten / Zahlung | Name, Anschrift, Steuernummer/USt-IdNr., IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel + Online-Bezahlung (an/aus, Mollie-Key) | `shop/models.py::ShopConfig` |
 | Umsatzsteuer (Kleinunternehmer) | Schalter §19 ja/nein → Rechnungen mit/ohne MwSt-Ausweis (ADR 0041) | `shop/models.py::ShopConfig.small_business`, `Invoice.small_business` |
@@ -493,6 +495,9 @@ python manage.py test booking shop               # -> 212 passed (3 skips)
 #    In der CI vollautomatisch über docker-compose.ci.yml; lokal:
 pip install -r requirements-e2e.txt && python -m playwright install chromium
 python -m pytest tests_e2e/ --base-url http://localhost:8000
+
+# Optional: Type-Check der Django-freien reinen Logik (ADR 0048; läuft auch im CI)
+mypy        # Konfiguration in pyproject.toml; uv als schnelle Alternative zu pip
 ```
 
 Abgedeckt: Determinismus, Budget, Ausweich-Logik, Karma (Bonus/Deckel/Reset),
