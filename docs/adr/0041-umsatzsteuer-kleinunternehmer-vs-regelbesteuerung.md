@@ -62,7 +62,8 @@ ohne Umbau):
   Beherbergung (7 %) und Zusatzleistungen (19 %) getrennt; Aufschlüsselung Netto je
   Satz, Steuerbetrag, Brutto. **→ umgesetzt** (Default, s. „Stand im Code").
 
-Der Schalter sitzt im Backend unter **Hofladen-Einstellungen** (`ShopConfig`) –
+Der Schalter sitzt im Backend unter **„Rechtliche & Zahlungs-Einstellungen“**
+(`ShopConfig`; übergreifend benannt, da Rechnungen auch externe Gäste betreffen) –
 zusammen mit den übrigen rechnungsrelevanten Stammdaten (Anschrift, Steuernummer/
 USt-IdNr., IBAN). Die USt-Behandlung wird **je Rechnung gesnapshotet**, damit alte
 Rechnungen stabil bleiben, wenn der Status später kippt.

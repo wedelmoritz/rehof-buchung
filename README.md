@@ -106,9 +106,10 @@ ist das Konto freigeschaltet und kann buchen.
 - **Backend** (`/admin/`, nur **Admin**): Quartiere & Äquivalenzklassen,
   **Buchungsregeln** (Mindestnächte/Saison), **Buchungsperiode** mit Terminen
   anlegen; **Betriebs-Einstellungen** (Empfänger der Verwaltungs-Mails) und
-  **Hofladen-Einstellungen** (= Genossenschaftsdaten: Name, Anschrift,
-  Steuernummer, IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel **+ Online-
-  Bezahlung an/aus + Mollie-API-Key**) pflegen.
+  **Rechtliche &amp; Zahlungs-Einstellungen** (übergreifend für Hofladen UND externe
+  Gäste = Genossenschaftsdaten: Name, Anschrift, Steuernummer/USt-IdNr., IBAN/BIC,
+  Vorstand, Kontakt-E-Mail, Zahlungsziel **+ Online-Bezahlung an/aus + Mollie-API-Key
+  + Umsatzsteuer (Kleinunternehmer §19) + Impressum/Datenschutz/AGB**) pflegen.
 - **Losung** (nur **Admin**): Buchungsperioden → Aktion **„Losung durchführen“** →
   Ergebnis ist zunächst **unbestätigt**; unter **Losdurchläufe** **bestätigen**
   (veröffentlicht + benachrichtigt) oder **zurücknehmen**.
@@ -450,7 +451,7 @@ Brücke DB↔Logik) ↔ **dünne Views/Templates**.
 | Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag, **Beds24-Import an/aus** | `models.OpsConfig` |
 | Genossenschaftsdaten / Zahlung | Name, Anschrift, Steuernummer/USt-IdNr., IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel + Online-Bezahlung (an/aus, Mollie-Key) | `shop/models.py::ShopConfig` |
 | Umsatzsteuer (Kleinunternehmer) | Schalter §19 ja/nein → Rechnungen mit/ohne MwSt-Ausweis (ADR 0041) | `shop/models.py::ShopConfig.small_business`, `Invoice.small_business` |
-| Rechtstexte | Impressum (Pflicht §5 DDG, erzeugt), Datenschutz (DSGVO), AGB – konfigurierbar, im Fuß verlinkt (ADR 0042) | `ShopConfig` (`imprint_extra`/`privacy_policy`/`terms_agb`…) · `views.imprint/privacy/terms` |
+| Rechtstexte | Impressum (Pflicht §5 DDG, erzeugt), Datenschutz (DSGVO, Vorlage in [`docs/DATENSCHUTZ-VORLAGE.md`](docs/DATENSCHUTZ-VORLAGE.md)), AGB – konfigurierbar, im Fuß verlinkt (ADR 0042) | `ShopConfig` (`imprint_extra`/`privacy_policy`/`terms_agb`…) · `views.imprint/privacy/terms` |
 
 ### Betrieb (Scheduler/Cron) & reine Logik
 
@@ -692,7 +693,7 @@ Gäste können ihre Rechnung wahlweise **online bezahlen** (Mollie, über den
 Magic-Link – „Jetzt bezahlen“) oder überweisen; siehe „Online-Bezahlung“ unten.
 Auf der öffentlichen Seite `/extern/` gibt es zudem einen aufklappbaren Bereich
 **„Hilfe &amp; Infos für Gäste“** (So buchst du / Bezahlung [online oder
-Überweisung] / Stornieren / Kontakt aus den Hofladen-Einstellungen).
+Überweisung] / Stornieren / Kontakt aus den Rechtliche &amp; Zahlungs-Einstellungen).
 
 ---
 
@@ -708,8 +709,8 @@ Magic-Link. Eine **online bezahlte Rechnung gilt sofort als bestätigt/archivier
   Gebühren**): simulierte Bezahlseite, ideal zum Ausprobieren.
 - **Mit `test_…`-Key**: Mollies kostenlose Testumgebung. **Mit `live_…`-Key**:
   echte Bezahlung (Kreditkarte, PayPal, Apple/Google Pay …).
-- **Konfiguration** im Backend unter **Hofladen-Einstellungen** (`ShopConfig`):
-  `Online-Bezahlung aktiv` an/aus + `Mollie-API-Key`.
+- **Konfiguration** im Backend unter **Rechtliche &amp; Zahlungs-Einstellungen**
+  (`ShopConfig`): `Online-Bezahlung aktiv` an/aus + `Mollie-API-Key`.
 
 Online bezahlte Rechnungen sind im **Verwaltungs-Dashboard** ausgewiesen
 (Filter-Chip „Online bezahlt“, eigene Status-Spalte, KPI „online bezahlt

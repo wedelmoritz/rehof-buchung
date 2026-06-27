@@ -239,10 +239,13 @@ mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
 **Offene Posten:** `Invoice.due_date` (aus `ShopConfig.payment_term_days`) +
 `is_overdue`; **Zahlungserinnerung** idempotent über `services.send_payment_reminder`
 / `remind_overdue` (Aktion im Admin + Dashboard, „zuletzt erinnert am“).
-Stammdaten der Genossenschaft im `ShopConfig`-Singleton („Hofladen-Einstellungen“:
-`coop_name`, `coop_address`, `tax_number`, `iban`, `bic`, `invoice_prefix`,
-`payment_term_days` + NEU `board` (Vorstand) und `contact_email`; editierbar nur im
-Django-Admin = Admin-Rolle). Geldlogik/Tests in
+Stammdaten der Genossenschaft im `ShopConfig`-Singleton (Admin-Label **„Rechtliche &
+Zahlungs-Einstellungen“** – bewusst übergreifend, da Rechnungen auch für externe
+Gäste gelten; früher „Hofladen-Einstellungen“): `coop_name`, `coop_address`,
+`tax_number`/`vat_id`, `iban`, `bic`, `invoice_prefix`, `payment_term_days`, `board`
+(Vorstand), `contact_email` + USt-Schalter (`small_business`) + Impressum/Datenschutz/
+AGB. Der Admin springt direkt aufs Singleton (`changelist_view`-Redirect, keine
+Zwischen-Liste). Editierbar nur im Django-Admin (Admin-Rolle). Geldlogik/Tests in
 `shop/services.py` bzw. `shop/tests.py`.
 **Steuer-/Kassenrecht:** Abrechnung bewusst **ohne TSE** (keine Vor-Ort-Zahlung →
 keine Kassenfunktion nach KassenSichV/§146a AO, ADR 0040). **Umsatzsteuer**
