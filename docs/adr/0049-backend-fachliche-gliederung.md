@@ -31,6 +31,18 @@ Sektionen** (statt nach App):
 5. **Administratives & Logs** – Betriebs-Einstellungen, Benachrichtigungen, E-Mail-
    Ausgang, Beds24-Import, axes-Zugriffslogs
 
+**Startseite modern & ruhig:** `templates/admin/custom_index.html` rendert die
+Sektionen als **kollabierbare Karten (Default: eingeklappt)** mit Item-Zähler statt
+der Standard-Tabellen, darüber eine **Volltext-Suche** über **alle** Begriffe (nicht
+nur die Sektionsnamen): ab 3 Zeichen filtert ein kleiner, abhängigkeitsfreier
+JS-Layer die Modell-Einträge sektionsübergreifend, öffnet die Treffer-Sektionen und
+blendet leere aus (`/` fokussiert die Suche, `Esc` leert sie). Das Erklär-Panel
+„Was kannst du hier tun?" bleibt oben (ebenfalls eingeklappt).
+
+**Einordnung „Rechtliche & Zahlungs-Einstellungen" (ShopConfig):** unter
+**Administratives** (nicht Hofladen) – die Einstellungen gelten übergreifend für
+Hofladen UND externe Gäste (Genossenschaftsdaten, USt, Mollie, Rechtstexte).
+
 Mechanik (sauberer, native Django-Weg):
 
 - `RehofAdminSite.get_app_list` nimmt die berechtigungsgefilterte Standardliste,

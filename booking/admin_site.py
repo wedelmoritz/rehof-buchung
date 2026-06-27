@@ -31,11 +31,12 @@ SECTIONS: list[tuple[str, list[str]]] = [
     ("Hofladen", [
         "shop.ProductGroup", "shop.Product", "shop.Purchase", "shop.LineItem",
         "shop.Invoice", "shop.Payment",
-        "shop.BankImport", "shop.BankTransaction", "shop.ShopConfig",
+        "shop.BankImport", "shop.BankTransaction",
     ]),
     ("Administratives & Logs", [
-        "booking.OpsConfig", "booking.Notification", "booking.OutboxEmail",
-        "booking.Beds24Import",
+        # Übergreifende Einstellungen (gelten für Hofladen UND externe Gäste):
+        "shop.ShopConfig", "booking.OpsConfig",
+        "booking.Notification", "booking.OutboxEmail", "booking.Beds24Import",
         "axes.AccessAttempt", "axes.AccessLog", "axes.AccessFailureLog",
     ]),
 ]
