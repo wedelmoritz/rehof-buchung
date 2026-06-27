@@ -8,8 +8,12 @@
    - /static/-Dateien: cache-first (Logo, Icons, Manifest).
    - Nur GET wird behandelt; POST (Buchen etc.) läuft immer übers Netz.
    - Push: zeigt die Benachrichtigung an; Klick öffnet die mitgelieferte URL. */
-const CACHE = "rehof-v2";
+const CACHE = "rehof-v3";
 const OFFLINE_URL = "/offline/";
+// Das Hofladen-Terminal MUSS offline laufen (kein WLAN/Mobilfunk im Laden) – die
+// Seite wird daher fest vorgehalten; ihre Daten holt sie per Token und cacht sie
+// selbst in localStorage (ADR 0053).
+const TERMINAL_URL = "/terminal/";
 // Pfade, deren Inhalt zeit-/zustandskritisch ist (Verfügbarkeiten) – hier offline
 // NICHT die Cache-Kopie zeigen, sondern den Buchen-Offline-Hinweis.
 const BOOKING_PREFIXES = ["/buchen/", "/wunschliste/", "/extern/buchen/"];
@@ -36,7 +40,8 @@ Bitte verbinde dich wieder mit dem Internet.</p>
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((c) => c.add(OFFLINE_URL)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((c) => c.addAll([OFFLINE_URL, TERMINAL_URL]))
+      .then(() => self.skipWaiting())
   );
 });
 

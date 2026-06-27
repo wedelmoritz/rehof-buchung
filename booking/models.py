@@ -198,6 +198,23 @@ class Member(models.Model):
     zip_code = models.CharField("PLZ", max_length=10, blank=True)
     city = models.CharField("Ort", max_length=120, blank=True)
     iban = models.CharField("IBAN", max_length=34, blank=True)
+    # Hofladen-Terminal (ADR 0053): von der Verwaltung freigeschaltet; das Mitglied
+    # vergibt selbst eine 6-stellige PIN (gehasht). Nur damit landet das Konto in der
+    # Terminal-Roster und kann am Vor-Ort-Gerät auf die Monatsrechnung einkaufen.
+    terminal_enabled = models.BooleanField("Hofladen-Terminal erlaubt", default=False)
+    terminal_pin = models.CharField("Terminal-PIN (gehasht)", max_length=128, blank=True)
+
+    def set_terminal_pin(self, pin: str) -> None:
+        from django.contrib.auth.hashers import make_password
+        self.terminal_pin = make_password(pin, hasher="pbkdf2_sha256")
+
+    def check_terminal_pin(self, pin: str) -> bool:
+        from django.contrib.auth.hashers import check_password
+        return bool(self.terminal_pin) and check_password(pin, self.terminal_pin)
+
+    @property
+    def terminal_ready(self) -> bool:
+        return self.terminal_enabled and bool(self.terminal_pin)
 
     class Meta:
         verbose_name = "Nutzer-Konto"
@@ -697,6 +714,47 @@ class OpsConfig(models.Model):
 
     def cleaning_list(self) -> list[str]:
         return self._parse(self.cleaning_emails) or self.admin_list()
+
+
+class TerminalConfig(models.Model):
+    """Hofladen-Terminal vor Ort (Singleton, ADR 0053). Das **Token** ist das
+    Geräte-Gate: nur ein damit eingerichtetes Gerät darf die Roster (freigeschaltete
+    Mitglieder + PIN-Hash) laden und Einkäufe abgeben. Im Backend änderbar – bei
+    Geräteverlust **neu erzeugen**, dann ist das alte Token sofort ungültig."""
+    enabled = models.BooleanField(
+        "Terminal aktiv", default=False,
+        help_text="Schaltet den Vor-Ort-Terminal-Modus frei. Aus = Roster/Sync "
+                  "verweigert.")
+    token = models.CharField(
+        "Geräte-Token", max_length=64, blank=True,
+        help_text="Langes Geheimnis, das im Terminal-Gerät hinterlegt wird. Bei "
+                  "Verlust/Diebstahl neu erzeugen (Aktion im Backend).")
+    idle_timeout_seconds = models.PositiveIntegerField(
+        "Auto-Abmeldung nach (Sekunden)", default=120,
+        help_text="Nach so vielen Sekunden ohne Aktion wird am Terminal automatisch "
+                  "abgemeldet.")
+    max_pin_attempts = models.PositiveSmallIntegerField(
+        "PIN-Sperre nach Fehlversuchen", default=5)
+
+    class Meta:
+        verbose_name = "Hofladen-Terminal-Einstellungen"
+        verbose_name_plural = "Hofladen-Terminal-Einstellungen"
+
+    def __str__(self) -> str:
+        return "Hofladen-Terminal-Einstellungen"
+
+    @classmethod
+    def get_solo(cls) -> "TerminalConfig":
+        return cls.objects.first() or cls.objects.create()
+
+    @staticmethod
+    def new_token() -> str:
+        import secrets
+        return secrets.token_urlsafe(32)
+
+    def regenerate(self) -> None:
+        self.token = self.new_token()
+        self.save(update_fields=["token"])
 
 
 class OutboxEmail(models.Model):

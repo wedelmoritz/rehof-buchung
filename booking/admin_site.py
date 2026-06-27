@@ -36,7 +36,7 @@ SECTIONS: list[tuple[str, list[str]]] = [
     ]),
     ("Administratives & Logs", [
         # Übergreifende Einstellungen (gelten für Hofladen UND externe Gäste):
-        "shop.ShopConfig", "booking.OpsConfig",
+        "shop.ShopConfig", "booking.OpsConfig", "booking.TerminalConfig",
         "booking.Notification", "booking.OutboxEmail", "booking.Beds24Import",
         "axes.AccessAttempt", "axes.AccessLog", "axes.AccessFailureLog",
     ]),

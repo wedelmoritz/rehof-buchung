@@ -51,6 +51,25 @@
   {% endif %}
 </div>
 
+{% if member.terminal_enabled %}
+<div class="card">
+  <h2 style="margin-top:0">Hofladen-Terminal (vor Ort)</h2>
+  <p class="muted" style="margin-top:0">Du darfst am <strong>Terminal im Hofladen</strong>
+    einkaufen (auf deine Monatsrechnung). Vergib dafür hier eine <strong>6-stellige
+    PIN</strong> – damit meldest du dich am Gerät an. {% if member.terminal_pin %}<strong>Eine PIN ist gesetzt.</strong> Du kannst sie hier ändern.{% else %}Solange keine PIN gesetzt ist, erscheinst du nicht am Terminal.{% endif %}
+    Am Terminal kann <strong>nicht</strong> bezahlt werden; das läuft über die Monatsrechnung.</p>
+  <form method="post" data-no-ajax autocomplete="off" onsubmit="return /^\d{6}$/.test(this.pin.value)||(alert('Bitte genau 6 Ziffern.'),false)">{% csrf_token %}
+    <input type="hidden" name="action" value="set_terminal_pin">
+    <div class="field">
+      <label for="id_term_pin">Neue 6-stellige PIN</label>
+      <input id="id_term_pin" name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6"
+             autocomplete="off" placeholder="z. B. 123456" style="letter-spacing:.3em">
+    </div>
+    <button class="btn" type="submit" style="margin-top:.3rem">PIN speichern</button>
+  </form>
+</div>
+{% endif %}
+
 <details class="card">
   <summary style="cursor:pointer;font-weight:600">Anmeldedaten ändern (E-Mail / Passwort)</summary>
 

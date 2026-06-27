@@ -74,6 +74,7 @@ die Regelwerte zu wiederholen.
 | [0050](0050-services-paket-aufteilung.md) | Service-Layer als Paket: `services.py` in fachliche Submodule aufteilen | Accepted |
 | [0051](0051-belastungs-und-nebenlaeufigkeitstests.md) | Belastungs- und Nebenläufigkeitstests (k6 + Zeilensperren-Test) | Accepted |
 | [0052](0052-konto-einladung-passwort-selbst-setzen.md) | Konto-Einladung: Passwort selbst setzen statt Admin-Vergabe | Accepted |
+| [0053](0053-hofladen-terminal-offline-kiosk.md) | Hofladen-Terminal vor Ort: offline-fähiger, token-authentifizierter Kiosk | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

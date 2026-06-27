@@ -433,9 +433,45 @@ Einspielen selbst auf (sauberer Restore auch in eine leere DB).
 
 ---
 
+## 14. Hofladen-Terminal vor Ort (ADR 0053)
+
+Ein **geteiltes Gerät** (Tablet/PC) im Hofladen, an dem freigeschaltete Gäste per
+**PIN** auf ihre **Monatsrechnung** einkaufen. Läuft **offline** (kein WLAN/Mobilfunk
+im Laden nötig). **Die Sicherheit hängt zu gleichen Teilen an App UND Gerätehärtung –
+ohne die folgenden Betriebsschritte ist der Modus NICHT freizugeben.**
+
+**Einrichten:**
+
+1. Im Backend **„Hofladen-Terminal-Einstellungen"** öffnen → **aktivieren**; ein
+   **Token** ist gesetzt (sonst Aktion „Neues Token erzeugen"). Idle-Timeout/PIN-Sperre
+   nach Bedarf.
+2. Personen freischalten: am Benutzer das **Mitglieds-Profil → „Hofladen-Terminal
+   erlaubt"** anhaken. Die Person setzt ihre **PIN selbst** im Profil (online/zuhause).
+3. Gerät **einmalig online** auf `https://<domain>/terminal/` öffnen → **„Einrichten"**
+   → Token einfügen. Das Gerät lädt Roster+Katalog und arbeitet danach **offline**
+   weiter; Einkäufe werden bei nächster Verbindung automatisch nachgereicht.
+
+**Pflicht-Härtung des Geräts (Betrieb):**
+
+- **OS-/Browser-Kiosk-Mode**: nur die Seite `/terminal/`, kein Wechsel zu anderen Apps/
+  URLs, kein Einstellungszugriff (z. B. iPad „Geführter Zugriff", Android Kiosk-Launcher,
+  Chrome/Edge Kiosk).
+- **Festplatten-Verschlüsselung** (FileVault/BitLocker/LUKS) – auf dem Gerät liegen
+  Roster (Namen + PIN-Hashes) und der Token; ohne FDE bei Diebstahl lesbar.
+- **Physische Sicherung** (Halterung/Schloss), **Sichtschutz** für die PIN-Eingabe.
+- **Auto-Update** des OS/Browsers.
+
+**Bei Verlust/Diebstahl des Geräts:** im Backend **„Neues Token erzeugen"** – das alte
+Token ist sofort ungültig (kein Gerät kann mehr Roster/Sync nutzen). Betroffene PINs
+ggf. neu setzen lassen. (Hintergrund/Bedrohungsmodell: ADR 0053 und
+[`HOFLADEN-KIOSK-KONZEPT.md`](HOFLADEN-KIOSK-KONZEPT.md).)
+
+---
+
 ## Weiterführend
 
 - **Fachliche Regeln** (Losverfahren, Buchungsregeln, Perioden) → [`FACHKONZEPT.md`](FACHKONZEPT.md)
+- **Hofladen-Terminal (Konzept/Sicherheit)** → [`HOFLADEN-KIOSK-KONZEPT.md`](HOFLADEN-KIOSK-KONZEPT.md)
 - **Architektur-Entscheidungen** → [`adr/README.md`](adr/README.md)
 - **Tests & Testumgebung** → [`TESTEN.md`](TESTEN.md)
 - **Belastungstests** → [`../loadtest/README.md`](../loadtest/README.md)
