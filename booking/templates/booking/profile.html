@@ -28,10 +28,9 @@
   <h3>E-Mail ändern</h3>
   <p class="muted" style="margin-top:0">Deine E-Mail ist zugleich dein Login. Nach
     der Änderung meldest du dich mit der <strong>neuen</strong> E-Mail an – die alte
-    funktioniert dann nicht mehr.</p>
-  {# data-no-ajax: Anmeldedaten ändern die Session (Login folgt der E-Mail bzw.
-     Passwort-Hash) – ein sauberer Full-Reload hält die Sitzung zuverlässig,
-     wie bei den Login-/Registrier-Formularen. #}
+    funktioniert dann nicht mehr. Zur Bestätigung genügt dein
+    <strong>aktuelles</strong> Passwort – ein neues musst du nur setzen, wenn du
+    möchtest (Abschnitt unten).</p>
   <form method="post" data-no-ajax>{% csrf_token %}
     <input type="hidden" name="action" value="change_email">
     {% for f in email_form %}

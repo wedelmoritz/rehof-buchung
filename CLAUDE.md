@@ -171,7 +171,9 @@ Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
 Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile`; dort kann es auch **E-Mail (= Login, folgt
 der E-Mail; eindeutig pro Konto) und Passwort** ändern (`EmailChangeForm` +
-Djangos `PasswordChangeForm`, `update_session_auth_hash` hält die Sitzung).
+Djangos `PasswordChangeForm`, `update_session_auth_hash` hält die Sitzung). Der
+E-Mail-Wechsel wird mit dem **aktuellen Passwort** bestätigt (kein neues nötig);
+ein neues Passwort setzt man nur, wenn man will.
 Die frühere `membership_number` (Mitgliedsnummer) wurde als ungenutzt **entfernt**
 (Datensparsamkeit; sie floss nirgends in Rechnung/Export/PDF). Eine `help`-Seite erklärt Abläufe und die
 Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
