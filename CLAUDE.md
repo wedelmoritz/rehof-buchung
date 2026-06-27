@@ -56,6 +56,10 @@ booking/
                         #  (Backend-Startseite mit Erklär-Panel: templates/admin/custom_index.html,
                         #   gesetzt über admin.site.index_template). Buchungen: Allocation.clean
                         #   erzwingt die Domänenregeln auch im Backend (keine Doppelbuchung, ADR 0045).
+  admin_site.py         # RehofAdminSite: gliedert das Backend fachlich in 5 Sektionen
+                        #   (get_app_list, ADR 0049) – Index UND Seitenleiste. Aktiviert über
+  admin_apps.py         #   booking.admin_apps.RehofAdminConfig (default_site; in INSTALLED_APPS
+                        #   statt django.contrib.admin). Warmes Theme: templates/admin/base_site.html.
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html
