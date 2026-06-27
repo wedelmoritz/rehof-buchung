@@ -255,8 +255,12 @@ POST-Formulare im `<main>` werden **progressiv per `fetch` ohne Neuladen** abges
 Scrollposition gehalten); ebenso die **GET-Kalendernavigation** (Tag Anreise→Abreise
 wählen, Monat blättern, zurücksetzen) über `window.__nav` – **kein Sprung nach oben**
 mehr. Opt-in per `data-ajax` an Links/GET-Formularen (`book`/`wishlist`/`external_home`
-+ gemeinsame `_calnav.html`). Fallback = normales Laden/Abschicken, ausgenommen
-`multipart`/`data-no-ajax` (Auth) und Modifier-Klick/neuer Tab (ADR 0035).
++ gemeinsame `_calnav.html`; **`dashboard`** Monatswahl/Filter-Chips – Selects via
+`requestSubmit()`, nicht `submit()`, sonst feuert das submit-Event nicht). Fallback =
+normales Laden/Abschicken, ausgenommen `multipart`/`data-no-ajax` (Auth) und
+Modifier-Klick/neuer Tab (ADR 0035). Der AJAX-Submit-Layer respektiert
+`e.defaultPrevented`, sodass `onsubmit="return confirm(…)"` (Storno, Löschen,
+„als bezahlt melden") bei **Abbrechen** NICHT doch per AJAX abschickt.
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
@@ -521,6 +525,14 @@ python manage.py migrate
 python manage.py seed_demo --reset        # Demo-Daten + reale BB-Termine
 python manage.py runserver
 ```
+
+**Mit uv (schneller, reproduzierbar – optional):** Abhängigkeiten + Werkzeuge
+stehen in `pyproject.toml` (Quelle für `uv`; `uv.lock` pinnt die Versionen). Das
+Docker-Image installiert bewusst weiter aus `requirements.txt` (gleiche Pins) –
+beide synchron halten. Lokal: `uv sync --extra dev --extra test` (legt `.venv` an),
+dann `uv run python manage.py …`. **Type-Check:** `mypy` (Konfiguration in
+`pyproject.toml`) prüft die **Django-freie reine Logik** (lottery/availability/
+rules/validation/external/beds24/fairness) – läuft auch im CI-Job „reine Logik".
 
 Ohne `DATABASE_URL` nutzt `settings.py` SQLite (Dev/Test). In Produktion setzt
 `docker-compose.yml` `DATABASE_URL` auf PostgreSQL; TLS macht Caddy auf dem Host,

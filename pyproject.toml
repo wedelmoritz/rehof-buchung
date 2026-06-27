@@ -1,0 +1,61 @@
+# Projekt-Metadaten + Werkzeug-Konfiguration (uv, mypy).
+#
+# Abhängigkeiten:
+#   * Diese Datei ist die Quelle für die lokale Entwicklung mit **uv**
+#     (`uv sync`, `uv run …`); `uv.lock` hält die exakten Versionen fest.
+#   * Das Docker-Image installiert weiterhin aus **requirements.txt** (gleiche
+#     Top-Level-Pins) – bewusst unverändert, um die Build-Kette nicht anzufassen.
+#   Beide Listen daher synchron halten.
+
+[project]
+name = "rehof-buchung"
+version = "0.0.0"
+description = "Faire Buchung der Genossenschafts-Quartiere (Re:Hof) mit Losverfahren."
+requires-python = ">=3.12"
+dependencies = [
+    "Django>=5.1,<5.2",
+    "psycopg[binary]>=3.1",
+    "dj-database-url>=2.1",
+    "gunicorn>=22.0",
+    "whitenoise>=6.6",
+    "django-axes>=8.0",
+    "redis>=5.0",
+    "weasyprint>=61",
+    "pywebpush>=2.0",
+    "sentry-sdk>=2.0",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+# Integrations-/Logik-Tests
+test = ["pytest>=8.0", "pytest-django>=4.8"]
+# End-to-End (Playwright) – siehe requirements-e2e.txt / ADR 0047
+e2e = ["pytest>=8.0", "pytest-playwright>=0.5"]
+# Entwickler-Werkzeuge
+dev = ["mypy>=1.10"]
+
+[tool.uv]
+# uv darf die Pakete in eine venv installieren; das Projekt selbst ist eine
+# Django-App (kein importierbares Paket) → nicht als Paket bauen.
+package = false
+
+# --- Type-Checking (mypy) --------------------------------------------------
+# Bewusst auf die **Django-freie reine Logik** beschränkt (ADR 0002): diese
+# Module sind gut typisiert und ohne ORM-Dynamik, hier fängt mypy echte Fehler
+# statt Framework-Fehlalarme. Service-/View-Layer bleibt vorerst außen vor.
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+files = [
+    "booking/lottery.py",
+    "booking/availability.py",
+    "booking/rules.py",
+    "booking/validation.py",
+    "booking/external.py",
+    "booking/beds24.py",
+    "booking/fairness.py",
+]

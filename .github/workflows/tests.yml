@@ -52,6 +52,11 @@ jobs:
       - name: Tests der reinen Logik
         run: PYTHONPATH=. python -m pytest tests/ -v
 
+      - name: Type-Check (mypy, reine Logik)
+        run: |
+          pip install mypy
+          mypy
+
   # --------------------------------------------------------------------------
   # 2) Integration: Django-Tests gegen PostgreSQL (gleiche DB wie in Produktion).
   #    Fängt DB-spezifische Probleme, Migrationslücken und Service-Logik ab.
