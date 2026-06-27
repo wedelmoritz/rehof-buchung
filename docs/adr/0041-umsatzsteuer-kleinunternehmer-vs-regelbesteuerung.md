@@ -9,6 +9,12 @@ Genossenschaft mit ihrem Steuerberater fest, bevor das System produktiv geht.
 > **Kein Rechtsrat.** Analyse auf Basis offizieller Quellen (s. u.); ersetzt keine
 > steuerliche Beratung.
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 13 – Rechnungen, Zahlung & Steuer](../FACHKONZEPT.md#13-rechnungen-zahlung--steuer)
+> (Umsatzsteuer: Regelbesteuerung vs. § 19). Diese ADR hält die *technische*
+> Entscheidung und ihre Abwägungen fest; die Regelwerte (Steuersätze, § 19) werden
+> dort gepflegt, nicht hier.
+
 ## Kontext
 
 Das System erzeugt Rechnungen für zwei Leistungsarten:
@@ -38,11 +44,10 @@ Auswahl 7/19), je Rechnungsposition `LineItem.vat_rate`, die `Invoice` weist die
    („Fallbeileffekt"). Dann **kein** MwSt-Ausweis, Pflichthinweis „Gemäß §19 UStG von
    der Umsatzsteuer befreit", **kein** Vorsteuerabzug. **Achtung §14c UStG:** Wird
    irrtümlich MwSt ausgewiesen, schuldet die eG sie trotzdem.
-3. **Steuersätze bei Regelbesteuerung:** Lebensmittel **7 %** (§12 Abs. 2 Nr. 1 +
-   Anlage 2), Non-Food/Dienstleistungen **19 %**; kurzfristige Beherbergung **7 %**
-   (§12 Abs. 2 Nr. 11), Zusatzleistungen (Reinigung, Frühstück, Sauna …) **19 %**
-   (separat auf der Rechnung); langfristige Vermietung > 6 Monate **steuerfrei**
-   (§4 Nr. 12a) – hier nicht einschlägig.
+3. **Steuersätze bei Regelbesteuerung** (Regelwerte/Sätze: Fachkonzept § 13):
+   Lebensmittel/Beherbergung ermäßigt (§12 Abs. 2 Nr. 1 + Anlage 2 bzw. Nr. 11),
+   Non-Food/Zusatzleistungen voll, separat auf der Rechnung; langfristige Vermietung
+   > 6 Monate **steuerfrei** (§4 Nr. 12a) – hier nicht einschlägig.
 
 **Maßgebliche Frage an die Genossenschaft:** Wie hoch ist der Gesamtumsatz (Hofladen
 + Unterkünfte + Sonstiges)? Unter 25.000 €/Jahr → §19, **kein** MwSt-Ausweis.

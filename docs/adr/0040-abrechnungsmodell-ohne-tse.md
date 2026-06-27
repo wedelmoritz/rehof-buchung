@@ -8,6 +8,11 @@ Accepted (2026-06-27)
 > ersetzt aber keine steuerliche Beratung. Vor dem Produktivbetrieb sollte die
 > Genossenschaft die Bewertung durch ihren Steuerberater bestätigen lassen.
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 13 – Rechnungen, Zahlung & Steuer](../FACHKONZEPT.md#13-rechnungen-zahlung--steuer)
+> (Abrechnung ohne TSE). Diese ADR hält die *technische* Entscheidung und ihre
+> Abwägungen fest; die Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Der Hofladen/die Buchung bietet zwei Zahlungswege (beide mit ordnungsgemäßer

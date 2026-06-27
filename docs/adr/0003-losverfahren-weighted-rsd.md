@@ -4,6 +4,12 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 5 – Losverfahren](../FACHKONZEPT.md#5-losverfahren) (sowie
+> [§ 6 – Karma](../FACHKONZEPT.md#6-karma-ausgleichsfaktor)). Diese ADR hält die
+> *technische* Entscheidung und ihre Abwägungen fest; die Regelwerte werden dort
+> gepflegt, nicht hier.
+
 ## Kontext
 
 Die begehrten Quartiere (besonders in Ferienzeiten) sind knapp. Die Vergabe muss

@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 14 – Rollen & Rechte](../FACHKONZEPT.md#14-rollen--rechte).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Es gibt zwei unterschiedliche Betriebsaufgaben: (1) **Stammdaten/Backend** (Mitglieder
@@ -15,13 +20,12 @@ sehen soll, bekäme nicht automatisch Backend-Rechte – und umgekehrt.
 ## Entscheidung
 
 Zwei **getrennte Rollen** statt eines `is_staff`-Flags, definiert in
-`booking/permissions.py`:
+`booking/permissions.py` – die fachliche Rollendefinition (Admin = Superuser,
+Verwaltung = Gruppe „Verwaltung“) steht in Fachkonzept § 14:
 
-- **Admin = Django-Superuser** (`is_admin`): volles Backend `/admin/`, darf Buchungen
-  ändern und Losungen starten.
-- **Verwaltung = Mitglied der Gruppe „Verwaltung“ ODER Admin** (`is_verwaltung`,
-  Konstante `VERWALTUNG_GROUP`): nur das Dashboard `/verwaltung/` (Buchungen/Losung
-  lesend, pflegt dort den Hofladen-Katalog), **kein** Backend.
+- **Admin** → `is_admin` (Django-Superuser): volles Backend `/admin/`.
+- **Verwaltung** → `is_verwaltung` (Gruppe „Verwaltung“ ODER Admin, Konstante
+  `VERWALTUNG_GROUP`): nur das Dashboard `/verwaltung/`, **kein** Backend.
 
 `is_verwaltung` ist bewusst **nicht** an `is_staff` gekoppelt (Kommentar in
 `permissions.py:22-31`). Die Gruppe legt Migration `booking/0027_verwaltung_group`

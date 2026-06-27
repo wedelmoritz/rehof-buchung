@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 1 – Mitglieder, Anteile & Tagebudget](../FACHKONZEPT.md#1-mitglieder-anteile--tagebudget).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Ein eG-Anteil (Vielleben-eG-Nummer) kann von **mehreren** Personen gehalten werden

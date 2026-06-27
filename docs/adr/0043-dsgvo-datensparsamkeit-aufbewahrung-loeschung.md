@@ -4,6 +4,11 @@
 
 Accepted (2026-06-27)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 15 – Recht & Datenschutz](../FACHKONZEPT.md#15-recht--datenschutz)
+> (Aufbewahrung/Löschung). Diese ADR hält die *technische* Entscheidung und ihre
+> Abwägungen fest; die Regelwerte (Fristen) werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Die App verarbeitet personenbezogene Daten (PII) von ~100 Mitgliedern und ~50
@@ -26,21 +31,26 @@ konfigurierbarer Fristen. Es läuft **täglich** über den bestehenden Scheduler
 (`run_scheduler`, ADR 0021), nicht über einen Extra-Dienst.
 
 **Fristen** als `RETENTION_*`-Konstanten in `settings.py` (per Env überschreibbar –
-bewusst kein Backend-UI, „möglichst simpel" für ein kleines Team):
+bewusst kein Backend-UI, „möglichst simpel" für ein kleines Team). Die **konkreten
+Default-Fristen** stehen in Fachkonzept § 15; hier die technische Zuordnung
+Daten → Aktion (Konstanten/Modelle):
 
-| Daten | Default | Aktion |
+| Daten | Konstante / Modell | Aktion |
 |---|---|---|
-| `OutboxEmail` (versendet, inkl. DB-Anhang) | 90 Tage | löschen |
-| `Notification` (auch ungelesen) | 180 Tage | löschen |
-| `BankTransaction.raw` (Kontoauszug-Rohzeile) | 90 Tage | Rohtext leeren (struktur bleibt) |
-| `Beds24Import` (+ Zeilen) | 180 Tage | löschen |
-| `BankImport` (Lauf-Metadaten) | 365 Tage | löschen |
-| erledigte `SwapRequest` / erfüllte `WaitlistEntry` | 180 Tage | löschen |
-| `Wish` beendeter Perioden | 2 Jahre | löschen |
+| `OutboxEmail` (versendet, inkl. DB-Anhang) | `RETENTION_OUTBOX_DAYS` | löschen |
+| `Notification` (auch ungelesen) | `RETENTION_NOTIFICATION_DAYS` | löschen |
+| `BankTransaction.raw` (Kontoauszug-Rohzeile) | `RETENTION_BANK_RAW_DAYS` | Rohtext leeren (Struktur bleibt) |
+| `Beds24Import` (+ Zeilen) | `RETENTION_BEDS24_DAYS` | löschen |
+| `BankImport` (Lauf-Metadaten) | `RETENTION_BANKIMPORT_DAYS` | löschen |
+| erledigte `SwapRequest` / erfüllte `WaitlistEntry` | `RETENTION_SWAP_WAITLIST_DAYS` | löschen |
+| `Wish` beendeter Perioden | `RETENTION_WISH_YEARS` | löschen |
 | abgelaufene Sessions | – | löschen (`clearsessions`) |
-| `axes`-Fehlversuche (`AccessAttempt`) | 30 Tage | löschen |
+| `axes`-Fehlversuche (`AccessAttempt`) | `RETENTION_AXES_DAYS` | löschen |
 
-**Bewusst NICHT angetastet (gesetzliche Aufbewahrung, 10 Jahre):** `Invoice` inkl.
+> Maßgeblich sind die `RETENTION_*`-Settings in `settings.py` (per Env
+> überschreibbar); die konkreten Default-Fristen pflegt das Fachkonzept § 15.
+
+**Bewusst NICHT angetastet (gesetzliche Aufbewahrung, Frist: Fachkonzept § 15):** `Invoice` inkl.
 Empfänger-/Genossenschafts-Snapshots, `LineItem`, `Payment`, die zugehörigen
 `Allocation` und `BankTransaction`-Strukturfelder. Geschützt zusätzlich durch
 `Invoice.member/guest = PROTECT` (ein Mitglied/Gast lässt sich nicht löschen,

@@ -4,6 +4,12 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 10 – Buchung ändern, Warteliste & Wechselwunsch](../FACHKONZEPT.md#10-buchung-ändern-warteliste--wechselwunsch)
+> sowie [§ 16 – Benachrichtigungen](../FACHKONZEPT.md#16-benachrichtigungen).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Beliebte Zeiträume sind oft belegt. Mitglieder sollen sich für einen belegten
@@ -15,16 +21,17 @@ fair und schnell alle Interessierten erreichen, nicht nur Zufallsbesucher der Se
 
 Eine **Warteliste** plus aktive Benachrichtigung bei frei werdenden Slots.
 
-- **Vormerken:** `services.add_waitlist_entry` (`booking/services.py:685`), Modell
+- **Vormerken:** `services.add_waitlist_entry` (Paket `booking/services/`), Modell
   `booking/models.py:WaitlistEntry`; eigene offene Einträge erscheinen unter „Meine
   Wartelisten-Einträge“ in *Meine Buchungen*.
 - **Wird ein Wartelisten-Zeitraum durch Storno frei:** `notify_waitlist_if_free`
-  (`services.py:719`) erzeugt eine `Notification` **und** – über die Outbox (ADR
-  0027) – eine E-Mail an die Wartenden.
+  erzeugt eine `Notification` **und** – über die Outbox (ADR 0027) – eine E-Mail an
+  die Wartenden.
 - **Kurzfristig frei durch Verkürzen/Quartier-Wechsel:**
-  `_broadcast_spontaneously_free` (`services.py:1405`) meldet das frei gewordene
-  Quartier **an alle** Mitglieder (In-App) + E-Mail an die Warteliste. Beim reinen
-  Verkürzen im selben Quartier gilt zusätzlich die 7-Tage-Frist (siehe ADR 0026).
+  `_broadcast_spontaneously_free` meldet das frei gewordene Quartier **an alle**
+  Mitglieder (In-App) + E-Mail an die Warteliste. Die fachlichen Regeln (u. a. die
+  7-Tage-Frist beim reinen Verkürzen) stehen in Fachkonzept § 10 (technisch in
+  ADR 0026).
 
 ## Betrachtete Alternativen
 

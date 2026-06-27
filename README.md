@@ -1,740 +1,185 @@
-# Re:Hof Quartier-Buchung (PoC)
+# Re:Hof Quartier-Buchung
 
-Buchungs- und Losverfahren für die Ferienquartiere der Genossenschaft, inklusive
-Mitgliedermanagement. Diese PoC enthält das fachlich abgenommene Losverfahren als
-getestetes, eigenständiges Python-Modul und eine schlanke Django-Oberfläche
-darum herum.
+Buchungs- und Losverfahren für die Ferienquartiere der Genossenschaft – mit fairem
+**Losverfahren**, Spontanbuchung, **Mitgliederverwaltung**, einem **Hofladen** mit
+Rechnungen, **externen Gästen** und einem operativen Verwaltungs-Dashboard. Läuft als
+Django-App per Docker (web + PostgreSQL) hinter Caddy auf einem Linux-VPS.
 
-> **Status:** lauffähige Proof-of-Concept. Getestet auf zwei Ebenen –
-> **reine Logik** (Losverfahren inkl. deterministischem Strategiesicherheits-
-> Beweis, Verfügbarkeit, Regeln) und **Integration** (DB-Ebene: Buchung,
-> Losung-Workflow, Dashboard, Hofladen, Kontoabgleich). Backup & weiteres
-> Hardening sind als Blueprint vorbereitet (`docs/BETRIEB-SICHERHEIT.md`).
+> **Status:** lauffähige Proof-of-Concept, mehrstufig getestet (reine Logik inkl.
+> deterministischem Strategiesicherheits-Beweis · DB-Integration · Nebenläufigkeit ·
+> End-to-End im Browser · Belastungstests). Backup & weiteres Hardening sind als
+> Blueprint vorbereitet, aber noch nicht umgesetzt (siehe
+> [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md)).
+
+Das Herzstück – das fachlich abgenommene **Losverfahren** – liegt als getestetes,
+Django-freies Python-Modul vor; darum herum eine schlanke, server-gerenderte
+Oberfläche, die als **PWA** auch mobil installierbar und teils offline nutzbar ist.
+
+---
+
+## Was es kann
+
+**Für Mitglieder** (Web-App / PWA):
+
+- **Übersicht** – Community-Kalender (wer ist wann wo) mit Umschalter Kalender/Belegung.
+- **Buchen** – Ampel-Kalender, Spontanbuchung, **Warteliste**; zweistufig mit
+  Bestätigung.
+- **Wunschliste + faires Losverfahren** fürs Folgejahr (gewichtete Zufallsreihenfolge
+  im Runden-Prinzip, Karma-Ausgleich, **nachgewiesene** Strategiesicherheit/Fairness).
+- **Meine Buchungen** – Storno, **Buchung ändern** (Zeitraum/Unterkunft/Personen),
+  **Wechselwunsch** an andere Mitglieder.
+- **Tage übertragen** an andere Mitglieder (Typeahead-Suche).
+- **Hofladen** – Warenkorb → Rechnung (PDF, §14) → **online bezahlen** (Mollie).
+- **Profil**, **Benachrichtigungen** (In-App · E-Mail · optional **Web-Push**),
+  installierbar & teils **offline**.
+
+**Für externe Gäste:** öffentliche Buchung ohne Login per **Magic-Link**, inkl.
+Online-Bezahlung – derselbe Rechnungs-/Zahlungsweg wie für Mitglieder.
+
+**Für die Verwaltung:** zwei getrennte Rollen –
+
+- **Verwaltung** (Gruppe) → operatives **Dashboard** (`/verwaltung/`): Reinigungsliste,
+  anstehende Buchungen, Rechnungen mahnen, **Kontoabgleich**, Hofladen-Katalog,
+  **Losung bestätigen/zurücknehmen** – mit Export (xlsx/CSV) und Versand per Knopf.
+- **Admin** (Superuser) → volles **Backend** (`/admin/`, fachlich gegliedert) für
+  Stammdaten, Buchungen und Losung.
+
+**Im Betrieb:** Docker-Compose + Caddy (TLS), ein **Scheduler-Container** für die
+periodischen Aufgaben (Losungen, Monatsrechnungen, E-Mail-Versand, DSGVO-Aufräumen),
+**Observability** (strukturierte Logs, optional Sentry, Health-Endpoint `/healthz/`).
+
+> Die **fachlichen Regeln** dahinter (Tagebudget, Saison-/Buchungsregeln,
+> Losverfahren & Karma, Perioden-Lebenszyklus, USt, Aufbewahrungsfristen …) stehen
+> gebündelt im **[Fachkonzept](docs/FACHKONZEPT.md)**.
 
 ---
 
 ## Schnellstart auf dem VPS
 
 Voraussetzung: ein Linux-Server (Debian/Ubuntu), auf dem bereits **Caddy** läuft.
-Docker/Compose/git werden vom Install-Skript bei Bedarf installiert.
+Docker/Compose/git installiert das Skript bei Bedarf.
 
 ```bash
-git clone <dein-privates-repo> rehof
-cd rehof
+git clone <repo-url> rehof && cd rehof
 
-# 1) Voraussetzungen prüfen/installieren, .env mit Zufalls-Geheimnissen anlegen
+# 1) Voraussetzungen prüfen + .env mit Zufalls-Geheimnissen erzeugen
 ./install.sh
 
 # 2) In .env die Domain eintragen:
 #    ALLOWED_HOSTS=quartiere.deine-domain.de
 #    CSRF_TRUSTED_ORIGINS=https://quartiere.deine-domain.de
+#    PUBLIC_BASE_URL=https://quartiere.deine-domain.de
 
-# 3) Stack bauen & starten (optional gleich mit Demo-Daten: --seed)
+# 3) Stack bauen & starten (optional mit Demo-/Testdaten: --seed)
 ./install.sh --start
-#   bzw.   ./install.sh --seed
 
 # 4) Admin-Konto anlegen
 docker compose exec web python manage.py createsuperuser
 ```
 
-Danach den Caddy-Block aus `caddy/Caddyfile.snippet` in dein Host-Caddyfile
-übernehmen (Domain anpassen) und Caddy neu laden:
+Anschließend den Block aus [`caddy/Caddyfile.snippet`](caddy/Caddyfile.snippet) ins
+Host-Caddyfile übernehmen (Domain anpassen) und `sudo systemctl reload caddy`. Caddy
+terminiert TLS und proxyt im gemeinsamen Docker-Netz auf den `web`-Container (der
+**keinen** Host-Port veröffentlicht).
+
+➡️ **Die vollständige, schrittweise Anleitung** – alle Umgebungsvariablen, Web-Push/
+VAPID, Monitoring-Anbindung, Mollie, Scheduler, Redis, Updates und Server-Umzug –
+steht im **[Deployment-Runbook `docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
+
+---
+
+## Lokales Setup (Entwicklung, SQLite)
 
 ```bash
-sudo systemctl reload caddy
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+export DJANGO_SETTINGS_MODULE=config.settings DEBUG=1     # SQLite + gelockerte Sicherheit
+python manage.py migrate
+python manage.py seed_demo --reset                        # Demo-Daten + reale BB-Termine
+python manage.py runserver
 ```
 
-Caddy holt das TLS-Zertifikat automatisch und proxyt auf `127.0.0.1:8000`
-(der Web-Container ist bewusst nur an localhost gebunden).
+Demo-Login nach `--reset`: Benutzername z. B. `anna0`, Passwort `demo12345`. Ohne
+`DATABASE_URL` nutzt Django SQLite (nur Dev/Test). Alternativ mit **uv**:
+`uv sync --extra dev --extra test` (siehe [`docs/TESTEN.md`](docs/TESTEN.md)).
 
 ---
 
-## Test-Anleitung (POC)
+## Rollen
 
-Ziel: in wenigen Minuten die **drei Rollen** ausprobieren – **Admin** (Superuser,
-volles Backend), **Verwaltung** (Gruppe „Verwaltung“, nur Dashboard) und
-**Mitglied** (Testnutzer:in). Siehe „Zwei Rollen (Admin vs. Verwaltung)“ unten.
-
-### 1) Daten & Konten anlegen
-
-Am schnellsten mit Demo-Daten (echte Quartiere, Perioden, ein paar Mitglieder):
-
-```bash
-docker compose exec web python manage.py seed_demo --reset   # Demo-Stammdaten
-docker compose exec web python manage.py createsuperuser     # Admin-Konto (Superuser)
-```
-
-**Großes Test-Szenario** (kompletter Wipe inkl. Superuser, dann reich befüllt –
-Test-Konten `admin`/`verwaltung`/`test`, 50 Mitglieder mit wilden Buchungen im
-laufenden Jahr, offene Wunsch-Losung mit Feiertags-Ballung, offene Hofladen-
-Rechnungen und 15 externe Mo–Fr-Buchungen; die Losung ist bewusst **nicht**
-gezogen):
-
-```bash
-docker compose exec web python manage.py seed_demo --testdata --yes
-```
-
-- **Admin** = das Superuser-Konto (`admin`). Es sieht in der Navigation
-  zusätzlich **Verwaltung** (Dashboard) und **Backend** (Django-Admin).
-- **Verwaltung** = das Konto `verwaltung` (Mitglied der Gruppe „Verwaltung“,
-  **kein** Superuser). Es sieht nur **Verwaltung** (Dashboard), **nicht** das
-  Backend (siehe „Rollen“ unten).
-- **Testnutzer:in** = ein Demo-Mitglied, z. B. Login `anna0`/`test`, Passwort
-  `demo12345` (nach `seed_demo`).
-
-> **Zwei Rollen (Admin vs. Verwaltung):** **Admin** = Django-Superuser → volles
-> **Backend** (`/admin/`), darf Buchungen ändern und Losungen starten.
-> **Verwaltung** = Mitglied der Gruppe **„Verwaltung“** (oder Admin) → nur das
-> **Dashboard** (`/verwaltung/`), liest Buchungen/Losung und pflegt dort den
-> Hofladen-Katalog – **kein** Django-Backend. Zuordnung = ein Häkchen: den
-> Benutzer im Backend der Gruppe „Verwaltung“ hinzufügen. Die Test-Konten
-> `admin`/`verwaltung`/`test` aus `seed_demo --testdata` bilden genau diese drei
-> Rollen ab.
-
-**Ohne Demo-Daten** (manuell): Testnutzer:in unter `…/registrieren/` selbst
-anlegen → dann als Verwalter:in im **Backend** ein **Mitglieds-Profil** zuordnen
-(Benutzer → „Mitglieds-Profil“) und einen **Mitglieds-Anteil** mit Tage-Budget
-anlegen (Mitglieds-Anteile → Anteil + Nutzer mit z. B. 50/25 Tagen). Erst dann
-ist das Konto freigeschaltet und kann buchen.
-
-> Tipp: Damit die Auslosung etwas zu verteilen hat, muss eine **Buchungsperiode**
-> fürs Folgejahr existieren (Demo legt das an) und es müssen **eingereichte**
-> Wünsche vorliegen.
-
-### 2) Als Verwaltung/Admin testen (Nav: „Verwaltung“ + ggf. „Backend“)
-
-- **Backend** (`/admin/`, nur **Admin**): Quartiere & Äquivalenzklassen,
-  **Buchungsregeln** (Mindestnächte/Saison), **Buchungsperiode** mit Terminen
-  anlegen; **Betriebs-Einstellungen** (Empfänger der Verwaltungs-Mails) und
-  **Rechtliche &amp; Zahlungs-Einstellungen** (übergreifend für Hofladen UND externe
-  Gäste = Genossenschaftsdaten: Name, Anschrift, Steuernummer/USt-IdNr., IBAN/BIC,
-  Vorstand, Kontakt-E-Mail, Zahlungsziel **+ Online-Bezahlung an/aus + Mollie-API-Key
-  + Umsatzsteuer (Kleinunternehmer §19) + Impressum/Datenschutz/AGB**) pflegen.
-- **Losung** (nur **Admin**): Buchungsperioden → Aktion **„Losung durchführen“** →
-  Ergebnis ist zunächst **unbestätigt**; unter **Losdurchläufe** **bestätigen**
-  (veröffentlicht + benachrichtigt) oder **zurücknehmen**.
-- **Dashboard** (`/verwaltung/`, **Verwaltung** und **Admin**): Reinigungsliste
-  (Export/Versand), anstehende Buchungen (Export/Versand), **Rechnungen** (Filter
-  offen/überfällig/**online bezahlt**/alle, „überfällige erinnern“, Export) und
-  **Kontoabgleich** (Test-CSV hochladen – Rechnungsnummer im Verwendungszweck +
-  passender Betrag wird automatisch verbucht). Oben eine **Statistik**
-  (Mitglieder- und Benutzer-Zahl, **Auslastung** der Unterkünfte für aktuellen +
-  kommenden Monat, Ergebnis der **letzten Verlosung**: erfüllte vs. nicht erfüllte
-  Wünsche). Unter **„Produkte“**
-  (`/verwaltung/produkte/`) pflegt die Verwaltung den **Hofladen-Katalog**
-  (Produkte/Gruppen, Preise, aktiv) ganz ohne Backend.
-- **Beds24-Import** (`/verwaltung/beds24-import/`, **nur Admin**): bestehende
-  Buchungen aus Beds24 als **CSV** hochladen; der Assistent schlägt je Zeile
-  per unscharfem Namensabgleich ein **Mitglied** und **Quartier** vor, die du
-  **manuell** bestätigst (oder direkt ein neues Mitglied anlegst). Übernommene
-  Zeilen werden als Buchung angelegt – **ohne** Rechnung, da diese Buchungen
-  bereits bezahlt sind. Der Assistent wird i. d. R. nur einmalig beim Umzug
-  gebraucht und lässt sich danach in den **Betriebs-Einstellungen**
-  (`beds24_import_enabled`) abschalten – dann ist er im Dashboard ausgeblendet
-  und gesperrt (auch für Admins).
-
-### 3) Als Testnutzer:in testen
-
-- **Übersicht**: einen Tag anklicken → wer ist da, was ist frei. Oben zwischen
-  **Kalender** (Monatsraster) und **Belegung** (Zeitstrahl je Unterkunft, ein
-  Balken pro Aufenthalt) umschalten.
-- **Buchen**: Personen einstellen, im Ampel-Kalender An-/Abreise klicken
-  (Anreise und Abreise sind je mit einem Fähnchen markiert, die gewählten Nächte
-  als Band), Quartier wählen, optional **Endreinigung** mitbuchen; ist alles
-  belegt → **Warteliste** (eigene Einträge unter *Meine Buchungen*).
-- **Wunschliste**: Wünsche fürs Folgejahr eintragen, priorisieren, **einreichen**.
-  Nach der (bestätigten) Losung das Ergebnis unter **Meine Buchungen** sehen.
-- **Meine Buchungen**: stornieren; **Buchung ändern** (Unterkunft wechseln,
-  Zeitraum verlängern/verkürzen, Personenzahl); **Wechselwunsch** an ein anderes
-  Mitglied.
-- **Tage übertragen**: ein paar Tage an ein anderes Mitglied abgeben.
-- **Hofladen**: etwas in den Warenkorb, **Kasse**, **Rechnung** ansehen, **PDF**
-  herunterladen, „habe ich bezahlt“ melden – oder direkt **„Online bezahlen“**
-  (Mollie; im Standard ein eingebauter Test-Modus ohne Konto/Gebühren).
-- **Profil**: Anschrift/IBAN pflegen, E-Mail-Benachrichtigungen an/aus.
-- **Installieren**: im mobilen Browser „Zum Startbildschirm hinzufügen“.
-
-E-Mails landen ohne konfiguriertes `EMAIL_HOST` im Container-Log
-(`docker compose logs web`), sodass sich der Versand auch ohne echten
-Mailserver nachvollziehen lässt.
-
----
-
-## Was die PoC kann (Kurzüberblick)
-
-**Für Mitglieder (Web-App, auch als PWA aufs Handy installierbar):**
-Community-**Übersicht** (wer ist wann wo), **Buchen** über einen Ampel-Kalender
-inkl. Spontanbuchung und **Warteliste**, **Wunschliste + faires Losverfahren**
-fürs Folgejahr, **Meine Buchungen** mit Storno und **Wechselwunsch**, **Tage
-übertragen**, **Hofladen** mit monatlicher Sammelrechnung und **Rechnungs-PDF**,
-**Profil** (Anschrift/IBAN/E-Mail-Opt-out). **Benachrichtigungen** in-App und per
-E-Mail.
-
-**Für die Verwaltung:** Zwei Rollen – **Admin** (Superuser) mit vollem Django-
-**Backend** (Mitglieder/Anteile, Quartiere, Äquivalenzklassen, Buchungsregeln,
-Perioden, Genossenschaftsdaten) und **Verwaltung** (Gruppe „Verwaltung“) mit dem
-operativen **Dashboard** (`/verwaltung/`): Reinigungsliste, anstehende Buchungen,
-Rechnungen (filterbar inkl. „online bezahlt“, Mahnen per Knopf, Export),
-**Hofladen-Katalog pflegen**, **Kontoabgleich** (Auszug importieren → Rechnungen
-automatisch verbuchen). **Losung** mit Bestätigungs-/Rücknahme-Workflow (Admin).
-Ein **Scheduler** erledigt Cron-Aufgaben (fällige Losungen, Monatsrechnungen,
-E-Mail-Versand, Monats-Mail an die Verwaltung).
-
-Die vollständige Feature-Liste **mit Datei/Funktion** steht unter
-[Funktionsüberblick](#funktionsüberblick); eine Schritt-für-Schritt-Anleitung
-zum Ausprobieren unter [Test-Anleitung](#test-anleitung-poc).
-
-Demo-Login nach `--seed`: Benutzername z.B. `anna0`, Passwort `demo12345`.
-
----
-
-## Buchungszeiträume & Tage (Zeitlogik)
-
-Die PoC unterscheidet bewusst zwei Zeitachsen:
-
-- **Normale Buchung** ist nur in **freigeschalteten Buchungszeiträumen** möglich
-  (üblicherweise das laufende Jahr). Der Admin legt diese unter
-  **Buchungszeiträume** fest:
-  - **global** (Haken „Gilt für alle Quartiere") – die Grundfreigabe, und
-  - **enger für eine Teilmenge** – ein nicht-globales Fenster mit ausgewählten
-    Quartieren schränkt deren Buchbarkeit weiter ein.
-  - **Semantik (Schnittmenge):** Buchbar ist ein Tag nur, wenn er *sowohl*
-    global *als auch* – falls für das Quartier ein spezifisches Fenster
-    existiert – in diesem freigegeben ist. Spezifische Fenster können also nur
-    weiter einschränken, nie über die globale Freigabe hinaus erweitern.
-    (Beispiel im Seed: Pfarrhäuser nur Mai–September.)
-- **Das Losverfahren** läuft typischerweise im Sommer für das **nächste Jahr**,
-  dessen Buchungszeitraum noch **nicht** freigeschaltet ist. Es ist daher
-  bewusst **unabhängig** von den Buchungszeiträumen und vergibt die Slots im
-  Voraus.
-
-**Verfügbare Tage:** Jedes Mitglied hat ein Jahreskontingent (Standard 50, davon
-max. 25 über die Wunschliste/Losung). Tage werden **nicht** ins Folgejahr
-übertragen – das Kontingent gilt je Kalenderjahr frisch. Tage können aber
-**an andere Mitglieder übertragen** werden (Seite „Tage übertragen"); die
-verfügbaren Tage ergeben sich aus Kontingent + erhaltene − abgegebene −
-verbrauchte Tage.
-
----
-
-## Buchungsregeln (im Admin konfigurierbar)
-
-Zwei Admin-Bereiche steuern die Regeln; die Prüfung greift bei jeder normalen
-Buchung:
-
-- **Buchungsregel (global):** die Standard-Mindestbuchung (Default 3 Nächte).
-- **Saison-Regeln:** beliebig viele Zeiträume mit je optional
-  - **Mindestnächte** (z.B. Juli/August = 7),
-  - **max. gleichzeitige Wohneinheiten** je Mitglied (z.B. Schulferien und
-    Feiertage wie Weihnachten/Silvester, Ostern, Himmelfahrt, Pfingsten = 2),
-  - **Aufenthaltsdeckel** je Partei in Einheiten-Nächten (z.B. Berlin/
-    Brandenburg-Sommerferien = 14, also „zwei Wochen eine Einheit ODER eine
-    Woche zwei Einheiten"). Die zwei Wochen müssen nicht am Stück liegen.
-
-Außerhalb der hinterlegten Sonderzeiträume gibt es kein Parallel-Limit. Die
-konkreten Termine (Schulferien, Brückentage, bewegliche Feiertage) verschieben
-sich jährlich und werden im Admin gepflegt; der Seed legt die realen
-Berlin/Brandenburg-Termine des laufenden Jahres als Startpunkt an (Berlin und
-Brandenburg sind nahezu identisch).
-
-> Hinweis: Die **Mindestnächte** (z. B. 7 im Sommer) werden bei der **normalen
-> Buchung**, **beim Eintragen/Einreichen der Wunschliste** und bei **externen
-> Buchungen** geprüft (ein zu kurzer Wunsch lässt sich gar nicht erst einreichen,
-> ein Losgewinn kann also nicht an den Mindestnächten scheitern). Das
-> **Parallel-Limit** und der **Aufenthaltsdeckel über mehrere Buchungen** gelten
-> bei der normalen Buchung **und in der Losung**: Würde ein Wunsch den Deckel
-> überschreiten (die Partei hat in der Saison schon ihr Maximum), wird er in der
-> Losung **übersprungen** – das zählt **nicht** als Verlust und bringt **kein**
-> Karma (so lässt sich durch Über-Wünschen kein Vorteil erzielen).
->
-> Für **externe Gäste** ist der Mindestaufenthalt im Backend einstellbar
-> (Externe-Gäste-Einstellungen): standardmäßig **„wie intern“** (inkl. der
-> Saison-Mindestnächte), bei Bedarf auf einen eigenen, **abweichenden** Wert
-> umstellbar (Haken „Mindestaufenthalt wie intern“ entfernen).
-
----
-
-## Das Losverfahren in Kürze
-
-Verfahren: **gewichtete Zufallsreihenfolge im Runden-Prinzip** (fachlich eine
-„weighted random serial dictatorship" mit Ausweich-Logik und Mehrjahres-Ausgleich).
-
-- **Reihenfolge – genau einmal:** Zu Beginn wird *eine* gewichtete Reihenfolge
-  aller Teilnehmenden gezogen. Sie gilt für **alle Runden** und wird **nicht**
-  jede Runde neu gezogen. Über einen Seed ist jede Ziehung reproduzierbar.
-- **Karma als Gewicht:** Ein höherer Ausgleichsfaktor (aus früheren Verlusten)
-  bringt in *dieser einen Ziehung* tendenziell einen vorderen Platz. Karma fließt
-  also als **Gewicht in die Ziehung** ein – und wird **erst am Ende neu
-  berechnet**, für die *nächste* Losung (nicht zwischen den Runden).
-- **Runden-Prinzip:** In Runde 1 bekommt jede Partei – in der gelosten Reihenfolge
-  – ihren *höchsten noch möglichen* Wunsch, in Runde 2 mit *derselben* Reihenfolge
-  den nächsten, usw. Pro Runde höchstens **eine** Buchung je Partei – so werden
-  knappe Premium-Termine (z.B. Pfingsten) gleichmäßiger verteilt.
-- **Übersprungen kostet nicht den Zug:** Ist der höchste Wunsch wegen Budget oder
-  einer **Saison-Grenze** (Parallel-Limit/Nächte-Deckel) nicht möglich, prüft die
-  Losung **in derselben Runde** sofort den **nächsten Wunsch derselben Partei** –
-  die Partei wird also nicht für die Runde übergangen, nur der eine blockierte
-  Wunsch wird übersprungen (kein Verlust, kein Karma).
-- **Ausweichen:** Ist das konkrete Wunschquartier belegt, wird ein
-  **gleichwertiges** Quartier derselben Äquivalenzklasse zugeteilt, bevor ein
-  echter Verlust entsteht.
-- **Karma-Update (am Ende):** Wer einen Zeitraum *echt* verliert (in der ganzen
-  Klasse nichts frei), bekommt für die nächste Losung +0,1 (gedeckelt 1,5). Wer
-  einen *umkämpften* Slot gewinnt, wird auf 1,0 zurückgesetzt. Budget-bedingtes
-  Aussetzen zählt **nicht** als Verlust.
-- **Strategiesicher:** Die Wunschliste bestimmt nur, *was* man nimmt, wenn man
-  dran ist – nicht *wann*. Ehrliches Angeben ist nachweislich nie schlechter als
-  Tricksen (siehe Test `test_strategieproof_ueber_alle_reihenfolgen`).
-
-### Reihenfolge & Karma (wie die Ziehung statistisch funktioniert)
-
-Die Reihenfolge ist eine **gewichtete Zufalls-Permutation** nach dem
-**Efraimidis–Spirakis-Verfahren** (gewichtete Zufallsstichprobe ohne
-Zurücklegen, `booking/lottery.py::weighted_random_order`). Jede Partei erhält
-einen Schlüssel
-
-$$k = u^{1/g}, \qquad u \sim \mathcal{U}(0,1)$$
-
-mit dem **Karma-Gewicht** $g$ (Start 1,0). Absteigend nach $k$ sortiert ergibt
-sich die Reihenfolge; ein höheres $g$ schiebt $k$ näher an 1 (tendenziell weiter
-vorn, nie garantiert). Die Wahrscheinlichkeit, **Erste:r** zu werden, ist exakt
-gewichtsproportional:
-
-$$P(\text{Partei } i \text{ ist vorn}) = \frac{g_i}{\sum_{j} g_j}$$
-
-Beispiel: Karma 1,5 gegen vier mit je 1,0 → $1{,}5/5{,}5 \approx 27\,\%$ (statt
-18 % bei gleichem Karma). $g$ steigt um **+0,1** je Jahr mit echtem Verlust
-(Deckel **1,5**) und wird nach Gewinn eines umkämpften Slots auf **1,0**
-zurückgesetzt. Pech verschiebt also die Wahrscheinlichkeiten zu deinen Gunsten,
-ersetzt aber nie den Zufall.
-
-### Strategiesicherheit (was das heißt und wie es sichergestellt ist)
-
-**Strategiesicher** heißt: keine Falschangabe bringt im Erwartungswert ein
-besseres Ergebnis als die ehrlichen, nach echter Wichtigkeit sortierten Wünsche –
-ehrlich angeben ist die **dominante Strategie**. Es ist eine **(gewichtete)
-zufällige serielle Diktatur**: die **Reihenfolge hängt nur von Karma und Zufall
-ab, nicht von der Wunschliste** (man kann das *Wann* nicht beeinflussen), und wer
-dran ist, nimmt den höchsten noch freien Wunsch (das *Was*). Den am meisten
-gewünschten freien Slot zu nehmen ist per Definition optimal; eine andere
-Reihenfolge anzugeben kann nur zu etwas weniger Gewünschtem führen. Belegt wird
-das durch `tests/test_lottery.py::test_strategieproof_ueber_alle_reihenfolgen`,
-der über **alle** möglichen Reihenfolgen nachrechnet.
-
-### Budgets & Wünsche (bewusst entkoppelt)
-
-Es gibt **zwei** Budgets: **50 Tage/Jahr gesamt** (Losung + normale Buchung) und
-davon höchstens **25 über die Losung** (`Member.wish_night_budget`). Das **Eintragen
-von Wünschen ist NICHT begrenzt** – man darf mehr als 25 Nächte an Wünschen
-einreichen. Die Losung vergibt aber höchstens 25 Wunsch-Nächte: ist die Grenze
-erreicht, werden weitere Wünsche **übersprungen** (`budget_skip` in
-`lottery.run_lottery`) – das ist *kein* Verlust und kostet kein Karma. „Viele
-Wünsche eintragen" ist daher **kein Vorteil über das ehrliche Angeben hinaus**:
-die Position in der Reihenfolge ändert sich nicht, und die 25-Nächte-Grenze
-deckelt die Gesamt-Zuteilung. (Eine Obergrenze für die *Anzahl* eingetragener
-Wünsche ist bewusst nicht gesetzt – falls die Genossenschaft das wünscht, ließe
-sich das in `services.add_wish` ergänzen.)
-
-### Ablauf
-
-```mermaid
-flowchart TD
-    A["① Wünsche eintragen & einreichen (Prio 1…n)"] --> B["② Reihenfolge EINMAL auslosen<br/>Karma (Vorjahr) = Gewicht"]
-    B --> C["③ Neue Runde – Reihenfolge bleibt gleich"]
-    C --> D{"Partei: höchster noch<br/>möglicher Wunsch"}
-    D -->|"Wunschquartier frei"| E["✓ zuteilen"]
-    D -->|"sonst gleichwertiges frei"| F["✓ Ausweichquartier"]
-    D -->|"Budget voll ODER Saison-Deckel/Parallel-Limit erreicht"| H["übersprungen – kein Verlust"]
-    D -->|"nichts frei"| G["✗ echter Verlust<br/>Karma +0,1 (nächstes Jahr)"]
-    H -->|"nächster Wunsch – gleiche Runde, gleiche Partei"| D
-    G -->|"nächster Wunsch – gleiche Runde, gleiche Partei"| D
-    E --> I["höchstens EINE Buchung pro Partei & Runde"]
-    F --> I
-    I --> J{"noch offene Wünsche?"}
-    J -->|"ja: nächste Runde, gleiche Reihenfolge"| C
-    J -->|"nein"| K["④ Karma neu berechnen<br/>Verlust → +0,1 (max 1,5) · umkämpfter Gewinn → 1,0"]
-    K --> L["⑤ Ergebnis veröffentlicht → Benachrichtigung"]
-```
-
-### Beispiel: 5 Mitglieder, je 2 Wünsche
-
-*Salix* und *Lupulus* sind **gleichwertig** (Gruppe „Gartenhäuser“), das
-*Pfarrhaus* steht allein. Begehrt: **Pfingsten** (3 Nächte) und eine
-**Sommerwoche** (7 Nächte). **Karma vorab:** Dora 1,2 (ging letztes Jahr leer
-aus), alle anderen 1,0.
-
-| Mitglied | ① Erstwunsch        | ② Zweitwunsch        |
-|----------|---------------------|----------------------|
-| Anna     | Salix · Pfingsten   | Pfarrhaus · Sommer   |
-| Ben      | Lupulus · Pfingsten | Salix · Sommer       |
-| Cem      | Salix · Pfingsten   | Pfarrhaus · Sommer   |
-| Dora     | Pfarrhaus · Pfingsten | Salix · Sommer     |
-| Eva      | Salix · Pfingsten   | Lupulus · Pfingsten  |
-
-Dank Karma landet Dora wahrscheinlich vorn. Angenommen, die (eine!) Ziehung
-ergibt **Dora ▸ Anna ▸ Ben ▸ Cem ▸ Eva**.
-
-**Runde 1** – höchster noch möglicher Wunsch je Partei:
-- **Dora** → Pfarrhaus · Pfingsten ✓ (kein anderer will Pfarrhaus zu Pfingsten → nicht umkämpft)
-- **Anna** → Salix · Pfingsten ✓ (umkämpft)
-- **Ben** → Lupulus · Pfingsten ✓ (umkämpft)
-- **Cem** → Salix & Lupulus belegt → *Verlust*; Zweitwunsch Pfarrhaus · Sommer ✓ (umkämpft mit Anna)
-- **Eva** → Salix & Lupulus belegt → *Verlust*; Zweitwunsch Lupulus · Pfingsten ebenfalls belegt → *Verlust*; keine Buchung
-
-**Runde 2** – gleiche Reihenfolge; nur Dora, Anna, Ben haben offene Wünsche:
-- **Dora** → Salix · Sommer ✓ (umkämpft mit Ben)
-- **Anna** → Pfarrhaus · Sommer belegt (Cem) → *Verlust*
-- **Ben** → Salix · Sommer belegt (Dora) → Ausweich **Lupulus · Sommer** ✓
-
-**Ergebnis & neues Karma** (fürs *nächste* Jahr):
-
-| Mitglied | Bekommen                                   | Karma neu                                  |
-|----------|--------------------------------------------|--------------------------------------------|
-| Anna     | Salix · Pfingsten                          | 1,0 → **1,1** (Verlust Sommer)             |
-| Ben      | Lupulus · Pfingsten + Lupulus · Sommer     | 1,0 (umkämpft gewonnen)                    |
-| Cem      | Pfarrhaus · Sommer                         | 1,0 → **1,1** (Verlust Pfingsten)          |
-| Dora     | Pfarrhaus · Pfingsten + Salix · Sommer     | 1,2 → **1,0** (umkämpft gewonnen → Reset)  |
-| Eva      | — (leer ausgegangen)                       | 1,0 → **1,1** (Verlust)                     |
-
-Eva geht dieses Jahr leer aus, bekommt aber +0,1 Karma und damit nächstes Jahr
-eine bessere Ausgangsposition; Dora hat ihren Vorsprung „eingelöst“ und startet
-wieder bei 1,0. So bleibt es über die Jahre fair.
-
-Das Verfahren ist im Detail in `Losverfahren-Spezifikation.md` beschrieben
-(Genossenschafts-Vorlage und Bauplan zugleich).
-
----
-
-## Funktionsüberblick
-
-Alle Features mit funktionaler Kurzbeschreibung und der Stelle im Code
-(Datei · Funktion/Klasse). Architektur-Prinzip: **reine Logik** (`lottery.py`,
-`availability.py`, `rules.py`, ohne Django) ↔ **Service-Layer** (`services.py`,
-Brücke DB↔Logik) ↔ **dünne Views/Templates**.
-
-### Für Mitglieder
-
-| Funktion | Funktional (was es tut) | Technik (Datei · Funktion/Klasse) |
+| Rolle | Zugang | Kann |
 |---|---|---|
-| Übersicht | Community-Monatskalender mit Umschalter **Kalender/Belegung** (Belegung = Zeitstrahl je Unterkunft); Klick auf einen Tag zeigt, wer da ist und was frei ist | `booking/views.py::overview` · `services.build_community_calendar`, `build_occupancy_timeline`, `day_detail` |
-| Buchen / Spontanbuchung | Ampel-Kalender, Quartierwahl nach Personen/Barrierefreiheit, Mindestnächte-Hinweis, Bestätigungsschritt | `views.py::book`, `book_confirm` · `services.book_spontaneous`, `split_quarters_for_range`, `range_is_released`, `min_nights_for_range` |
-| Warteliste | Auf belegten Zeitraum warten; Benachrichtigung, sobald frei; eigene offene Einträge unter „Meine Wartelisten-Einträge“ in *Meine Buchungen* | `services.add_waitlist_entry`, `notify_waitlist_if_free` · `models.WaitlistEntry` |
-| Wunschliste | Wünsche fürs Folgejahr eintragen, priorisieren (Drag/Pfeiltasten), einreichen | `views.py::wishlist` · `services.add_wish`, `move_wish`, `submit_wishlist`, `build_wish_calendar` · `models.Wish` |
-| Losverfahren | Gewichtete Ziehung, Runden-Prinzip, Ausweichquartiere, Karma | `booking/lottery.py::run_lottery`, `weighted_random_order` · `services.run_period_lottery` |
-| Ergebnis-/Auditansicht | Eigenes Ergebnis + Gemeinschafts-Zuteilungen + (Staff) Protokoll | `views.py::period_result` · `lottery.render_log_text` |
-| Meine Buchungen / Storno / ändern | Eigene Buchungen sehen, stornieren (mit Rückfrage) und **ändern** (Unterkunft wechseln, Zeitraum, Personenzahl) | `views.py::my_bookings` · `services.cancel_allocation`, `adjust_allocation`, `free_quarters_for` |
-| Wechselwunsch | Quartiertausch an ein anderes Mitglied anfragen, zustimmen/ablehnen | `services` (Wechselwunsch) · `models.SwapRequest` |
-| Tage übertragen | Eigene Tage an ein anderes Mitglied abgeben (zweistufig; Empfänger:in per **Typeahead-Suche** über Name/Benutzername/E-Mail wählen) | `views.py::transfer`, `member_search` · `services.transfer_nights` · `models.NightTransfer` |
-| Profil | Anschrift/IBAN + E-Mail-Opt-out selbst pflegen | `views.py::profile` · `forms.ProfileForm` |
-| Registrierung & Freischaltung | Selbst registrieren; bis Profil-Zuordnung gesperrt (Warteseite) | `views.py::register`, `pending` · `middleware.ActivationGateMiddleware` · `auth.EmailOrUsernameModelBackend` |
-| Benachrichtigungen | In-App **und** E-Mail (Opt-out je Mitglied) | `models.Notification`, `OutboxEmail` · `services.email_member` · `commands/send_outbox.py` |
-| Hofladen | Warenkorb → Kasse → Einkauf; gleiche Artikel zusammengefasst | `shop/services.py::add_item`, `set_cart_quantity`, `checkout` · `shop/models.py::LineItem`, `Purchase` |
-| Rechnung + PDF | Monatliche/sofortige Sammelrechnung (§14), PDF, „bezahlt“ melden | `shop/services.py::generate_monthly_invoices`, `generate_invoice_now`, `mark_paid` · `shop/pdf.py` · `shop/views.py::invoice_pdf` |
-| Online bezahlen | „Online bezahlen“ auf Rechnungen (Mitglied) bzw. „Jetzt bezahlen“ (Gast, Magic-Link); Test-Modus ohne Konto | `shop/payments.py::start_payment`, `settle_payment` · `shop/mollie_api.py` · `shop/models.py::Payment`, `Invoice.paid_online` |
-| PWA / Mobil | Installierbar, offline-Fallback, responsive Navigation (untere Tab-Leiste); **Web-Push**-Benachrichtigungen (Opt-in im Profil) und **Offline-Warenkorb** im Hofladen (ADR 0044) | `templates/booking/base.html`, `templates/booking/sw.js`, `static/booking/manifest.webmanifest` · `services.send_web_push` · `models.PushSubscription` |
+| **Mitglied** | Web-App | buchen, Wunschliste, eigene Buchungen/Rechnungen, Profil |
+| **Verwaltung** | `/verwaltung/` (Gruppe „Verwaltung") | Dashboard: Listen, mahnen, Kontoabgleich, Losung bestätigen, Hofladen-Katalog – **kein** Backend |
+| **Admin** | `/admin/` (Superuser) | volles Backend: Stammdaten, Buchungen, Losung |
+| **Gast** (extern) | Magic-Link | eigene Buchung ansehen/stornieren/bezahlen, ohne Konto |
 
-### Für die Verwaltung
-
-| Funktion | Funktional | Technik |
-|---|---|---|
-| Rollen Admin/Verwaltung | Admin = Superuser (Backend); Verwaltung = Gruppe „Verwaltung“ (nur Dashboard) | `booking/permissions.py::is_admin`, `is_verwaltung`, `ensure_verwaltung_group` · `booking/context_processors.py` |
-| Dashboard | Operative Seite (Verwaltung/Admin): Kennzahlen + Arbeitslisten | `booking/views.py::dashboard` |
-| Statistik | Mitglieder-/Benutzer-Zahl, Auslastung der Unterkünfte (aktueller + kommender Monat), letzte Verlosung (erfüllt/nicht erfüllt) | `booking/services.py::dashboard_stats` · `models.LotteryRun.n_allocations`, `n_losses` |
-| Hofladen-Katalog pflegen | Produkte/Gruppen + Preise im Dashboard, ohne Backend | `booking/views.py::dashboard_products` |
-| Reinigungsliste | Abreisen = Reinigungstage, Filter „Endreinigung“, Export, Versand ans Team | `services.departures_in_range`, `_annotate_cleaning`, `cleaning_rows`, `email_cleaning` |
-| Anstehende Buchungen | Monatsliste, Export, Versand an die Verwaltung | `services.arrivals_in_range`, `booking_rows`, `email_admins` |
-| Export (xlsx/CSV) | Listen als Excel **und** CSV | `booking/exports.py::xlsx_response`, `csv_response` |
-| Rechnungen verwalten | Fälligkeit/Überfälligkeit, Filter, **Mahnen per Knopf**, Export | `shop/services.py::overdue_invoices`, `send_payment_reminder`, `remind_overdue` · `shop/admin.py::InvoiceAdmin` |
-| Kontoabgleich | Auszug (CSV/CAMT) importieren → eindeutige Treffer automatisch verbuchen + benachrichtigen | `shop/bankimport.py::parse_csv/parse_camt` · `shop/reconcile.py::import_bank_statement`, `book_payment` |
-| Losung steuern | Durchführen, **bestätigen** (veröffentlichen), **zurücknehmen** | `services.confirm_lottery`, `rollback_lottery` · `admin.BookingPeriodAdmin`, `LotteryRunAdmin` |
-| Stammdaten & Regeln | Mitglieder/Anteile, Quartiere, Saison-Regeln, Perioden | `booking/admin.py`, `shop/admin.py` |
-| Backend-Gliederung | Django-Admin fachlich in **5 Sektionen** statt nach App (Startseite **und** Seitenleiste); moderne Startseite mit **eingeklappten Karten + Volltext-Suche**; Rechnungen **gesplittet** in Hofladen (Mitglieder) vs. externe Buchungen (Gäste) (ADR 0049) | `booking/admin_site.py::RehofAdminSite` · `templates/admin/custom_index.html` · `shop.ExternalInvoice` |
-| Mitglied anonymisieren | Recht auf Löschung (Art. 17 DSGVO): Profil-PII leeren, Login deaktivieren – Rechnungen bleiben | `services.anonymize_member` · `admin.UserAdmin.anonymize_selected` |
-| Betriebs-Einstellungen | Empfänger der Verwaltungs-Mails, Monats-Mail-Tag, **Beds24-Import an/aus** | `models.OpsConfig` |
-| Genossenschaftsdaten / Zahlung | Name, Anschrift, Steuernummer/USt-IdNr., IBAN/BIC, Vorstand, Kontakt-E-Mail, Zahlungsziel + Online-Bezahlung (an/aus, Mollie-Key) | `shop/models.py::ShopConfig` |
-| Umsatzsteuer (Kleinunternehmer) | Schalter §19 ja/nein → Rechnungen mit/ohne MwSt-Ausweis (ADR 0041) | `shop/models.py::ShopConfig.small_business`, `Invoice.small_business` |
-| Rechtstexte | Impressum (Pflicht §5 DDG, erzeugt), Datenschutz (DSGVO, Vorlage in [`docs/DATENSCHUTZ-VORLAGE.md`](docs/DATENSCHUTZ-VORLAGE.md)), AGB – konfigurierbar, im Fuß verlinkt (ADR 0042) | `ShopConfig` (`imprint_extra`/`privacy_policy`/`terms_agb`…) · `views.imprint/privacy/terms` |
-
-### Betrieb (Scheduler/Cron) & reine Logik
-
-| Funktion | Technik |
-|---|---|
-| Hintergrund-Scheduler (Cron-Ersatz) | `commands/run_scheduler.py` |
-| Fällige Losungen + Status-Schaltung | `commands/run_due_lotteries.py` · `BookingPeriod.compute_status` |
-| Monatsrechnungen | `commands/run_monthly_invoices.py` |
-| E-Mail-Versand (Outbox leeren, mit Anhängen) | `commands/send_outbox.py` |
-| Monats-Mail an die Verwaltung | `commands/notify_admins_upcoming.py` · `services.notify_admins_upcoming` |
-| DSGVO-Aufräumen (täglich) | `commands/cleanup_data.py` · `services.run_data_retention` |
-| Losalgorithmus (rein, ohne DB) | `booking/lottery.py` |
-| Verfügbarkeit & Tage-Rechnung (rein) | `booking/availability.py` |
-| Saison-Regeln: Mindestnächte/Parallel/Deckel (rein) | `booking/rules.py` |
-
-**Observability (ADR 0046):** Logs gehen strukturiert nach stdout
-(`docker compose logs -f web`); **Sentry** ist nur mit gesetztem `SENTRY_DSN` aktiv
-(ohne PII). Der Health-Endpoint **`/healthz/`** (prüft die DB) trägt den
-Container-Healthcheck und eignet sich für **externes Uptime-Monitoring**: einen
-Dienst wie UptimeRobot/Healthchecks.io auf `https://<domain>/healthz/` zeigen lassen
-(erwartet HTTP 200). Env-Variablen siehe `.env.example`.
+Eine Person wird zur **Verwaltung**, indem man sie im Backend der Gruppe
+„Verwaltung" hinzufügt. Details in [Fachkonzept § 14](docs/FACHKONZEPT.md#14-rollen--rechte).
 
 ---
 
 ## Tests
 
-Drei Ebenen:
+Mehrstufig – schnelle reine Logik bis prod-nahe Browser-Tests:
 
 ```bash
-# 1) Reine Logik (Losverfahren + Buchungszeiträume/Tage + Saison-Regeln) – ohne DB
-pip install pytest
-PYTHONPATH=. python -m pytest tests/ -v          # -> 68 passed
+# Reine Logik (ohne DB) – schnell
+PYTHONPATH=. python -m pytest tests/ -q            # -> 68 passed
 
-# 2) Integrationstests (DB-Ebene: Gate, Buchung, Losung-Workflow, Dashboard,
-#    Hofladen, Kontoabgleich)
-python manage.py test booking shop               # -> 212 passed (3 skips)
-
-# 3) End-to-End (Playwright) gegen einen LAUFENDEN, prod-nahen Stack (ADR 0047).
-#    In der CI vollautomatisch über docker-compose.ci.yml; lokal:
-pip install -r requirements-e2e.txt && python -m playwright install chromium
-python -m pytest tests_e2e/ --base-url http://localhost:8000
-
-# Optional: Type-Check der Django-freien reinen Logik (ADR 0048; läuft auch im CI)
-mypy        # Konfiguration in pyproject.toml; uv als schnelle Alternative zu pip
+# Integration (DB-Ebene)
+python manage.py test booking shop                 # -> 212 passed (3 skips)
 ```
 
-Abgedeckt: Determinismus, Budget, Ausweich-Logik, Karma (Bonus/Deckel/Reset),
-Pfingst-Stresstest, Fairness-über-die-Zeit, der deterministische
-Strategiesicherheits-Beweis, die Schnittmengen-Semantik der Buchungszeiträume,
-die Tage-Übertragung, die Saison-Regeln, Stornierung, Wunschlisten-Einreichung
-(Lostopf) und Umsortierung, sowie die Unabhängigkeit der Losung von den
-Buchungszeiträumen.
-
-Die **Berliner Schulferien** (Anzeige im Kalender) liegen als eigenes Modell vor
-und werden vom Seed mit den realen Terminen 2026/2027 gefüllt; sie sind im Admin
-unter „Schulferien" pflegbar und beeinflussen die Buchungsregeln nicht (die
-liegen in den Saison-Regeln).
+Dazu kommen **Nebenläufigkeits-** (PostgreSQL), **End-to-End-** (Playwright gegen
+einen prod-nahen Docker-Stack) und **Belastungstests** (k6). Alles – inkl. CI-Jobs
+und Testdaten-Konten – ist im **[Test-Runbook `docs/TESTEN.md`](docs/TESTEN.md)**
+beschrieben; das Belastungs-Runbook liegt in
+[`loadtest/README.md`](loadtest/README.md).
 
 ---
 
-## Verzeichnisstruktur
+## Dokumentation (Wegweiser)
 
-```
-rehof/
-├── install.sh                 # Voraussetzungen prüfen/installieren, .env, Start
-├── docker-compose.yml         # web (Gunicorn) + db (PostgreSQL)
-├── Dockerfile / entrypoint.sh # Image-Bau, Migrationen, optional Seed, Gunicorn
-├── .env.example               # Vorlage; install.sh erzeugt daraus die .env
-├── caddy/Caddyfile.snippet    # Block für das Host-Caddyfile
-├── requirements.txt
-├── manage.py
-├── config/                    # Django-Projekt (settings, urls, wsgi)
-├── booking/                   # die App
-│   ├── lottery.py             # >>> Herzstück: reines Losverfahren <<<
-│   ├── availability.py        # reine Logik: Buchungszeiträume + Tage-Rechnung
-│   ├── rules.py               # reine Logik: Mindestnächte/Parallel/Deckel
-│   ├── services.py            # Brücke DB <-> Logik, Buchung, Übertragung
-│   ├── models.py              # Mitglied, Quartier, Periode, Wunsch, Zuteilung,
-│   │                          #   Buchungszeitraum, Tage-Übertragung, Regeln …
-│   ├── admin.py               # Mitgliedermanagement + Losung + Regeln + Fenster
-│   ├── views.py / urls.py / forms.py
-│   ├── templates/             # schlanke Oberfläche
-│   ├── tests.py               # Django-Integrationstests (DB-Ebene)
-│   └── management/commands/seed_demo.py   # Demo-Daten (echte Quartiere/Termine)
-└── tests/                     # reine pytest-Suite
-    ├── test_lottery.py        # Losverfahren / Fairness-Nachweis
-    ├── test_availability.py   # Buchungszeiträume + Tage
-    └── test_rules.py          # Mindestnächte / Parallel-Limit / Deckel
-```
-
----
-
-## Quartiere & Äquivalenzklassen
-
-Die zehn echten Quartiere sind im Seed (`seed_demo.py`) hinterlegt. Die
-**Äquivalenzklassen** (welche Quartiere als gleichwertig gelten und gegeneinander
-getauscht werden dürfen) sind dort ein **Vorschlag** und in der Genossenschaft
-abzustimmen – es ist eine Wert-Entscheidung, keine technische. Aktuell
-vorgeschlagen:
-
-| Klasse        | Quartiere |
-|---------------|-----------|
-| Gartenhaus    | Salix, Lupulus, Spinosa |
-| Pfarrhaus     | Pfarrhaus Nord, Pfarrhaus Süd |
-| Klein-Stall   | Stallgebäude Süd, Stallgebäude West |
-| Groß-Stall    | Stallgebäude Nord |
-| Mittel        | Scheunen Studio, Hofgebäude |
-
-Anpassen im Admin (Äquivalenzklassen + Quartiere) oder in `seed_demo.py`.
-
----
-
-## Sicherheit
-
-- Django-Standard-Auth mit ordentlich gehashten Passwörtern, CSRF-Schutz,
-  sichere Cookies in Produktion (`DEBUG=0`).
-- **Eingabe-Validierung & XSS-Härtung** (siehe ADR 0039): Benutzereingaben werden
-  auf Plausibilität geprüft (Name = Buchstaben, **PLZ** = 5 Ziffern, **Ort**,
-  **Straße**, **IBAN** mit Längen- **und** Mod-97-Prüfsummen-Check) – reine Logik in
-  `booking/validation.py`, isoliert getestet. Django escapt alle HTML-Ausgaben
-  automatisch (kein `|safe` auf Nutzer-Input); Markup/Steuerzeichen in Namen/Orten
-  werden zusätzlich abgewiesen, und die **CSV-/xlsx-Exporte** sind gegen
-  Formel-Injektion gehärtet (`booking/exports.py`).
-- TLS terminiert Caddy; der Web-Container ist nur an `127.0.0.1` gebunden.
-- `install.sh` erzeugt einen langen zufälligen `SECRET_KEY` und ein DB-Passwort;
-  die `.env` ist `.gitignore`-geschützt.
-- **Datei-Uploads gehärtet:** Kontoauszug- und Beds24-CSV-Uploads sind auf
-  **10 MB** begrenzt; der CAMT-Import lehnt `DOCTYPE`/`ENTITY` in der XML ab
-  (Schutz vor Entity-Expansion).
-- **Authentifizierungs-Naht:** Für später ist ein Wechsel auf Keycloak/OIDC
-  vorgesehen (z.B. `mozilla-django-oidc`), ohne die übrige App umzubauen – die
-  Stelle ist in `config/settings.py` markiert.
-- Wenn die App vollständig über HTTPS läuft, in `.env`
-  `SECURE_HSTS_SECONDS=31536000` setzen.
-- **Backups & weiteres Hardening:** geplant, im PoC bewusst **noch nicht aktiv**.
-  Die genauen Blueprints (Off-site-Backup via Hetzner Storage Box + Borg
-  append-only mit 14-Tage-Retention und Restore-Runbook; 2FA für die Verwaltung;
-  IBAN-Feldverschlüsselung; LUKS) stehen in
-  [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md).
-
----
-
-## Voraussetzungen (Betrieb & Server-Umzug)
-
-Was ein Server braucht, um die App zu betreiben – nützlich bei einem **Umzug**.
-
-**Pflicht (Grundbetrieb):**
-
-| Bereich | Anforderung |
+| Thema | Dokument |
 |---|---|
-| Host | Linux (Debian/Ubuntu empfohlen), Root/sudo |
-| Container | **Docker** + **Docker Compose v2**, `git` (installiert `install.sh` bei Bedarf) |
-| Reverse-Proxy | **Caddy** auf dem Host (TLS/Let’s Encrypt); Web-Container hängt über ein externes Docker-Netz (`compose_web`) dran |
-| Netz/DNS | Domain mit A-Record auf den Server; Ports **80/443** offen; ausgehend Docker-Hub + ACME erreichbar |
-| Ressourcen | klein: ~1–2 vCPU, ~2 GB RAM, ~10 GB Platte (PoC) |
-| Konfiguration | `.env` mit `SECRET_KEY`, `POSTGRES_DB/USER/PASSWORD`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` (optional `TZ`, `EMAIL_*`, `PUBLIC_BASE_URL`, `REDIS_URL`) |
-| Daten | liegen im Docker-Volume **`pgdata`** (PostgreSQL) – das ist beim Umzug der wichtige Teil |
+| **Fachliche Regeln** (Losverfahren, Tage, Saison, Perioden, USt, Aufbewahrung) | [`docs/FACHKONZEPT.md`](docs/FACHKONZEPT.md) |
+| **Architektur-Entscheidungen** (technisch, mit Abwägungen) | [`docs/adr/`](docs/adr/README.md) |
+| **Deployment & Betrieb** (VPS/Caddy/Docker, Env, Push, Monitoring) | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) |
+| **Tests & Testumgebungen** | [`docs/TESTEN.md`](docs/TESTEN.md) |
+| **Belastungstests (k6)** | [`loadtest/README.md`](loadtest/README.md) |
+| **Externe Gäste** (Konzept) | [`docs/EXTERNE-GAESTE.md`](docs/EXTERNE-GAESTE.md) |
+| **Backup & Härtung** (geplant) | [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md) |
+| **Datenschutz-Vorlage** | [`docs/DATENSCHUTZ-VORLAGE.md`](docs/DATENSCHUTZ-VORLAGE.md) |
+| **Tester:innen einladen/Feedback** | [`docs/TESTER-EINLADUNG.md`](docs/TESTER-EINLADUNG.md) · [`docs/TESTER-FEEDBACK.md`](docs/TESTER-FEEDBACK.md) |
+| **Code-Orientierung für Mitwirkende** | [`CLAUDE.md`](CLAUDE.md) |
 
-Native Bibliotheken (z. B. **Pango/Cairo** für die Rechnungs-PDFs) stecken im
-Docker-Image – auf dem Host ist **nichts** zusätzlich zu installieren.
+---
 
-**Zusätzlich je Ausbaustufe (siehe unten):**
+## Projektstruktur (Kurzkarte)
 
-| Ausbaustufe | Zusätzlich nötig |
-|---|---|
-| Echter E-Mail-Versand | SMTP-Zugang (`EMAIL_HOST/PORT/USER/PASSWORD`, `DEFAULT_FROM_EMAIL`, `PUBLIC_BASE_URL`) |
-| Off-site-Backups | Ziel per SSH/SFTP (z. B. **Hetzner Storage Box**) + `borg`/`restic`; `BORG_REPO`, `BORG_PASSPHRASE` |
-| 2FA für die Verwaltung | Python-Paket `django-otp` (nur Image-Neubau) |
-| IBAN-Feldverschlüsselung | separater Schlüssel `FIELD_ENCRYPTION_KEY` (getrennt von der DB verwahren) |
-| Cache/Sessions (optional) | Redis über das Compose-Profil `cache` (`REDIS_URL`) |
-
-### Server-Umzug inkl. Datenbank
-
-Das Skript `ops/migrate-server.sh` zieht die **PostgreSQL-Datenbank** um:
-
-```bash
-# Auf dem ALTEN Server (Stack läuft): Dump erzeugen
-./ops/migrate-server.sh dump            # -> rehof-dump-JJJJ-MM-TT_HHMM.sql.gz
-
-# Dump + .env auf den NEUEN Server kopieren (Secrets!), z.B.
-scp rehof-dump-*.sql.gz .env  user@neuer-server:/opt/rehof/
-
-# Auf dem NEUEN Server: Repo klonen, .env legen, DB starten, einspielen
-git clone <repo> /opt/rehof && cd /opt/rehof   # .env hierher
-docker compose up -d db                          # leere DB anlegen
-./ops/migrate-server.sh restore rehof-dump-*.sql.gz
-docker compose up -d                             # Web/Cron starten (migrate = i.d.R. No-op)
+```
+booking/                # Kern-App: Buchung, Losung, Mitglieder, Dashboard
+  lottery.py            #  reine Logik: Losverfahren (Django-frei, in tests/ testbar)
+  availability.py rules.py validation.py   #  reine Logik: Zeit/Regeln/Eingaben
+  services/             #  Service-Layer (Brücke DB ↔ Logik), fachlich aufgeteilt
+  models.py views.py admin.py   #  Daten · dünne Views · Backend
+  templates/  static/   #  server-gerenderte UI + PWA (Manifest/Service-Worker)
+shop/                   # Hofladen: Produkte, Einkauf, Rechnung/PDF, Mollie, Bankimport
+config/                 # settings.py, urls.py, wsgi/asgi
+tests/                  # reine pytest-Suite (ohne Django/DB)
+tests_e2e/              # Playwright-Smoke-Tests (gegen laufenden Stack)
+loadtest/               # k6-Belastungstests (browse / booking_rush)
+docs/                   # Fachkonzept, ADRs, Deployment, Tests, …
+docker-compose.yml      # Prod-Stack (web + db + Scheduler, optional Redis)
+caddy/Caddyfile.snippet # Reverse-Proxy-Block für den Host-Caddy
+install.sh ops/         # Inbetriebnahme + Server-Umzug
 ```
 
-Wichtig: Auf beiden Servern möglichst **derselbe Code-Stand** (sonst nach dem
-Restore `docker compose exec web python manage.py migrate` ausführen). Den
-Caddy-Block aus `caddy/` übernehmen und die Domain in der `.env` anpassen.
-
----
-
-## Ausblick (Ausbaustufen)
-
-**Im PoC umgesetzt:** Losverfahren mit Bestätigungs-/Rücknahme-Workflow, normale
-Buchung + Warteliste, Wunschliste, Tage-Übertragung, Wechselwunsch, Hofladen mit
-Rechnungen **und PDF**, **Online-Bezahlung (Mollie, mit Test-Modus) für Hofladen +
-externe Gäste**, **externe Gäste-Buchung** (Gast-Checkout, Magic-Link),
-In-App-/E-Mail-Benachrichtigungen (Outbox + Scheduler), **Rollen Admin/Verwaltung**,
-Verwaltungs-Dashboard (Reinigung/Buchungen/Rechnungen/Export/Versand,
-Katalogpflege), **Kontoabgleich** (CSV/CAMT), PWA/Offline.
-
-**Offen / Feinschliff (funktional):**
-
-- MT940 als drittes Import-Format (Parser-Schnittstelle steht in `shop/bankimport.py`).
-- Losergebnis als **PDF** + Massenmail an alle Teilnehmenden.
-- **Web-Push** (mobile Benachrichtigungen zusätzlich zur E-Mail).
-- Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
-- Optionaler OIDC/Keycloak-Login (Naht in `config/settings.py` markiert).
-
----
-
-## Geplante Ausbaustufe: Datensicherung & Härtung (noch NICHT umgesetzt)
-
-Bewusst für den PoC zurückgestellt – **vor dem echten Wirkbetrieb dringend
-empfohlen**. Details/Blueprints in
-[`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md).
-
-| Maßnahme | Was | Risiko, wenn NICHT umgesetzt |
-|---|---|---|
-| **Off-site-Backups** | Nächtlicher `pg_dump` → verschlüsselt & **append-only** auf eine Hetzner Storage Box (Borg/restic), 14-Tage-Retention, getesteter Restore | **Totalverlust** aller Daten bei Plattendefekt, versehentlichem Löschen, fehlgeschlagener Migration oder Ransomware – ohne Wiederherstellung. (Aktuell gibt es **kein** Backup.) |
-| **2FA für die Verwaltung** | TOTP-Zweitfaktor für Staff/Superuser (`django-otp`) | Ein **geleaktes/geknacktes Admin-Passwort** genügt für vollen Zugriff auf alle Mitgliederdaten und zum Manipulieren von Buchungen/Rechnungen. |
-| **IBAN-Feldverschlüsselung** | Sensibelste PII (IBAN, ggf. Anschrift) verschlüsselt, Schlüssel **getrennt** von der DB | Ein **gestohlener DB-Dump oder ein unverschlüsseltes Backup** legt die **Bankdaten (IBAN)** aller Mitglieder im Klartext offen. |
-| **At-Rest-Verschlüsselung (LUKS)** | Verschlüsselte Datenpartition auf dem VPS | Eine **gestohlene oder außer Betrieb genommene Platte** ist im Klartext lesbar. |
-| **Secrets-Hygiene** | `.env` mit `chmod 600`, Rotations-Runbook für `SECRET_KEY`/DB-Passwort | Geleakte `.env`/`SECRET_KEY` = Session-Fälschung und (bei DB-Zugriff) vollständige Kompromittierung. |
-
-**Einordnung der Architektur:** Die Datenbank ist **vom Netz abgeschottet**
-(internes Docker-Netz, kein veröffentlichter Port) und nur über die
-authentifizierte Web-App erreichbar; der Transport ist via Caddy TLS-verschlüsselt.
-**Nicht** geschützt ist der Fall „jemand hat Server-/Root-Zugriff oder eine Kopie
-der Platte/eines Backups“ – dagegen wirken vor allem **verschlüsselte Off-site-
-Backups** und die **IBAN-Feldverschlüsselung**.
-
----
-
-## Externe Gäste (Buchung & Zahlung)
-
-Die App lässt sich über die Mitglieder hinaus **für externe Gäste** öffnen: ein
-öffentlicher Einstieg (ohne Login) mit Verfügbarkeit, Buchung und Bezahlung;
-Mitglieder buchen weiterhin kostenfrei. Konzept, Architektur, Datenmodell,
-Zahlungsfluss (Mollie als Ziel, Rechnung/Vorkasse als Fallback) sowie die
-rechtlichen Punkte (USt, Meldeschein, Kurtaxe, AGB/Storno) stehen in
-[`docs/EXTERNE-GAESTE.md`](docs/EXTERNE-GAESTE.md).
-
-**Stand:** Das **Buchungs-Fundament** ist umgesetzt (Gast-Checkout ohne Konto mit
-grün/grau-**Verfügbarkeitskalender**, Externen-Verfügbarkeitsregeln im Backend,
-**saisonale Preise je Quartier**, **Anzahlung/Stornostaffel/Säumniszuschlag**
-konfigurierbar, **Magic-Link-Selbstverwaltung** zum Ansehen/Stornieren, Abrechnung
-**per Rechnung wie im Hofladen** inkl. Kontoabgleich/Mahnung). In der internen
-Übersicht erscheinen externe Gäste in einer einheitlichen Farbe nur als „extern“.
-Gäste können ihre Rechnung wahlweise **online bezahlen** (Mollie, über den
-Magic-Link – „Jetzt bezahlen“) oder überweisen; siehe „Online-Bezahlung“ unten.
-Auf der öffentlichen Seite `/extern/` gibt es zudem einen aufklappbaren Bereich
-**„Hilfe &amp; Infos für Gäste“** (So buchst du / Bezahlung [online oder
-Überweisung] / Stornieren / Kontakt aus den Rechtliche &amp; Zahlungs-Einstellungen).
-
----
-
-## Online-Bezahlung (Mollie)
-
-**Ein** Online-Zahlsystem für **Hofladen UND externe Gäste** – auf Ebene der
-Rechnung (`shop.Invoice`; Mitglied wie Gast haben eine). Mitglieder klicken
-„Online bezahlen“ auf ihren Rechnungen, Gäste „Jetzt bezahlen“ über ihren
-Magic-Link. Eine **online bezahlte Rechnung gilt sofort als bestätigt/archiviert**
-(kein Kontoabgleich nötig) und löst eine Benachrichtigung aus.
-
-- **Standard = eingebauter Test-/Sandbox-Modus** (ohne Mollie-Konto, **ohne
-  Gebühren**): simulierte Bezahlseite, ideal zum Ausprobieren.
-- **Mit `test_…`-Key**: Mollies kostenlose Testumgebung. **Mit `live_…`-Key**:
-  echte Bezahlung (Kreditkarte, PayPal, Apple/Google Pay …).
-- **Konfiguration** im Backend unter **Rechtliche &amp; Zahlungs-Einstellungen**
-  (`ShopConfig`): `Online-Bezahlung aktiv` an/aus + `Mollie-API-Key`.
-
-Online bezahlte Rechnungen sind im **Verwaltungs-Dashboard** ausgewiesen
-(Filter-Chip „Online bezahlt“, eigene Status-Spalte, KPI „online bezahlt
-(Monat)“). Technik: `shop/payments.py` (Naht) + `shop/mollie_api.py` (echte
-Anbindung), Modell `shop.Payment` (token-geschützte, login-freie Bezahl-/
-Rückkehr-URLs), `Invoice.payment_method`/`paid_online_at`.
+Architektur-Prinzip (drei Schichten, strikt getrennt): **reine Logik** (`*.py`, ohne
+Django) ↔ **Service-Layer** (`booking/services/`) ↔ **dünne Views/Templates**. Mehr
+dazu in [ADR 0002](docs/adr/0002-drei-schichten-architektur.md) und
+[`CLAUDE.md`](CLAUDE.md).
 
 ---
 
@@ -742,5 +187,5 @@ Rückkehr-URLs), `Invoice.payment_method`/`paid_online_at`.
 
 **GNU AGPL v3** – siehe [`LICENSE`](LICENSE). Die App darf genutzt, verändert und
 weitergegeben werden; wer sie (auch als gehosteten Webdienst) betreibt, muss den
-Quellcode der eingesetzten Version zugänglich machen. Damit bleibt eine
+Quellcode der eingesetzten Version zugänglich machen. So bleibt eine
 Genossenschafts-Lösung dauerhaft offen.

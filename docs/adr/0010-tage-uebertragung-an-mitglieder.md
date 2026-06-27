@@ -4,10 +4,15 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 11 – Tage-Übertragung](../FACHKONZEPT.md#11-tage-übertragung).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
-Das jährliche Tage-Kontingent (50 Nächte, kein Übertrag ins Folgejahr) ist eine
-Vorgabe der Genossenschaft (siehe ADR 0009). In der Praxis nutzt aber nicht jedes
+Das jährliche Tage-Kontingent (kein Übertrag ins Folgejahr) ist eine fachliche
+Vorgabe (Regelwerte: Fachkonzept § 1/§ 11). In der Praxis nutzt aber nicht jedes
 Mitglied sein Kontingent aus, während andere mehr bräuchten. Eine Weitergabe unter
 Mitgliedern war **nicht** Teil der Buchungsregeln, ist aber ein naheliegender Wunsch.
 
@@ -22,7 +27,8 @@ Vorgabe.
   Empfänger-Anzeige und Disclaimer, dass die **Basis des Übertrags privatrechtlich**
   zwischen den Beteiligten zu regeln ist, dann „verbindlich übertragen“.
 - Die Übertragung bewegt Nächte **innerhalb desselben Kalenderjahres** – sie
-  unterläuft die Vorgabe „kein Übertrag ins Folgejahr“ aus ADR 0009 nicht.
+  unterläuft die fachliche Vorgabe „kein Übertrag ins Folgejahr“ nicht
+  (Regelwerte: Fachkonzept § 11).
 
 ## Betrachtete Alternativen
 

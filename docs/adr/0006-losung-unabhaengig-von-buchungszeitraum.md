@@ -4,6 +4,12 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 3 – Buchungsperiode & Lebenszyklus](../FACHKONZEPT.md#3-buchungsperiode--lebenszyklus)
+> (sowie [§ 5 – Losverfahren](../FACHKONZEPT.md#5-losverfahren)). Diese ADR hält die
+> *technische* Entscheidung und ihre Abwägungen fest; die Regelwerte werden dort
+> gepflegt, nicht hier.
+
 ## Kontext
 
 Die Jahres-Losung vergibt die Quartiere für das **Folgejahr** im Voraus – also zu
@@ -15,10 +21,10 @@ anwenden, könnte sie nichts zuteilen.
 ## Entscheidung
 
 Die Losung ist **nicht** durch den Buchungszeitraum (`[start, end)` der Periode)
-begrenzt. `booking/services.py:run_period_lottery` enthält **kein** Fenster-Gate auf
-die Periode; es filtert nur auf eingereichte Wünsche (siehe ADR 0007) und auf die
-**Quartier-Saison** (`_in_season_range`, damit keine Buchung außerhalb der
-ganzjährigen Quartier-Saison entsteht, `services.py:64-68`).
+begrenzt. `booking/services/`:`run_period_lottery` (Submodul `lottery_ops`) enthält
+**kein** Fenster-Gate auf die Periode; es filtert nur auf eingereichte Wünsche
+(siehe ADR 0007) und auf die **Quartier-Saison** (`_in_season_range`, damit keine
+Buchung außerhalb der ganzjährigen Quartier-Saison entsteht).
 
 Diese Eigenschaft ist auch in der reinen Logik dokumentiert: innerhalb eines
 Losdurchlaufs nimmt die Verfügbarkeit monoton ab (`booking/lottery.py:21-26`), ein

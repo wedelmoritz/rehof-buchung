@@ -48,6 +48,6 @@ Backend `/admin/`.
 - Lesezugriff auf Buchungen/Losung ohne Änderungsrisiko.
 
 **Negativ**
-- Dashboard-Logik (Abfragen/Exporte/Texte) liegt zusätzlich in `services.py` und muss
-  mit den Stammdaten konsistent bleiben.
+- Dashboard-Logik (Abfragen/Exporte/Texte) liegt zusätzlich im Service-Layer
+  (`booking/services/dashboard.py`) und muss mit den Stammdaten konsistent bleiben.
 - Manche Aktionen sind rollenabhängig zweifach abzusichern (Verwaltung vs. Admin).

@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 7 – Losungs-Workflow (Review)](../FACHKONZEPT.md#7-losungs-workflow-review).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Eine Losung greift tief ein (Zuteilungen, Karma-Fortschreibung, Benachrichtigungen).
@@ -14,7 +19,7 @@ informiert sind.
 ## Entscheidung
 
 Ein Losdurchlauf wird zunächst **vorläufig** erzeugt und erst nach Prüfung
-veröffentlicht. Umgesetzt in `booking/services.py`:
+veröffentlicht. Umgesetzt im Paket `booking/services/` (Submodul `lottery_ops`):
 
 - `run_period_lottery` legt Zuteilungen als `Allocation.provisional=True` an: sie
   **blockieren die Verfügbarkeit**, sind für Mitglieder aber **unsichtbar**

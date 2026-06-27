@@ -4,6 +4,12 @@
 
 Proposed (2026-06-26) – geplant, im PoC NICHT umgesetzt
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 15 – Recht & Datenschutz](../FACHKONZEPT.md#15-recht--datenschutz)
+> (u. a. IBAN-Verschlüsselung zurückgestellt). Diese ADR hält die *technische*
+> Entscheidung und ihre Abwägungen fest; die Regelwerte werden dort gepflegt, nicht
+> hier.
+
 ## Kontext
 
 Die App ist eine lauffähige Proof-of-Concept. Mehrere Betriebs-/Sicherheitsmaßnahmen

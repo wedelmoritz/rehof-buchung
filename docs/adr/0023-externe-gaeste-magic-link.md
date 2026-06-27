@@ -4,6 +4,12 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 12 – Externe Gäste](../FACHKONZEPT.md#12-externe-gäste) sowie
+> [§ 4 – Saison- & Buchungsregeln](../FACHKONZEPT.md#4-saison--buchungsregeln)
+> (Mindestaufenthalt). Diese ADR hält die *technische* Entscheidung und ihre
+> Abwägungen fest; die Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Freie Quartiere sollen auch an **externe Gäste** (ohne Genossenschafts-Login)
@@ -17,11 +23,12 @@ Ein **öffentlicher, login-freier Buchungsweg** mit Magic-Link statt Gast-Accoun
 
 - **Datenmodell:** `booking/models.py:Guest` (Bucher ohne Login, mit `token` für den
   Magic-Link), `ExternalBooking` (Reservierung; blockiert die Verfügbarkeit;
-  verknüpft mit einer `shop.Invoice`), `ExternalConfig` (Singleton: Regeln Mo–Do,
-  Mindestnächte, Vorlauf, Anzahlung, Stornostaffel, Säumniszuschlag, AGB).
+  verknüpft mit einer `shop.Invoice`), `ExternalConfig` (Singleton: hält die
+  Externen-Regelwerte – Anreise-Wochentage, Mindestnächte, Vorlauf, Anzahlung,
+  Stornostaffel, Säumniszuschlag, AGB; Regelwerte: Fachkonzept § 12).
 - **Reine Regel-Logik** Django-frei in `booking/external.py` (`external_allowed`,
   `cancellation_refund`), isoliert testbar (`tests/test_beds24.py`/externe Tests).
-- **Service-Flow** in `booking/services.py`: `external_quote` (saisonale Preise pro
+- **Service-Flow** im Paket `booking/services/`: `external_quote` (saisonale Preise pro
   Nacht + Anzahlung/Storno-Text), `external_available_quarters`,
   `create_external_booking`, `cancel_external_booking`, `build_external_calendar`
   sowie die `*_by_token`-Varianten für die Magic-Link-Selbstverwaltung.
@@ -31,15 +38,13 @@ Ein **öffentlicher, login-freier Buchungsweg** mit Magic-Link statt Gast-Accoun
   und das einbettbare Widget `external_embed` (`@xframe_options_exempt`).
 - **Abrechnung** läuft über dieselbe generalisierte `Invoice` wie der Hofladen
   (siehe ADR 0016); intern erscheinen Gäste neutral als „extern“.
-- **Mindestaufenthalt – konfigurierbar, Standard wie intern:** Der Mindest-
-  aufenthalt für Externe ist im Backend einstellbar (`ExternalConfig`). Schalter
-  `min_nights_follow_internal` (**Default an**): Externe haben denselben
-  Mindestaufenthalt wie Mitglieder, **inkl. Saison-Mindestnächte** (z. B. 7 im
-  Sommer) – berechnet über `services.external_min_nights` → `min_nights_for_range`.
-  Aus: es gilt der eigene feste Wert `ExternalConfig.min_nights`, der bewusst von
-  den internen Vorgaben **abweichen** darf (höher oder niedriger, ohne Saison-
-  Verschärfung). So bleibt der Standard fair-identisch zu intern, ohne die
-  Möglichkeit einer abweichenden Externen-Regel aufzugeben.
+- **Mindestaufenthalt – konfigurierbar, Standard wie intern:** Der Schalter
+  `ExternalConfig.min_nights_follow_internal` steuert, ob der Externen-Mindest-
+  aufenthalt der internen Regel (inkl. Saison) folgt oder einen eigenen festen Wert
+  (`ExternalConfig.min_nights`) nutzt – berechnet über `services.external_min_nights`
+  → `min_nights_for_range`. Die fachliche Regel (Default = identisch zu intern,
+  optional abweichend) steht in Fachkonzept § 4/§ 12; technisch ist hier die Naht
+  zwischen Schalter und reiner Regel-Logik festgehalten.
 
 ## Betrachtete Alternativen
 

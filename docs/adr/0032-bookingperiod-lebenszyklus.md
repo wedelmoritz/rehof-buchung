@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 3 – Buchungsperiode & Lebenszyklus](../FACHKONZEPT.md#3-buchungsperiode--lebenszyklus).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Wunsch-Einreichung, Losung, Bestätigung und freie Buchung gehören fachlich zu
@@ -17,9 +22,9 @@ Migrations-Resilienz-Job, ADR 0022).
 **Eine `BookingPeriod` pro Buchungsjahr** (`target_year` eindeutig), die ihren
 gesamten Lebenszyklus über einen **Status** durchläuft (`booking/models.py:286`).
 
-- **Status-Kette** (`LIFECYCLE`): `draft` → `wishes_open` → `lottery_ready` →
-  `lottery_review` → `lottery_done` → `free_booking` → `ended`; `suspended` sperrt
-  vorläufig (Konstanten `models.py:304-326`).
+- **Status-Kette** als Konstanten `LIFECYCLE` (`models.py:304-326`); die
+  Reihenfolge der Status `draft → … → ended` (plus `suspended`) ist im Fachkonzept
+  § 3 gepflegt.
 - **Aus den Terminen abgeleitet:** `compute_status` (`models.py:353`) leitet den
   Status aus `wishlist_open/close`, `draw_at`, `start/end` ab – führt aber bewusst
   **nur bis `lottery_review`**; der Schritt nach `lottery_done` ist **manuell**
