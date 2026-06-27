@@ -10,6 +10,23 @@ import csv
 
 from django.http import HttpResponse
 
+# Zeichen, mit denen Tabellenkalkulationen (Excel/Calc) eine Zelle als FORMEL
+# interpretieren. Beginnt ein Textwert damit, könnte er beim Öffnen ausgeführt
+# werden („CSV-/Formel-Injektion"). Wir stellen in dem Fall ein ' voran.
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _safe_cell(value):
+    """Entschärft Formel-Injektion: Textzellen, die wie eine Formel beginnen,
+    bekommen ein führendes Hochkomma. Zahlen/Datumswerte bleiben unverändert."""
+    if isinstance(value, str) and value[:1] in _FORMULA_TRIGGERS:
+        return "'" + value
+    return value
+
+
+def _safe_row(row):
+    return [_safe_cell(c) for c in row]
+
 
 def csv_response(filename: str, columns, rows) -> HttpResponse:
     resp = HttpResponse(content_type="text/csv; charset=utf-8")
@@ -18,7 +35,7 @@ def csv_response(filename: str, columns, rows) -> HttpResponse:
     writer = csv.writer(resp, delimiter=";")
     writer.writerow(list(columns))
     for row in rows:
-        writer.writerow(list(row))
+        writer.writerow(_safe_row(row))
     return resp
 
 
@@ -33,7 +50,7 @@ def xlsx_response(filename: str, title: str, columns, rows) -> HttpResponse:
     for cell in ws[1]:
         cell.font = Font(bold=True)
     for row in rows:
-        ws.append(list(row))
+        ws.append(_safe_row(row))
     ws.freeze_panes = "A2"
     resp = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument."

@@ -472,11 +472,11 @@ Zwei Ebenen:
 ```bash
 # 1) Reine Logik (Losverfahren + Buchungszeiträume/Tage + Saison-Regeln) – ohne DB
 pip install pytest
-PYTHONPATH=. python -m pytest tests/ -v          # -> 53 passed
+PYTHONPATH=. python -m pytest tests/ -v          # -> 69 passed
 
 # 2) Integrationstests (DB-Ebene: Gate, Buchung, Losung-Workflow, Dashboard,
 #    Hofladen, Kontoabgleich)
-python manage.py test booking shop               # -> 168 passed (1 skip ohne WeasyPrint)
+python manage.py test booking shop               # -> 186 passed (3 skips)
 ```
 
 Abgedeckt: Determinismus, Budget, Ausweich-Logik, Karma (Bonus/Deckel/Reset),
@@ -549,6 +549,13 @@ Anpassen im Admin (Äquivalenzklassen + Quartiere) oder in `seed_demo.py`.
 
 - Django-Standard-Auth mit ordentlich gehashten Passwörtern, CSRF-Schutz,
   sichere Cookies in Produktion (`DEBUG=0`).
+- **Eingabe-Validierung & XSS-Härtung** (siehe ADR 0039): Benutzereingaben werden
+  auf Plausibilität geprüft (Name = Buchstaben, **PLZ** = 5 Ziffern, **Ort**,
+  **Straße**, **IBAN** mit Längen- **und** Mod-97-Prüfsummen-Check) – reine Logik in
+  `booking/validation.py`, isoliert getestet. Django escapt alle HTML-Ausgaben
+  automatisch (kein `|safe` auf Nutzer-Input); Markup/Steuerzeichen in Namen/Orten
+  werden zusätzlich abgewiesen, und die **CSV-/xlsx-Exporte** sind gegen
+  Formel-Injektion gehärtet (`booking/exports.py`).
 - TLS terminiert Caddy; der Web-Container ist nur an `127.0.0.1` gebunden.
 - `install.sh` erzeugt einen langen zufälligen `SECRET_KEY` und ein DB-Passwort;
   die `.env` ist `.gitignore`-geschützt.

@@ -7,7 +7,9 @@
 {% else %}
 <div class="card">
   <p class="muted" style="margin-top:0">Diese Daten werden für deine Hofladen-Rechnungen
-    verwendet. Sie sind nur für dich (und die Verwaltung) sichtbar.</p>
+    verwendet. Sie sind nur für dich (und die Verwaltung) sichtbar. Angaben werden
+    auf Plausibilität geprüft – z.&nbsp;B. <strong>PLZ</strong> (5&nbsp;Ziffern) und
+    <strong>IBAN</strong> (Länge und Prüfsumme).</p>
   <form method="post">{% csrf_token %}
     {% for f in form %}
     <div class="field">

@@ -20,6 +20,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from .forms import ProfileForm, RegistrationForm, TransferForm, WishForm
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
+from .validation import strip_controls
 
 
 # Obergrenze für hochgeladene Dateien (Kontoauszug/Beds24-CSV) – Schutz vor
@@ -909,16 +910,18 @@ def dashboard_products(request):
         action = request.POST.get("action")
         try:
             if action == "add_group":
-                name = (request.POST.get("name") or "").strip()
+                name = strip_controls(request.POST.get("name"), max_len=80).strip()
                 if name:
                     ProductGroup.objects.get_or_create(
-                        name=name, defaults={"emoji": (request.POST.get("emoji") or "").strip()})
+                        name=name,
+                        defaults={"emoji": strip_controls(
+                            request.POST.get("emoji"), max_len=8).strip()})
                     messages.success(request, f"Gruppe „{name}“ angelegt.")
                 else:
                     messages.error(request, "Bitte einen Gruppennamen angeben.")
             elif action == "add_product":
                 grp = ProductGroup.objects.get(id=request.POST.get("group"))
-                name = (request.POST.get("name") or "").strip()
+                name = strip_controls(request.POST.get("name"), max_len=120).strip()
                 if not name:
                     raise ValueError("kein Name")
                 Product.objects.create(
@@ -929,7 +932,8 @@ def dashboard_products(request):
                 messages.success(request, f"Produkt „{name}“ angelegt.")
             elif action == "update_product":
                 p = Product.objects.get(id=request.POST.get("product"))
-                p.name = (request.POST.get("name") or p.name).strip()
+                p.name = (strip_controls(request.POST.get("name"), max_len=120).strip()
+                          or p.name)
                 p.price = _price(request.POST.get("price"), str(p.price))
                 p.unit = request.POST.get("unit", p.unit)
                 p.vat_rate = int(request.POST.get("vat_rate", p.vat_rate))

@@ -41,6 +41,15 @@ class RegistrierungUndFreischaltungTests(TestCase):
         self.assertEqual(resp.status_code, 200)  # Formular mit Fehler
         self.assertEqual(User.objects.filter(email="a@example.org").count(), 1)
 
+    def test_unplausibler_name_wird_abgelehnt(self):
+        # Name mit Ziffern/Markup -> Formularfehler, kein Konto.
+        resp = self.client.post(reverse("register"), {
+            "email": "neu2@example.org", "name": "<b>Hack3r",
+            "password1": PW, "password2": PW,
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(User.objects.filter(email="neu2@example.org").exists())
+
 
 class LoginTests(TestCase):
     def test_login_per_email_und_benutzername(self):
