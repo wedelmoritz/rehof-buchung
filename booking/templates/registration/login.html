@@ -1,6 +1,9 @@
 {% extends "booking/base.html" %}
+{% load static %}
 {% block title %}Anmelden{% endblock %}
 {% block content %}
+<img src="{% static 'booking/brand/wordmark-full.svg' %}" alt="Re:hof Rutenberg"
+     style="height:64px;width:auto;display:block;margin:.4rem 0 1rem">
 <h1>Anmelden</h1>
 <div class="card" style="max-width:420px">
   <form method="post" data-no-ajax>{% csrf_token %}

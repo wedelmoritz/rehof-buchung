@@ -478,6 +478,19 @@ class Command(BaseCommand):
             Share.objects.create(membership=ms, member=test_member,
                                  night_budget=50, wish_night_budget=25)
         members = list(members) + [test_member]
+
+        # Hofladen-Terminal vor Ort (ADR 0053): aktivieren + ein paar Konten
+        # freischalten und mit einer Test-PIN versehen, damit das Terminal direkt
+        # ausprobierbar ist (Geräte-Token: TESTTOKEN123).
+        from booking.models import TerminalConfig
+        tcfg = TerminalConfig.get_solo()
+        tcfg.enabled = True
+        tcfg.token = "TESTTOKEN123"
+        tcfg.save()
+        for tm in [test_member] + members[:5]:
+            tm.terminal_enabled = True
+            tm.set_terminal_pin("135790")
+            tm.save(update_fields=["terminal_enabled", "terminal_pin"])
         # Auch die Testnutzenden wünschen mit (Feiertags-Ballung).
         if not Wish.objects.filter(period=period, member=test_member).exists():
             for prio, start in enumerate(_holiday_anchors(period.target_year)[:2], 1):

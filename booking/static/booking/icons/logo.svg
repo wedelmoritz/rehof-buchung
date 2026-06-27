@@ -1,14 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Re:Hof">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#cf8c66"/>
-      <stop offset="1" stop-color="#b06a48"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#g)"/>
-  <polygon points="32,10 51,22 13,22" fill="#fffdfa"/>
-  <circle cx="15.4" cy="12.8" r="3.7" fill="#8aa97f"/>
-  <text x="32" y="45" text-anchor="middle" font-weight="700" font-size="24"
-        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-        fill="#fffdfa">Re:</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Re:hof">
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#C0432E"/>
+  <text x="32" y="43" text-anchor="middle" font-weight="700" font-size="27"
+        font-family="'Questrial','Century Gothic',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+        letter-spacing="-0.5" fill="#FAF5EE">Re:</text>
 </svg>

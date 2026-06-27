@@ -225,7 +225,9 @@ admin [Superuser] / verwaltung [Gruppe „Verwaltung“, **kein** Staff] / test
 + 50 Mitglieder, wilde Buchungen im laufenden Jahr, offene
 Wunsch-Losung mit Feiertags-Ballung, offene Hofladen-Rechnungen, davon
 **8 per Online-Zahldienst (Test) beglichen** für die „online bezahlt“-Ansicht,
-15 externe Mo–Fr-Buchungen; Losung NICHT gezogen). **Verwaltung
+15 externe Mo–Fr-Buchungen; Losung NICHT gezogen; **Hofladen-Terminal aktiv**
+(Token `TESTTOKEN123`, einige Konten inkl. `test` freigeschaltet mit PIN `135790`)).
+**Verwaltung
 vereinfacht:** ein Benutzer trägt Login **und** Mitglieds-Profil in einem
 Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
 ausgeblendet (nur Autocomplete). **Anlegen ohne Passwort:** das Add-Formular
@@ -233,6 +235,14 @@ ausgeblendet (nur Autocomplete). **Anlegen ohne Passwort:** das Add-Formular
 Speichern geht automatisch die „Passwort setzen“-Einladung raus (ADR 0052), plus
 Admin-Aktion „Einladung erneut senden“. Tage-Anteile werden am `Membership` zugeordnet.
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
+
+**Marke/Logo:** Zweifarbiger **Re:hof**-Schriftzug (Re: in Ziegelrot `#C0432E`,
+hof in Salbeigrau `#8C9A91`) als SVG-Wordmark in der Kopfzeile
+(`booking/static/booking/brand/wordmark.svg`; volle Variante mit „Rutenberg“ auf der
+Anmeldeseite, `wordmark-full.svg`); App-Icon = ziegelrote Kachel mit cremefarbenem
+„Re:“ (`icons/logo.svg` + per Pillow erzeugte PNGs `icon-192/512/maskable/apple-touch/
+favicon-32`). Das übrige warme Farbschema (Terrakotta/Salbei/Creme) ist bereits
+markennah; die exakten Website-Farben sind extern nicht abrufbar.
 
 **PWA / Mobil:** Die Web-App ist installierbar (iOS „Zum Home-Bildschirm“,
 Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),

@@ -56,10 +56,11 @@
       flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
     }
     header .brand {
-      font-weight: 800; letter-spacing: .01em; color: var(--ink);
-      font-size: 1.08rem; display: inline-flex; align-items: center; gap: .5rem;
+      display: inline-flex; align-items: center; gap: .5rem;
     }
-    header .brand img { width: 26px; height: 26px; display: block; border-radius: 7px; }
+    header .brand .wordmark { height: 26px; width: auto; display: block; }
+    header .brand .sub { color: var(--muted); font-size: .82rem; font-weight: 600;
+      letter-spacing: .01em; }
     header .spacer { margin-left: auto; }
     header .who { color: var(--muted); font-size: .9rem; min-width: 0;
       overflow-wrap: anywhere; }
@@ -311,7 +312,9 @@
       header { gap: .5rem .8rem; row-gap: .55rem;
                padding-left: calc(.9rem + env(safe-area-inset-left));
                padding-right: calc(.9rem + env(safe-area-inset-right)); }
-      header .brand { order: 1; font-size: 1rem; }
+      header .brand { order: 1; }
+      header .brand .wordmark { height: 23px; }
+      header .brand .sub { display: none; }
       header .who { order: 2; margin-left: auto; }
       header form.inline { order: 3; }
       header .spacer { display: none; }
@@ -367,7 +370,7 @@
 </head>
 <body>
 <header>
-  <span class="brand"><img src="{% static 'booking/icons/logo.svg' %}" alt="" width="26" height="26">Re:Hof Quartiere</span>
+  <span class="brand"><img class="wordmark" src="{% static 'booking/brand/wordmark.svg' %}" alt="Re:hof Rutenberg"><span class="sub">Quartiere</span></span>
   <span class="spacer"></span>
   {% if user.is_authenticated %}
   <span class="who">{{ user.member.display_name|default:user.username }}</span>
