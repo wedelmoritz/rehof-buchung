@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 10 – Buchung ändern, Warteliste & Wechselwunsch](../FACHKONZEPT.md#10-buchung-ändern-warteliste--wechselwunsch).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Pläne ändern sich: Mitglieder wollen ihre Buchung verlängern/verkürzen, die
@@ -16,20 +21,16 @@ verabreden, auch wenn die Zeiträume nicht exakt deckungsgleich sind.
 **Buchung ändern** in einem Schritt und **Wechselwünsche** als beidseitig
 bestätigter Vorgang.
 
-- **Ändern:** `services.adjust_allocation` (`booking/services.py:1421`) deckt
+- **Ändern:** `services.adjust_allocation` (Paket `booking/services/`) deckt
   Zeitraum, **Unterkunft-Wechsel** (nur freie – `free_quarters_for`) und
-  **Personenzahl** ab:
-  - **Verlängern** spontan, solange die Zusatznächte frei/freigeschaltet/im Budget
-    sind.
-  - **Verkürzen** nur, wenn der Mindestaufenthalt gewahrt bleibt **und** die frei
-    werdenden Nächte ≥ 7 Tage entfernt sind → dann „spontan frei an alle“ (ADR 0025).
-  - **Unterkunft-Wechsel** geht spontan und meldet das alte Quartier als „spontan
-    frei“ (die 7-Tage-Frist gilt nur fürs reine Verkürzen im selben Quartier).
-- **Wechselwunsch:** `services.create_swap_request`/`respond_swap_request`
-  (`services.py:1085`/`1104`), Modell `models.SwapRequest`. Bewusst **auch bei
-  bloßer Überlappung** möglich – mit Hinweis; die Empfänger:in stimmt zu/lehnt ab.
+  **Personenzahl** ab; die Regeln für Verlängern/Verkürzen/Wechsel (inkl. der
+  7-Tage-Frist beim reinen Verkürzen) stehen in Fachkonzept § 10. Frei werdende
+  Nächte lösen „spontan frei an alle“ aus (ADR 0025).
+- **Wechselwunsch:** `services.create_swap_request`/`respond_swap_request`, Modell
+  `models.SwapRequest`. Bewusst **auch bei bloßer Überlappung** möglich – mit Hinweis;
+  die Empfänger:in stimmt zu/lehnt ab.
 - **„Wer ist gleichzeitig da“** wird dafür in **exakt gleiche** An-/Abreise und
-  **nur überlappend** getrennt (`services.concurrent_split`, `services.py:1071`).
+  **nur überlappend** getrennt (`services.concurrent_split`).
 
 ## Betrachtete Alternativen
 

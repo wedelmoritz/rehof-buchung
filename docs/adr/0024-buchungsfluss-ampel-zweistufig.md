@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 9 – Buchung: Spontanbuchung & Buchungsfluss](../FACHKONZEPT.md#9-buchung-spontanbuchung--buchungsfluss).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Die Spontanbuchung muss für Laien verständlich sein und trotzdem viele Regeln

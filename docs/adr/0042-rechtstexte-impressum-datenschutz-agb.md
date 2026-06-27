@@ -7,6 +7,11 @@ Accepted (2026-06-27)
 > **Kein Rechtsrat.** Die konkreten Texte (v. a. Datenschutz/AGB) muss die
 > Genossenschaft inhaltlich verantworten, ggf. mit anwaltlicher Prüfung.
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 15 – Recht & Datenschutz](../FACHKONZEPT.md#15-recht--datenschutz).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Die App hat einen **öffentlichen** Bereich (externe Gäste-Buchung unter `/extern/`,

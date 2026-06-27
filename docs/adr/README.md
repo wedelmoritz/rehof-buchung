@@ -5,6 +5,15 @@ Re:Hof Quartier-Buchung. Jeder ADR folgt dem klassischen **MADR**-Format mit den
 Abschnitten *Titel, Status, Kontext, Entscheidung, Betrachtete Alternativen,
 Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 
+**Trennung Technik ↔ Fachlichkeit:** Die ADRs halten **technische** Entscheidungen
+(Frameworks, Muster, Code-Struktur) und ihre Abwägungen fest – **nicht** die
+fachlichen Regeln. Die fachlichen Regeln (Tagebudget, Karma-Schritt, Saison-/
+Buchungsregeln, Perioden-Lebenszyklus, USt-Sätze, Aufbewahrungsfristen …) stehen
+gebündelt und als **einzige Quelle** im [**Fachkonzept**](../FACHKONZEPT.md). Wo
+eine technische Entscheidung eine fachliche Regel umsetzt, verweist die ADR über
+einen Kasten **„Fachlicher Bezug"** auf den passenden Fachkonzept-Abschnitt, statt
+die Regelwerte zu wiederholen.
+
 **Status-Werte:**
 - **Accepted** – entschieden und im Code umgesetzt.
 - **Proposed** – Entscheidung getroffen/vorgesehen, Umsetzung (noch) offen.
@@ -63,6 +72,7 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0048](0048-uv-und-typcheck-reine-logik.md) | uv als Entwickler-Werkzeug und mypy auf der reinen Logik | Accepted |
 | [0049](0049-backend-fachliche-gliederung.md) | Backend: fachliche Gliederung statt App-Gruppierung | Accepted |
 | [0050](0050-services-paket-aufteilung.md) | Service-Layer als Paket: `services.py` in fachliche Submodule aufteilen | Accepted |
+| [0051](0051-belastungs-und-nebenlaeufigkeitstests.md) | Belastungs- und Nebenläufigkeitstests (k6 + Zeilensperren-Test) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

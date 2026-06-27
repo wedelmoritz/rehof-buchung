@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 12 – Externe Gäste](../FACHKONZEPT.md#12-externe-gäste)
+> (Migration bestehender Buchungen). Diese ADR hält die *technische* Entscheidung und
+> ihre Abwägungen fest; die Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Beim Umzug vom bisherigen System (Beds24) müssen bestehende Buchungen übernommen

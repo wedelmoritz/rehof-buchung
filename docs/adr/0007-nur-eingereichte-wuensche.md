@@ -4,6 +4,12 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 8 – Wunschliste](../FACHKONZEPT.md#8-wunschliste) (sowie
+> [§ 5 – Losverfahren](../FACHKONZEPT.md#5-losverfahren)). Diese ADR hält die
+> *technische* Entscheidung und ihre Abwägungen fest; die Regelwerte werden dort
+> gepflegt, nicht hier.
+
 ## Kontext
 
 Mitglieder sollen ihre Wunschliste in Ruhe zusammenstellen, umsortieren und ändern
@@ -16,10 +22,10 @@ Wünsche haben zwei Zustände: **Entwurf** und **eingereicht** (`im Lostopf`). M
 `booking/models.py:Wish.submitted` (Default `False`) mit `submitted_at` und Index
 `("period", "submitted")`.
 
-- Eingereicht wird bewusst über `booking/services.py:submit_wishlist`.
+- Eingereicht wird bewusst über `booking/services/`:`submit_wishlist`
+  (Submodul `wishes`).
 - Die Losung berücksichtigt **ausschließlich** eingereichte Wünsche:
-  `run_period_lottery` filtert `Wish.objects.filter(period=period, submitted=True)`
-  (`services.py:65`).
+  `run_period_lottery` filtert `Wish.objects.filter(period=period, submitted=True)`.
 - Bis zur Einreichung bleiben Wünsche privat und frei änderbar; Entwürfe sind in
   der Anzeige als `(Entwurf)` markiert (`Wish.__str__`).
 

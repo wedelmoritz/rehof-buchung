@@ -18,7 +18,7 @@ Zwei Kanäle, der E-Mail-Versand **entkoppelt** über eine Outbox-Warteschlange.
 
 - **In-App:** `booking/models.py:Notification` – immer zugestellt, in der App
   sichtbar.
-- **E-Mail entkoppelt:** `services.email_member` (`booking/services.py:787`) stellt
+- **E-Mail entkoppelt:** `services.email_member` (`booking/services/notify.py`) stellt
   bei Opt-in (`Member.email_opt_in`) eine `OutboxEmail` in die Warteschlange. Das
   Kommando `send_outbox` (vom Scheduler regelmäßig aufgerufen, ADR 0021) versendet
   sie – unabhängig vom Request, gut für Massenmails. `OutboxEmail` trägt

@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 6 – Karma (Ausgleichsfaktor)](../FACHKONZEPT.md#6-karma-ausgleichsfaktor).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Eine einzelne Losung kann mathematisch nicht zugleich fair und effizient sein: Wer
@@ -12,16 +17,17 @@ deshalb **über die Zeit** hergestellt werden, ohne das Verfahren angreifbar zu 
 
 ## Entscheidung
 
-Jede Partei trägt einen **Ausgleichsfaktor** („Karma“, Start 1,0), der die Chance
-auf einen vorderen Platz in der nächsten Losung erhöht. Umgesetzt in
-`booking/lottery.py:run_lottery` (Karma-Aktualisierung Zeilen ~307–317):
+Jede Partei trägt einen **Ausgleichsfaktor** („Karma“), der als Gewicht in die
+Reihenfolge-Ziehung einfließt und die Chance auf einen vorderen Platz in der
+nächsten Losung erhöht. Umgesetzt in `booking/lottery.py:run_lottery`
+(Karma-Aktualisierung Zeilen ~307–317):
 
-- **+0,1 pro Jahr mit echtem Verlust** (`factor_step`, Default 0.1).
-- **Deckel 1,5** (`factor_cap`).
-- **Reset auf 1,0** bei Gewinn eines *umkämpften* Slots
-  (`reset_on_contested_win`).
-- **Budget-bedingtes Aussetzen ist KEIN Verlust** (`budget_skip`, Zeilen ~246–255):
-  Wer sein Kontingent ausgeschöpft hat, hat seinen Anteil bekommen.
+- Die Fortschreibung (Start, Schritt pro echtem Verlust, Deckel, Reset bei Gewinn
+  eines umkämpften Slots) ist über Parameter steuerbar: `factor_step`, `factor_cap`,
+  `reset_on_contested_win` (Regelwerte: Fachkonzept § 6).
+- **Budget-bedingtes Aussetzen ist KEIN Verlust** (`budget_skip`, Zeilen ~246–255)
+  und verändert das Karma nicht – wer sein Kontingent ausgeschöpft hat, hat seinen
+  Anteil bekommen.
 - „Echter Verlust“ = gewünschter Zeitraum, in der **ganzen** Äquivalenzklasse
   nichts frei.
 

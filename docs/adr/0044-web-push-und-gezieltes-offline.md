@@ -4,6 +4,11 @@
 
 Accepted (2026-06-27)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 16 – Benachrichtigungen](../FACHKONZEPT.md#16-benachrichtigungen)
+> (Web-Push). Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest;
+> die Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Die App ist eine PWA (ADR 0035) – installierbar, mit Service Worker und

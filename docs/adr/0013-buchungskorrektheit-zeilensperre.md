@@ -15,11 +15,11 @@ fachlicher Fehler, der nach außen sofort sichtbar wäre.
 
 Die Spontanbuchung serialisiert konkurrierende Versuche über eine **Zeilensperre auf
 der Quartier-Zeile** innerhalb einer Transaktion. In
-`booking/services.py:book_spontaneous`:
+`booking/services/booking_ops.py::book_spontaneous`:
 
 - `transaction.atomic` umschließt Prüfung **und** Anlage.
 - `Quarter.objects.select_for_update().filter(pk=quarter.pk).first()` sperrt die
-  Quartier-Zeile (`services.py:321`), sodass parallele Versuche auf dasselbe Quartier
+  Quartier-Zeile, sodass parallele Versuche auf dasselbe Quartier
   nacheinander laufen; der zweite sieht die bereits angelegte Buchung und wird sauber
   abgewiesen (Rückgabe `(None, Fehlertext)`, kein Crash).
 

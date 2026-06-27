@@ -5,18 +5,20 @@
 Accepted (2026-06-26) – vollständig umgesetzt: Mindestnächte überall, Parallel-Limit
 und Aufenthaltsdeckel jetzt auch in der Losung (siehe „Geltungsbereich der Regeln")
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 1 – Mitglieder, Anteile & Tagebudget](../FACHKONZEPT.md#1-mitglieder-anteile--tagebudget)
+> und [§ 4 – Saison- & Buchungsregeln](../FACHKONZEPT.md#4-saison--buchungsregeln).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Die Genossenschaft Re:Hof gibt verbindliche Buchungsregeln vor. Diese sind **keine
 Entscheidung des Entwicklungsteams**, sondern **Vorgabe der Genossenschaft**, die die
-App abbilden muss:
-
-- **Tage-Kontingent:** 50 Nächte pro Mitglied und Kalenderjahr, davon höchstens 25
-  über die Wunschliste (Losung). **Kein Übertrag ins Folgejahr** – das Kontingent
-  gilt je Kalenderjahr frisch.
-- **Saison-Regeln je Zeitraum (jeweils optional):** Mindestnächte (z. B. Juli/August
-  7), Höchstzahl gleichzeitig gebuchter Wohneinheiten pro Mitglied, Aufenthaltsdeckel
-  in Einheiten-Nächten (z. B. BB-Sommerferien 14).
+App abbilden muss – im Wesentlichen ein **Tage-Kontingent** je Mitglied/Jahr (mit
+einem Anteil über die Wunschliste, kein Übertrag) sowie optionale **Saison-Regeln**
+je Zeitraum: Mindestnächte, Parallel-Limit gleichzeitiger Wohneinheiten und
+Aufenthaltsdeckel in Einheiten-Nächten (Regelwerte: Fachkonzept § 1 und § 4).
 
 Konkrete Termine (Schulferien, Brückentage) verschieben sich jährlich und dürfen
 nicht im Code stehen.
@@ -35,10 +37,10 @@ Wir setzen die Vorgaben als **prüfbare Regel-Logik plus konfigurierbare Stammda
   Service materialisiert sie pro Jahr zu Daten (`services._materialized_seasons`,
   Helfer `availability.recurring_range`).
 - **Tage-Kontingent** als Budget am Mitglied/Anteil (`Member`/`Share`,
-  `wish_night_budget` = 25 im Lostopf); Rest-Nächte über
-  `booking/availability.py:remaining_nights`. Das Wunsch-Budget greift auch in der
-  Losung (`lottery.Party.wish_night_budget`, Default 25). Kein Übertrag, weil die
-  Rechnung je Kalenderjahr neu erfolgt.
+  `night_budget`/`wish_night_budget` im Lostopf; Regelwerte: Fachkonzept § 1);
+  Rest-Nächte über `booking/availability.py:remaining_nights`. Das Wunsch-Budget
+  greift auch in der Losung (`lottery.Party.wish_night_budget`). Kein Übertrag, weil
+  die Rechnung je Kalenderjahr neu erfolgt.
 
 **Geltungsbereich der Regeln:**
 - **Mindestnächte** (+ Einzel-Aufenthaltsdeckel als Obergrenze einer einzelnen

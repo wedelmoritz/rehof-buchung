@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 13 – Rechnungen, Zahlung & Steuer](../FACHKONZEPT.md#13-rechnungen-zahlung--steuer).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Überweisungen müssen den offenen Rechnungen zugeordnet werden. Manuelles Abhaken

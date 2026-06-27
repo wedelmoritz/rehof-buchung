@@ -7,7 +7,7 @@ Accepted (2026-06-27)
 ## Kontext
 
 Die Geschäftslogik (Verfügbarkeit, Überlappungsfreiheit, Personenzahl) lag bisher
-ausschließlich im Service-Layer (`booking/services.py`, z.B. `book_spontaneous` →
+ausschließlich im Service-Layer (`booking/services/`, z.B. `book_spontaneous` →
 `quarter_is_free`). Der **Django-Admin** umgeht diesen Layer aber: er schreibt über
 `ModelForm`/`Model.save()` direkt in die DB. Dadurch ließ sich im Backend eine
 **Doppelbuchung** anlegen (zwei Zuteilungen für dieselbe Unterkunft im selben

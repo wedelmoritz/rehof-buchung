@@ -19,13 +19,18 @@ Strikte Trennung in drei Schichten:
    `booking/rules.py`, `booking/external.py`, `booking/fairness.py`,
    `booking/beds24.py`. Sie arbeiten nur mit einfachen Datenklassen und sind
    isoliert mit `pytest` testbar (`tests/`).
-2. **Service-Layer:** `booking/services.py` ist die **einzige** Brücke zwischen
+2. **Service-Layer:** `booking/services/` (fachlich aufgeteiltes Paket, ADR 0050;
+   früher eine einzelne `services.py`) ist die **einzige** Brücke zwischen
    Django-Modellen und reiner Logik (Persistenz, Verfügbarkeit, Buchung, Losung).
 3. **Views/Templates:** `booking/views.py` bleibt dünn (Dispatch),
    Darstellung in `*/templates/`.
 
 Faustregel: Rechenregel → reines `*.py`-Modul + Pure-Test; Daten/Ablauf →
-`services.py`; Darstellung → View/Template.
+Service-Layer (`booking/services/`); Darstellung → View/Template.
+
+> **Fachlicher Bezug:** Die fachlichen Regeln, die diese Schichten umsetzen,
+> stehen gebündelt im [Fachkonzept](../FACHKONZEPT.md). Die ADRs halten die
+> technischen Entscheidungen fest.
 
 ## Betrachtete Alternativen
 
@@ -43,5 +48,5 @@ Faustregel: Rechenregel → reines `*.py`-Modul + Pure-Test; Daten/Ablauf →
 
 **Negativ**
 - Zwei Test-Ebenen (pure + Integration) müssen gepflegt werden.
-- Etwas „Übersetzungs-Boilerplate“ in `services.py` (Modelle ↔ Datenklassen),
+- Etwas „Übersetzungs-Boilerplate“ im Service-Layer (Modelle ↔ Datenklassen),
   z. B. `run_period_lottery` baut `L.Party/L.Quarter/L.Wish` aus den ORM-Objekten.

@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 4 – Saison- & Buchungsregeln](../FACHKONZEPT.md#4-saison--buchungsregeln)
+> (Schnittmengen-Semantik). Diese ADR hält die *technische* Entscheidung und ihre
+> Abwägungen fest; die Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Die Freigabe von Buchungszeiträumen hat zwei Ebenen: eine **globale** Freigabe (über
@@ -20,10 +25,11 @@ Quartier-Saison liegt. Spezifische Fenster können nur **weiter einschränken**,
 über die globale Freigabe hinaus erweitern.
 
 - Reine Logik in `booking/availability.py` (`is_released`, `range_released`).
-- Der Service prüft beide Ebenen zusammen: `services.range_is_released` kombiniert
-  globale Fenster (`_active_windows`) mit der Quartier-Saison
-  (`Quarter.bookable_on`/`_in_season_range`); siehe `services.py:440-447` und die
-  Tagesprüfung in der Kalenderaufbereitung (`services.py:547`).
+- Der Service prüft beide Ebenen zusammen: `services.range_is_released` (Paket
+  `booking/services/`, Submodul `slots`) kombiniert globale Fenster
+  (`_active_windows`) mit der Quartier-Saison
+  (`Quarter.bookable_on`/`_in_season_range`); ebenso die Tagesprüfung in der
+  Kalenderaufbereitung.
 
 Die Semantik ist als **Ein-Punkt-Entscheidung** in der reinen Logik gekapselt – ein
 Wechsel zu Vereinigungs-Semantik wäre hier lokal änderbar.

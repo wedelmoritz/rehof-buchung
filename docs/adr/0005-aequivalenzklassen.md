@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 2 – Quartiere & Äquivalenzklassen](../FACHKONZEPT.md#2-quartiere--äquivalenzklassen).
+> Diese ADR hält die *technische* Entscheidung und ihre Abwägungen fest; die
+> Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Manche Quartiere sind in der Praxis gleichwertig (vergleichbare Größe/Lage). Wenn

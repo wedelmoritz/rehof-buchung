@@ -4,6 +4,11 @@
 
 Accepted (2026-06-26)
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 4 – Saison- & Buchungsregeln](../FACHKONZEPT.md#4-saison--buchungsregeln)
+> (Schulferien). Diese ADR hält die *technische* Entscheidung und ihre Abwägungen
+> fest; die Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Schulferien sind für die Planung relevant (sie werden im Kalender angezeigt) und
@@ -19,7 +24,7 @@ Schulferien sind ein **eigenes Modell**, getrennt von den Saison-Regeln:
 - **Standardfall: rein informativ** – nur Anzeige im Kalender.
 - **Optional regelwirksam:** Sind die Regelfelder gesetzt UND der Eintrag aktiv,
   setzt er im betroffenen Zeitraum dieselben Regeln durch wie eine `SeasonRule`
-  (leere Regelfelder = nur Anzeige).
+  (Regelwerte/Semantik: Fachkonzept § 4).
 
 So bleiben Darstellung und Buchungslogik unabhängig voneinander anpassbar.
 

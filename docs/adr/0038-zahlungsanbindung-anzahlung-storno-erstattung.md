@@ -4,6 +4,11 @@
 
 Proposed (2026-06-26) – Teil-Funktionen offen; baut auf ADR 0017 (Mollie) auf
 
+> **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
+> [Fachkonzept § 13 – Rechnungen, Zahlung & Steuer](../FACHKONZEPT.md#13-rechnungen-zahlung--steuer)
+> (Anzahlung/Storno-Erstattung). Diese ADR hält die *technische* Entscheidung und
+> ihre Abwägungen fest; die Regelwerte werden dort gepflegt, nicht hier.
+
 ## Kontext
 
 Die Online-Bezahlung einer **vollständigen `Invoice`** ist umgesetzt und produktiv
