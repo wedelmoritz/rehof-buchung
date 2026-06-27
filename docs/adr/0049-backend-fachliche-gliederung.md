@@ -24,7 +24,8 @@ Sektionen** (statt nach App):
 1. **Benutzer & Mitglieder** – Benutzer, Gruppen, Mitglieds-Anteile, Tage-Übertragungen
 2. **Quartiere & Buchungssystem** – Quartiere/Äquivalenzklassen, Buchungsregeln,
    Zuteilungen, Anstehende Buchungen, Warteliste, Wechselwünsche **und externe
-   Gäste** (Gast/Externe Buchung/Einstellungen – sie buchen ebenfalls Quartiere)
+   Gäste** (Gast/Externe Buchung/**Rechnungen externer Buchungen**/Einstellungen –
+   sie buchen ebenfalls Quartiere)
 3. **Losverfahren** – Buchungsperioden, Wünsche, Losdurchläufe, Fairness-Nachweis
 4. **Hofladen** – Produkte/Gruppen, Einkäufe/Positionen, Rechnungen, Online-Zahlungen,
    Kontoauszug-Import/Zahlungseingänge, Rechtliche & Zahlungs-Einstellungen
@@ -42,6 +43,13 @@ blendet leere aus (`/` fokussiert die Suche, `Esc` leert sie). Das Erklär-Panel
 **Einordnung „Rechtliche & Zahlungs-Einstellungen" (ShopConfig):** unter
 **Administratives** (nicht Hofladen) – die Einstellungen gelten übergreifend für
 Hofladen UND externe Gäste (Genossenschaftsdaten, USt, Mollie, Rechtstexte).
+
+**Rechnungen gesplittet:** Die generalisierte `shop.Invoice` (Mitglied = Hofladen
+ODER Gast = externe Buchung) erscheint im Backend **getrennt**: die `InvoiceAdmin`
+zeigt nur Mitglieder-Rechnungen unter **Hofladen → Rechnungen**, ein **Proxy-Modell
+`shop.ExternalInvoice`** (gleiche Tabelle, `get_queryset`-Filter `guest__isnull=False`)
+zeigt die Gäste-Rechnungen unter **Quartiere & Buchungssystem → „Rechnungen (externe
+Buchungen)"** – gleiche Funktionen (bestätigen/mahnen/Export).
 
 Mechanik (sauberer, native Django-Weg):
 

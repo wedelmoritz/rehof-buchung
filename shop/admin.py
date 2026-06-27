@@ -9,8 +9,8 @@ from django.urls import reverse
 
 from . import reconcile, services as svc
 from .models import (
-    BankImport, BankTransaction, Invoice, LineItem, Payment, Product,
-    ProductGroup, Purchase, ShopConfig)
+    BankImport, BankTransaction, ExternalInvoice, Invoice, LineItem, Payment,
+    Product, ProductGroup, Purchase, ShopConfig)
 
 WEEKDAYS = [("0", "Montag"), ("1", "Dienstag"), ("2", "Mittwoch"),
             ("3", "Donnerstag"), ("4", "Freitag"), ("5", "Samstag"),
@@ -224,6 +224,8 @@ class OverdueFilter(admin.SimpleListFilter):
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
+    """Hofladen-Rechnungen (Mitglieder). Rechnungen externer Gäste-Buchungen
+    stehen getrennt unter „Quartiere & Buchungssystem" (ExternalInvoice)."""
     list_display = ("number", "recipient", "year", "month", "status",
                     "total_gross", "due_date", "overdue_display", "reminded_at")
     list_filter = (OverdueFilter, "status", "year", "month")
@@ -258,6 +260,11 @@ class InvoiceAdmin(admin.ModelAdmin):
                        "coop_address", "tax_number", "iban", "bic")}),
     )
 
+    def get_queryset(self, request):
+        # Hofladen = Mitglieder-Rechnungen; Gäste-Rechnungen laufen über die
+        # getrennte ExternalInvoice-Ansicht.
+        return super().get_queryset(request).filter(guest__isnull=True)
+
     @admin.display(description="Empfänger")
     def recipient(self, obj):
         return obj.recipient_label
@@ -269,6 +276,34 @@ class InvoiceAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description="überfällig")
     def overdue_display(self, obj):
         return obj.is_overdue
+
+
+@admin.register(ExternalInvoice)
+class ExternalInvoiceAdmin(InvoiceAdmin):
+    """Rechnungen externer Gäste-Buchungen (getrennt von den Hofladen-Rechnungen,
+    ADR 0049). Gleiche Funktionen (bestätigen/mahnen/Export), nur Gast-Empfänger."""
+    fieldsets = (
+        (None, {
+            "fields": ("number", "guest", "year", "month", "status"),
+            "description": (
+                "Rechnungen aus <b>externen Gäste-Buchungen</b> (Empfänger ist ein "
+                "Gast, nicht ein Mitglied). Ablauf wie bei den Hofladen-Rechnungen: "
+                "bestätigen / anmahnen / exportieren. Hofladen-Rechnungen der "
+                "Mitglieder stehen unter <b>Hofladen → Rechnungen</b>."),
+        }),
+        ("Beträge", {"fields": ("total_net", "total_vat", "total_gross")}),
+        ("Zeitstempel", {"fields": ("created_at", "due_date", "paid_reported_at",
+                                    "confirmed_at", "reminded_at")}),
+        ("Rechnungs-Snapshots (§14 UStG)", {
+            "classes": ("collapse",),
+            "fields": ("recipient_name", "recipient_address", "coop_name",
+                       "coop_address", "tax_number", "iban", "bic")}),
+    )
+
+    def get_queryset(self, request):
+        # Nur Gäste-Rechnungen (externe Buchungen).
+        return admin.ModelAdmin.get_queryset(self, request).filter(
+            guest__isnull=False)
 
 
 @admin.register(Payment)

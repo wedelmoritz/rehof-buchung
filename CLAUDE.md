@@ -101,7 +101,10 @@ an; sonst eigener `min_nights`]/Vorlauf, Reinigung, USt **+ Anzahlung
 Preise** über `QuarterPrice` (jährlich wiederkehrende Staffel, `Quarter.price_for_night(day)`
 greift sie pro Nacht, sonst Basispreis). Die Abrechnung läuft über die
 **generalisierte `shop.Invoice`** (Member ODER Guest; `Invoice.recipient_label`) –
-PDF, Mahnung, **Kontoabgleich** (`reconcile`) und Dashboard werden mitgenutzt.
+PDF, Mahnung, **Kontoabgleich** (`reconcile`) und Dashboard werden mitgenutzt. Im
+Backend ist die Rechnungsliste **gesplittet**: `InvoiceAdmin` zeigt nur
+Mitglieder-Rechnungen (Hofladen), das Proxy-Modell `shop.ExternalInvoice`
+(`guest__isnull=False`) die Gäste-Rechnungen unter „Quartiere & Buchungssystem" (ADR 0049).
 Reine Regel-Logik in `booking/external.py` (`external_allowed`,
 `cancellation_refund`), Services in `booking/services.py` (`external_quote`
 [saisonale Preise pro Nacht + Anzahlung/Storno-Text]/`external_available_quarters`/
