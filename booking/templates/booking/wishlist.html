@@ -149,6 +149,9 @@
       <input type="hidden" name="action" value="reorder"><input type="hidden" name="order" id="reorder-order">
     </form>
     <p class="muted" style="margin:.6rem 0">Summe: {{ wish_nights }} Nächte gewünscht (Losung-Budget bis {{ wish_budget }} Nächte).</p>
+    <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei umkämpften
+      Zeiträumen (rot im Kalender) lohnt ein Blick, ob du einen Wunsch <strong>entzerren</strong>
+      kannst – z.&nbsp;B. die Anreise einen Tag verschieben. Das erhöht für alle die Chance.</p>
     <form method="post">{% csrf_token %}
       <input type="hidden" name="action" value="submit_wishlist">
       <button class="btn sage" type="submit" onclick="return confirm('Wunschliste verbindlich in den Lostopf geben?');">
@@ -199,6 +202,8 @@
   .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
     display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto; }
   .wish-main { flex:1 1 auto; } .wish-actions { display:flex; gap:.25rem; align-items:center; }
+  .hint-entzerren { font-size:.9rem; color:#5b5347; background:#f7f1e3;
+    border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; margin:.2rem 0 .7rem; }
 </style>
 
 <script>

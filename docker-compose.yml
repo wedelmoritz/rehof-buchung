@@ -53,6 +53,16 @@ services:
       # Optional: nur wirksam, wenn gesetzt UND der redis-Dienst läuft
       # (docker compose --profile cache up -d).
       REDIS_URL: ${REDIS_URL:-}
+      # Web-Push (PWA): BEIDE Schlüssel nötig, sonst ist Push aus (PUSH_ENABLED).
+      # Erzeugen mit `docker compose exec web python manage.py vapid_keys`.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_ADMIN_EMAIL: ${VAPID_ADMIN_EMAIL:-}
+      # Observability: Logging-Level + Sentry (nur mit DSN aktiv, ohne PII).
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
     # KEIN ports: — kein Host-Port nötig, Caddy erreicht web im Docker-Netz.
     expose:
       - "8000"               # für Container im selben Netz (Caddy)
@@ -103,6 +113,14 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
       EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      # Der Scheduler stellt bei Losergebnissen etc. ebenfalls Push zu → braucht VAPID.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_ADMIN_EMAIL: ${VAPID_ADMIN_EMAIL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
     entrypoint: ["python", "manage.py", "run_scheduler"]
     networks:
       - internal
