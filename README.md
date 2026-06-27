@@ -26,6 +26,9 @@ Oberfläche, die als **PWA** auch mobil installierbar und teils offline nutzbar 
   Bestätigung.
 - **Wunschliste + faires Losverfahren** fürs Folgejahr (gewichtete Zufallsreihenfolge
   im Runden-Prinzip, Karma-Ausgleich, **nachgewiesene** Strategiesicherheit/Fairness).
+  Beim Eintragen sieht man bereits die **Nachfrage der anderen** (wie umkämpft ein
+  Zeitraum ist) und kann die eigenen Wünsche **vor dem Einreichen entzerren** – z. B.
+  die Anreise um einen Tag verschieben, um Konflikte zu vermeiden.
 - **Meine Buchungen** – Storno, **Buchung ändern** (Zeitraum/Unterkunft/Personen),
   **Wechselwunsch** an andere Mitglieder.
 - **Tage übertragen** an andere Mitglieder (Typeahead-Suche).

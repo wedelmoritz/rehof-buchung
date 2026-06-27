@@ -254,11 +254,29 @@ VAPID_ADMIN_EMAIL=admin@quartiere.example.de
 ```
 
 ```bash
-docker compose up -d
+docker compose up -d        # WICHTIG: neu hochfahren, sonst greift die neue .env nicht
 ```
 
-Erst wenn **beide** Schlüssel gesetzt sind, ist `PUSH_ENABLED` aktiv. Mitglieder
-aktivieren Push **pro Gerät** über den Opt-in-Knopf im Profil; jede In-App-
+> **Häufige Stolperfalle:** Nach dem Eintragen in die `.env` muss der Container
+> **neu erstellt** werden (`docker compose up -d` – nicht nur „restart“), damit die
+> neuen Variablen ankommen. `compose.yml` reicht `VAPID_*` an **web und cron** durch.
+> Prüfen lässt es sich am schnellsten so:
+> ```bash
+> docker compose exec web python -c "from django.conf import settings; print('PUSH_ENABLED', settings.PUSH_ENABLED)"
+> ```
+> `True` = der Server ist bereit; im Profil erscheint dann der Aktivieren-Knopf statt
+> „auf diesem Server nicht aktiviert“.
+
+Erst wenn **beide** Schlüssel gesetzt sind, ist `PUSH_ENABLED` aktiv.
+`VAPID_ADMIN_EMAIL` ist nur der Kontakt im VAPID-Claim – es genügt eine **gültige
+`mailto:`-Adresse im Format** (ein echtes Postfach ist nicht nötig).
+
+**Auf dem iPhone** zusätzlich nötig (iOS-Vorgaben): iOS **16.4+**, die App per Safari
+**„Zum Home-Bildschirm“** hinzufügen und **aus diesem Symbol** öffnen – Push gibt es
+nur in der installierten PWA, nicht im Safari-Tab. Danach im Profil aktivieren und im
+Dialog **Erlauben**. (Bedien-Schritte für Mitglieder stehen auch in der Hilfe.)
+
+Mitglieder aktivieren Push **pro Gerät** über den Opt-in-Knopf im Profil; jede In-App-
 Benachrichtigung wird dann zusätzlich als Web-Push zugestellt (best-effort).
 
 ---

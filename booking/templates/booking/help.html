@@ -85,6 +85,7 @@
     sondern <strong>fair per Los</strong> vergeben. Das Wichtigste:</p>
   <ul class="tight">
     <li><strong>Wünsche eintragen &amp; einreichen</strong> (in deiner Prioritäts-Reihenfolge). Nur eingereichte Wünsche nehmen teil; bis zum Stichtag änderbar.</li>
+    <li><strong>Vor dem Einreichen kurz entzerren:</strong> Schon beim Eintragen siehst du im Kalender, <strong>wie umkämpft</strong> ein Zeitraum ist (die Nachfrage der anderen). Prüfe vor dem Bestätigen, ob du deine Wünsche so anpassen kannst, dass es <strong>keine oder wenige Konflikte</strong> gibt – z.&nbsp;B. die <strong>Anreise um einen Tag verschieben</strong> oder ein gleichwertiges, weniger gefragtes Quartier wählen. Das ist freiwillig, hilft aber allen, einen Wunsch zu bekommen.</li>
     <li>Es gelten dieselben <strong>Mindestnächte</strong> wie beim Buchen (z.&nbsp;B. 7 Nächte im Sommer): Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen/einreichen – so kann ein Losgewinn nie an den Mindestnächten scheitern.</li>
     <li>Die <strong>Reihenfolge wird genau einmal</strong> gewichtet gezogen. <strong>Karma</strong> (Pech aus Vorjahren) verbessert deine Chance auf einen vorderen Platz – ersetzt aber nie den Zufall.</li>
     <li>Reihum bekommt jede:r den <strong>höchsten noch freien</strong> Wunsch; ist dein Quartier belegt, wird auf ein <strong>gleichwertiges</strong> ausgewichen.</li>
@@ -126,14 +127,14 @@
   <details class="deep">
     <summary>Ablauf als Diagramm</summary>
     <svg class="flow" viewBox="0 0 600 600" role="img"
-         aria-label="Ablauf: Wünsche einreichen; Reihenfolge einmal auslosen; in Runden den höchsten möglichen Wunsch zuteilen oder Ausweichquartier oder Verlust; höchstens eine Buchung pro Runde; bei offenen Wünschen nächste Runde mit gleicher Reihenfolge; am Ende Karma neu berechnen und Ergebnis veröffentlichen.">
+         aria-label="Ablauf: Wünsche eintragen, dabei die Nachfrage der anderen prüfen und entzerren, dann einreichen; Reihenfolge einmal auslosen; in Runden den höchsten möglichen Wunsch zuteilen oder Ausweichquartier oder Verlust; höchstens eine Buchung pro Runde; bei offenen Wünschen nächste Runde mit gleicher Reihenfolge; am Ende Karma neu berechnen und Ergebnis veröffentlichen.">
       <defs>
         <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
           <path d="M0,0 L7,3 L0,6 z" fill="#8a8076"/>
         </marker>
       </defs>
       <g class="ln">
-        <line x1="300" y1="46"  x2="300" y2="64"  marker-end="url(#arr)"/>
+        <line x1="300" y1="54"  x2="300" y2="64"  marker-end="url(#arr)"/>
         <line x1="300" y1="112" x2="300" y2="130" marker-end="url(#arr)"/>
         <line x1="300" y1="168" x2="300" y2="186" marker-end="url(#arr)"/>
         <line x1="300" y1="224" x2="124" y2="244" marker-end="url(#arr)"/>
@@ -148,7 +149,7 @@
         <line x1="300" y1="502" x2="300" y2="522" marker-end="url(#arr)"/>
       </g>
       <g class="bx">
-        <rect x="150" y="10"  width="300" height="36" rx="9"/>
+        <rect x="100" y="10"  width="400" height="44" rx="9"/>
         <rect x="100" y="64"  width="400" height="48" rx="9"/>
         <rect x="158" y="130" width="284" height="36" rx="9"/>
         <rect x="100" y="186" width="400" height="38" rx="9"/>
@@ -161,7 +162,8 @@
       <rect class="loss" x="392" y="246" width="172" height="46" rx="9"/>
       <polygon class="dec" points="186,406 300,378 414,406 300,434"/>
       <g class="tx">
-        <text x="300" y="33">① Wünsche eintragen &amp; einreichen</text>
+        <text x="300" y="28">① Wünsche eintragen</text>
+        <text x="300" y="45" class="sm">Nachfrage der anderen prüfen &amp; entzerren, dann einreichen</text>
         <text x="300" y="84">② Reihenfolge EINMAL auslosen</text>
         <text x="300" y="100" class="sm">Karma (Vorjahr) = Gewicht für vordere Plätze</text>
         <text x="300" y="153">③ Runde: Parteien der Reihe nach</text>
@@ -265,8 +267,25 @@
     <li><strong>Neues Konto:</strong> Wurde dein Konto von der Verwaltung angelegt, bekommst du eine E-Mail mit einem Link, um dein <strong>Passwort selbst zu setzen</strong> – danach meldest du dich mit deiner E-Mail an.</li>
     <li><strong>Passwort vergessen?</strong> Auf der Anmeldeseite forderst du dir über „Passwort vergessen“ selbst einen neuen Link an.</li>
     <li><strong>Hofladen-Terminal vor Ort:</strong> Wenn die Verwaltung dich dafür freigeschaltet hat, vergibst du im <a href="{% url 'profile' %}">Profil</a> eine 6-stellige PIN. Damit kaufst du am Gerät im Hofladen auf deine Monatsrechnung ein – ganz ohne Smartphone.</li>
-    <li><strong>Als App installieren:</strong> im Browser „Zum Startbildschirm hinzufügen“ – läuft auch grundlegend offline (der <a href="{% url 'shop_index' %}">Hofladen</a>-Warenkorb funktioniert sogar ohne Verbindung und synchronisiert beim Wiederverbinden).</li>
-    <li><strong>Push-Mitteilungen:</strong> im <a href="{% url 'profile' %}">Profil</a> aktivierbar – dann landen Benachrichtigungen (Losergebnis, freier Wartelisten-Platz, neue Rechnung) direkt als Mitteilung auf dem Gerät.</li>
+    <li><strong>App aufs Handy installieren, Mitteilungen &amp; Offline</strong> – Schritt für Schritt:
+      <details class="deep"><summary>📱 iPhone / iPad (iOS 16.4 oder neuer)</summary>
+        <ol class="tight">
+          <li>Die Seite in <strong>Safari</strong> öffnen (nicht Chrome) → unten das <strong>Teilen-Symbol&nbsp;↑</strong> → <strong>„Zum Home-Bildschirm“</strong> → <em>Hinzufügen</em>.</li>
+          <li>Die App ab jetzt <strong>über das neue Symbol</strong> auf dem Home-Bildschirm öffnen (nicht in Safari) – <strong>nur so</strong> funktionieren Mitteilungen.</li>
+          <li>Im <a href="{% url 'profile' %}">Profil</a> → <strong>Benachrichtigungen</strong> → „Benachrichtigungen aktivieren“ → im Dialog <strong>Erlauben</strong>.</li>
+          <li><strong>Offline:</strong> Übersicht, <a href="{% url 'shop_index' %}">Hofladen</a>-Katalog und Meine Buchungen sind danach auch ohne Netz aufrufbar; der Warenkorb funktioniert offline und überträgt sich beim Wiederverbinden. <em>Buchen &amp; Wünsche brauchen Netz</em> (aktuelle freie Zeiten).</li>
+        </ol>
+      </details>
+      <details class="deep"><summary>🤖 Android</summary>
+        <ol class="tight">
+          <li>Die Seite in <strong>Chrome</strong> öffnen → Menü <strong>⋮</strong> → <strong>„App installieren“</strong> (oder „Zum Startbildschirm hinzufügen“).</li>
+          <li>Die App über das neue Symbol öffnen.</li>
+          <li>Im <a href="{% url 'profile' %}">Profil</a> → <strong>Benachrichtigungen</strong> → „aktivieren“ → <strong>Erlauben</strong>.</li>
+          <li><strong>Offline</strong> wie beim iPhone: Katalog/Übersicht/Warenkorb gehen ohne Netz, Buchen/Wünsche brauchen Verbindung.</li>
+        </ol>
+      </details>
+      <p class="muted" style="margin:.3rem 0 0">Steht im Profil „Push auf dem Server nicht aktiviert“, fehlen dem Server die Push-Schlüssel – das richtet die Verwaltung einmalig ein (Betriebs-Doku, <code>VAPID_*</code>).</p>
+    </li>
   </ul>
 </div>
 

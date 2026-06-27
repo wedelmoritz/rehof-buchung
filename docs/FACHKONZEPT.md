@@ -201,6 +201,14 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
 - Wünsche bleiben bewusst **änderbar**, solange das Wunsch-Fenster offen ist.
 - Höchstens **25 Tage** des Jahresbudgets laufen über die Wunschliste (§ 1).
 - **Mindestnächte** werden bereits beim Eintragen/Einreichen geprüft (§ 4).
+- **Nachfrage sichtbar & Entzerren vor dem Einreichen:** Schon beim Eintragen zeigt
+  der Kalender, **wie umkämpft** ein Zeitraum ist (Nachfrage der anderen Mitglieder).
+  Daraus ergibt sich ein bewusster **Zwischenschritt vor dem Einreichen** in den
+  Lostopf: prüfen, ob sich die eigenen Wünsche so **anpassen** lassen, dass **keine
+  oder möglichst wenige Konflikte** entstehen – etwa die **Anreise um einen Tag
+  verschieben** oder ein gleichwertiges, weniger gefragtes Quartier wählen. Das ist
+  freiwillig (das Verfahren bleibt strategiesicher, § 5), erhöht aber für alle die
+  Chance, einen Wunsch erfüllt zu bekommen.
 
 ---
 
