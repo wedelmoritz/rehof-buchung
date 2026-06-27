@@ -822,6 +822,33 @@ def transfer(request):
     })
 
 
+@login_required
+def member_search(request):
+    """Typeahead für „Tage übertragen": passende Mitglieder ab 3 Zeichen.
+    Sucht über Anzeigename, Benutzername, E-Mail, Vor- und Nachname (das eigene
+    Konto und externe Gäste ausgenommen)."""
+    from django.db.models import Q
+    member = _current_member(request)
+    q = (request.GET.get("q") or "").strip()
+    if not member or len(q) < 3:
+        return JsonResponse({"results": []})
+    qs = (Member.objects.filter(is_external=False)
+          .exclude(id=member.id)
+          .filter(Q(display_name__icontains=q)
+                  | Q(user__username__icontains=q)
+                  | Q(user__email__icontains=q)
+                  | Q(user__first_name__icontains=q)
+                  | Q(user__last_name__icontains=q))
+          .select_related("user").order_by("display_name")[:20])
+    results = [{
+        "id": m.id,
+        "name": m.display_name,
+        "username": m.user.username if m.user_id else "",
+        "full_name": m.user.get_full_name() if m.user_id else "",
+    } for m in qs]
+    return JsonResponse({"results": results})
+
+
 # --------------------------------------------------------------------------- #
 # Verwaltungs-Dashboard (nur Staff): anstehende Buchungen, Reinigung, Rechnungen
 # --------------------------------------------------------------------------- #

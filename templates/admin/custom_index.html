@@ -2,6 +2,10 @@
 {# Erklär-Panel oben auf der Backend-Startseite: was kann man hier tun und wie
    hängen Benutzer, Mitglieder und Anteile zusammen. #}
 {% block content %}
+{# In #content-main wickeln (float:left), damit die rechte „Neueste Aktionen“-
+   Spalte (#content-related, float:right) wie im Standard oben rechts andockt
+   statt unter den Inhalt zu rutschen. #}
+<div id="content-main">
 <details class="module rehof-intro" id="rehof-intro">
   <summary>Was kannst du hier tun? <span class="rehof-toggle">(ein-/ausklappen)</span></summary>
   <div class="rehof-intro-body">
@@ -144,6 +148,7 @@ Sektionen. Statt der Standard-Tabellen rendern wir die fachlichen Sektionen
   });
 })();
 </script>
+</div>{# /#content-main #}
 {% endblock %}
 
 {% block extrastyle %}{{ block.super }}
