@@ -71,6 +71,25 @@ class AccountInviteTests(TestCase):
             subject__icontains="freigeschaltet").count(), 1)
 
 
+class PasswordResetWiringTests(TestCase):
+    def test_login_page_has_forgot_link(self):
+        r = self.client.get(reverse("login"))
+        self.assertContains(r, reverse("password_reset"))
+
+    def test_reset_form_renders_and_accepts_email(self):
+        User.objects.create_user("rita", email="rita@example.org", password="x")
+        self.assertEqual(self.client.get(reverse("password_reset")).status_code, 200)
+        from django.test import override_settings
+        with override_settings(
+                EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend"):
+            from django.core import mail
+            r = self.client.post(reverse("password_reset"),
+                                 {"email": "rita@example.org"})
+            self.assertRedirects(r, reverse("password_reset_done"))
+            self.assertEqual(len(mail.outbox), 1)
+            self.assertIn("/passwort-setzen/", mail.outbox[0].body)
+
+
 class ProfileNotifyPrefsTests(TestCase):
     def setUp(self):
         self.u = User.objects.create_user("m", email="m@example.org", password="x")

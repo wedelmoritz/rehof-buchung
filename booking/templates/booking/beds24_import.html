@@ -41,7 +41,9 @@
   <div class="sec-head"><h2 style="margin:0">Abgleich – {{ rows|length }} Zeilen</h2>
     <span class="spacer"></span><button class="btn" type="submit">Auswahl übernehmen</button></div>
   <p class="muted" style="margin:.2rem 0 .3rem"><strong>Mitglied-Treffer:</strong>
-    🟢 sicher (E-Mail/Name) · 🟡 prüfen · 🔴 kein Vorschlag.
+    🟢 sicher (<strong>eindeutige E-Mail</strong>) · 🟡 prüfen (Name – nicht
+    eindeutig, ggf. mehrere) · 🔴 kein Vorschlag. Nur E-Mail-Treffer werden
+    vorausgewählt; bei Namen entscheidest du bewusst.
     <strong>Verfügbarkeit:</strong> 🟢 Zeitraum frei · 🔴 schon belegt · — nicht
     prüfbar (Quartier/Datum fehlt). ⚠️ = Buchungsregel-Hinweis (z.&nbsp;B.
     Mindestaufenthalt) – <em>nur Warnung</em>, der Import ist trotzdem möglich.</p>
@@ -59,7 +61,9 @@
     {% for r in rows %}
       <tr class="{% if r.status == 'imported' %}ok-row{% elif not r.valid %}danger-row{% endif %}">
         <td>{{ r.guest_name }}
-          {% if r.suggested_score >= 0.7 %}🟢{% elif r.suggested_member %}🟡{% else %}🔴{% endif %}
+          {% if r.match_kind == 'email' %}🟢{% elif r.match_kind == 'name' or r.match_kind == 'multi' %}🟡{% else %}🔴{% endif %}
+          {% if r.match_kind == 'multi' %}<br><span class="warn-note" style="font-size:.8rem">mehrere mögliche Treffer – bitte wählen</span>
+          {% elif r.match_kind == 'name' %}<br><span class="muted" style="font-size:.8rem">Namens-Treffer – bitte prüfen</span>{% endif %}
           {% if r.email %}<br><span class="muted" style="font-size:.8rem">{{ r.email }}</span>{% endif %}
           {% if r.note %}<br><span class="muted" style="font-size:.8rem">{{ r.note }}</span>{% endif %}</td>
         <td>{{ r.arrival|date:"d.m.y" }}–{{ r.departure|date:"d.m.y" }}<br>
@@ -97,7 +101,7 @@
           {% else %}
           <select name="action_{{ r.id }}">
             <option value="">offen (später)</option>
-            <option value="import" {% if r.valid and r.chosen_member_id and r.chosen_quarter_id %}selected{% endif %}>übernehmen</option>
+            <option value="import" {% if r.valid and r.match_kind == 'email' and r.chosen_quarter_id %}selected{% endif %}>übernehmen</option>
             <option value="skip">überspringen (verwerfen)</option>
           </select>
           {% endif %}

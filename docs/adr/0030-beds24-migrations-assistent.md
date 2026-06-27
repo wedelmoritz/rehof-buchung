@@ -32,12 +32,16 @@ CSV-Upload, Vorschlägen und **manueller** Bestätigung.
 - **Abschaltbar:** über `OpsConfig.beds24_import_enabled` – ausgeschaltet ist der
   Assistent im Dashboard ausgeblendet und gesperrt (auch für Admins), da er nur beim
   Umzug gebraucht wird und echte Buchungen anlegt.
-- **E-Mail als Anker:** der Beds24-Export liefert i. d. R. eine Gast-E-Mail; sie wird
-  je Zeile gespeichert (`Beds24ImportRow.email`) und ist der **stärkste** Treffer –
-  passt sie zu einem bestehenden Konto, gilt der Abgleich als sicher (Score 1,0,
-  vorausgewählt), sonst greift der unscharfe Namensabgleich. Liegt eine E-Mail vor,
-  bekommt ein neu angelegtes Mitglied automatisch die „Passwort setzen"-Einladung
-  (ADR 0052).
+- **E-Mail als einziger eindeutiger Anker (`Beds24ImportRow.match_kind`):** der
+  Beds24-Export liefert i. d. R. eine Gast-E-Mail; sie wird je Zeile gespeichert
+  (`Beds24ImportRow.email`). Nur ein **eindeutiger E-Mail-Treffer** gilt als sicher
+  (🟢, vorausgewählt, Aktion „übernehmen" vorbelegt). Ohne E-Mail bleibt der unscharfe
+  **Namensabgleich**, der **nie** grün ist (🟡 „prüfen"): ein einzelner Treffer wird
+  bequem vorgeschlagen, treffen **mehrere** Mitglieder den Namen (`match_kind="multi"`,
+  zweiter Kandidat ebenfalls stark), wird **nichts** vorausgewählt – die Verwaltung
+  muss bewusst wählen. So führt ein nicht eindeutiger Name nie versehentlich zu einer
+  Buchung auf der falschen Person. Liegt eine E-Mail vor, bekommt ein neu angelegtes
+  Mitglied automatisch die „Passwort setzen"-Einladung (ADR 0052).
 - **Zwei Ampeln + Regel-Warnung (nur Anzeige, nicht blockierend):** neben der
   **Treffergüte** der Zuordnung zeigt der Abgleich je Zeile die **Verfügbarkeit** des
   Quartiers im Zeitraum (`services.beds24_row_checks` → `quarter_is_free`) und eine

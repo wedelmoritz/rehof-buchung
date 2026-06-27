@@ -57,28 +57,41 @@ def beds24_stage(data: str, filename: str):
     email_map = _member_by_email_map()
     for r in rows:
         row_email = (getattr(r, "email", "") or "").strip()
-        # E-Mail ist der stärkste Anker: trifft sie ein bestehendes Konto, ist das
-        # ein sicherer Treffer (1.0) – sonst der unscharfe Namensabgleich.
+        # E-Mail ist der EINZIGE eindeutige Anker → sicherer Treffer (🟢). Ohne
+        # E-Mail bleibt nur der unscharfe Namensabgleich (🟡 „prüfen") – und
+        # treffen MEHRERE Mitglieder den Namen, ist besondere Vorsicht nötig.
         m_by_email = email_map.get(row_email.lower()) if row_email else None
         if m_by_email is not None:
-            sug_m, score = m_by_email, 1.0
+            sug_m, score, kind = m_by_email, 1.0, Beds24ImportRow.EMAIL
         else:
-            mranked = beds24.rank_candidates(r.guest_name, mcands, limit=1)
+            mranked = beds24.rank_candidates(r.guest_name, mcands, limit=2)
             sug_m_id, score = (mranked[0] if mranked else (None, 0.0))
             sug_m = Member.objects.filter(id=sug_m_id).first() if sug_m_id else None
+            if not sug_m:
+                kind = ""
+            elif len(mranked) >= 2 and mranked[1][1] >= 0.7:
+                kind = Beds24ImportRow.MULTI   # mehrere plausible Namens-Treffer
+            else:
+                kind = Beds24ImportRow.NAME
         qranked = (beds24.rank_candidates(r.unit, qcands, limit=1, min_score=0.3)
                    if r.unit else [])
         sug_q = (Quarter.objects.filter(id=qranked[0][0]).first()
                  if qranked else None)
+        # Vorauswahl nur bei eindeutigem E-Mail-Treffer; ein einzelner Namens-
+        # Treffer wird bequem vorgeschlagen (gelb, prüfen), mehrere NICHT.
+        if kind == Beds24ImportRow.EMAIL:
+            chosen_m = sug_m
+        elif kind == Beds24ImportRow.NAME:
+            chosen_m = sug_m
+        else:
+            chosen_m = None
         Beds24ImportRow.objects.create(
             batch=batch, guest_name=r.guest_name[:200], email=row_email[:254],
             arrival=r.arrival,
             departure=r.departure, unit=r.unit[:200], persons=r.persons or 1,
             ref=r.ref[:80], raw=r.raw,
             suggested_member=sug_m, suggested_score=score, suggested_quarter=sug_q,
-            # Sehr sicherer Treffer (E-Mail oder sehr guter Name) wird vorausgewählt.
-            chosen_member=sug_m if score >= 0.7 else None,
-            chosen_quarter=sug_q,
+            match_kind=kind, chosen_member=chosen_m, chosen_quarter=sug_q,
             note="" if r.valid else "Ungültige Zeile (Name/Datum prüfen)")
     return batch
 

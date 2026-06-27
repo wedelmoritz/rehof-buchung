@@ -78,7 +78,7 @@ def send_account_invite(user) -> "OutboxEmail | None":
         return None
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    link = absolute_url(reverse("password_set_confirm",
+    link = absolute_url(reverse("password_reset_confirm",
                                 kwargs={"uidb64": uid, "token": token}))
     name = (user.get_full_name() or user.username or "").strip()
     return queue_email(

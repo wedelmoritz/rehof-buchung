@@ -1131,6 +1131,13 @@ class Beds24ImportRow(models.Model):
         Member, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="+", verbose_name="Vorschlag Mitglied")
     suggested_score = models.FloatField("Treffergüte", default=0.0)
+    # Wie der Vorschlag zustande kam – bestimmt die Ampel und die Vorauswahl:
+    #   email  = eindeutiger E-Mail-Treffer (🟢 sicher, vorausgewählt)
+    #   name   = ein guter Namens-Treffer (🟡 prüfen, vorgeschlagen)
+    #   multi  = mehrere mögliche Namens-Treffer (🟡 prüfen, NICHT vorausgewählt)
+    #   ""     = kein Treffer (🔴)
+    EMAIL, NAME, MULTI = "email", "name", "multi"
+    match_kind = models.CharField("Treffer-Art", max_length=10, blank=True)
     suggested_quarter = models.ForeignKey(
         Quarter, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="+", verbose_name="Vorschlag Quartier")

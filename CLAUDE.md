@@ -205,8 +205,10 @@ E-Mail-Wechsel wird mit dem **aktuellen Passwort** bestätigt (kein neues nötig
 ein neues Passwort setzt man nur, wenn man will. **Neue Konten setzen ihr Passwort
 selbst:** vom Backend oder Beds24-Import angelegte Benutzer vergeben kein Passwort
 durch Admins, sondern bekommen per Mail einen **Einladungs-Link**
-(`services.send_account_invite`, Views `password_set_confirm`/`password_set_done` auf
-Basis von Djangos Reset-Token; ADR 0052).
+(`services.send_account_invite`; ADR 0052). Es ist **ein** Token-Mechanismus für
+Einladung **und** „Passwort vergessen": Standard-Django-Reset-Views/-Namen
+(`password_reset`/`_done`/`_confirm`/`_complete`, deutsche Pfade, eigene
+`registration/`-Templates); „Passwort vergessen" ist auf der Anmeldeseite verlinkt.
 Die frühere `membership_number` (Mitgliedsnummer) wurde als ungenutzt **entfernt**
 (Datensparsamkeit; sie floss nirgends in Rechnung/Export/PDF). Eine `help`-Seite erklärt Abläufe und die
 Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
@@ -397,9 +399,12 @@ mit `Beds24ImportRow`-Zeilen an und hängt Vorschläge Mitglied/Quartier an),
 mit **E-Mail** geht automatisch die Passwort-Einladung raus, ADR 0052).
 Gäste tippen ihre Namen bei Beds24 frei → es gibt **nur Vorschläge**, der Abgleich
 ist **manuell** (Review-Seite mit Mitglied-/Quartier-Dropdown + „+ Mitglied"-Knopf).
-**E-Mail als Anker:** die Gast-E-Mail aus dem Export wird je Zeile gespeichert
-(`Beds24ImportRow.email`) und ist der **stärkste** Treffer (Score 1,0, vorausgewählt,
-wenn sie ein bestehendes Konto trifft), sonst greift der Namensabgleich. Neben der
+**E-Mail als einziger eindeutiger Anker** (`Beds24ImportRow.match_kind`): die Gast-
+E-Mail aus dem Export wird je Zeile gespeichert (`Beds24ImportRow.email`). Nur ein
+**eindeutiger E-Mail-Treffer** ist 🟢 (vorausgewählt, Aktion „übernehmen" vorbelegt);
+der **Namensabgleich** ist nie grün, sondern 🟡 „prüfen" – ein einzelner Treffer wird
+vorgeschlagen, treffen **mehrere** den Namen (`match_kind="multi"`) wird **nichts**
+vorausgewählt (Verwaltung muss wählen). Neben der
 Treffer-Ampel zeigt der Abgleich zwei weitere Hinweise (`services.beds24_row_checks`,
 nur Anzeige, **nicht blockierend**): **Verfügbarkeit** des Quartiers im Zeitraum
 (🟢 frei / 🔴 belegt, `quarter_is_free`) und eine **Regel-Warnung** (Mindestaufenthalt,
