@@ -8,7 +8,7 @@
    - /static/-Dateien: cache-first (Logo, Icons, Manifest).
    - Nur GET wird behandelt; POST (Buchen etc.) läuft immer übers Netz.
    - Push: zeigt die Benachrichtigung an; Klick öffnet die mitgelieferte URL. */
-const CACHE = "rehof-v3";
+const CACHE = "rehof-v4";
 const OFFLINE_URL = "/offline/";
 // Das Hofladen-Terminal MUSS offline laufen (kein WLAN/Mobilfunk im Laden) – die
 // Seite wird daher fest vorgehalten; ihre Daten holt sie per Token und cacht sie
@@ -27,10 +27,10 @@ function bookingOfflineResponse() {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Offline – Re:Hof</title>
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-background:#faf5ee;color:#3c352f;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+background:#f6f4f1;color:#23201d;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 .box{text-align:center;padding:2rem 1.5rem;max-width:22rem}h1{font-size:1.3rem;margin:.4rem 0}
-p{color:#8c8175}button{margin-top:1.2rem;font:inherit;font-weight:600;cursor:pointer;border:0;
-border-radius:10px;background:#c9805d;color:#fff;padding:.6rem 1.2rem}</style></head>
+p{color:#6b6259}button{margin-top:1.2rem;font:inherit;font-weight:600;cursor:pointer;border:0;
+border-radius:10px;background:#be3e23;color:#fff;padding:.6rem 1.2rem}</style></head>
 <body><div class="box"><h1>Buchen braucht eine Verbindung</h1>
 <p>Für Buchungen und Wünsche müssen die freien Zeiten aktuell geladen werden.
 Bitte verbinde dich wieder mit dem Internet.</p>
