@@ -54,7 +54,8 @@ booking/
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
                         #  (Backend-Startseite mit Erklär-Panel: templates/admin/custom_index.html,
-                        #   gesetzt über admin.site.index_template)
+                        #   gesetzt über admin.site.index_template). Buchungen: Allocation.clean
+                        #   erzwingt die Domänenregeln auch im Backend (keine Doppelbuchung, ADR 0045).
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html

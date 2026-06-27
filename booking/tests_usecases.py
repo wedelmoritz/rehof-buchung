@@ -1404,3 +1404,67 @@ class WebPushTests(UseCaseBase):
         self.assertEqual(svc.send_web_push(self.alice, "T", "B", "/"), 0)
         # Auch das Anlegen einer Benachrichtigung (Signal) bleibt fehlerfrei.
         Notification.objects.create(member=self.alice, message="hallo")
+
+
+class AdminBuchungsregelnTests(UseCaseBase):
+    """Domänenregeln greifen auch bei manueller Pflege (Allocation.clean):
+    keine Doppelbuchung – weder per full_clean noch über den Django-Admin."""
+
+    def test_ueberlappende_zuteilung_wird_abgelehnt(self):
+        from django.core.exceptions import ValidationError
+        Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        clash = Allocation(
+            member=self.bob, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 5), end=date(2026, 7, 10))
+        with self.assertRaises(ValidationError):
+            clash.full_clean()
+
+    def test_nicht_ueberlappende_zuteilung_ist_ok(self):
+        Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        ok = Allocation(
+            member=self.bob, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 8), end=date(2026, 7, 12))   # Anschluss, kein Overlap
+        ok.full_clean()   # darf NICHT werfen
+
+    def test_bestehende_zuteilung_bearbeiten_kein_selbstkonflikt(self):
+        a = Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        a.persons = 3
+        a.full_clean()   # sich selbst nicht als Konflikt werten
+
+    def test_ungueltiger_zeitraum_wird_abgelehnt(self):
+        from django.core.exceptions import ValidationError
+        a = Allocation(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 8), end=date(2026, 7, 1))
+        with self.assertRaises(ValidationError):
+            a.full_clean()
+
+    def test_personenzahl_ausserhalb_quartiersrahmen_abgelehnt(self):
+        from django.core.exceptions import ValidationError
+        a = Allocation(
+            member=self.alice, quarter=self.k1, persons=99, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        with self.assertRaises(ValidationError):
+            a.full_clean()
+
+    def test_admin_lehnt_doppelbuchung_ab(self):
+        admin = User.objects.create_superuser("root2", "root2@example.org", "x" * 12)
+        self.client.force_login(admin)
+        Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        resp = self.client.post("/admin/booking/allocation/add/", {
+            "member": self.bob.user.member.id, "quarter": self.k1.id,
+            "start": "2026-07-05", "end": "2026-07-10",
+            "persons": "2", "source": "spontaneous", "companions": "",
+            "_save": "Sichern",
+        })
+        self.assertEqual(resp.status_code, 200)   # Formular mit Fehler, kein Redirect
+        self.assertEqual(
+            Allocation.objects.filter(member=self.bob, quarter=self.k1).count(), 0)

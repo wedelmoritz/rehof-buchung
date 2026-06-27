@@ -323,6 +323,11 @@ class WishAdmin(admin.ModelAdmin):
 
 @admin.register(Allocation)
 class AllocationAdmin(admin.ModelAdmin):
+    """Buchungen/Zuteilungen. <b>Domänenregeln greifen auch hier</b>
+    (<code>Allocation.clean</code>): gültiger Zeitraum, Personenzahl im
+    Quartiers-Rahmen und <b>keine Überschneidung</b> mit einer anderen Zuteilung
+    oder bestätigten externen Buchung im selben Quartier – eine Doppelbuchung
+    wird beim Speichern abgewiesen."""
     list_display = ("member", "quarter", "start", "end", "persons", "source",
                     "via_substitution", "contested")
     list_filter = ("source", "quarter", "contested")
