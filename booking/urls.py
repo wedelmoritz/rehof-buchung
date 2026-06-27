@@ -14,6 +14,7 @@ urlpatterns = [
     path("wunschliste/", views.wishlist, name="wishlist"),
     path("meine-buchungen/", views.my_bookings, name="my_bookings"),
     path("tage-uebertragen/", views.transfer, name="transfer"),
+    path("tage-uebertragen/suche/", views.member_search, name="member_search"),
     path("profil/", views.profile, name="profile"),
     path("push/abo/", views.push_subscribe, name="push_subscribe"),
     path("push/abmelden/", views.push_unsubscribe, name="push_unsubscribe"),

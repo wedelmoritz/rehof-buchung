@@ -252,15 +252,18 @@
 <div class="card" id="tage">
   <h2>Tage übertragen</h2>
   <p style="margin:0">Unter <a href="{% url 'transfer' %}">Tage übertragen</a> gibst du Tage an ein
-    anderes Mitglied ab (zweistufig mit Bestätigung). Das ist <strong>verbindlich</strong> – die Basis
-    dafür regelt ihr vorher privat.</p>
+    anderes Mitglied ab. Die Empfänger:in suchst du, indem du <strong>Name, Benutzername
+    oder E-Mail</strong> ins Suchfeld tippst (ab 3 Zeichen) und sie aus den Treffern wählst –
+    danach folgt eine Bestätigung. Das ist <strong>verbindlich</strong> – die Basis dafür
+    regelt ihr vorher privat.</p>
 </div>
 
 <div class="card" id="profil">
   <h2>Profil &amp; App</h2>
   <ul class="tight">
-    <li><a href="{% url 'profile' %}">Profil</a>: Name, Anschrift, IBAN und E-Mail-Benachrichtigungen pflegen – nur für dich sichtbar.</li>
-    <li><strong>Als App installieren:</strong> im Browser „Zum Startbildschirm hinzufügen“ – läuft auch grundlegend offline.</li>
+    <li><a href="{% url 'profile' %}">Profil</a>: Name, Anschrift, IBAN sowie <strong>E-Mail (= Login) und Passwort</strong> selbst ändern und E-Mail-Benachrichtigungen pflegen – nur für dich sichtbar.</li>
+    <li><strong>Als App installieren:</strong> im Browser „Zum Startbildschirm hinzufügen“ – läuft auch grundlegend offline (der <a href="{% url 'shop_index' %}">Hofladen</a>-Warenkorb funktioniert sogar ohne Verbindung und synchronisiert beim Wiederverbinden).</li>
+    <li><strong>Push-Mitteilungen:</strong> im <a href="{% url 'profile' %}">Profil</a> aktivierbar – dann landen Benachrichtigungen (Losergebnis, freier Wartelisten-Platz, neue Rechnung) direkt als Mitteilung auf dem Gerät.</li>
   </ul>
 </div>
 

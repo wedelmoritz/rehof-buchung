@@ -160,9 +160,13 @@ sind – dann In-App-Meldung **an alle** [`_broadcast_spontaneously_free`] + E-M
 an die Warteliste; der **Unterkunft-Wechsel** geht spontan und meldet das alte
 Quartier ebenso als „spontan frei“ an alle (die 7-Tage-Frist gilt nur fürs reine
 Verkürzen im selben Quartier); Karte **„Meine Wartelisten-Einträge“** listet die eigenen
-offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Vorschau
-mit Empfänger – Anzeigename/Benutzername/Name – und Disclaimer, dass die Basis
-des Übertrags privatrechtlich zu regeln ist, dann „verbindlich übertragen“).
+offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Empfänger:in über ein
+**Typeahead-Suchfeld** wählen [ab 3 Zeichen; JSON-Endpoint `member_search` sucht
+über Anzeigename/Benutzername/E-Mail/Vor-/Nachname, eigenes Konto + externe Gäste
+ausgenommen; die Mitglieds-ID landet in einem versteckten Feld, der Server prüft
+sie weiter], dann Vorschau mit Empfänger – Anzeigename/Benutzername/Name – und
+Disclaimer, dass die Basis des Übertrags privatrechtlich zu regeln ist, dann
+„verbindlich übertragen“).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
 den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
@@ -261,9 +265,13 @@ POST-Formulare im `<main>` werden **progressiv per `fetch` ohne Neuladen** abges
 (Antwort nach Redirect geparst, `<main>` getauscht inkl. Re-Exec der Inline-Skripte,
 Scrollposition gehalten); ebenso die **GET-Kalendernavigation** (Tag Anreise→Abreise
 wählen, Monat blättern, zurücksetzen) über `window.__nav` – **kein Sprung nach oben**
-mehr. Opt-in per `data-ajax` an Links/GET-Formularen (`book`/`wishlist`/`external_home`
-+ gemeinsame `_calnav.html`; **`dashboard`** Monatswahl/Filter-Chips – Selects via
-`requestSubmit()`, nicht `submit()`, sonst feuert das submit-Event nicht). Fallback =
+mehr. Trägt die Ziel-URL einen **Anker** (`#…`, z.B. das Tag-Detail der Übersicht),
+scrollt `__nav`/`swap` nach dem Tausch **sanft** dorthin (statt die Position zu
+halten) – so springt der **Tag-Klick in der Übersicht** ohne Reload zur Detailkarte
+(Tabelle UND Belegungs-Zeitstrahl, `data-ajax` + `#tag`). Opt-in per `data-ajax` an
+Links/GET-Formularen (`overview` Tag-Detail/Belegungs-Balken, `book`/`wishlist`/
+`external_home` + gemeinsame `_calnav.html`; **`dashboard`** Monatswahl/Filter-Chips –
+Selects via `requestSubmit()`, nicht `submit()`, sonst feuert das submit-Event nicht). Fallback =
 normales Laden/Abschicken, ausgenommen `multipart`/`data-no-ajax` (Auth) und
 Modifier-Klick/neuer Tab (ADR 0035). Der AJAX-Submit-Layer respektiert
 `e.defaultPrevented`, sodass `onsubmit="return confirm(…)"` (Storno, Löschen,

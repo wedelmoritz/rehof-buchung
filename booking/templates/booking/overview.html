@@ -48,7 +48,7 @@
                style="grid-column:{{ forloop.counter }};grid-row:1"></div>
           {% endfor %}
           {% for b in row.bars %}
-          <a class="occ-bar {% if b.mine %}mine{% endif %}"
+          <a class="occ-bar {% if b.mine %}mine{% endif %}" data-ajax
              style="grid-column:{{ b.col }} / span {{ b.span }};grid-row:1;background:{{ b.color }}"
              href="?year={{ cal.year }}&month={{ cal.month }}&view=timeline&day={{ b.start|date:'Y-m-d' }}#tag"
              title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if not b.external %} · {{ b.persons }} Pers.{% endif %}">{{ b.who }}{% if not b.external %} ({{ b.persons }}){% endif %}</a>
@@ -72,7 +72,7 @@
         <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %} {% if sel_day and d.date == sel_day %}sel-day{% endif %}"
             {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
           {% if d.in_month %}
-          <a class="cell-link" href="?year={{ cal.year }}&month={{ cal.month }}&day={{ d.date|date:'Y-m-d' }}#tag">
+          <a class="cell-link" data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&day={{ d.date|date:'Y-m-d' }}#tag">
             <span class="d-num">{{ d.day }}</span>
             {% for b in d.bookings %}
             <span class="d-book person {% if b.mine %}mine{% endif %}" style="background:{{ b.color }}"

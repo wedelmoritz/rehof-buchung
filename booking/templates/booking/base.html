@@ -380,8 +380,8 @@
 <div class="shell">
   <main>
     {% if messages %}
-      {# data-toast: NUR diese (Framework-)Meldungen werden zu Toasts. Fest im
-         Template stehende .msg-Banner (Hinweise/Status) bleiben an Ort und Stelle. #}
+      {% comment %}data-toast: NUR diese (Framework-)Meldungen werden zu Toasts. Fest im
+      Template stehende .msg-Banner (Hinweise/Status) bleiben an Ort und Stelle.{% endcomment %}
       {% for m in messages %}<div class="msg {{ m.tags }}" data-toast>{{ m }}</div>{% endfor %}
     {% endif %}
     {% block content %}{% endblock %}
@@ -567,7 +567,7 @@
         old.parentNode.replaceChild(s, old);
       });
     }
-    function swap(html, url) {
+    function swap(html, url, hash) {
       var doc = new DOMParser().parseFromString(html, "text/html");
       var nm = doc.querySelector("main");
       if (!nm) return false;
@@ -576,7 +576,11 @@
       runScripts(main);
       T.harvest(main);
       if (url) { try { history.replaceState({}, "", url); } catch (e) {} }
-      window.scrollTo(0, y);   // Scrollposition halten – kein Sprung nach oben
+      // Mit Anker (z.B. Tag-Detail auf der Übersicht): sanft dorthin scrollen –
+      // sonst Scrollposition halten (kein Sprung nach oben).
+      var target = hash ? main.querySelector(hash) : null;
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      else window.scrollTo(0, y);
       return true;
     }
     document.addEventListener("submit", function (e) {
@@ -627,6 +631,10 @@
     // GET-Navigation ohne Neuladen (Kalender: Tag wählen, Monat blättern). Hält
     // die Scrollposition – kein Sprung nach oben. window.__nav für onchange-Selects.
     function __nav(url) {
+      // Anker (#…) aus der URL lösen: fetch ignoriert ihn ohnehin, wir nutzen ihn
+      // nach dem Tausch zum sanften Scrollen (z.B. Tag-Detail der Übersicht).
+      var hi = url.indexOf("#");
+      var hash = hi > -1 ? url.slice(hi) : "";
       fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
         .then(function (r) {
           if (!r.ok) throw new Error("http " + r.status);
@@ -636,7 +644,7 @@
           return r.text().then(function (h) { return { html: h, url: r.url }; });
         })
         .then(function (res) {
-          if (res && !swap(res.html, res.url)) window.location = res.url;
+          if (res && !swap(res.html, res.url, hash)) window.location = res.url;
         })
         .catch(function () { window.location = url; });   // Fallback: normal laden
     }

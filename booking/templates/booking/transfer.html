@@ -44,18 +44,104 @@
 {% else %}
 <div class="card">
   <h2>Tage abgeben</h2>
-  <form method="post">{% csrf_token %}
-    {% for f in form %}
-      <div class="field">{{ f.label_tag }} {{ f }}
-        {% if f.errors %}<div class="msg error">{{ f.errors|striptags }}</div>{% endif %}
-      </div>
-    {% endfor %}
+  <form method="post" id="xfer-form">{% csrf_token %}
+    <div class="field">
+      <label for="xfer-q">An Mitglied</label>
+      <input type="search" id="xfer-q" autocomplete="off" spellcheck="false"
+             placeholder="Name, Benutzername oder E-Mail tippen … (ab 3 Zeichen)"
+             aria-describedby="xfer-hint">
+      <div id="xfer-hint" class="muted" style="font-size:.85rem">Suche nach
+        Anzeigename, Benutzername, E-Mail, Vor- oder Nachname.</div>
+      {# Versteckt: die eigentliche Mitglieds-ID (vom Typeahead gesetzt). #}
+      {{ form.to_member }}
+      <ul id="xfer-results" class="xfer-results" hidden></ul>
+      <div id="xfer-chosen" class="xfer-chosen" hidden></div>
+      {% if form.to_member.errors %}<div class="msg error">{{ form.to_member.errors|striptags }}</div>{% endif %}
+    </div>
+    <div class="field">{{ form.nights.label_tag }} {{ form.nights }}
+      {% if form.nights.errors %}<div class="msg error">{{ form.nights.errors|striptags }}</div>{% endif %}
+    </div>
+    <div class="field">{{ form.note.label_tag }} {{ form.note }}
+      {% if form.note.errors %}<div class="msg error">{{ form.note.errors|striptags }}</div>{% endif %}
+    </div>
     <p class="muted" style="font-size:.88rem">Vor dem Übertrag fragen wir noch
       einmal nach und zeigen, an wen die Tage gehen. Die Basis des Übertrags
       (Schenkung/Bezahlung/Tausch) regelt ihr privat untereinander.</p>
     <button class="btn" type="submit">Weiter zur Bestätigung →</button>
   </form>
 </div>
+
+<script>
+(function () {
+  var q = document.getElementById("xfer-q");
+  var hidden = document.getElementById("id_to_member");
+  var results = document.getElementById("xfer-results");
+  var chosen = document.getElementById("xfer-chosen");
+  if (!q || !hidden) return;
+  var url = "{% url 'member_search' %}";
+  var timer = null, lastTerm = "";
+
+  function clearChoice() {
+    hidden.value = "";
+    chosen.hidden = true; chosen.textContent = "";
+  }
+  function choose(item) {
+    hidden.value = item.id;
+    results.hidden = true; results.innerHTML = "";
+    var bits = [item.name];
+    if (item.username && item.username !== item.name) bits.push("Benutzername: " + item.username);
+    if (item.full_name && item.full_name !== item.name) bits.push(item.full_name);
+    chosen.textContent = "Ausgewählt: " + bits.join(" · ");
+    chosen.hidden = false;
+    q.value = item.name;
+  }
+  function render(items) {
+    results.innerHTML = "";
+    if (!items.length) {
+      var li = document.createElement("li");
+      li.className = "xfer-empty"; li.textContent = "Keine Treffer.";
+      results.appendChild(li); results.hidden = false; return;
+    }
+    items.forEach(function (it) {
+      var li = document.createElement("li");
+      li.tabIndex = 0; li.setAttribute("role", "option");
+      var sub = [];
+      if (it.username) sub.push(it.username);
+      if (it.full_name && it.full_name !== it.name) sub.push(it.full_name);
+      li.innerHTML = '<span class="xn"></span>' +
+        (sub.length ? ' <span class="xs"></span>' : '');
+      li.querySelector(".xn").textContent = it.name;
+      if (sub.length) li.querySelector(".xs").textContent = sub.join(" · ");
+      function pick() { choose(it); }
+      li.addEventListener("click", pick);
+      li.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+      });
+      results.appendChild(li);
+    });
+    results.hidden = false;
+  }
+  function search(term) {
+    fetch(url + "?q=" + encodeURIComponent(term), {
+      headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { render(d.results || []); })
+      .catch(function () { results.hidden = true; });
+  }
+  q.addEventListener("input", function () {
+    clearChoice();
+    var term = q.value.trim();
+    if (term === lastTerm) return;
+    lastTerm = term;
+    if (timer) clearTimeout(timer);
+    if (term.length < 3) { results.hidden = true; results.innerHTML = ""; return; }
+    timer = setTimeout(function () { search(term); }, 180);
+  });
+  document.addEventListener("click", function (e) {
+    if (e.target !== q && !results.contains(e.target)) results.hidden = true;
+  });
+})();
+</script>
 {% endif %}
 
 <h2>Übertragungen {{ year }}</h2>
@@ -88,5 +174,18 @@
 <style>
   .recipient { border:1px solid var(--line); border-radius:10px; padding:.7rem .9rem; }
   .recipient > div { line-height:1.5; }
+  .xfer-results { list-style:none; margin:.35rem 0 0; padding:.25rem;
+    border:1px solid var(--line); border-radius:10px; max-height:16rem;
+    overflow-y:auto; background:var(--card, #fff); }
+  .xfer-results li { padding:.5rem .65rem; border-radius:8px; cursor:pointer;
+    line-height:1.35; }
+  .xfer-results li:hover, .xfer-results li:focus { background:var(--accent-soft, #f0efe9);
+    outline:none; }
+  .xfer-results .xn { font-weight:600; }
+  .xfer-results .xs { color:var(--muted, #777); font-size:.88rem; }
+  .xfer-results .xfer-empty { color:var(--muted, #777); cursor:default; }
+  .xfer-results .xfer-empty:hover { background:none; }
+  .xfer-chosen { margin-top:.4rem; padding:.45rem .65rem; border-radius:8px;
+    background:var(--accent-soft, #f0efe9); font-size:.9rem; }
 </style>
 {% endblock %}

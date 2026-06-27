@@ -156,8 +156,12 @@ class WishForm(forms.ModelForm):
 
 class TransferForm(forms.Form):
     """Tage an ein anderes Mitglied übertragen."""
+    # Per Typeahead (Suche nach Name/Benutzername/E-Mail) im Template ausgewählt;
+    # das Formular hält nur die ID im versteckten Feld (Server prüft sie weiter).
     to_member = forms.ModelChoiceField(
         queryset=Member.objects.none(), label="An Mitglied",
+        widget=forms.HiddenInput,
+        error_messages={"required": "Bitte ein Mitglied auswählen."},
     )
     nights = forms.IntegerField(min_value=1, label="Anzahl Tage")
     note = forms.CharField(required=False, max_length=200, label="Notiz")

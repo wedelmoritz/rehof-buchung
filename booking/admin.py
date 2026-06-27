@@ -142,6 +142,16 @@ class UserAdmin(DjangoUserAdmin):
     „Mitglieds-Anteil“ zugeordnet."""
     inlines = [MemberProfileInline]
     actions = ["anonymize_selected"]
+    # E-Mail in der Liste zeigen, beim Anlegen abfragen und im Formular pflegbar
+    # halten (die Adresse ist zugleich der Login – siehe EmailOrUsernameBackend).
+    list_display = ("username", "email", "first_name", "last_name", "is_staff")
+    search_fields = ("username", "email", "first_name", "last_name")
+    add_fieldsets = (
+        (None, {
+            "classes": ("wide",),
+            "fields": ("username", "email", "password1", "password2"),
+        }),
+    )
 
     @admin.action(description="Mitglied anonymisieren (Recht auf Löschung, DSGVO)")
     def anonymize_selected(self, request, queryset):

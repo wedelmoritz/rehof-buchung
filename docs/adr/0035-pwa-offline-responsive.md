@@ -54,8 +54,13 @@ ohne native App.
   werden **GET-Navigationen im Kalender** (Tag wählen Anreise→Abreise, Monat blättern,
   Auswahl zurücksetzen) ohne Neuladen ausgeführt: `window.__nav(url)` holt die Seite
   per `fetch`, tauscht `<main>` und **hält die Scrollposition** – kein Sprung nach
-  oben mehr beim Datums-Klick. Opt-in über `data-ajax` an Links/GET-Formularen
-  (`book`/`wishlist`/`external_home`-Kalender + gemeinsame Monats-Navigation
+  oben mehr beim Datums-Klick. **Anker-Sonderfall:** trägt die Ziel-URL einen
+  `#…`-Anker (z.B. das Tag-Detail der Übersicht, `#tag`), scrollt `__nav`/`swap`
+  nach dem Tausch **sanft** zum Zielelement statt die Position zu halten – so wurde
+  auch der **Tag-Klick in der Übersicht** (Kalenderzelle UND Belegungs-Zeitstrahl)
+  ohne Reload umgesetzt (vgl. zurückgenommene Alternative unten). Opt-in über
+  `data-ajax` an Links/GET-Formularen (`overview` Tag-Detail/Belegungs-Balken,
+  `book`/`wishlist`/`external_home`-Kalender + gemeinsame Monats-Navigation
   `_calnav.html`, Monat/Jahr-Selects über `__nav`). Reine Progressive Enhancement –
   ohne JS, bei Fehlern oder Modifier-Klick (neuer Tab) greift das normale Laden;
   ausgenommen sind `multipart`-Uploads und die Auth-Formulare (`data-no-ajax`).
@@ -83,9 +88,12 @@ ohne native App.
   und die Benachrichtigungs-Karte („Aktuelle Nachrichten“) sollen sichtbar **stehen
   bleiben**; nur das aktive Aktions-Feedback (`messages`) blitzt als Toast. Daher die
   `data-toast`-Markierung statt „alles, was `.msg` ist“.
-- **Auch Tagesdetail/Ansicht-Umschalter der Übersicht per AJAX:** vorerst nicht –
-  deren `#tag`-Anker leben vom Sprung zum Detail; die scrollerhaltende AJAX-Naht
-  passt dort nicht ohne Zusatzlogik. Bewusst auf die Kalender-Auswahl beschränkt.
+- **Tagesdetail der Übersicht per AJAX – zunächst zurückgestellt, dann umgesetzt:**
+  ursprünglich ausgeklammert, weil der `#tag`-Anker vom Sprung zum Detail lebt und die
+  rein scrollerhaltende Naht dort nicht passte. Mit der kleinen **Anker-Erkennung**
+  in `__nav`/`swap` (URL-Hash → `scrollIntoView({behavior:"smooth"})` nach dem Tausch)
+  ist genau diese Zusatzlogik nun da – der Tag-Klick läuft ohne Reload und scrollt
+  sanft zur Detailkarte. Damit ist die frühere Einschränkung aufgehoben.
 - **Warenkorb-Knopf direkt zur Kasse:** verworfen zugunsten „springt zum Korb“,
   damit Mengen vor dem Checkout noch prüf-/änderbar bleiben.
 
