@@ -267,6 +267,14 @@
        Der Ampel-Kalender (table.cal, width:100%) passt ohnehin. */
     .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+    /* Fußzeile mit Pflicht-Rechtstexten (Impressum etc.) – auf jeder Seite. */
+    .site-footer { max-width: 1120px; margin: .5rem auto 1.4rem; padding: 1rem 1.25rem;
+      border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem;
+      display: flex; gap: .25rem .7rem; flex-wrap: wrap; align-items: center; }
+    .site-footer a { color: var(--muted); text-decoration: none; }
+    .site-footer a:hover { color: var(--accent-deep); text-decoration: underline; }
+    .site-footer .sep { opacity: .5; }
+
     /* iOS-Standalone: Inhalt nicht unter Notch/Home-Indikator schieben. */
     header { padding-top: calc(.7rem + env(safe-area-inset-top));
              padding-left: calc(1.4rem + env(safe-area-inset-left));
@@ -293,6 +301,10 @@
                padding-left: calc(.8rem + env(safe-area-inset-left));
                padding-right: calc(.8rem + env(safe-area-inset-right)); }
       .shell > main { min-width: 0; max-width: 100%; }
+      /* Fußzeile am Handy über der festen Tab-Leiste freihalten. */
+      .site-footer { margin-bottom: calc(70px + env(safe-area-inset-bottom));
+                     padding-left: calc(.8rem + env(safe-area-inset-left));
+                     padding-right: calc(.8rem + env(safe-area-inset-right)); }
       /* Statt seitlicher Leiste: feste Tab-Leiste unten (daumenfreundlich) +
          „Mehr“-Sheet. Die Desktop-Sidebar wird ausgeblendet. */
       .sidenav { display: none; }
@@ -415,6 +427,13 @@
   {% endwith %}
   {% endif %}
 </div>
+
+<footer class="site-footer">
+  <a href="{% url 'imprint' %}">Impressum</a>
+  {% if footer.has_privacy %}<span class="sep">·</span><a href="{% url 'privacy' %}">Datenschutz</a>{% endif %}
+  {% if footer.has_terms %}<span class="sep">·</span><a href="{% url 'terms' %}">AGB</a>{% endif %}
+  {% if footer.contact_email %}<span class="sep">·</span><a href="mailto:{{ footer.contact_email }}">Kontakt</a>{% endif %}
+</footer>
 
 <script>
   // Navigation ein-/ausklappen (Desktop). Standard: angezeigt; Zustand gemerkt.

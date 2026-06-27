@@ -6,3 +6,19 @@ from .permissions import is_admin, is_verwaltung
 def roles(request):
     user = getattr(request, "user", None)
     return {"is_admin": is_admin(user), "is_verwaltung": is_verwaltung(user)}
+
+
+def legal(request):
+    """Fußzeilen-Daten (Impressum/Datenschutz/AGB/Kontakt) für alle Seiten. Das
+    Impressum ist Pflicht und immer verlinkt; Datenschutz/AGB nur, wenn gepflegt."""
+    try:
+        from shop.models import ShopConfig
+        cfg = ShopConfig.get_solo()
+        return {"footer": {
+            "coop_name": cfg.coop_name,
+            "contact_email": cfg.contact_email,
+            "has_privacy": bool((cfg.privacy_policy or "").strip()),
+            "has_terms": bool((cfg.terms_agb or "").strip()),
+        }}
+    except Exception:  # noqa: BLE001 – Fußzeile darf das Rendern nie kippen
+        return {"footer": {}}

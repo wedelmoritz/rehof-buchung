@@ -60,12 +60,12 @@
 
   <table class="items">
     <thead>
-      <tr><th>Bezeichnung</th><th class="r">Menge</th><th class="r">Einzel</th><th class="r">MwSt</th><th class="r">Betrag</th></tr>
+      <tr><th>Bezeichnung</th><th class="r">Menge</th><th class="r">Einzel</th>{% if not invoice.small_business %}<th class="r">MwSt</th>{% endif %}<th class="r">Betrag</th></tr>
     </thead>
     <tbody>
       {% for g in purchase_groups %}
       <tr class="group">
-        <td colspan="4">Einkauf vom {% if g.purchase %}{{ g.purchase.confirmed_at|date:"d.m.Y" }}{% else %}{{ invoice.created_at|date:"d.m.Y" }}{% endif %}</td>
+        <td colspan="{% if invoice.small_business %}3{% else %}4{% endif %}">Einkauf vom {% if g.purchase %}{{ g.purchase.confirmed_at|date:"d.m.Y" }}{% else %}{{ invoice.created_at|date:"d.m.Y" }}{% endif %}</td>
         <td class="r">{{ g.gross }} €</td>
       </tr>
       {% for it in g.items %}
@@ -73,7 +73,7 @@
         <td>{{ it.name }}{% if it.service_date %} <span class="muted">({{ it.service_date|date:"d.m.Y" }})</span>{% endif %}</td>
         <td class="r">{{ it.quantity|floatformat:"-3" }} {{ it.get_unit_display|default:it.unit }}</td>
         <td class="r">{{ it.unit_price }} €</td>
-        <td class="r">{{ it.vat_rate }} %</td>
+        {% if not invoice.small_business %}<td class="r">{{ it.vat_rate }} %</td>{% endif %}
         <td class="r">{{ it.gross }} €</td>
       </tr>
       {% endfor %}
@@ -83,11 +83,16 @@
 
   <div class="sums">
     <table>
+      {% if invoice.small_business %}
+      <tr class="grand"><td>Gesamtbetrag</td><td>{{ invoice.total_gross }} €</td></tr>
+      <tr><td colspan="2" class="muted">{{ invoice.tax_note }}</td></tr>
+      {% else %}
       {% for b in breakdown %}
       <tr><td>Netto {{ b.rate }} %</td><td>{{ b.net }} €</td></tr>
       <tr><td>zzgl. MwSt {{ b.rate }} %</td><td>{{ b.vat }} €</td></tr>
       {% endfor %}
       <tr class="grand"><td>Gesamtbetrag (brutto)</td><td>{{ invoice.total_gross }} €</td></tr>
+      {% endif %}
     </table>
   </div>
 
@@ -100,7 +105,8 @@
 
   <div class="foot">
     {{ invoice.coop_name }}{% if invoice.tax_number %} · Steuernr./USt-IdNr.: {{ invoice.tax_number }}{% endif %}.
-    Rechnung gemäß §14 UStG. Erstellt über die Re:Hof-Quartierverwaltung.
+    {% if invoice.small_business %}{{ invoice.tax_note }}{% else %}Rechnung gemäß §14 UStG.{% endif %}
+    Erstellt über die Re:Hof-Quartierverwaltung.
   </div>
 </body>
 </html>
