@@ -8,7 +8,7 @@
 
   <!-- PWA: installierbar (iOS „Zum Home-Bildschirm“) + Offline -->
   <link rel="manifest" href="{% static 'booking/manifest.webmanifest' %}">
-  <meta name="theme-color" content="#efe2d2">
+  <meta name="theme-color" content="#efebe5">
   <link rel="icon" type="image/svg+xml" href="{% static 'booking/icons/logo.svg' %}">
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'booking/icons/favicon-32.png' %}">
   <link rel="apple-touch-icon" href="{% static 'booking/icons/apple-touch-icon.png' %}">
@@ -18,17 +18,21 @@
   <meta name="apple-mobile-web-app-title" content="Re:Hof">
   <style>
     :root {
-      /* Warme Pastell-Palette */
-      --bg: #faf5ee; --bg-2: #f3e9dc;
-      --card: #fffdfa; --ink: #3c352f; --muted: #6f655a;
-      --line: #ece0d0;
+      /* Re:hof-Farbsystem — EIN System, App + Backend gleich.
+         Grundlage: warmes Papier-Neutral, near-black Text (alles AA-lesbar).
+         Akzent Terrakotta #BE3E23 ist BEWUSST sparsam (Aktionen/aktiv/Fokus);
+         Salbei #7F8F8C ist die ruhige Sekundärfarbe (Flächen/Chips, weiße Schrift
+         darauf). Salbei NIE als Text auf Hell — dafür --sage-deep oder --muted. */
+      --bg: #f6f4f1; --bg-2: #efebe5;
+      --card: #ffffff; --ink: #23201d; --muted: #6b6259;
+      --line: #e4dfd8;
       --accent: #be3e23; --accent-ink: #fff; --accent-deep: #9e3119;
-      --accent-soft: #f6e3de;
-      --sage: #7f8f8c; --sage-soft: #e5eae9;
-      --warn: #b3823c; --warn-soft: #f8edd6;
-      --bad: #b6584f; --bad-soft: #f7e1de;
-      --good: #cfe6c7; --good-deep: #6fa45f;
-      --shadow: 0 1px 2px rgba(60,53,47,.035), 0 10px 28px rgba(60,53,47,.04);
+      --accent-soft: #fbe9e4;
+      --sage: #7f8f8c; --sage-deep: #566c68; --sage-soft: #e8eceb;
+      --warn: #b07314; --warn-soft: #f7ecd6;
+      --bad: #b23a2a; --bad-soft: #f8e4e0;
+      --good: #2e7d55; --good-soft: #e4efe8; --good-deep: #2e7d55;
+      --shadow: 0 1px 2px rgba(35,32,29,.04), 0 10px 28px rgba(35,32,29,.05);
       --radius: 16px;
     }
     * { box-sizing: border-box; }
@@ -50,7 +54,7 @@
 
     /* Kopf / Navigation */
     header {
-      background: linear-gradient(180deg, var(--bg-2), #efe2d2);
+      background: linear-gradient(180deg, var(--bg-2), #e9e4dd);
       border-bottom: 1px solid var(--line);
       padding: .7rem 1.4rem; display: flex; align-items: center; gap: 1.4rem;
       flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
@@ -101,7 +105,7 @@
       text-decoration: none; font-weight: 600; font-size: .92rem;
       padding: .52rem .6rem; border-radius: 9px; line-height: 1.15; white-space: nowrap;
     }
-    .sidenav a:hover { color: var(--ink); background: rgba(255,255,255,.75); }
+    .sidenav a:hover { color: var(--ink); background: var(--bg); }
     .sidenav a.active { color: var(--accent-deep); background: var(--accent-soft);
       box-shadow: inset 2px 0 0 var(--accent); }
     .nav-ic, .tab-ic { fill: none; stroke: currentColor; stroke-width: 1.8;
@@ -190,7 +194,7 @@
     }
     .tag.sub { background: var(--warn-soft); color: var(--warn); }
     .tag.con { background: #ece4f3; color: #6b5a96; }
-    .tag.mine { background: var(--sage-soft); color: #4f7344; }
+    .tag.mine { background: var(--sage-soft); color: var(--sage-deep); }
 
     form.inline { display: inline; }
     .field { margin-bottom: .7rem; }
@@ -213,10 +217,10 @@
     .btn.ghost:hover { background: var(--accent-soft); }
     .btn.ghost.danger, .btn.small.danger { color: var(--bad); }
     .btn.sage { background: var(--sage); }
-    .btn.sage:hover { background: #6f8e64; }
+    .btn.sage:hover { background: var(--sage-deep); }
 
     .msg { padding: .7rem 1rem; border-radius: 10px; margin-bottom: .7rem; font-size: .94rem; }
-    .msg.success { background: var(--sage-soft); color: #4f7344; }
+    .msg.success { background: var(--sage-soft); color: var(--sage-deep); }
     .msg.error { background: var(--bad-soft); color: var(--bad); }
     .msg.info, .msg.warning { background: var(--warn-soft); color: var(--warn); }
     .muted { color: var(--muted); }
@@ -240,8 +244,8 @@
       padding: 3px 4px; position: relative; border-radius: 12px; overflow: hidden;
       transition: box-shadow .12s ease, transform .12s ease;
     }
-    table.cal td.out { background: #f6f0e6; color: #c4bbab; }
-    table.cal td.weekend:not(.out) { background: #f7f1e7; }
+    table.cal td.out { background: #efece7; color: #b3aaa0; }
+    table.cal td.weekend:not(.out) { background: #f1ede7; }
     table.cal td.holiday { background: var(--warn-soft); }
     table.cal td.today { outline: 2px solid var(--accent); outline-offset: -2px; }
     /* Anklickbare Tage heben sich beim Überfahren leicht ab. */
@@ -292,7 +296,7 @@
       transition: opacity .2s ease, transform .2s ease; overflow-wrap: anywhere;
       white-space: pre-line; }
     .toast.show { opacity: 1; transform: translateY(0); }
-    .toast.success { border-left-color: var(--sage); background: var(--sage-soft); color: #4f7344; }
+    .toast.success { border-left-color: var(--sage); background: var(--sage-soft); color: var(--sage-deep); }
     .toast.error { border-left-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
     .toast.warning, .toast.info { border-left-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
     .toast-x { position: absolute; top: .25rem; right: .4rem; border: 0; background: none;

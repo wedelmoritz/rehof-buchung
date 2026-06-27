@@ -236,16 +236,30 @@ Speichern geht automatisch die „Passwort setzen“-Einladung raus (ADR 0052), 
 Admin-Aktion „Einladung erneut senden“. Tage-Anteile werden am `Membership` zugeordnet.
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
-**Marke/Logo/Farben:** Die **echten Marken-Farben der Re:hof-Website** sind global
-übernommen: **Primär `#BE3E23`** (Ziegelrot, `--accent`) und **Sekundär `#7F8F8C`**
-(Salbeigrau, `--sage`) – sowohl in der Web-App (`base.html :root`) als auch im
-Backend-Theme (`templates/admin/base_site.html`, inkl. lesbarer dunkler Fieldset-/
-Inline-Überschriften statt hellgrau). Zweifarbiger **Re:hof**-Schriftzug als SVG-
-Wordmark in der Kopfzeile (`booking/static/booking/brand/wordmark.svg`; volle Variante
-mit „Rutenberg“ auf der Anmeldeseite, `wordmark-full.svg`); App-Icon = ziegelrote
+**Marke/Logo/Farben (EIN Farbsystem, App + Backend gleich, ADR 0054):** Das
+gesamte Layout folgt **einem** durchgängigen Token-System mit klaren Rollen –
+**warmes Papier-Neutral als ruhige Grundfläche, near-black Text (alles WCAG-AA-
+lesbar), der Marken-Akzent BEWUSST sparsam.** Basis sind die zwei Re:hof-Marken-
+farben: **Akzent Terrakotta `#BE3E23`** – ausschließlich für **Aktionen/aktiven
+Zustand/Fokus** (Primär-Knöpfe, Links, aktive Nav, „Heute“), **nie** als große
+Fläche – und **Sekundär Salbei `#7F8F8C`** als ruhige Stütze (Flächen/Chips/
+Sekundär-Knopf, weiße Schrift darauf). **Salbei NIE als Text auf Hell** – dafür
+`--sage-deep #566C68` oder `--muted #6B6259`. Tokens (in `base.html :root`,
+gespiegelt im Backend-Theme `templates/admin/base_site.html`): `--bg #F6F4F1` ·
+`--card #FFF` · `--ink #23201D` · `--muted #6B6259` · `--line #E4DFD8` ·
+`--accent #BE3E23`/`--accent-deep #9E3119`/`--accent-soft #FBE9E4` ·
+`--sage`/`--sage-deep`/`--sage-soft` · Semantik `--good #2E7D55`/`--warn #B07314`/
+`--bad #B23A2A` (+ `*-soft`). Funktionale Daten-Farben bleiben bewusst eigen:
+der **Ampel-Kalender** (grün=frei … rot=belegt) und die **Mitglieder-Kategorie-
+farben** der Übersicht sind Daten-Visualisierung, kein Marken-Akzent. Auch
+Backend-Fieldset-/Inline-Überschriften sind dunkel auf neutralem Band (lesbar
+statt hellgrau). Zweifarbiger **Re:hof**-Schriftzug als SVG-Wordmark in der
+Kopfzeile (`booking/static/booking/brand/wordmark.svg`; volle Variante mit
+„Rutenberg“ auf der Anmeldeseite, `wordmark-full.svg`); App-Icon = ziegelrote
 Kachel mit cremefarbenem „Re:“ (`icons/logo.svg` + per Pillow erzeugte PNGs
-`icon-192/512/maskable/apple-touch/favicon-32`). Hintergründe bleiben warm-creme
-(`#faf5ee`) für die Lesbarkeit einer Datenanwendung.
+`icon-192/512/maskable/apple-touch/favicon-32`). Das System gilt **durchweg**:
+Web-App, Backend, Terminal-Kiosk, Offline-Seite, Externen-Widget, Manifest/
+`theme-color`.
 
 **PWA / Mobil:** Die Web-App ist installierbar (iOS „Zum Home-Bildschirm“,
 Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),
