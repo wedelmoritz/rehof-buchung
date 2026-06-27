@@ -1198,3 +1198,273 @@ class LosungDeckelReihenfolgeTests(UseCaseBase):
         self.assertNotIn(self.k2.id, quarters)
         self.alice.refresh_from_db()
         self.assertEqual(self.alice.factor, 1.0)   # kein Verlust -> kein Karma
+
+
+class DatenAufbewahrungTests(UseCaseBase):
+    """DSGVO: das Aufräum-Kommando löscht/pseudonymisiert abgelaufene Daten
+    anhand der RETENTION_*-Fristen; Rechnungsbezug bleibt unangetastet."""
+
+    def _backdate(self, qs, **fields):
+        # auto_now_add-Felder lassen sich nur per UPDATE in die Vergangenheit setzen.
+        qs.update(**fields)
+
+    def test_cleanup_loescht_abgelaufenes_und_behaelt_frisches(self):
+        from booking.models import OutboxEmail, Beds24Import
+        from shop.models import BankImport, BankTransaction
+        now = timezone.now()
+        old = now - timedelta(days=400)
+        recent = now - timedelta(days=5)
+
+        # OutboxEmail: alt+versendet -> weg, frisch -> bleibt, unversendet alt -> bleibt
+        e_old = OutboxEmail.objects.create(to_email="a@x.de", subject="s", body="b")
+        OutboxEmail.objects.filter(pk=e_old.pk).update(sent_at=old)
+        e_new = OutboxEmail.objects.create(to_email="b@x.de", subject="s", body="b")
+        OutboxEmail.objects.filter(pk=e_new.pk).update(sent_at=recent)
+        e_unsent = OutboxEmail.objects.create(to_email="c@x.de", subject="s", body="b")
+        OutboxEmail.objects.filter(pk=e_unsent.pk).update(created_at=old)
+
+        # Notification: alt -> weg, frisch -> bleibt
+        n_old = Notification.objects.create(member=self.alice, message="alt")
+        Notification.objects.filter(pk=n_old.pk).update(created_at=old)
+        n_new = Notification.objects.create(member=self.bob, message="neu")
+
+        # BankTransaction.raw: alt -> Rohzeile geleert, strukturierte Felder bleiben
+        bt = BankTransaction.objects.create(
+            amount=10, purpose="HL-2020-01-001", fingerprint="fp1", raw="ROH;ZEILE")
+        BankTransaction.objects.filter(pk=bt.pk).update(imported_at=old)
+
+        # Beds24Import: alt -> weg
+        b = Beds24Import.objects.create(filename="b.csv")
+        Beds24Import.objects.filter(pk=b.pk).update(created_at=old)
+
+        # BankImport: alt -> weg
+        bi = BankImport.objects.create(filename="k.csv")
+        BankImport.objects.filter(pk=bi.pk).update(created_at=old)
+
+        # WaitlistEntry: erfüllt+alt -> weg, offen+alt -> bleibt
+        w_done = WaitlistEntry.objects.create(
+            member=self.alice, quarter=self.k1, start=date(2020, 1, 1),
+            end=date(2020, 1, 5), fulfilled=True)
+        WaitlistEntry.objects.filter(pk=w_done.pk).update(created_at=old)
+        w_open = WaitlistEntry.objects.create(
+            member=self.bob, quarter=self.k1, start=date(2020, 1, 1),
+            end=date(2020, 1, 5), fulfilled=False)
+        WaitlistEntry.objects.filter(pk=w_open.pk).update(created_at=old)
+
+        # Wish einer längst beendeten Periode -> weg
+        old_period = BookingPeriod.objects.create(
+            name="alt", target_year=now.year - 3,
+            start=date(now.year - 3, 1, 1), end=date(now.year - 2, 1, 1),
+            status=BookingPeriod.ENDED)
+        Wish.objects.create(member=self.alice, period=old_period, quarter=self.k1,
+                            start=date(now.year - 3, 6, 1), end=date(now.year - 3, 6, 5))
+
+        counts = svc.run_data_retention(now=now)
+
+        self.assertFalse(OutboxEmail.objects.filter(pk=e_old.pk).exists())
+        self.assertTrue(OutboxEmail.objects.filter(pk=e_new.pk).exists())
+        self.assertTrue(OutboxEmail.objects.filter(pk=e_unsent.pk).exists())
+        self.assertFalse(Notification.objects.filter(pk=n_old.pk).exists())
+        self.assertTrue(Notification.objects.filter(pk=n_new.pk).exists())
+        bt.refresh_from_db()
+        self.assertEqual(bt.raw, "")            # Rohzeile geleert
+        self.assertEqual(bt.purpose, "HL-2020-01-001")  # struktur bleibt
+        self.assertFalse(Beds24Import.objects.filter(pk=b.pk).exists())
+        self.assertFalse(BankImport.objects.filter(pk=bi.pk).exists())
+        self.assertFalse(WaitlistEntry.objects.filter(pk=w_done.pk).exists())
+        self.assertTrue(WaitlistEntry.objects.filter(pk=w_open.pk).exists())
+        self.assertEqual(Wish.objects.filter(period=old_period).count(), 0)
+        self.assertGreaterEqual(counts["outbox_emails"], 1)
+
+    def test_cleanup_ist_idempotent(self):
+        # Zweiter Lauf ohne abgelaufene Daten ändert nichts und wirft nicht.
+        first = svc.run_data_retention()
+        second = svc.run_data_retention()
+        self.assertIsInstance(first, dict)
+        self.assertIsInstance(second, dict)
+
+
+class MitgliedAnonymisierenTests(UseCaseBase):
+    """Recht auf Löschung (Art. 17): PII entfernen, Rechnungen erhalten."""
+
+    def test_anonymisieren_entfernt_pii_und_behaelt_rechnung(self):
+        from shop.models import Invoice
+        m = make_member("dora")
+        m.legal_name = "Dora Vollname"
+        m.street = "Hofweg 1"; m.zip_code = "12345"; m.city = "Dorf"
+        m.iban = "DE02120300000000202051"
+        m.save()
+        self.open_full_year_window(date.today().year)
+        alloc = Allocation.objects.create(
+            member=m, quarter=self.k1, start=date.today(),
+            end=date.today() + timedelta(days=3), source="spontaneous",
+            companions="Oma und Opa")
+        Notification.objects.create(member=m, message="hallo")
+        # Eine Rechnung (Snapshot) muss erhalten bleiben.
+        inv = Invoice.objects.create(
+            member=m, number="HL-2024-01-001", year=2024, month=1,
+            recipient_name="Dora Vollname", recipient_address="Hofweg 1\n12345 Dorf")
+
+        svc.anonymize_member(m)
+
+        m.refresh_from_db()
+        self.assertEqual(m.legal_name, "")
+        self.assertEqual(m.iban, "")
+        self.assertEqual(m.street, "")
+        self.assertTrue(m.display_name.startswith("Anonymisiert"))
+        alloc.refresh_from_db()
+        self.assertEqual(alloc.companions, "")          # Freitext-PII geleert
+        self.assertEqual(Notification.objects.filter(member=m).count(), 0)
+        # Login deaktiviert + de-personalisiert
+        m.user.refresh_from_db()
+        self.assertFalse(m.user.is_active)
+        self.assertEqual(m.user.email, "")
+        self.assertTrue(m.user.username.startswith("geloescht_"))
+        self.assertFalse(m.user.has_usable_password())
+        # Rechnung + Snapshot bleiben (10-Jahres-Pflicht)
+        inv.refresh_from_db()
+        self.assertEqual(inv.recipient_name, "Dora Vollname")
+        self.assertEqual(inv.recipient_address, "Hofweg 1\n12345 Dorf")
+
+    def test_admin_aktion_mit_rueckfrage_anonymisiert(self):
+        """Die Admin-Aktion zeigt erst eine Rückfrage und anonymisiert nach
+        Bestätigung (confirm)."""
+        from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+        admin = User.objects.create_superuser("root", "root@example.org", "x" * 12)
+        self.client.force_login(admin)
+        m = make_member("ed")
+        m.legal_name = "Ed Voll"; m.iban = "DE02120300000000202051"; m.save()
+        url = reverse("admin:auth_user_changelist")
+        # 1) Ohne confirm -> Zwischenseite (Rückfrage), noch nichts geändert
+        resp = self.client.post(url, {
+            "action": "anonymize_selected",
+            ACTION_CHECKBOX_NAME: [str(m.user_id)]})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "wirklich anonymisieren")
+        m.refresh_from_db()
+        self.assertEqual(m.legal_name, "Ed Voll")     # unverändert
+        # 2) Mit confirm -> anonymisiert
+        resp = self.client.post(url, {
+            "action": "anonymize_selected", "confirm": "1",
+            ACTION_CHECKBOX_NAME: [str(m.user_id)]}, follow=True)
+        m.refresh_from_db()
+        self.assertEqual(m.legal_name, "")
+        self.assertEqual(m.iban, "")
+
+
+class WebPushTests(UseCaseBase):
+    """Web-Push-Abo speichern/entfernen und sicheres Verhalten ohne VAPID-Keys."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.alice.user)
+
+    def _sub(self, endpoint="https://push.example/abc"):
+        import json
+        return self.client.post(
+            reverse("push_subscribe"),
+            data=json.dumps({"endpoint": endpoint,
+                             "keys": {"p256dh": "KEYDATA", "auth": "AUTHSECRET"}}),
+            content_type="application/json")
+
+    def test_abo_anlegen_und_aktualisieren(self):
+        from booking.models import PushSubscription
+        r = self._sub()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(PushSubscription.objects.filter(member=self.alice).count(), 1)
+        # gleicher Endpoint -> Update statt Duplikat
+        r2 = self._sub()
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(PushSubscription.objects.filter(member=self.alice).count(), 1)
+
+    def test_abmelden_entfernt_abo(self):
+        import json
+        from booking.models import PushSubscription
+        self._sub("https://push.example/xyz")
+        r = self.client.post(
+            reverse("push_unsubscribe"),
+            data=json.dumps({"endpoint": "https://push.example/xyz"}),
+            content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(PushSubscription.objects.count(), 0)
+
+    def test_ungueltige_daten_abgelehnt(self):
+        import json
+        r = self.client.post(reverse("push_subscribe"),
+                             data=json.dumps({"foo": "bar"}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_send_web_push_ohne_keys_ist_geraeuschlos(self):
+        # Ohne VAPID-Keys (Default in Tests) tut der Versand nichts und wirft nicht.
+        from booking.models import PushSubscription, Notification
+        PushSubscription.objects.create(
+            member=self.alice, endpoint="https://push.example/1",
+            p256dh="k", auth="a")
+        self.assertEqual(svc.send_web_push(self.alice, "T", "B", "/"), 0)
+        # Auch das Anlegen einer Benachrichtigung (Signal) bleibt fehlerfrei.
+        Notification.objects.create(member=self.alice, message="hallo")
+
+
+class AdminBuchungsregelnTests(UseCaseBase):
+    """Domänenregeln greifen auch bei manueller Pflege (Allocation.clean):
+    keine Doppelbuchung – weder per full_clean noch über den Django-Admin."""
+
+    def test_ueberlappende_zuteilung_wird_abgelehnt(self):
+        from django.core.exceptions import ValidationError
+        Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        clash = Allocation(
+            member=self.bob, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 5), end=date(2026, 7, 10))
+        with self.assertRaises(ValidationError):
+            clash.full_clean()
+
+    def test_nicht_ueberlappende_zuteilung_ist_ok(self):
+        Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        ok = Allocation(
+            member=self.bob, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 8), end=date(2026, 7, 12))   # Anschluss, kein Overlap
+        ok.full_clean()   # darf NICHT werfen
+
+    def test_bestehende_zuteilung_bearbeiten_kein_selbstkonflikt(self):
+        a = Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        a.persons = 3
+        a.full_clean()   # sich selbst nicht als Konflikt werten
+
+    def test_ungueltiger_zeitraum_wird_abgelehnt(self):
+        from django.core.exceptions import ValidationError
+        a = Allocation(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 8), end=date(2026, 7, 1))
+        with self.assertRaises(ValidationError):
+            a.full_clean()
+
+    def test_personenzahl_ausserhalb_quartiersrahmen_abgelehnt(self):
+        from django.core.exceptions import ValidationError
+        a = Allocation(
+            member=self.alice, quarter=self.k1, persons=99, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        with self.assertRaises(ValidationError):
+            a.full_clean()
+
+    def test_admin_lehnt_doppelbuchung_ab(self):
+        admin = User.objects.create_superuser("root2", "root2@example.org", "x" * 12)
+        self.client.force_login(admin)
+        Allocation.objects.create(
+            member=self.alice, quarter=self.k1, persons=2, source="spontaneous",
+            start=date(2026, 7, 1), end=date(2026, 7, 8))
+        resp = self.client.post("/admin/booking/allocation/add/", {
+            "member": self.bob.user.member.id, "quarter": self.k1.id,
+            "start": "2026-07-05", "end": "2026-07-10",
+            "persons": "2", "source": "spontaneous", "companions": "",
+            "_save": "Sichern",
+        })
+        self.assertEqual(resp.status_code, 200)   # Formular mit Fehler, kein Redirect
+        self.assertEqual(
+            Allocation.objects.filter(member=self.bob, quarter=self.k1).count(), 0)

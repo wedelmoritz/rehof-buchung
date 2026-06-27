@@ -79,6 +79,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "booking.context_processors.roles",
                 "booking.context_processors.legal",
+                "booking.context_processors.push",
             ],
         },
     },
@@ -158,6 +159,17 @@ if EMAIL_HOST:
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
+# --- Web-Push (mobil, PWA) -------------------------------------------------
+# VAPID-Schlüsselpaar für Web-Push. Ohne beide Schlüssel ist Push einfach AUS
+# (kein Zwang – wie der Mollie-Sandbox-Default). Erzeugen z.B. mit
+# `python manage.py vapid_keys`. Der öffentliche Schlüssel geht an den Browser,
+# der private bleibt geheim (.env). `VAPID_ADMIN_EMAIL` ist der Kontakt im
+# VAPID-Claim (mailto:) gegenüber dem Push-Dienst.
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_ADMIN_EMAIL = os.environ.get("VAPID_ADMIN_EMAIL", "")
+PUSH_ENABLED = bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
+
 # --- Optionales Redis (Cache + Sessions + Axes-Lockout) --------------------
 # Standardmäßig AUS (DB-Sessions, lokaler Cache). Wird REDIS_URL gesetzt UND der
 # redis-Dienst gestartet (docker compose --profile cache), entlastet das die DB
@@ -221,3 +233,24 @@ if not DEBUG:
     # Hinter genau einem Proxy (Caddy): echte Client-IP aus X-Forwarded-For, damit
     # django-axes nicht alle Anfragen unter der Proxy-IP zusammenfasst.
     AXES_IPWARE_PROXY_COUNT = 1
+
+
+# --- DSGVO: Aufbewahrungs-/Löschfristen (Tage), per Env überschreibbar -------
+# Das Kommando `cleanup_data` (vom Scheduler täglich aufgerufen) löscht bzw.
+# pseudonymisiert anhand dieser Fristen. Rechnungs-/Zahlungsdaten (10 Jahre,
+# §147 AO / §14b UStG) bleiben bewusst unangetastet (siehe ADR 0043).
+def env_int(key: str, default: int) -> int:
+    try:
+        return int(os.environ.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+RETENTION_OUTBOX_DAYS = env_int("RETENTION_OUTBOX_DAYS", 90)       # versendete Mails (inkl. Anhang)
+RETENTION_NOTIFICATION_DAYS = env_int("RETENTION_NOTIFICATION_DAYS", 180)  # In-App-Benachrichtigungen
+RETENTION_BANK_RAW_DAYS = env_int("RETENTION_BANK_RAW_DAYS", 90)   # Kontoauszug-Rohzeile leeren
+RETENTION_BEDS24_DAYS = env_int("RETENTION_BEDS24_DAYS", 180)      # Beds24-Migrations-Importe
+RETENTION_BANKIMPORT_DAYS = env_int("RETENTION_BANKIMPORT_DAYS", 365)  # Import-Lauf-Metadaten
+RETENTION_SWAP_WAITLIST_DAYS = env_int("RETENTION_SWAP_WAITLIST_DAYS", 180)  # erledigte Wechsel/Warteliste
+RETENTION_WISH_YEARS = env_int("RETENTION_WISH_YEARS", 2)          # Wünsche beendeter Perioden
+RETENTION_AXES_DAYS = env_int("RETENTION_AXES_DAYS", 30)           # Brute-Force-Fehlversuche

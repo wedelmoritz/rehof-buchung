@@ -10,6 +10,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from django.db import transaction
+from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -2070,3 +2071,182 @@ def beds24_apply(batch, decisions: dict) -> dict:
     batch.n_imported = batch.rows.filter(status=Beds24ImportRow.IMPORTED).count()
     batch.save(update_fields=["n_imported"])
     return summary
+
+
+# ---------------------------------------------------------------------------
+# DSGVO: Aufbewahrung/Löschung (Datensparsamkeit) und Anonymisierung
+# ---------------------------------------------------------------------------
+# Fristen kommen aus settings (RETENTION_*), per Env überschreibbar (ADR 0043).
+# Rechnungs-/Zahlungsdaten (10 Jahre, §147 AO / §14b UStG) bleiben unangetastet:
+# Invoice/LineItem/Payment/Allocation und die zugehörigen Snapshots auf der
+# Rechnung. Dieses Kommando räumt nur betrieblich kurzlebige bzw. technische
+# Daten auf und leert redundante Rohzeilen.
+
+def run_data_retention(now=None) -> dict:
+    """Löscht/pseudonymisiert abgelaufene Daten anhand der RETENTION_*-Fristen.
+    Idempotent (mehrfach aufrufbar). Gibt je Kategorie die Anzahl der
+    betroffenen Datensätze zurück."""
+    from django.conf import settings
+    from django.contrib.sessions.models import Session
+    from shop.models import BankImport, BankTransaction
+    from .models import Beds24Import
+
+    now = now or timezone.now()
+    counts: dict[str, int] = {}
+
+    def cutoff(days: int):
+        return now - timedelta(days=days)
+
+    # B1: versendete E-Mails inkl. DB-Anhang (das PDF ist nur die Versand-Kopie;
+    #     das Rechnungsoriginal bleibt über die Invoice erhalten/on-demand).
+    n, _ = OutboxEmail.objects.filter(
+        sent_at__isnull=False,
+        sent_at__lt=cutoff(settings.RETENTION_OUTBOX_DAYS)).delete()
+    counts["outbox_emails"] = n
+
+    # B2: In-App-Benachrichtigungen (auch ungelesene – nach der Frist veraltet).
+    n, _ = Notification.objects.filter(
+        created_at__lt=cutoff(settings.RETENTION_NOTIFICATION_DAYS)).delete()
+    counts["notifications"] = n
+
+    # B3: Kontoauszug-Rohzeile leeren (strukturierte Felder = Zahlungsnachweis
+    #     bleiben; `raw` ist nur die redundante Originalzeile).
+    counts["bank_raw_cleared"] = BankTransaction.objects.filter(
+        imported_at__lt=cutoff(settings.RETENTION_BANK_RAW_DAYS)
+    ).exclude(raw="").update(raw="")
+
+    # B4: Beds24-Migrations-Importe (einmalige Migration; die übernommenen
+    #     Buchungen bleiben als Allocation erhalten – Row.allocation ist SET_NULL).
+    n, _ = Beds24Import.objects.filter(
+        created_at__lt=cutoff(settings.RETENTION_BEDS24_DAYS)).delete()
+    counts["beds24_imports"] = n
+
+    # B5: Kontoauszug-Import-Lauf-Metadaten (Transaktionen bleiben, batch=NULL).
+    n, _ = BankImport.objects.filter(
+        created_at__lt=cutoff(settings.RETENTION_BANKIMPORT_DAYS)).delete()
+    counts["bank_imports"] = n
+
+    # B6: erledigte Wechselwünsche + erfüllte Wartelisten-Einträge.
+    swap_cut = cutoff(settings.RETENTION_SWAP_WAITLIST_DAYS)
+    n, _ = SwapRequest.objects.filter(
+        status__in=[SwapRequest.ACCEPTED, SwapRequest.DECLINED],
+        created_at__lt=swap_cut).delete()
+    counts["swap_requests"] = n
+    n, _ = WaitlistEntry.objects.filter(
+        fulfilled=True, created_at__lt=swap_cut).delete()
+    counts["waitlist_entries"] = n
+
+    # B7: Wünsche längst beendeter Perioden.
+    max_year = now.year - settings.RETENTION_WISH_YEARS
+    n, _ = Wish.objects.filter(period__target_year__lte=max_year).delete()
+    counts["wishes"] = n
+
+    # C1: abgelaufene Sessions (entspricht `clearsessions`).
+    n, _ = Session.objects.filter(expire_date__lt=now).delete()
+    counts["sessions"] = n
+
+    # C2: alte Brute-Force-Fehlversuche (django-axes).
+    try:
+        from axes.models import AccessAttempt
+        n, _ = AccessAttempt.objects.filter(
+            attempt_time__lt=cutoff(settings.RETENTION_AXES_DAYS)).delete()
+        counts["axes_attempts"] = n
+    except Exception:  # axes nicht installiert/migriert – überspringen
+        counts["axes_attempts"] = 0
+
+    return counts
+
+
+@transaction.atomic
+def anonymize_member(member) -> None:
+    """Recht auf Löschung (Art. 17 DSGVO): personenbezogene Daten eines Mitglieds
+    entfernen, OHNE die gesetzlich aufzubewahrenden Rechnungen anzutasten. Die
+    Rechnungs-Snapshots (Name/Anschrift/IBAN) liegen auf der `Invoice` selbst und
+    bleiben für die 10-Jahres-Frist erhalten; gelöscht werden nur die Profil-PII
+    und betrieblich kurzlebige Daten. Das Login-Konto wird deaktiviert."""
+    user = member.user
+
+    # Betrieblich kurzlebige, personenbezogene Daten des Mitglieds entfernen.
+    Notification.objects.filter(member=member).delete()
+    Wish.objects.filter(member=member).delete()
+    WaitlistEntry.objects.filter(member=member).delete()
+    OutboxEmail.objects.filter(member=member).delete()
+    member.push_subscriptions.all().delete()   # Geräte-Endpoints (personenbezogen)
+    SwapRequest.objects.filter(
+        Q(from_member=member) | Q(to_member=member)).delete()
+
+    # Freitext-PII in erhaltenen Datensätzen leeren (Buchungen bleiben wegen
+    # Leistungs-/Rechnungsbezug bestehen, aber ohne Begleit-/Notiz-Klartext).
+    Allocation.objects.filter(member=member).exclude(companions="").update(companions="")
+    NightTransfer.objects.filter(
+        Q(from_member=member) | Q(to_member=member)
+    ).exclude(note="").update(note="")
+
+    # Profil-PII des Mitglieds leeren.
+    member.legal_name = ""
+    member.street = ""
+    member.zip_code = ""
+    member.city = ""
+    member.iban = ""
+    member.display_name = f"Anonymisiert #{member.id}"
+    member.email_opt_in = False
+    member.save()
+
+    # Login-Konto deaktivieren und de-personalisieren (Benutzername eindeutig
+    # halten, Anmeldung unmöglich machen).
+    if user is not None:
+        user.is_active = False
+        user.first_name = ""
+        user.last_name = ""
+        user.email = ""
+        user.username = f"geloescht_{user.id}"
+        user.set_unusable_password()
+        user.save()
+
+
+# ---------------------------------------------------------------------------
+# Web-Push (mobil, PWA) – Versand an die abonnierten Geräte eines Mitglieds
+# ---------------------------------------------------------------------------
+# Gekoppelt an die bestehenden In-App-Benachrichtigungen (Signal auf
+# Notification). Ohne gesetzte VAPID-Schlüssel (settings.PUSH_ENABLED) passiert
+# nichts – Push ist dann einfach aus (ADR 0044). Best-effort: Fehler eines
+# einzelnen Geräts kippen weder den Request noch die anderen Zustellungen; tote
+# Abos (404/410 vom Push-Dienst) werden entfernt.
+
+def send_web_push(member, title: str, body: str, url: str = "") -> int:
+    """Schickt eine Web-Push-Nachricht an alle Geräte des Mitglieds. Gibt die
+    Anzahl erfolgreich zugestellter Push-Nachrichten zurück (0, wenn Push aus
+    ist oder kein Abo besteht)."""
+    import json
+    from django.conf import settings
+    if not settings.PUSH_ENABLED:
+        return 0
+    subs = list(member.push_subscriptions.all())
+    if not subs:
+        return 0
+    try:
+        from pywebpush import webpush, WebPushException
+    except Exception:  # pywebpush nicht installiert – Push überspringen
+        return 0
+    payload = json.dumps({"title": title, "body": body, "url": url or "/"})
+    sent = 0
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                },
+                data=payload,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{settings.VAPID_ADMIN_EMAIL or 'admin@localhost'}"},
+                timeout=10,
+            )
+            sent += 1
+        except WebPushException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (404, 410):       # Abo abgelaufen/abgemeldet → entfernen
+                sub.delete()
+        except Exception:                  # Netzfehler o.ä. – nicht kippen lassen
+            pass
+    return sent

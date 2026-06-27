@@ -5,7 +5,9 @@ Läuft als eigener Dienst im selben Image und führt regelmäßig aus:
     (jedes Intervall, Standard alle 15 Min),
   * `send_outbox` – verschickt wartende E-Mails (jedes Intervall),
   * `run_monthly_invoices` – erstellt am Monatsanfang die Hofladen-Rechnungen
-    (einmal pro Tag; idempotent, rechnet den Vormonat ab).
+    (einmal pro Tag; idempotent, rechnet den Vormonat ab),
+  * `cleanup_data` – DSGVO-Aufräumen: löscht/pseudonymisiert abgelaufene Daten
+    anhand der RETENTION_*-Fristen (einmal pro Tag; idempotent).
 
 Beide Kommandos sind idempotent, ein Neustart schadet also nicht. Fehler eines
 Laufs werden geloggt und beenden den Scheduler nicht.
@@ -41,6 +43,7 @@ class Command(BaseCommand):
             self._safe("run_due_lotteries")
             self._safe("run_monthly_invoices")
             self._safe("notify_admins_upcoming")
+            self._safe("cleanup_data")
             self._safe("send_outbox")
             return
 
@@ -53,6 +56,7 @@ class Command(BaseCommand):
             if today != last_daily:
                 self._safe("run_monthly_invoices")
                 self._safe("notify_admins_upcoming")  # idempotent (eigener Tag)
+                self._safe("cleanup_data")            # DSGVO-Aufräumen (täglich)
                 last_daily = today
             self._safe("send_outbox")           # wartende E-Mails verschicken
             time.sleep(interval)

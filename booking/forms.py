@@ -92,11 +92,16 @@ class ProfileForm(forms.ModelForm):
 
 
 class EmailChangeForm(forms.Form):
-    """E-Mail (= Login) selbst ändern. Der Login folgt der E-Mail (wie bei der
-    Registrierung wird der Benutzername auf die E-Mail gesetzt) – der bisherige
-    E-Mail-Login funktioniert danach nicht mehr. E-Mail bleibt eindeutig: kein
-    zweites Konto darf dieselbe E-Mail (auch nicht als Benutzername) tragen."""
+    """E-Mail (= Login) selbst ändern. Zur Bestätigung wird das **aktuelle
+    Passwort** abgefragt (kein neues Passwort nötig). Der Login folgt der E-Mail
+    (wie bei der Registrierung wird der Benutzername auf die E-Mail gesetzt) – der
+    bisherige E-Mail-Login funktioniert danach nicht mehr. E-Mail bleibt eindeutig:
+    kein zweites Konto darf dieselbe E-Mail (auch nicht als Benutzername) tragen."""
     email = forms.EmailField(label="Neue E-Mail")
+    password = forms.CharField(
+        label="Aktuelles Passwort zur Bestätigung", strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
+    )
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -113,6 +118,12 @@ class EmailChangeForm(forms.Form):
             raise forms.ValidationError(
                 "Mit dieser E-Mail gibt es bereits ein Konto.")
         return email
+
+    def clean_password(self):
+        pw = self.cleaned_data.get("password") or ""
+        if not self.user or not self.user.check_password(pw):
+            raise forms.ValidationError("Das aktuelle Passwort ist nicht korrekt.")
+        return pw
 
     def save(self):
         email = self.cleaned_data["email"]

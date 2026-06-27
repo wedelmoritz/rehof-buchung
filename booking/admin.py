@@ -141,6 +141,44 @@ class UserAdmin(DjangoUserAdmin):
     Tage-Anteile (welche eG-Anteile die Person hält) werden beim jeweiligen
     „Mitglieds-Anteil“ zugeordnet."""
     inlines = [MemberProfileInline]
+    actions = ["anonymize_selected"]
+
+    @admin.action(description="Mitglied anonymisieren (Recht auf Löschung, DSGVO)")
+    def anonymize_selected(self, request, queryset):
+        from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+        from django.template.response import TemplateResponse
+        from .services import anonymize_member
+        if request.POST.get("confirm"):
+            n = 0
+            for user in queryset:
+                member = getattr(user, "member", None)
+                if member is not None:
+                    anonymize_member(member)
+                    n += 1
+            self.message_user(
+                request,
+                f"{n} Mitglied(er) anonymisiert. Rechnungen bleiben (10 Jahre) "
+                "erhalten, die Login-Konten sind deaktiviert.",
+                level=messages.SUCCESS)
+            return None
+        # Anzahl erhaltener Rechnungen je Nutzer für die Rückfrage anzeigen.
+        from shop.models import Invoice
+        users = list(queryset)
+        for u in users:
+            m = getattr(u, "member", None)
+            u.invoice_count = Invoice.objects.filter(member=m).count() if m else 0
+        return TemplateResponse(request, "admin/anonymize_confirm.html", {
+            "title": "Mitglied(er) wirklich anonymisieren?",
+            "intro": "Die personenbezogenen Daten der folgenden Konten werden "
+            "unwiderruflich entfernt (Profil, Begleit-/Notiztexte, "
+            "Benachrichtigungen, Wünsche) und das Login deaktiviert. Die "
+            "gesetzlich aufzubewahrenden Rechnungen bleiben mit ihren "
+            "Snapshot-Daten erhalten:",
+            "button_label": "Ja, unwiderruflich anonymisieren",
+            "users": users,
+            "checkbox_name": ACTION_CHECKBOX_NAME,
+            "opts": self.model._meta,
+        })
 
 
 @admin.register(Member)
@@ -285,6 +323,11 @@ class WishAdmin(admin.ModelAdmin):
 
 @admin.register(Allocation)
 class AllocationAdmin(admin.ModelAdmin):
+    """Buchungen/Zuteilungen. <b>Domänenregeln greifen auch hier</b>
+    (<code>Allocation.clean</code>): gültiger Zeitraum, Personenzahl im
+    Quartiers-Rahmen und <b>keine Überschneidung</b> mit einer anderen Zuteilung
+    oder bestätigten externen Buchung im selben Quartier – eine Doppelbuchung
+    wird beim Speichern abgewiesen."""
     list_display = ("member", "quarter", "start", "end", "persons", "source",
                     "via_substitution", "contested")
     list_filter = ("source", "quarter", "contested")

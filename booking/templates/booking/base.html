@@ -589,6 +589,16 @@
       }
       if (!enhance(form)) return;
       e.preventDefault();
+      // Offline: schreibende Aktionen brauchen i.d.R. Netz – Ausnahme ist der
+      // Hofladen-Warenkorb (data-offline-cart): lokal befüllen, später syncen.
+      if (navigator.onLine === false) {
+        if (form.hasAttribute("data-offline-cart") && window.__offlineCart) {
+          window.__offlineCart.addFromForm(form);
+          return;
+        }
+        T.toast("Offline – diese Aktion braucht eine Internetverbindung.", "warning");
+        return;
+      }
       var data = new FormData(form);
       var btn = e.submitter || form.querySelector("[type=submit]");
       if (btn && btn.name) data.append(btn.name, btn.value || "");
@@ -637,12 +647,155 @@
     });
   })();
 
+  // Offline-Warenkorb (Hofladen): vor Ort ohne Netz befüllen/bearbeiten, beim
+  // Wiederverbinden automatisch an den Server-Warenkorb übertragen. Nur der
+  // Checkout (Rechnung/Bezahlen) braucht weiterhin eine Verbindung. (ADR 0044)
+  (function () {
+    var T = window.__rehofToasts;
+    var KEY = "rehofOfflineCart";
+    function load() {
+      try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; }
+    }
+    function save(items) {
+      try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) {}
+      document.dispatchEvent(new CustomEvent("offlinecart:changed"));
+    }
+    function keyOf(it) { return it.productId + "|" + (it.serviceDate || ""); }
+    var api = {
+      all: load,
+      keyOf: keyOf,
+      addFromForm: function (form) {
+        var needsDate = form.getAttribute("data-needs-date") === "1";
+        var dateEl = form.querySelector("[name=service_date]");
+        var serviceDate = needsDate && dateEl ? dateEl.value : "";
+        if (needsDate && !serviceDate) {
+          if (T) T.toast("Bitte zuerst einen Termin angeben.", "warning");
+          return;
+        }
+        var qEl = form.querySelector("[name=quantity]");
+        var step = parseFloat(form.getAttribute("data-step")) || 1;
+        var qty = parseFloat(qEl && qEl.value) || step;
+        this.add({
+          productId: form.getAttribute("data-product"),
+          name: form.getAttribute("data-name"),
+          price: parseFloat(form.getAttribute("data-price")) || 0,
+          unit: form.getAttribute("data-unit") || "",
+          step: step, needsDate: needsDate, serviceDate: serviceDate, qty: qty
+        });
+        if (T) T.toast("Offline in den Warenkorb gelegt – wird übertragen, sobald du online bist.", "info");
+      },
+      add: function (it) {
+        var items = load(), found = null;
+        for (var i = 0; i < items.length; i++) if (keyOf(items[i]) === keyOf(it)) found = items[i];
+        if (found) found.qty = Math.round((found.qty + it.qty) * 1000) / 1000; else items.push(it);
+        save(items);
+      },
+      setQty: function (k, qty) {
+        var items = load().map(function (x) { if (keyOf(x) === k) x.qty = qty; return x; })
+          .filter(function (x) { return x.qty > 0; });
+        save(items);
+      },
+      remove: function (k) {
+        save(load().filter(function (x) { return keyOf(x) !== k; }));
+      },
+      sync: function () {
+        var items = load();
+        if (!items.length || navigator.onLine === false) return Promise.resolve(0);
+        var tok = document.querySelector("input[name=csrfmiddlewaretoken]");
+        if (!tok) return Promise.resolve(0);
+        var url = "{% url 'shop_index' %}", done = [];
+        function step(i) {
+          if (i >= items.length) return Promise.resolve();
+          var it = items[i], body = new URLSearchParams();
+          body.set("csrfmiddlewaretoken", tok.value);
+          body.set("action", "add");
+          body.set("product", it.productId);
+          body.set("quantity", it.qty);
+          if (it.serviceDate) body.set("service_date", it.serviceDate);
+          return fetch(url, { method: "POST", body: body, redirect: "follow",
+                              headers: { "X-Requested-With": "XMLHttpRequest" } })
+            .then(function (r) { if (r.ok) done.push(keyOf(it)); })
+            .catch(function () {})
+            .then(function () { return step(i + 1); });
+        }
+        return step(0).then(function () {
+          save(load().filter(function (x) { return done.indexOf(keyOf(x)) === -1; }));
+          return done.length;
+        });
+      }
+    };
+    window.__offlineCart = api;
+    window.addEventListener("online", function () {
+      if (!load().length) return;
+      api.sync().then(function (n) {
+        if (n > 0 && T) T.toast(n + " Artikel aus dem Offline-Warenkorb übertragen.", "success");
+        document.dispatchEvent(new CustomEvent("offlinecart:synced", { detail: { n: n } }));
+      });
+    });
+  })();
+
   // Service Worker registrieren (PWA/Offline). Läuft nur über HTTPS bzw. localhost.
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("/sw.js").catch(function () { /* still ok */ });
     });
   }
+{% if push_enabled and user.is_authenticated and user.member %}
+  // Web-Push: An-/Abmelden gegen den eigenen Server. `window.__rehofPush` wird
+  // von der Profil-Seite genutzt (Knopf „Benachrichtigungen aktivieren“).
+  (function () {
+    var VAPID = "{{ vapid_public_key }}";
+    var CSRF = "{{ csrf_token }}";
+    function urlB64ToUint8(base64) {
+      var pad = "=".repeat((4 - base64.length % 4) % 4);
+      var b64 = (base64 + pad).replace(/-/g, "+").replace(/_/g, "/");
+      var raw = atob(b64), arr = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+      return arr;
+    }
+    function post(url, body) {
+      return fetch(url, { method: "POST", headers: {
+        "Content-Type": "application/json", "X-CSRFToken": CSRF }, body: JSON.stringify(body) });
+    }
+    function supported() {
+      return "serviceWorker" in navigator && "PushManager" in window &&
+             "Notification" in window;
+    }
+    function ready() { return navigator.serviceWorker.ready; }
+    var api = {
+      supported: supported,
+      isSubscribed: function () {
+        if (!supported()) return Promise.resolve(false);
+        return ready().then(function (reg) { return reg.pushManager.getSubscription(); })
+          .then(function (sub) { return !!sub; });
+      },
+      enable: function () {
+        if (!supported()) return Promise.reject(new Error("nicht unterstützt"));
+        return Notification.requestPermission().then(function (perm) {
+          if (perm !== "granted") throw new Error("Erlaubnis verweigert");
+          return ready();
+        }).then(function (reg) {
+          return reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToUint8(VAPID) });
+        }).then(function (sub) {
+          return post("{% url 'push_subscribe' %}", sub.toJSON());
+        });
+      },
+      disable: function () {
+        if (!supported()) return Promise.resolve();
+        return ready().then(function (reg) { return reg.pushManager.getSubscription(); })
+          .then(function (sub) {
+            if (!sub) return null;
+            var endpoint = sub.endpoint;
+            return sub.unsubscribe().then(function () {
+              return post("{% url 'push_unsubscribe' %}", { endpoint: endpoint }); });
+          });
+      }
+    };
+    window.__rehofPush = api;
+  })();
+{% endif %}
 </script>
 </body>
 </html>

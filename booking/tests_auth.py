@@ -92,13 +92,17 @@ class ProfilAnmeldedatenTests(TestCase):
         self.client.force_login(self.user)
 
     def test_email_aendern_setzt_login_und_ist_eindeutig(self):
+        # Bestätigung mit dem aktuellen Passwort, KEIN neues Passwort nötig.
         resp = self.client.post(reverse("profile"), {
-            "action": "change_email", "email": "neu@example.org"})
+            "action": "change_email", "email": "neu@example.org",
+            "password": PW})
         self.assertRedirects(resp, reverse("profile"))
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "neu@example.org")
         # Login folgt der E-Mail: Benutzername = neue E-Mail
         self.assertEqual(self.user.username, "neu@example.org")
+        # Passwort unverändert
+        self.assertTrue(self.user.check_password(PW))
         # Anmeldung mit der neuen E-Mail klappt, mit der alten nicht mehr
         self.client.logout()
         self.client.post(reverse("login"),
@@ -109,10 +113,19 @@ class ProfilAnmeldedatenTests(TestCase):
                          {"username": "max@example.org", "password": PW})
         self.assertNotIn("_auth_user_id", self.client.session)
 
+    def test_email_aendern_braucht_korrektes_passwort(self):
+        resp = self.client.post(reverse("profile"), {
+            "action": "change_email", "email": "neu@example.org",
+            "password": "falsch-falsch"})
+        self.assertEqual(resp.status_code, 200)   # Formular mit Fehler
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "max@example.org")  # unverändert
+
     def test_email_aendern_lehnt_fremde_email_ab(self):
         User.objects.create_user("other", "other@example.org", PW)
         resp = self.client.post(reverse("profile"), {
-            "action": "change_email", "email": "other@example.org"})
+            "action": "change_email", "email": "other@example.org",
+            "password": PW})
         self.assertEqual(resp.status_code, 200)   # Formular mit Fehler
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "max@example.org")  # unverändert

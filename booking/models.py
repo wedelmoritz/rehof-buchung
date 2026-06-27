@@ -459,6 +459,42 @@ class Allocation(models.Model):
     def nights(self) -> int:
         return (self.end - self.start).days
 
+    def clean(self):
+        """Domänenregeln auch bei manueller Pflege erzwingen (Django-Admin nutzt
+        `full_clean`): gültiger Zeitraum, Personenzahl im Quartiers-Rahmen und –
+        am wichtigsten – KEINE Überschneidung mit einer anderen Zuteilung oder
+        einer bestätigten externen Buchung im selben Quartier. So lässt sich auch
+        im Backend keine Doppelbuchung anlegen."""
+        from django.core.exceptions import ValidationError
+        errors = {}
+        if self.start and self.end and self.end <= self.start:
+            errors["end"] = "Die Abreise muss nach der Anreise liegen."
+        if self.quarter_id and self.start and self.end and self.end > self.start:
+            if self.persons and not (
+                    self.quarter.min_occupancy <= self.persons
+                    <= self.quarter.max_occupancy):
+                errors["persons"] = (
+                    f"{self.quarter.name} ist für {self.quarter.min_occupancy}–"
+                    f"{self.quarter.max_occupancy} Personen ausgelegt.")
+            clash = Allocation.objects.filter(
+                quarter_id=self.quarter_id, start__lt=self.end, end__gt=self.start)
+            if self.pk:
+                clash = clash.exclude(pk=self.pk)
+            other = clash.select_related("member").first()
+            if other:
+                errors["quarter"] = (
+                    f"Überschneidung: „{self.quarter}“ ist von {other.start} bis "
+                    f"{other.end} bereits {other.member} zugeteilt.")
+            elif ExternalBooking.objects.filter(
+                    quarter_id=self.quarter_id,
+                    status=ExternalBooking.CONFIRMED,
+                    start__lt=self.end, end__gt=self.start).exists():
+                errors["quarter"] = (
+                    "Überschneidung mit einer bestätigten externen Buchung in "
+                    "diesem Zeitraum.")
+        if errors:
+            raise ValidationError(errors)
+
     def __str__(self) -> str:
         return f"{self.member} @ {self.quarter} {self.start}–{self.end}"
 
@@ -594,6 +630,28 @@ class Notification(models.Model):
 
     def __str__(self) -> str:
         return f"{self.member}: {self.message}"
+
+
+class PushSubscription(models.Model):
+    """Web-Push-Abo eines Mitglieds (ein Eintrag je Browser/Gerät). Speichert den
+    vom Browser gelieferten Endpoint + Schlüssel; der Versand läuft über
+    `services.send_web_push` (nur wenn VAPID-Schlüssel gesetzt sind)."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="push_subscriptions",
+        verbose_name="Mitglied")
+    endpoint = models.TextField("Endpoint", unique=True)
+    p256dh = models.CharField("Schlüssel (p256dh)", max_length=200)
+    auth = models.CharField("Auth-Secret", max_length=100)
+    user_agent = models.CharField("Gerät/Browser", max_length=300, blank=True)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Push-Abo"
+        verbose_name_plural = "Push-Abos"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Push-Abo {self.member} ({self.endpoint[:40]}…)"
 
 
 class OpsConfig(models.Model):

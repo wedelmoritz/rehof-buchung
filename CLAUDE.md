@@ -54,7 +54,8 @@ booking/
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
                         #  (Backend-Startseite mit Erklär-Panel: templates/admin/custom_index.html,
-                        #   gesetzt über admin.site.index_template)
+                        #   gesetzt über admin.site.index_template). Buchungen: Allocation.clean
+                        #   erzwingt die Domänenregeln auch im Backend (keine Doppelbuchung, ADR 0045).
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html
@@ -171,7 +172,9 @@ Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
 Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile`; dort kann es auch **E-Mail (= Login, folgt
 der E-Mail; eindeutig pro Konto) und Passwort** ändern (`EmailChangeForm` +
-Djangos `PasswordChangeForm`, `update_session_auth_hash` hält die Sitzung).
+Djangos `PasswordChangeForm`, `update_session_auth_hash` hält die Sitzung). Der
+E-Mail-Wechsel wird mit dem **aktuellen Passwort** bestätigt (kein neues nötig);
+ein neues Passwort setzt man nur, wenn man will.
 Die frühere `membership_number` (Mitgliedsnummer) wurde als ungenutzt **entfernt**
 (Datensparsamkeit; sie floss nirgends in Rechnung/Export/PDF). Eine `help`-Seite erklärt Abläufe und die
 Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
@@ -198,7 +201,25 @@ Alle Admin-Bereiche tragen erklärende `description`-Texte.
 Android) und offline-fähig: Manifest (`booking/static/booking/manifest.webmanifest`),
 Re:Hof-Logo/Icons (`booking/static/booking/icons/`), Service Worker (`/sw.js`,
 Template `booking/sw.js`, Root-Scope) mit network-first + Offline-Fallback
-(`/offline/`). Registrierung am Ende von `base.html`. **Navigation:** Icons als
+(`/offline/`). Registrierung am Ende von `base.html`. **Gezieltes Offline-Verhalten
+(ADR 0044):** Buchen/Wunsch (`/buchen/`, `/wunschliste/`, `/extern/buchen/`) zeigen
+offline KEINE Cache-Kopie (veraltete Verfügbarkeiten), sondern „Buchen braucht eine
+Verbindung"; alles andere inkl. **Hofladen-Katalog** ist offline durchblätterbar.
+**Offline-Warenkorb (Hofladen):** „+ Warenkorb" funktioniert offline (lokaler Korb in
+`localStorage`, Engine `window.__offlineCart` in `base.html`; Panel „Offline-Warenkorb"
+in `shop/index.html` mit Mengen-/Lösch-Bearbeitung). Beim Wiederverbinden (`online`-Event)
+werden die Positionen automatisch über den `add`-Endpoint an den Server-Warenkorb
+übertragen und der lokale Korb geleert; **nur der Checkout** (Rechnung/Bezahlen) braucht
+Netz (sonst Hinweis-Toast). Rein clientseitig, keine Server-Änderung. Übrige schreibende
+POSTs offline fängt der AJAX-Layer mit Hinweis-Toast ab. **Web-Push
+(ADR 0044):** `PushSubscription` je Gerät am `Member`; ein `post_save`-Signal auf
+`Notification` stellt jede Benachrichtigung zusätzlich als Push zu
+(`services.send_web_push` via pywebpush, best-effort über `transaction.on_commit`,
+tote Abos werden entfernt). VAPID-Keys per Env (`VAPID_*`, erzeugen mit
+`manage.py vapid_keys`); **ohne Keys ist Push aus** (`settings.PUSH_ENABLED`, wie
+Mollie-Sandbox). Opt-in-Knopf im Profil (`window.__rehofPush`), Endpunkte
+`push_subscribe`/`push_unsubscribe`; SW-`push`/`notificationclick` in `sw.js`.
+**Navigation:** Icons als
 einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
 **Desktop** vertikale Leiste rechts (`.sidenav`) mit Umschalter IN der Leiste
 (Kopf „Menü“ + Chevron `#navToggle`), die zur schmalen Icon-Leiste einklappt –
@@ -289,7 +310,20 @@ Kontoabgleich) + Benachrichtigung. Konfiguriert am `ShopConfig` (`payments_activ
 **Cron:** `generate_monthly_invoices`
 (monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
 (Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
-`OpsConfig.notify_day`). Rechnung als In-App-HTML **und PDF** (WeasyPrint):
+`OpsConfig.notify_day`), `cleanup_data` (täglich, **DSGVO-Aufräumen**).
+**DSGVO/Datensparsamkeit (ADR 0043):** `cleanup_data` (Service
+`services.run_data_retention`, idempotent, im `run_scheduler` täglich) löscht/
+pseudonymisiert abgelaufene Daten anhand der `RETENTION_*`-Settings (per Env
+überschreibbar): versendete `OutboxEmail` inkl. DB-Anhang (90 T), `Notification`
+(180 T), `BankTransaction.raw` leeren (90 T), `Beds24Import` (180 T), `BankImport`
+(365 T), erledigte `SwapRequest`/`WaitlistEntry` (180 T), `Wish` beendeter Perioden
+(2 J), abgelaufene Sessions, `axes`-Fehlversuche (30 T). **Rechnungen/Zahlungen
+(10 Jahre, §147 AO/§14b UStG) bleiben unangetastet** (`Invoice.member/guest=PROTECT`).
+**Recht auf Löschung (Art. 17):** Admin-Aktion „Mitglied anonymisieren“ am
+Benutzer (`services.anonymize_member`, mit Rückfrage) leert Profil-PII + Freitext
+(`companions`/`note`), entfernt betrieblich kurzlebige PII und deaktiviert das
+Login – die Rechnungs-Snapshots bleiben erhalten. IBAN-Verschlüsselung/Token-
+Rotation bleiben offen (TBD, ADR 0037/0043). Rechnung als In-App-HTML **und PDF** (WeasyPrint):
 `shop/pdf.py` (`invoice_html` rein/testbar getrennt von `invoice_pdf_bytes`),
 Druckvorlage `shop/templates/shop/invoice_pdf.html`, Endpoint `shop_invoice_pdf`
 (eigene; Staff alle). Das PDF hängt als Anhang an der „Rechnung erstellt“-Mail
@@ -533,8 +567,8 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
 - **Online-Bezahlung (Mollie) für Hofladen + Externe** – **erledigt**
   (`shop/payments.py`, `shop/mollie_api.py`, `Payment`; Sandbox-Default).
 - E-Mail-Fundament steht (Outbox + `send_outbox`, mit Datei-Anhängen);
-  **Rechnungs-PDF (WeasyPrint) erledigt**. Offen: Losergebnis-PDF + Massenmail,
-  Web-Push (mobil).
+  **Rechnungs-PDF (WeasyPrint) erledigt**. **Web-Push (mobil) erledigt** (ADR 0044,
+  an die `Notification` gekoppelt). Offen: Losergebnis-PDF + Massenmail.
 - **Losung rückgängig/bestätigen** – **erledigt** (Review-Workflow, s.o.).
 - **Kontoabgleich** – **erledigt** (CSV + CAMT.053; MT940 als Parser leicht
   ergänzbar in `shop/bankimport.py`).
