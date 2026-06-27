@@ -232,3 +232,25 @@ class DashboardStatsTests(TestCase):
         self.assertEqual(st["occ_current"]["booked"], 3)
         self.assertGreater(st["occ_current"]["possible"], 0)
         self.assertIsNone(st["last_lottery"])
+
+
+class ExportHardeningTests(TestCase):
+    """Exporte entschärfen CSV-/Formel-Injektion (führendes ' vor =,+,-,@)."""
+
+    def test_csv_formel_injektion_entschaerft(self):
+        from booking import exports
+        resp = exports.csv_response("x", ["Name", "Betrag"],
+                                    [["=1+2", "10"], ["@cmd", "-5"]])
+        body = resp.content.decode("utf-8")
+        self.assertIn("'=1+2", body)     # Formel-Zelle bekommt ein '
+        self.assertIn("'@cmd", body)
+        self.assertIn("'-5", body)
+        self.assertNotIn(";=1+2", body)  # nicht ungeschützt
+
+    def test_xlsx_formel_injektion_entschaerft(self):
+        import io
+        import openpyxl
+        from booking import exports
+        resp = exports.xlsx_response("x", "T", ["Name"], [["=HYPERLINK(1)"]])
+        wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+        self.assertEqual(wb.active["A2"].value, "'=HYPERLINK(1)")

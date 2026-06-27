@@ -16,6 +16,7 @@ from django.utils import timezone
 from . import availability as A
 from . import lottery as L
 from . import rules as R
+from . import validation as V
 from .external import external_allowed, cancellation_refund
 from .models import (
     Allocation, BookingPeriod, BookingPolicy, ExternalBooking, ExternalConfig,
@@ -353,7 +354,8 @@ def book_spontaneous(
         return None, rule_error
     alloc = Allocation.objects.create(
         member=member, quarter=quarter, start=start, end=end,
-        persons=persons, source=source, companions=companions.strip()[:255],
+        persons=persons, source=source,
+        companions=V.strip_controls(companions, max_len=255),
     )
     return alloc, None
 
@@ -1151,7 +1153,7 @@ def create_swap_request(from_member, from_allocation, to_allocation, message="")
     sr = SwapRequest.objects.create(
         from_member=from_member, to_member=to_allocation.member,
         from_allocation=from_allocation, to_allocation=to_allocation,
-        message=message,
+        message=V.strip_controls(message, max_len=500),
     )
     Notification.objects.create(
         member=to_allocation.member,
@@ -1214,7 +1216,7 @@ def transfer_nights(
                       f"({remaining} übrig, {nights} angefragt).")
     t = NightTransfer.objects.create(
         from_member=from_member, to_member=to_member, nights=nights,
-        year=year, note=note,
+        year=year, note=V.strip_controls(note, max_len=200),
     )
     return t, None
 
@@ -1775,8 +1777,14 @@ def create_external_booking(quarter: Quarter, start: date, end: date, persons: i
         return None, f"{quarter.name}: maximal {quarter.max_occupancy} Personen."
     if not quarter_is_free(quarter, start, end):
         return None, f"{quarter.name} ist in diesem Zeitraum bereits belegt."
-    if not (name.strip() and email.strip()):
-        return None, "Bitte Name und E-Mail angeben."
+    # Plausibilität der Gastdaten (Name/E-Mail Pflicht; Adresse, wenn angegeben).
+    err = (V.name_error(name, field="Name", max_len=160)
+           or V.email_error(email, required=True)
+           or V.street_error(street, required=False)
+           or V.plz_error(zip_code, required=False)
+           or V.city_error(city, required=False))
+    if err:
+        return None, err
 
     q = external_quote(quarter, start, end, cfg)
     guest = Guest.objects.create(

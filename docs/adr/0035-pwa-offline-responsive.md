@@ -26,6 +26,18 @@ ohne native App.
   Zustand in `localStorage`, im `<head>` gesetzt → kein FOUC); Smartphone = feste
   untere Tab-Leiste (`.tabbar`) + Bottom-Sheet „Mehr“. Icons als einmaliges
   SVG-Sprite.
+- **Kein seitliches Seiten-Scrollen am Handy:** Horizontales Scrollen der ganzen
+  Seite ließ den sticky-Banner nur über die ursprüngliche Breite spannen und
+  „abbrechen“. Lösung: `html`/`body` mit `overflow-x:clip` (statt `hidden`, damit
+  `position:sticky` erhalten bleibt); am Handy ist die `.shell` ein **Block** statt
+  Flex-Spalte (die Sidebar ist aus, die Tab-Leiste `position:fixed`), damit ein
+  breiter Inhalt den Hauptbereich nicht über die Bildschirmbreite dehnt. Breite
+  Inhalte (Belegungs-Zeitstrahl `.occ`, Datentabellen `.table-wrap`) scrollen in
+  **ihrem eigenen** Wrapper; lange Zeichenketten brechen um (`overflow-wrap:anywhere`).
+- **Erreichbarer Warenkorb am Handy:** Da der Hofladen-Korb am Handy unter den
+  ganzen Katalog rutscht, gibt es einen **schwebenden Warenkorb-Knopf** (`.cart-fab`)
+  mit Symbol, Artikel-Anzahl und Summe, der zum Korb springt (am Desktop ausgeblendet,
+  dort steht der Korb sichtbar in der rechten Spalte).
 
 ## Betrachtete Alternativen
 
@@ -35,6 +47,10 @@ ohne native App.
   Offline-Verhalten.
 - **Cache-first-Strategie:** Risiko veralteter Inhalte; network-first hält die
   Daten aktuell und nutzt den Cache nur als Fallback.
+- **`overflow-x:hidden` gegen Seiten-Überlauf:** macht den Wurzelknoten zum
+  Scroll-Container und kann `position:sticky` brechen – deshalb `clip`.
+- **Warenkorb-Knopf direkt zur Kasse:** verworfen zugunsten „springt zum Korb“,
+  damit Mengen vor dem Checkout noch prüf-/änderbar bleiben.
 
 ## Konsequenzen
 

@@ -22,6 +22,9 @@ Drei Schichten, strikt getrennt:
      Runden-Prinzip, Ausweich-Logik, Karma).
    - `booking/availability.py` — freigeschaltete Buchungszeiträume + Tage-Rechnung.
    - `booking/rules.py` — Mindestnächte / Parallel-Limit / Aufenthaltsdeckel.
+   - `booking/validation.py` — Plausibilitäts-Prüfungen der Benutzereingaben
+     (Name/PLZ/Ort/Straße/IBAN mit Mod-97/E-Mail; `*_error`→Fehlertext|None,
+     `strip_controls` für Freitext). Angebunden in `forms.py` + `services.py`.
    Diese Module sind isoliert mit `pytest` testbar. **Hier ändern, wenn es um
    Rechenregeln geht** — und immer den passenden Test in `tests/` mitziehen.
 
@@ -45,6 +48,8 @@ booking/
   lottery.py            # reine Logik: Losverfahren
   availability.py       # reine Logik: Buchungszeiträume + Tage
   rules.py              # reine Logik: Mindestnächte/Parallel/Deckel
+  validation.py         # reine Logik: Plausibilität der Eingaben (Name/PLZ/IBAN…)
+  exports.py            # CSV/xlsx-Export (mit Formel-Injektions-Schutz)
   services.py           # Brücke DB <-> Logik (gesamte Geschäftslogik)
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
@@ -58,7 +63,7 @@ booking/
 config/                 # settings.py, urls.py, wsgi.py, asgi.py
 tests/                  # reine pytest-Suite (ohne Django/DB)
   test_lottery.py  test_availability.py  test_rules.py
-  test_fairness.py  test_beds24.py
+  test_fairness.py  test_beds24.py  test_validation.py
 ```
 
 Modelle in `models.py`: `EquivalenceClass`, `Quarter` (+ `QuarterPrice` =
@@ -205,8 +210,15 @@ Django-Admin/Stammdaten – **nur Admin/Superuser**). Die Navigation erscheint f
 Mitglieder UND für Verwaltungs-/Admin-Konten (auch ohne Mitglieds-Profil). Das Layout ist responsiv
 (Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
-`sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das Manifest liegt
-unter `/static/` und ist damit ohnehin frei).
+**Kein seitliches Seiten-Scrollen am Handy:** `html`/`body` haben `overflow-x:clip`
+(damit der sticky-Banner nie „abbricht“), die `.shell` ist am Handy ein **Block**
+(nicht Flex-Spalte), sodass breite Inhalte (Belegungs-Zeitstrahl `.occ`, Tabellen)
+**in ihrem eigenen Wrapper** horizontal scrollen statt die Seite zu dehnen; lange
+Zeichenketten (Benachrichtigungen/Meldungen) brechen um (`overflow-wrap:anywhere`).
+Im **Hofladen** gibt es am Handy einen **schwebenden Warenkorb-Knopf** (`.cart-fab`,
+Symbol + Anzahl + Summe), der zum Warenkorb springt (sonst steht der Korb unter dem
+ganzen Katalog). `sw`/`offline` sind von der Aktivierungs-Sperre ausgenommen (das
+Manifest liegt unter `/static/` und ist damit ohnehin frei).
 
 **Hofladen (eigene App `shop`, selber Admin/Webapp/Login):** Produktkatalog
 (`ProductGroup`/`Product`; Dienstleistungen wie Sauna = `Product` mit
@@ -387,11 +399,11 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 53 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 69 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 168 passed
-python manage.py test booking
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 186 passed (3 skips)
+python manage.py test booking shop
 ```
 
 Die Integrationstests liegen in `booking/tests.py` (gezielte Einzelfälle) und

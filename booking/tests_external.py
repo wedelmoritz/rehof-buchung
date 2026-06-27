@@ -94,26 +94,26 @@ class ExternalBookingTests(TestCase):
     def test_wochenende_und_inaktiv_abgelehnt(self):
         sat = self.mon + timedelta(days=5)
         b, err = svc.create_external_booking(self.q, sat, sat + timedelta(days=2),
-                                             2, name="X", email="x@example.org")
+                                             2, name="Xara", email="x@example.org")
         self.assertIsNone(b)
         self.cfg.active = False
         self.cfg.save()
         b2, err2 = svc.create_external_booking(self.q, self.mon, self.wed, 2,
-                                               name="Y", email="y@example.org")
+                                               name="Yola", email="y@example.org")
         self.assertIsNone(b2)
 
     def test_nicht_externes_quartier_abgelehnt(self):
         self.q.external_bookable = False
         self.q.save()
         b, err = svc.create_external_booking(self.q, self.mon, self.wed, 2,
-                                             name="Z", email="z@example.org")
+                                             name="Zoe", email="z@example.org")
         self.assertIsNone(b)
 
     def test_doppelbuchung_verhindert(self):
         svc.create_external_booking(self.q, self.mon, self.wed, 2,
-                                    name="A", email="a@example.org")
+                                    name="Anna", email="a@example.org")
         b2, err = svc.create_external_booking(self.q, self.mon, self.wed, 2,
-                                              name="B", email="b@example.org")
+                                              name="Bea", email="b@example.org")
         self.assertIsNone(b2)
         self.assertIn("belegt", err)
 
@@ -131,6 +131,22 @@ class ExternalBookingTests(TestCase):
         inv.refresh_from_db()
         self.assertEqual(inv.status, Invoice.CONFIRMED)
         self.assertTrue(OutboxEmail.objects.filter(to_email="max@example.org").exists())
+
+    def test_unplausible_gastdaten_werden_abgelehnt(self):
+        # Name mit Markup, ungültige PLZ, ungültige E-Mail -> keine Buchung.
+        from booking.models import Guest
+        b, err = svc.create_external_booking(
+            self.q, self.mon, self.wed, 2,
+            name="<script>", email="max@example.org")
+        self.assertIsNone(b); self.assertIn("ungültige", (err or "").lower())
+        b2, err2 = svc.create_external_booking(
+            self.q, self.mon, self.wed, 2, name="Max Muster",
+            email="max@example.org", zip_code="12A45", city="Dorf")
+        self.assertIsNone(b2); self.assertIn("PLZ", err2 or "")
+        b3, err3 = svc.create_external_booking(
+            self.q, self.mon, self.wed, 2, name="Max", email="keine-email")
+        self.assertIsNone(b3)
+        self.assertEqual(Guest.objects.count(), 0)   # nichts angelegt
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")

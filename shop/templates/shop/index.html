@@ -12,7 +12,9 @@
   <p class="muted">Produkt wählen, Menge angeben, „+ Warenkorb“ (gleiche Artikel
     werden zusammengezählt; Menge im Korb änderbar). Mit „Zur Kasse“ bestätigst du
     den Einkauf verbindlich – erst dann ist er erfasst. Abgerechnet wird monatlich
-    gesammelt oder sofort. <a href="{% url 'help' %}#hofladen">Mehr →</a></p>
+    gesammelt oder sofort. Am Handy bringt dich der <strong>schwebende
+    Warenkorb-Knopf</strong> (unten rechts, mit Anzahl) jederzeit direkt zum Korb.
+    <a href="{% url 'help' %}#hofladen">Mehr →</a></p>
 </details>
 
 <div class="shop-layout">
@@ -50,7 +52,7 @@
     {% endfor %}
   </div>
 
-  <aside class="shop-cart">
+  <aside class="shop-cart" id="warenkorb">
     <div class="card">
       <h2>Warenkorb</h2>
       {% if items %}
@@ -82,6 +84,17 @@
   </aside>
 </div>
 
+{# Mobiler Schnellzugriff: schwebender Warenkorb-Knopf mit Anzahl + Summe.
+   Springt zum Warenkorb (der am Handy unter dem Katalog steht). Nur sichtbar,
+   wenn etwas im Korb liegt – CSS blendet ihn am Desktop aus. #}
+{% if items %}
+<a href="#warenkorb" class="cart-fab" aria-label="Zum Warenkorb – {{ items|length }} Artikel, Summe {{ total }} €">
+  <svg class="cart-fab-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#ic-shop"/></svg>
+  <span class="cart-fab-count">{{ items|length }}</span>
+  <span class="cart-fab-total">{{ total }} €</span>
+</a>
+{% endif %}
+
 <style>
   .shop-layout { display:flex; gap:1.1rem; align-items:flex-start; }
   .shop-catalog { flex:1 1 auto; min-width:0; }
@@ -103,9 +116,29 @@
   .cart-qty input { width:4.5rem; min-width:0; padding:.3rem .4rem; }
   .cart-amount { font-variant-numeric:tabular-nums; margin-left:auto; }
   .cart-total { margin-top:.6rem; font-size:1.05rem; }
+  /* Schwebender Warenkorb-Knopf – am Desktop aus (Korb steht ohnehin sichtbar
+     in der rechten Spalte). */
+  .cart-fab { display:none; }
   @media (max-width:780px) {
     .shop-layout { flex-direction:column; }
     .shop-cart { position:static; width:100%; flex-basis:auto; }
+    /* Etwas Luft, damit der letzte Korb-Knopf nicht vom FAB/der Tab-Leiste verdeckt wird. */
+    .shop-cart { scroll-margin-top:70px; }
+
+    .cart-fab { display:inline-flex; align-items:center; gap:.5rem;
+      position:fixed; right:calc(.9rem + env(safe-area-inset-right));
+      bottom:calc(70px + env(safe-area-inset-bottom)); z-index:45;
+      background:var(--accent); color:var(--accent-ink); text-decoration:none;
+      font-weight:700; padding:.6rem .95rem; border-radius:999px;
+      box-shadow:0 6px 20px rgba(60,53,47,.28); }
+    .cart-fab:active { background:var(--accent-deep); }
+    .cart-fab-ic { width:22px; height:22px; fill:none; stroke:currentColor;
+      stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .cart-fab-count { position:absolute; top:-7px; left:-7px; background:#fff;
+      color:var(--accent-deep); min-width:21px; height:21px; padding:0 5px;
+      border-radius:11px; font-size:.72rem; font-weight:700; display:flex;
+      align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+    .cart-fab-total { font-size:.92rem; }
   }
 </style>
 {% endif %}

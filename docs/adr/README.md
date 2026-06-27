@@ -51,6 +51,7 @@ Konsequenzen (positiv/negativ)* und ist durch konkrete Stellen im Code belegt.
 | [0036](0036-lizenz-agpl-v3.md) | Lizenz: GNU AGPL v3 | Accepted |
 | [0037](0037-backup-haertung-zurueckgestellt.md) | Backup und weiteres Hardening bewusst zurückgestellt | Proposed |
 | [0038](0038-zahlungsanbindung-anzahlung-storno-erstattung.md) | Zahlungsanbindung: Anzahlung und Storno-Erstattung | Proposed |
+| [0039](0039-eingabe-validierung-und-xss-haertung.md) | Eingabe-Validierung der Benutzereingaben und XSS-/Injektions-Härtung | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 
