@@ -11,48 +11,58 @@
   /* Warmes Pastell-Theme für die ReHof-Verwaltung (überschreibt die
      CSS-Variablen des Django-Admins). */
   :root {
-    --primary: #c9805d;
-    --secondary: #b06a48;
-    --accent: #8aa97f;
+    /* Marken-Farben der Re:hof-Website: Primär #BE3E23 (Ziegelrot),
+       Sekundär #7F8F8C (Salbeigrau). */
+    --primary: #be3e23;
+    --secondary: #9e3119;
+    --accent: #7f8f8c;
     --primary-fg: #ffffff;
 
     --body-bg: #faf5ee;
     --body-fg: #3c352f;
-    --body-quiet-color: #8c8175;
+    --body-quiet-color: #756a60;
     --body-loud-color: #2f2a25;
 
     --header-bg: #f1e4d4;
     --header-color: #4a4038;
-    --header-branding-color: #b06a48;
+    --header-branding-color: #be3e23;
     --header-link-color: #4a4038;
 
     --breadcrumbs-bg: #f3e9dc;
-    --breadcrumbs-fg: #6b5d4f;
-    --breadcrumbs-link-fg: #7a5a3f;
+    --breadcrumbs-fg: #5e5247;
+    --breadcrumbs-link-fg: #9e3119;
 
-    --link-fg: #b06a48;
-    --link-hover-color: #8a4f30;
-    --link-selected-fg: #8a4f30;
+    --link-fg: #b03720;
+    --link-hover-color: #8a2c16;
+    --link-selected-fg: #8a2c16;
 
-    --button-bg: #c9805d;
+    --button-bg: #be3e23;
     --button-fg: #ffffff;
-    --button-hover-bg: #b06a48;
-    --default-button-bg: #8aa97f;
-    --default-button-hover-bg: #6f8e64;
+    --button-hover-bg: #9e3119;
+    --default-button-bg: #7f8f8c;
+    --default-button-hover-bg: #6a7a77;
     --close-button-bg: #8c8175;
     --close-button-hover-bg: #6f665b;
-    --object-tools-bg: #b06a48;
-    --object-tools-hover-bg: #8a4f30;
+    --object-tools-bg: #9e3119;
+    --object-tools-hover-bg: #8a2c16;
 
     --selected-bg: #f7e7dc;
     --selected-row: #f7e7dc;
-    --darkened-bg: #f3e9dc;
+    --darkened-bg: #efe2d2;
     --message-success-bg: #e6efe1;
     --message-warning-bg: #f8edd6;
     --message-error-bg: #f7e1de;
-
-    --link-fg: #b06a48;
   }
+  /* LESBARKEIT: Fieldset-/Inline-Überschriften dunkel statt hellgrau auf Beige. */
+  .module h2, .module caption, .inline-group h2, fieldset.module > h2,
+  .inline-related h3, .inline-related h3 b, .module table caption,
+  .inline-group .tabular caption {
+    color: var(--body-loud-color) !important; background: var(--darkened-bg);
+  }
+  fieldset.module > h2, .inline-group h2 { padding: 9px 12px; font-weight: 700; }
+  .aligned label, fieldset .form-row > div > label { color: #4a4038; }
+  fieldset .description, .help, .helptext, p.help, .form-row .help {
+    color: var(--body-quiet-color) !important; }
   /* Kopfzeile abrunden/auflockern */
   #header { border-bottom: 1px solid #e6d8c6; }
   #branding h1, #branding h1 a:link, #branding h1 a:visited,

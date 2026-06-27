@@ -113,16 +113,29 @@ class TerminalPinTests(TestCase):
         u = User.objects.create_user("q", email="q@e.de", password="x")
         m = Member.objects.create(user=u, display_name="Q", terminal_enabled=True)
         self.client.force_login(u)
-        self.client.post(reverse("profile"),
-                         {"action": "set_terminal_pin", "pin": "246810"})
+        self.client.post(reverse("profile"), {
+            "action": "terminal_prefs", "terminal_enabled": "on", "pin": "246810"})
         m.refresh_from_db()
         self.assertTrue(m.check_terminal_pin("246810"))
+        self.assertTrue(m.terminal_enabled)
 
     def test_profile_rejects_short_pin(self):
         u = User.objects.create_user("r", email="r@e.de", password="x")
         m = Member.objects.create(user=u, display_name="R", terminal_enabled=True)
         self.client.force_login(u)
-        self.client.post(reverse("profile"),
-                         {"action": "set_terminal_pin", "pin": "123"})
+        self.client.post(reverse("profile"), {
+            "action": "terminal_prefs", "terminal_enabled": "on", "pin": "123"})
         m.refresh_from_db()
         self.assertFalse(m.terminal_pin)
+
+    def test_profile_can_switch_off(self):
+        # Selbst ausschalten: terminal_enabled aus -> nicht mehr in der Roster.
+        u = User.objects.create_user("s", email="s@e.de", password="x")
+        m = Member.objects.create(user=u, display_name="S", terminal_enabled=True)
+        m.set_terminal_pin("111111"); m.save()
+        self.client.force_login(u)
+        self.client.post(reverse("profile"), {"action": "terminal_prefs"})  # Häkchen aus
+        m.refresh_from_db()
+        self.assertFalse(m.terminal_enabled)
+        self.assertTrue(m.terminal_pin)       # Hash bleibt, ist aber inaktiv
+        self.assertFalse(m.terminal_ready)
