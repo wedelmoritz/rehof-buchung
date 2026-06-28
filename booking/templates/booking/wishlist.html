@@ -24,11 +24,14 @@
       (wer früher verloren hat, hat mehr Gewicht). Taktieren bringt nichts –
       <a href="{% url 'help' %}#losung">ausführliche Erklärung →</a></p>
     {% if period.seed_commit %}
-    <p class="muted" style="margin-top:.4rem"><strong>Verifizierbar:</strong> Der Zufalls-Seed
-      der Ziehung steht bereits fest – seine Prüfsumme (SHA-256) ist veröffentlicht:
-      <code style="word-break:break-all">{{ period.seed_commit }}</code>. Nach der Ziehung
-      legen wir den Seed offen; du kannst das Ergebnis selbst nachrechnen
-      (<a href="{% url 'lottery_fairness' %}">mehr</a>).</p>
+    <div class="muted" style="margin-top:.4rem"><strong>Verifizierbar:</strong> Der Zufalls-Seed
+      der Ziehung steht bereits fest – seine Prüfsumme (SHA-256):
+      <code>{{ period.seed_commit|slice:":10" }}…{{ period.seed_commit|slice:"-6:" }}</code>.
+      Nach der Ziehung legen wir den Seed offen; du kannst das Ergebnis selbst nachrechnen
+      (<a href="{% url 'lottery_fairness' %}">mehr</a>).
+      <details style="margin-top:.2rem"><summary class="sm">vollständige Prüfsumme</summary>
+        <code style="word-break:break-all;font-size:.8rem">{{ period.seed_commit }}</code></details>
+    </div>
     {% endif %}
   </details>
 

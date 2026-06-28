@@ -30,11 +30,15 @@ Oberfläche, die als **PWA** auch mobil installierbar und teils offline nutzbar 
 - **Wunschliste + faires Losverfahren** fürs Folgejahr (gewichtete Zufallsreihenfolge
   im Runden-Prinzip, Karma-Ausgleich, **nachgewiesene** Strategiesicherheit/Fairness).
   Beim Eintragen sieht man bereits die **Nachfrage der anderen** (wie umkämpft ein
-  Zeitraum ist) und kann die eigenen Wünsche **vor dem Einreichen entzerren** – z. B.
-  die Anreise um einen Tag verschieben, um Konflikte zu vermeiden.
+  Zeitraum ist) und bekommt **unverbindliche Ausweich-Tipps**, um Konflikte zu
+  entzerren. Die Auslosung ist **verifizierbar** (Commit-Reveal: Prüfsumme des Zufalls
+  vorab veröffentlicht, Seed danach offengelegt – selbst nachrechenbar).
 - **Meine Buchungen** – Storno, **Buchung ändern** (Zeitraum/Unterkunft/Personen),
   **Wechselwunsch** an andere Mitglieder.
-- **Tage übertragen** an andere Mitglieder (Typeahead-Suche).
+- **Tage übertragen** an andere Mitglieder (Typeahead-Suche), „Danke" sagen, oder
+  Tage in einen **Solidaritäts-Pool** spenden / bei Bedarf gedeckelt entnehmen.
+- **Gemeinschafts-Spiegel** – aggregierte, anonyme Transparenz (Auslastung,
+  Los-Ergebnisse, Karma-Verteilung); der eigene Ausgleichsfaktor steht im Profil.
 - **Hofladen** – Warenkorb → Rechnung (PDF, §14) → **online bezahlen** (Mollie).
 - **Profil**, **Benachrichtigungen** (In-App · E-Mail · optional **Web-Push**),
   installierbar & teils **offline**.
