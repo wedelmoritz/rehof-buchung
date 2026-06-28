@@ -58,6 +58,7 @@ __all__ = [
     'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
     'run_period_lottery', '_restore_factors', 'confirm_lottery',
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
+    'ensure_seed_commit', 'verify_period_lottery',
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
     'delete_wish', 'submit_wishlist', 'withdraw_wishlist',
     'book_spontaneous', 'add_waitlist_entry', 'waiters_for_allocation',

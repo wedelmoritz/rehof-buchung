@@ -28,10 +28,32 @@ beweisbar optimal.
 
 from __future__ import annotations
 
+import hashlib
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+
+
+# --------------------------------------------------------------------------- #
+# Verifizierbarkeit: Commit-Reveal des Zufalls-Seeds (provably fair)
+# --------------------------------------------------------------------------- #
+
+def seed_commitment(seed: int) -> str:
+    """Öffentliche Prüfsumme (SHA-256) eines Los-Seeds.
+
+    Vor der Ziehung wird dieser Hash veröffentlicht ("Commit"), der Seed selbst
+    aber geheim gehalten. Nach der Ziehung wird der Seed offengelegt ("Reveal");
+    jede:r kann dann `seed_commitment(seed)` neu bilden und mit dem zuvor
+    veröffentlichten Wert vergleichen. Stimmen sie überein, stand der Seed schon
+    VOR der Ziehung fest – die Verwaltung konnte ihn also nicht nachträglich zu
+    Gunsten einzelner wählen. Reine Funktion (Django-frei, isoliert testbar)."""
+    return hashlib.sha256(str(int(seed)).encode("ascii")).hexdigest()
+
+
+def verify_commitment(seed: int, commitment: str) -> bool:
+    """True, wenn `commitment` die veröffentlichte Prüfsumme zu `seed` ist."""
+    return bool(commitment) and seed_commitment(seed) == commitment.strip().lower()
 
 
 # --------------------------------------------------------------------------- #

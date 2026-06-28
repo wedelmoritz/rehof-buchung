@@ -94,6 +94,26 @@
   („Fairness-Nachweis“).</p>
 {% endif %}
 
+<div class="card">
+  <h2 style="margin-top:0">3. Verifizierbar: niemand kann den Zufall „passend“ wählen</h2>
+  <p class="muted" style="margin-top:0">Die Auslosung ist über einen <strong>Seed</strong>
+    reproduzierbar – aus demselben Seed entsteht immer dasselbe Ergebnis. Damit niemand
+    (auch nicht die Verwaltung) den Seed nachträglich zu Gunsten einzelner aussucht, gilt
+    ein <strong>Commit-Reveal</strong>-Verfahren:</p>
+  <ol class="muted" style="margin:0">
+    <li><strong>Festlegen &amp; ankündigen (Commit):</strong> Sobald die Wünsche öffnen, wird der
+      geheime Seed erzeugt und nur seine <strong>Prüfsumme (SHA-256)</strong> veröffentlicht –
+      auf der Wunschliste und beim Ergebnis. Der Seed steht damit fest, <em>bevor</em> die
+      Einträge final sind.</li>
+    <li><strong>Offenlegen (Reveal):</strong> Nach der bestätigten Ziehung wird der Seed selbst
+      gezeigt. Bilde seine SHA-256-Prüfsumme – sie muss exakt der zuvor veröffentlichten
+      entsprechen. Stimmt sie, war der Seed nicht manipulierbar.</li>
+    <li><strong>Nachrechnen:</strong> Mit Seed + den eingereichten Wünschen lässt sich die
+      Ziehung mit dem offenen Quellcode <code>booking/lottery.py</code> exakt reproduzieren
+      (die Verwaltung kann das per <code>manage.py verify_lottery</code> belegen).</li>
+  </ol>
+</div>
+
 <p><a class="btn ghost" href="{% url 'help' %}">← Zur Hilfe</a></p>
 
 <style>

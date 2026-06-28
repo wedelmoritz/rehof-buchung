@@ -429,6 +429,9 @@ class BookingPeriodAdmin(admin.ModelAdmin):
                     "wishlist_open", "wishlist_close", "draw_at")
     list_filter = ("status", "target_year")
     actions = ["action_run_lottery"]
+    # Seed + Commit werden vom Commit-Reveal verwaltet (ADR 0062) und dürfen NICHT
+    # von Hand geändert werden – sonst passte der veröffentlichte Hash nicht mehr.
+    readonly_fields = ("seed", "seed_commit", "seed_committed_at")
     fieldsets = (
         (None, {
             "fields": ("name", "target_year", "status"),
@@ -443,14 +446,24 @@ class BookingPeriodAdmin(admin.ModelAdmin):
         }),
         ("Termine (steuern den Ablauf)", {
             "fields": ("wishlist_open", "wishlist_close", "draw_at",
-                       "start", "end", "seed"),
+                       "start", "end"),
             "description": (
                 "Zeitlicher Ablauf eines Buchungsjahres: <b>Wünsche ab/bis</b> = "
                 "Anmeldefenster für die Wunschliste; <b>Losung am</b> = Termin der "
                 "automatischen Auslosung; <b>buchbar ab/bis</b> = Zeitraum der "
                 "freien Bebuchbarkeit (Ende exklusiv; „buchbar ab“ darf vor dem "
-                "1.1. liegen). Übliche Reihenfolge: Wünsche → Losung → buchbar. "
-                "Der Seed macht die Auslosung reproduzierbar (leer = zufällig)."
+                "1.1. liegen). Übliche Reihenfolge: Wünsche → Losung → buchbar."
+            ),
+        }),
+        ("Verifizierbarkeit (Commit-Reveal, ADR 0062)", {
+            "fields": ("seed", "seed_commit", "seed_committed_at"),
+            "classes": ("collapse",),
+            "description": (
+                "Wird automatisch verwaltet: Sobald die Wünsche öffnen, wird der "
+                "geheime <b>Seed</b> erzeugt und seine <b>Prüfsumme</b> "
+                "veröffentlicht; nach der bestätigten Ziehung ist der Seed "
+                "offengelegt. Per <code>manage.py verify_lottery &lt;id&gt;</code> "
+                "prüfbar. <b>Nicht von Hand ändern.</b>"
             ),
         }),
     )

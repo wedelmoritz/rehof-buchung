@@ -52,6 +52,29 @@
   </table></div>
 </div>
 
+{% if period.seed_commit %}
+<details class="card" style="margin-top:1rem">
+  <summary style="cursor:pointer;font-weight:600">Verifizierbarkeit der Auslosung</summary>
+  <p class="muted" style="margin:.6rem 0">Diese Auslosung ist <strong>nachweisbar fair</strong>:
+    Die Prüfsumme des Zufalls-Seeds wurde schon <strong>vor</strong> der Ziehung
+    veröffentlicht{% if period.seed_committed_at %} (am {{ period.seed_committed_at|date:"d.m.Y H:i" }}){% endif %} –
+    der Seed stand also fest, bevor die Wünsche feststanden. Nach der Ziehung ist
+    der Seed offengelegt; jede:r kann beides vergleichen.</p>
+  <dl class="verify">
+    <dt>Veröffentlichte Prüfsumme (SHA-256)</dt><dd><code>{{ period.seed_commit }}</code></dd>
+    {% if run.confirmed %}<dt>Offengelegter Seed</dt><dd><code>{{ period.seed }}</code></dd>{% endif %}
+  </dl>
+  {% if run.confirmed %}
+  <p class="muted" style="margin:.4rem 0 0">So prüfst du es selbst: Bilde die SHA-256-Prüfsumme
+    der Zahl <code>{{ period.seed }}</code> – sie muss exakt der oben veröffentlichten
+    Prüfsumme entsprechen. Wie das Ergebnis daraus entsteht, erklärt der
+    <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis</a>.</p>
+  {% else %}
+  <p class="muted" style="margin:.4rem 0 0">Der Seed selbst wird nach der Bestätigung offengelegt.</p>
+  {% endif %}
+</details>
+{% endif %}
+
 {% if run and is_verwaltung %}
 <h2>Ziehungsprotokoll (Audit – nur Verwaltung)</h2>
 <pre class="log">{{ run.log_text }}</pre>

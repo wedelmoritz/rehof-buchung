@@ -235,6 +235,12 @@
     wirkt), zeigen wir per Monte-Carlo-Simulation mit Chi-Quadrat-Test →
     <a href="{% url 'lottery_fairness' %}">Statistischer Fairness-Nachweis</a>.
   </p>
+  <p class="sm" style="margin:.6rem 0 0">
+    <strong>Verifizierbar:</strong> Der Zufall der Ziehung ist nicht manipulierbar – die Prüfsumme des
+    Seeds wird schon <em>vor</em> der Auslosung veröffentlicht und der Seed danach offengelegt
+    („Commit-Reveal"). Du kannst das Ergebnis selbst nachrechnen
+    (<a href="{% url 'lottery_fairness' %}">Abschnitt 3 im Fairness-Nachweis</a>).
+  </p>
 </div>
 
 <div class="card" id="hofladen">

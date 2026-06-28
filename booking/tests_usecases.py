@@ -943,6 +943,65 @@ class LosungBestaetigungTests(UseCaseBase):
 
 
 # --------------------------------------------------------------------------- #
+# Use-Case: Verifizierbare Auslosung (Commit-Reveal, ADR 0062)
+# --------------------------------------------------------------------------- #
+
+class LosungVerifizierbarkeitTests(UseCaseBase):
+    def _period(self):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def _two_rivals(self, period):
+        s = date(NEXT_YEAR, 5, 24); e = s + timedelta(days=4)
+        svc.add_wish(self.alice, period, self.qa, s, e)
+        svc.add_wish(self.bob, period, self.qa, s, e)
+        svc.submit_wishlist(self.alice, period)
+        svc.submit_wishlist(self.bob, period)
+
+    def test_commit_vorab_und_passt_zum_seed(self):
+        period = self._period()
+        # Commit beim Öffnen der Wünsche (vor der Ziehung) – idempotent.
+        svc.ensure_seed_commit(period)
+        commit1 = period.seed_commit
+        self.assertTrue(commit1)
+        self.assertIsNotNone(period.seed_committed_at)
+        svc.ensure_seed_commit(period)
+        self.assertEqual(period.seed_commit, commit1)  # idempotent
+        # Die Prüfsumme passt zum (geheimen) Seed.
+        from booking import lottery as L
+        self.assertTrue(L.verify_commitment(period.seed, period.seed_commit))
+
+    def test_ziehung_nutzt_committeten_seed(self):
+        period = self._period()
+        svc.ensure_seed_commit(period)
+        committed = period.seed
+        self._two_rivals(period)
+        # Ein abweichend übergebener Seed darf den Commit NICHT aushebeln.
+        run = svc.run_period_lottery(period, seed=committed + 999)
+        period.refresh_from_db()
+        self.assertEqual(period.seed, committed)
+        self.assertEqual(run.seed, committed)
+
+    def test_verify_period_lottery_und_command(self):
+        period = self._period()
+        self._two_rivals(period)
+        svc.run_period_lottery(period, seed=7)
+        rep = svc.verify_period_lottery(period)
+        self.assertTrue(rep["ok"], rep)
+        self.assertTrue(rep["commit_ok"])
+        self.assertTrue(rep["replay_ok"])
+        # Das Kommando läuft fehlerfrei (Exit 0 = keine Exception).
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("verify_lottery", str(period.id), stdout=out)
+        self.assertIn("reproduzierbar", out.getvalue())
+
+
+# --------------------------------------------------------------------------- #
 # Use-Case: Buchung anpassen (verlängern/verkürzen) + Wechselwunsch-Gruppen
 # --------------------------------------------------------------------------- #
 

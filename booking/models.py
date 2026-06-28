@@ -357,6 +357,13 @@ class BookingPeriod(models.Model):
     )
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
     seed = models.BigIntegerField("Zufalls-Seed", null=True, blank=True)
+    # Verifizierbarkeit (Commit-Reveal, ADR 0062): Die Prüfsumme des Seeds wird
+    # VOR der Ziehung veröffentlicht (sobald die Wünsche öffnen), der Seed selbst
+    # erst NACH der bestätigten Ziehung offengelegt. So ist belegbar, dass der Seed
+    # vorab feststand (lottery.seed_commitment / verify_commitment).
+    seed_commit = models.CharField("Seed-Prüfsumme (SHA-256)", max_length=64, blank=True)
+    seed_committed_at = models.DateTimeField(
+        "Prüfsumme veröffentlicht am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Buchungsperiode (Jahr)"

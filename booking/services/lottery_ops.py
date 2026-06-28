@@ -20,7 +20,28 @@ from .slots import _in_season_range, _materialized_seasons
 __all__ = [
     'run_period_lottery', '_restore_factors', 'confirm_lottery',
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
+    'ensure_seed_commit', 'verify_period_lottery',
 ]
+
+
+def ensure_seed_commit(period: BookingPeriod) -> BookingPeriod:
+    """Legt – falls noch nicht geschehen – den geheimen Los-Seed fest und
+    veröffentlicht seine Prüfsumme (Commit-Reveal, ADR 0062). Idempotent.
+
+    Wird aufgerufen, sobald die Wünsche öffnen (vor der Ziehung). So steht der
+    Seed fest, bevor die Einträge final sind – die Verwaltung kann ihn später
+    nicht zu Gunsten einzelner wählen. Der Seed wird kryptografisch sicher
+    erzeugt; veröffentlicht wird nur die Prüfsumme, der Seed selbst erst nach der
+    bestätigten Ziehung (über `period.seed`)."""
+    import secrets
+    if period.seed_commit:
+        return period
+    if period.seed is None:
+        period.seed = secrets.randbits(63)   # CSPRNG, passt in BigInteger
+    period.seed_commit = L.seed_commitment(period.seed)
+    period.seed_committed_at = timezone.now()
+    period.save(update_fields=["seed", "seed_commit", "seed_committed_at"])
+    return period
 
 @transaction.atomic
 def run_period_lottery(
@@ -46,6 +67,16 @@ def run_period_lottery(
         _restore_factors(existing)
         existing.delete()
     Allocation.objects.filter(period=period, source="lottery").delete()
+
+    # Verifizierbarkeit: Der Seed steht über die veröffentlichte Prüfsumme fest
+    # (Commit-Reveal, ADR 0062). Ist noch keine Prüfsumme veröffentlicht, wird sie
+    # JETZT festgelegt (Fallback – normal passiert das schon beim Öffnen der
+    # Wünsche). Ein evtl. übergebener Seed greift nur, solange noch keiner steht;
+    # danach ist der committete Seed maßgeblich (sonst passte die Prüfsumme nicht).
+    if period.seed is None:
+        period.seed = seed
+    ensure_seed_commit(period)
+    seed = period.seed
 
     members = list(Member.objects.filter(is_external=False))
     quarters = list(Quarter.objects.filter(active=True))
@@ -259,6 +290,73 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
             "member_id": m.id, "message": msg, "detail": "\n".join(lines),
         })
     return notices
+
+
+def verify_period_lottery(period: BookingPeriod) -> dict:
+    """Prüft die Verifizierbarkeit einer (gelaufenen) Losung (ADR 0062):
+
+      1. Stimmt die veröffentlichte Prüfsumme zum offengelegten Seed? (Commit-Reveal)
+      2. Reproduziert ein erneuter Lauf mit demselben Seed und denselben Eingaben
+         GENAU die gespeicherten Zuteilungen?
+
+    Read-only. Faktoren werden aus dem Karma-Schnappschuss VOR dem Lauf genommen,
+    die Wünsche aus dem (nach Wunschschluss unveränderlichen) Lostopf. Liefert ein
+    Report-Dict; nutzbar im Kommando `verify_lottery` und der Verwaltungs-Vorschau."""
+    run = period.runs.first()
+    if run is None or period.seed is None:
+        return {"ok": False, "reason": "Keine gelaufene Losung/kein Seed."}
+
+    commit_ok = (not period.seed_commit) or L.verify_commitment(
+        period.seed, period.seed_commit)
+
+    members = list(Member.objects.filter(is_external=False))
+    quarters = list(Quarter.objects.filter(active=True))
+    wishes_qs = [
+        w for w in Wish.objects.filter(period=period, submitted=True)
+        .select_related("member", "quarter")
+        if _in_season_range(w.quarter, w.start, w.end)
+    ]
+    snap = run.karma_snapshot or {}
+    parties = [
+        L.Party(id=str(m.id), name=m.display_name,
+                factor=float(snap.get(str(m.id), m.factor)),
+                wish_night_budget=m.wish_night_budget)
+        for m in members
+    ]
+    q_payload = [L.Quarter(id=str(q.id), name=q.name, eq_class=str(q.eq_class_id))
+                 for q in quarters]
+    w_payload = [L.Wish(party_id=str(w.member_id), priority=w.priority,
+                        quarter_id=str(w.quarter_id), start=w.start, end=w.end)
+                 for w in wishes_qs]
+
+    policy = BookingPolicy.get_solo()
+    if wishes_qs:
+        _seasons = _materialized_seasons(min(w.start for w in wishes_qs),
+                                         max(w.end for w in wishes_qs))
+    else:
+        _seasons = []
+
+    def _rule_check(_pid, start, end, existing):
+        stays = [R.Stay(start=s, end=e) for (s, e) in existing]
+        return R.validate_booking(_seasons, policy.default_min_nights,
+                                  start, end, stays)
+
+    result = L.run_lottery(parties, q_payload, w_payload, seed=period.seed,
+                           rule_check=_rule_check)
+    replay = {(int(a.party_id), int(a.quarter_id), a.start, a.end)
+              for a in result.allocations}
+    stored = {(a.member_id, a.quarter_id, a.start, a.end)
+              for a in Allocation.objects.filter(period=period, source="lottery")}
+    replay_ok = (replay == stored)
+    return {
+        "ok": bool(commit_ok and replay_ok),
+        "commit_ok": commit_ok,
+        "replay_ok": replay_ok,
+        "seed": period.seed,
+        "seed_commit": period.seed_commit,
+        "n_stored": len(stored),
+        "n_replay": len(replay),
+    }
 
 
 def run_fairness_simulation(cfg=None) -> dict:

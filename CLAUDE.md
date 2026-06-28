@@ -519,6 +519,15 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
   sich über `BookingPeriod.draw_at` terminieren; das Kommando
   `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
+- **Verifizierbarkeit (Commit-Reveal, ADR 0062):** Der Seed ist nicht
+  manipulierbar. Beim Öffnen der Wünsche legt `services.ensure_seed_commit` einen
+  CSPRNG-Seed fest und veröffentlicht **nur dessen SHA-256-Prüfsumme**
+  (`BookingPeriod.seed_commit`/`seed_committed_at`, im Backend read-only); nach der
+  bestätigten Ziehung wird der Seed offengelegt (Ergebnisseite). Reine Logik
+  `lottery.seed_commitment`/`verify_commitment`; Verifikation
+  `services.verify_period_lottery` + Kommando `manage.py verify_lottery`. Anzeige
+  schlank auf Wunschliste/Ergebnis (`<details>`) + Abschnitt 3 auf „Fairness-Nachweis".
+  `run_period_lottery` nutzt **immer** den committeten Seed (sonst passt die Prüfsumme nicht).
 - **Losung-Bestätigung (Review-Workflow):** Ein Lauf landet zunächst im Status
   `lottery_review` – die Zuteilungen sind `Allocation.provisional=True`
   (blockieren die Verfügbarkeit, sind aber für Mitglieder **unsichtbar**;
