@@ -14,7 +14,7 @@ show_today (bool).
     </select>
   </span>
   <a class="btn small ghost" data-ajax href="?year={{ cal.next.year }}&month={{ cal.next.month }}{{ nav_qs }}" title="Folgemonat" aria-label="Folgemonat">&rsaquo;</a>
-  {% if show_today %}<a class="btn small" data-ajax style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ nav_qs }}">Heute</a>{% endif %}
+  {% if show_today %}<a class="btn small ghost" data-ajax style="margin-left:auto" href="?year={{ today.year }}&month={{ today.month }}{{ nav_qs }}">Heute</a>{% endif %}
 </div>
 <style>
   .cal-jump { display:inline-flex; gap:.4rem; }

@@ -3,7 +3,6 @@
 {% block content %}
 <h1>Wunschliste fürs nächste Jahr</h1>
 
-{% include "booking/_notifications.html" %}
 
 {% if not member %}
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
@@ -198,7 +197,7 @@
   li.wish { display:flex; align-items:center; gap:.7rem; background:var(--card);
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem; }
   li.wish.dragover { border-color:var(--accent); background:var(--accent-soft); }
-  li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; }
+  li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; touch-action:none; }
   .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
     display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto; }
   .wish-main { flex:1 1 auto; } .wish-actions { display:flex; gap:.25rem; align-items:center; }
@@ -222,11 +221,40 @@
       else { li.parentNode.insertBefore(dragEl, li); } });
     li.addEventListener('dragleave', function () { li.classList.remove('dragover'); });
   });
-  list.addEventListener('drop', function (e) {
-    e.preventDefault();
+  function commit() {
     var ids = Array.prototype.map.call(list.querySelectorAll('li.wish'), function (x) { return x.getAttribute('data-id'); });
     document.getElementById('reorder-order').value = ids.join(',');
     document.getElementById('reorder-form').submit();
+  }
+  list.addEventListener('drop', function (e) { e.preventDefault(); commit(); });
+
+  // Touch-Geräte: HTML5-Drag feuert dort nicht – daher per Pointer-Events am
+  // Ziehgriff sortieren (nur Touch/Stift; Maus nutzt weiterhin das HTML5-Drag).
+  list.querySelectorAll('li.wish').forEach(function (li) {
+    var handle = li.querySelector('.drag'); if (!handle) return;
+    handle.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse') return;
+      e.preventDefault();
+      li.style.opacity = '0.5'; li.classList.add('dragover');
+      function onMove(ev) {
+        var el = document.elementFromPoint(ev.clientX, ev.clientY);
+        var over = el && el.closest ? el.closest('li.wish') : null;
+        if (!over || over === li) return;
+        var rect = over.getBoundingClientRect();
+        if ((ev.clientY - rect.top) > rect.height / 2) over.parentNode.insertBefore(li, over.nextSibling);
+        else over.parentNode.insertBefore(li, over);
+      }
+      function onUp() {
+        li.style.opacity = ''; li.classList.remove('dragover');
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        commit();
+      }
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+    });
   });
 })();
 </script>

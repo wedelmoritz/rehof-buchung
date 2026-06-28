@@ -33,6 +33,14 @@
   </ul>
 </details>
 
+{# Schnell-Sprünge zu den Abschnitten (klebrig) – die Seite ist lang. #}
+<nav class="dash-jump" aria-label="Zu Abschnitt springen">
+  <a href="#d-reinigung">Reinigung</a>
+  <a href="#d-buchungen">Buchungen</a>
+  <a href="#d-rechnungen">Rechnungen</a>
+  <a href="#d-konto">Kontoabgleich</a>
+</nav>
+
 {# --- Kennzahlen ----------------------------------------------------------- #}
 <div class="kpis">
   <div class="card kpi"><span class="num">{{ arrivals|length }}</span>
@@ -97,7 +105,7 @@
 {# --- Reinigung ------------------------------------------------------------ #}
 <div class="card">
   <div class="sec-head">
-    <h2 style="margin:0">Reinigung – {{ month_label }}</h2>
+<h2 style="margin:0" id="d-reinigung">Reinigung – {{ month_label }}</h2>
     <span class="spacer"></span>
     <a class="btn small ghost" data-ajax href="?year={{ year }}&month={{ month }}{% if not only_cleaning %}&only_cleaning=1{% endif %}">
       {% if only_cleaning %}Alle Abreisen zeigen{% else %}Nur mit Endreinigung{% endif %}</a>
@@ -135,7 +143,7 @@
 
 {# --- Anstehende Buchungen ------------------------------------------------- #}
 <div class="card">
-  <h2>Anstehende Buchungen – {{ month_label }}</h2>
+  <h2 id="d-buchungen">Anstehende Buchungen – {{ month_label }}</h2>
   {% if arrivals %}
   <div class="table-wrap">
     <table class="grid">
@@ -170,7 +178,7 @@
 {# --- Rechnungen ----------------------------------------------------------- #}
 <div class="card">
   <div class="sec-head">
-    <h2 style="margin:0">Rechnungen</h2>
+    <h2 style="margin:0" id="d-rechnungen">Rechnungen</h2>
     <span class="spacer"></span>
     <span class="muted">{{ invoices_view|length }} angezeigt · {{ inv_view_sum }} €</span>
   </div>
@@ -219,7 +227,7 @@
 {# --- Kontoabgleich (Zahlungseingänge importieren) ------------------------- #}
 <div class="card">
   <div class="sec-head">
-    <h2 style="margin:0">Kontoabgleich</h2>
+    <h2 style="margin:0" id="d-konto">Kontoabgleich</h2>
     <span class="spacer"></span>
     {% if unmatched_count %}<span class="muted">{{ unmatched_count }} nicht zugeordnete Eingänge</span>{% endif %}
   </div>
@@ -229,7 +237,13 @@
     bleiben offen (im Backend zuzuordnen).</p>
   <form method="post" enctype="multipart/form-data" class="import-form">{% csrf_token %}
     <input type="hidden" name="action" value="import_bank">
-    <input type="file" name="statement" accept=".csv,.xml,.txt" required>
+    <span class="filefield">
+      <input type="file" id="kontoauszug" name="statement" accept=".csv,.xml,.txt" required
+             class="filehidden"
+             onchange="document.getElementById('kontoauszug-name').textContent = this.files.length ? this.files[0].name : 'Keine Datei gewählt';">
+      <label class="btn small ghost" for="kontoauszug">Datei wählen …</label>
+      <span id="kontoauszug-name" class="muted filename">Keine Datei gewählt</span>
+    </span>
     <label>Format
       <select name="fmt">
         <option value="csv">Bank-CSV</option>
@@ -280,6 +294,21 @@
   .stat-cap { font-size:.78rem; color:var(--muted); margin-bottom:.3rem; text-transform:uppercase; letter-spacing:.03em; }
   .stat-line { font-size:.92rem; margin:.15rem 0; }
   .stat-num { font-size:1.15rem; font-weight:700; color:var(--accent-deep); }
+  /* Abschnitts-Sprünge (klebrig oben), Anker etwas tiefer ansetzen (Sticky-Header) */
+  .dash-jump { position:sticky; top:56px; z-index:5; display:flex; gap:.5rem; flex-wrap:wrap;
+    margin:0 0 1rem; padding:.5rem 0; background:var(--bg); }
+  /* Am Handy klebt der Kopf höher/variabel – dort nicht kleben (Tab-Leiste navigiert). */
+  @media (max-width:680px){ .dash-jump { position:static; } }
+  .dash-jump a { font-size:.82rem; font-weight:600; text-decoration:none; color:var(--accent-deep);
+    padding:.3rem .7rem; border:1px solid var(--line); border-radius:999px; background:var(--card); }
+  .dash-jump a:hover { background:var(--accent-soft); }
+  h2[id]{ scroll-margin-top:60px; }
+  /* Gestylter, deutscher Datei-Upload (statt nacktem „Choose File") */
+  .filefield { display:inline-flex; align-items:center; gap:.5rem; }
+  .filefield .filehidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .filefield:focus-within label { outline:2px solid var(--accent); outline-offset:2px; }
+  .filefield .filename { font-size:.85rem; }
   .monthbar { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
   .inline-form { display:inline-flex; gap:.8rem; align-items:flex-end; flex-wrap:wrap; }
   .inline-form label { font-size:.8rem; color:var(--muted); display:flex; flex-direction:column; gap:.2rem; }

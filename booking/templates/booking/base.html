@@ -51,6 +51,12 @@
        Systemmeldungen) dürfen die Seite nicht über die Handybreite hinaus dehnen. */
     .msg, .notif li, .notif-detail { overflow-wrap: anywhere; }
     a { color: var(--accent-deep); }
+    /* Gut sichtbarer Tastatur-Fokus (nur bei Tastatur, nicht bei Maus-Klick). */
+    a:focus-visible, button:focus-visible, .btn:focus-visible, summary:focus-visible,
+    input:focus-visible, select:focus-visible, textarea:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px;
+    }
 
     /* Kopf / Navigation */
     header {
