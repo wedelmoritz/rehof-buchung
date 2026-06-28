@@ -134,9 +134,13 @@ Nutzer im Backend der Gruppe „Verwaltung" hinzugefügt wird (ADR 0014).
 > docker compose exec web python manage.py admin_otp_setup --user <name>
 > ```
 > Den ausgegebenen QR-Code in einer Authenticator-App (Aegis/FreeOTP/…) scannen;
-> beim nächsten Backend-Login zusätzlich den 6-stelligen Code eingeben. Notnagel,
-> falls man sich ausgesperrt hat: `ADMIN_OTP_REQUIRED=0` in der `.env`, Stack neu
-> starten, Gerät einrichten, wieder auf `1`/leer setzen.
+> beim nächsten Backend-Login zusätzlich den 6-stelligen Code eingeben.
+>
+> **2FA ein-/ausschalten oder nach einem Lockout wieder reinkommen:** über die
+> Variable `ADMIN_OTP_REQUIRED` (in der `.env`: `0` = aus, `1` = an; `docker compose
+> up -d` danach). Schritt-für-Schritt inkl. Wiedereinstieg:
+> **[`docs/2FA-BACKEND.md`](2FA-BACKEND.md)**. (`docker-compose.yml` reicht die
+> Variable an den `web`-Container durch; **nicht leer** setzen.)
 
 ### 3.6 Caddy konfigurieren
 
@@ -191,7 +195,7 @@ greifen die genannten Defaults aus `config/settings.py` / `docker-compose.yml`.
 
 | Variable | Pflicht | Bedeutung / Default |
 |---|---|---|
-| `ADMIN_OTP_REQUIRED` | optional | Backend-2FA erzwingen. Default: **an in Produktion** (`not DEBUG`). Vor dem ersten Login `manage.py admin_otp_setup` ausführen! |
+| `ADMIN_OTP_REQUIRED` | optional | Backend-2FA erzwingen. `1` = an (Default in Prod), `0` = aus. Vor dem ersten Login `manage.py admin_otp_setup` ausführen! Ein-/Ausschalten + Lockout-Hilfe: [`docs/2FA-BACKEND.md`](2FA-BACKEND.md). |
 | `FIELD_ENCRYPTION_KEY` | optional | Schlüssel für die (noch inaktive) Feld-Verschlüsselung. Leer = aus. Mit `manage.py field_key` erzeugen, getrennt sichern. |
 | `RATELIMIT_ENABLE` | optional | Rate-Limiting sensibler Endpunkte. Default: **an in Produktion**. |
 | `CSP_REPORT_ONLY` | optional | `1` = CSP nur melden statt durchsetzen (vorsichtiger Rollout). Default: durchsetzen. |
