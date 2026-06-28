@@ -161,7 +161,7 @@ definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{%
 {% block pretitle %}{{ block.super }}{% include "admin/_rehof_navigator.html" %}{% endblock %}
 
 {% block extrahead %}{{ block.super }}
-<script>
+<script nonce="{{ request.csp_nonce }}">
 /* Re:hof-Backend: (1) Navigator-Suche + Sektions-Zustand + aktive Markierung,
    (2) pjax – beim Klick auf einen Bereich/eine Liste wird NUR der Inhalt UNTER
    dem Navigator ausgetauscht (kein Neuladen, gleiche Struktur). Änderungs-/
@@ -169,6 +169,13 @@ definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{%
    Navigation zurück. (ADR 0055) */
 (function () {
   if (window.__rehofAdminNav) return; window.__rehofAdminNav = true;
+  // Bestätigungsdialoge im Backend ohne Inline-Handler (CSP-Nonce, ADR 0061):
+  // data-confirm am auslösenden Button ODER am Formular.
+  document.addEventListener("submit", function (e) {
+    var msg = (e.submitter && e.submitter.getAttribute("data-confirm")) ||
+              (e.target.getAttribute && e.target.getAttribute("data-confirm"));
+    if (msg && !window.confirm(msg)) e.preventDefault();
+  }, false);
   var COLLAPSE_KEY = "rehof.nav.collapsed";
 
   function nav() { return document.getElementById("rehof-nav"); }

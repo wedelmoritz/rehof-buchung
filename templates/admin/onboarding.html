@@ -73,7 +73,7 @@ auch beim pjax-Laden ohne erneutes Skript funktioniert (ADR 0055).{% endcomment 
       <p class="rehof-ob-hint">Wenn nicht klar ist, wer das ist.</p>
       <button type="submit" name="action" value="deactivate" class="rehof-ob-btn ghost">Konto deaktivieren</button>
       <button type="submit" name="action" value="delete" class="rehof-ob-btn danger"
-              onclick="return confirm('Konto {{ u.suggested_name|escapejs }} wirklich endgültig löschen?');">Konto löschen</button>
+              data-confirm="Konto {{ u.suggested_name }} wirklich endgültig löschen?">Konto löschen</button>
     </form>
   </div>
 </div>

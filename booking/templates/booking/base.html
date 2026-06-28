@@ -374,7 +374,7 @@
       .table-wrap > table { width: auto; min-width: 100%; white-space: nowrap; }
     }
   </style>
-  <script>/* Eingeklappt-Zustand vor dem Rendern setzen (kein Aufblitzen). */
+  <script nonce="{{ request.csp_nonce }}">/* Eingeklappt-Zustand vor dem Rendern setzen (kein Aufblitzen). */
     try { if (localStorage.getItem("rehofNav") === "collapsed") document.documentElement.classList.add("nav-collapsed"); } catch (e) {}</script>
   {% block extrahead %}{% endblock %}
 </head>
@@ -475,7 +475,7 @@
   {% if footer.contact_email %}<span class="sep">·</span><a href="mailto:{{ footer.contact_email }}">Kontakt</a>{% endif %}
 </footer>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
   // Navigation ein-/ausklappen (Desktop). Standard: angezeigt; Zustand gemerkt.
   (function () {
     var root = document.documentElement, KEY = "rehofNav";
@@ -560,6 +560,53 @@
     harvest(document);   // beim Laden vorhandene Meldungen einsammeln
   })();
 
+  // Unaufdringliche Handler statt Inline-Attributen (CSP-Nonce, ADR 0061: keine
+  // onclick/onsubmit/onchange mehr im HTML). MUSS vor dem AJAX-Submit-Layer
+  // registriert sein, damit ein abgebrochenes confirm() per defaultPrevented auch
+  // das AJAX-Nachschicken stoppt (der AJAX-Layer prüft e.defaultPrevented).
+  (function () {
+    // Bestätigungsdialoge: data-confirm am Formular ODER am auslösenden Button.
+    // PIN-Plausibilität (Profil): data-pin-check (leer ODER genau 6 Ziffern).
+    document.addEventListener("submit", function (e) {
+      var form = e.target;
+      var msg = (e.submitter && e.submitter.getAttribute("data-confirm")) ||
+                form.getAttribute("data-confirm");
+      if (msg && !window.confirm(msg)) { e.preventDefault(); return; }
+      if (form.hasAttribute("data-pin-check")) {
+        var pinEl = form.querySelector("[name=pin]");
+        var p = pinEl ? pinEl.value : "";
+        if (p !== "" && !/^\d{6}$/.test(p)) {
+          e.preventDefault();
+          window.alert("Die PIN muss genau 6 Ziffern haben (oder leer lassen).");
+        }
+      }
+    }, false);
+    // change: Auto-Submit (data-autosubmit), Kalender-Navigation (data-nav-tpl,
+    // __V__ = gewählter Wert), Datei-Namen anzeigen (data-filename-target).
+    document.addEventListener("change", function (e) {
+      var el = e.target;
+      if (el.hasAttribute && el.hasAttribute("data-autosubmit") && el.form) {
+        if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit();
+      }
+      if (el.hasAttribute && el.hasAttribute("data-nav-tpl")) {
+        var url = el.getAttribute("data-nav-tpl")
+          .replace("__V__", encodeURIComponent(el.value));
+        (window.__nav || function (u) { location.href = u; })(url);
+      }
+      var tgt = el.getAttribute && el.getAttribute("data-filename-target");
+      if (tgt) {
+        var out = document.getElementById(tgt);
+        if (out) out.textContent = el.files && el.files.length
+          ? el.files[0].name : "Keine Datei gewählt";
+      }
+    }, false);
+    // Buttons mit data-reload (z.B. „Erneut versuchen").
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-reload]") : null;
+      if (b) { e.preventDefault(); location.reload(); }
+    }, false);
+  })();
+
   // AJAX-Formulare: POST ohne Neuladen, Scrollposition halten, Meldung als Toast.
   // Progressive Enhancement – ohne JS bzw. bei Fehlern normales Abschicken.
   (function () {
@@ -598,7 +645,7 @@
     }
     document.addEventListener("submit", function (e) {
       var form = e.target;
-      // Hat ein Inline-Handler (z.B. onsubmit="return confirm(...)") schon
+      // Hat der delegierte Bestätigungs-Handler (data-confirm, s.o.) schon
       // abgebrochen, NICHT per AJAX nachschicken – sonst liefe die Aktion trotz
       // „Abbrechen" weiter.
       if (e.defaultPrevented) return;

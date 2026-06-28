@@ -131,7 +131,7 @@
   table.grid select, table.grid input { padding:.3rem .35rem; }
   .warn-note { color:#9a6a00; font-size:.8rem; }
 </style>
-<script>
+<script nonce="{{ request.csp_nonce }}">
   // „+ Mitglied"-Knopf: reicht das zugehörige Mini-Formular der Zeile ein.
   document.querySelectorAll('button[data-cm]').forEach(function(btn){
     btn.addEventListener('click', function(){

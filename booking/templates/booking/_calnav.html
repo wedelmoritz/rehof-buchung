@@ -6,10 +6,10 @@ show_today (bool).
 <div class="cal-head">
   <a class="btn small ghost" data-ajax href="?year={{ cal.prev.year }}&month={{ cal.prev.month }}{{ nav_qs }}" title="Vormonat" aria-label="Vormonat">&lsaquo;</a>
   <span class="cal-jump">
-    <select aria-label="Monat" onchange="(window.__nav||function(u){location.href=u})('?year={{ cal.year }}&month='+this.value+'{{ nav_qs }}')">
+    <select aria-label="Monat" data-nav-tpl="?year={{ cal.year }}&month=__V__{{ nav_qs }}">
       {% for m in months %}<option value="{{ m.num }}" {% if m.num == cal.month %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
     </select>
-    <select aria-label="Jahr" onchange="(window.__nav||function(u){location.href=u})('?year='+this.value+'&month={{ cal.month }}{{ nav_qs }}')">
+    <select aria-label="Jahr" data-nav-tpl="?year=__V__&month={{ cal.month }}{{ nav_qs }}">
       {% for y in years %}<option value="{{ y }}" {% if y == cal.year %}selected{% endif %}>{{ y }}</option>{% endfor %}
     </select>
   </span>

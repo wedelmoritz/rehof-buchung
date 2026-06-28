@@ -47,6 +47,29 @@ Umsetzung in Batches; gemeinsame Klammer dieser ADR.
    > Das Env-Gate (`ADMIN_OTP_REQUIRED`, Default `not DEBUG`) trennt die Erzwingung
    > sauber von der Testbarkeit, ohne in Produktion ein Schlupfloch zu lassen.
 
+### P2 – Härtung in der Breite
+
+4. **Content-Security-Policy (nonce-basiert, `django-csp`).** Globale, **durchsetzende**
+   Policy: `script-src 'self' 'nonce-<pro-Antwort>'` ohne `'unsafe-inline'` – injizierte
+   `<script>`/`javascript:`-URIs greifen nicht (hochwertiger XSS-Schutz). Dazu
+   `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`
+   (Clickjacking), `img-src 'self' data:`. **Inline-Styles bleiben erlaubt**
+   (`style-src 'unsafe-inline'`; im Layout pervasiv, geringes Risiko). Es gibt bewusst
+   **keine externen Ressourcen/CDNs** → alles `'self'`.
+   - **Folge für die Templates:** Jedes `<script>` trägt `nonce="{{ request.csp_nonce }}"`;
+     **Inline-Event-Handler** (`onclick`/`onsubmit`/`onchange`) wurden auf delegierte
+     Listener umgestellt (`data-confirm`, `data-pin-check`, `data-autosubmit`,
+     `data-nav-tpl`, `data-filename-target`, `data-reload` in `base.html`; ein eigener
+     `data-confirm`-Handler im Backend-`base_site.html`). Grund: Sobald ein Nonce gesetzt
+     ist, **ignorieren Browser `'unsafe-inline'`** – auch Safari kennt kein separates
+     `script-src-attr`; eine PWA mit iOS-Safari lässt also **keinen** Header-Trick zu,
+     Inline-Handler **müssen** weichen.
+   - **Einbettbares Widget:** `external_embed` lockert per `@csp_replace` nur
+     `frame-ancestors` auf `*` (öffentliches read-only Verfügbarkeits-Widget; ergänzt
+     das vorhandene `@xframe_options_exempt`).
+   - **Rollout-Schalter:** `CSP_REPORT_ONLY=1` schaltet auf reines Melden (bricht nichts),
+     Default ist durchsetzen.
+
 ## Betrachtete Alternativen
 
 - **2FA über ein Drittpaket mit eigener Login-Maske (z. B. two-factor):** verworfen –
@@ -56,6 +79,12 @@ Umsetzung in Batches; gemeinsame Klammer dieser ADR.
   das Backend (Vollzugriff auf alle Daten). Mitglieder-2FA bleibt möglicher Folgeschritt.
 - **`SECRET_KEY`-Prüfung nur als Warnung loggen:** verworfen – ein schwacher Schlüssel
   ist ein kritischer Vertraulichkeits-/Integritätsbruch; fail-closed ist angemessen.
+- **CSP mit `script-src 'unsafe-inline'` (ohne Nonce):** verworfen – das hätte die
+  ~16 Inline-Handler ohne Umbau erhalten, aber den XSS-Schutz ausgehebelt (Injektion
+  beliebiger Inline-Skripte bliebe möglich). Die Leitlinie „Sicherheit vor Effizienz"
+  rechtfertigt den einmaligen Umbau auf delegierte Listener.
+- **CSP nur als Report-Only:** als Dauerlösung verworfen (kein echter Schutz); bleibt
+  als optionaler Rollout-Schalter (`CSP_REPORT_ONLY`) erhalten.
 
 ## Konsequenzen
 

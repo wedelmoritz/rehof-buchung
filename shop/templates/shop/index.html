@@ -165,7 +165,7 @@
   #oc-sync { display:block; width:100%; margin-top:.6rem; }
 </style>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   // Die Offline-Warenkorb-Engine (window.__offlineCart) wird erst am Ende von
   // base.html definiert – also ggf. nach diesem Skript. Init verzögern, bis sie da

@@ -136,7 +136,7 @@
             <input type="hidden" name="direction" value="down">
             <button class="btn small ghost" type="submit" aria-label="Priorität niedriger" title="Priorität niedriger" {% if forloop.last %}disabled{% endif %}>&#9660;</button>
           </form>
-          <form method="post" class="inline" onsubmit="return confirm('Wunsch löschen?');">{% csrf_token %}
+          <form method="post" class="inline" data-confirm="Wunsch löschen?">{% csrf_token %}
             <input type="hidden" name="action" value="delete_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
             <button class="btn small ghost danger" type="submit" aria-label="Wunsch entfernen" title="Wunsch entfernen">&#10005;</button>
           </form>
@@ -151,9 +151,9 @@
     <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei umkämpften
       Zeiträumen (rot im Kalender) lohnt ein Blick, ob du einen Wunsch <strong>entzerren</strong>
       kannst – z.&nbsp;B. die Anreise einen Tag verschieben. Das erhöht für alle die Chance.</p>
-    <form method="post">{% csrf_token %}
+    <form method="post" data-confirm="Wunschliste verbindlich in den Lostopf geben?">{% csrf_token %}
       <input type="hidden" name="action" value="submit_wishlist">
-      <button class="btn sage" type="submit" onclick="return confirm('Wunschliste verbindlich in den Lostopf geben?');">
+      <button class="btn sage" type="submit">
         &#10003; Bestätigen &ndash; in den Lostopf</button>
     </form>
     {% else %}
@@ -205,7 +205,7 @@
     border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; margin:.2rem 0 .7rem; }
 </style>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   var list = document.getElementById('wishlist');
   if (!list) return;

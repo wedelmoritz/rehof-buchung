@@ -40,7 +40,7 @@
   {% if r.cancellable %}
   <p class="muted" style="font-size:.85rem">Bei Storno heute: Erstattung
     <strong>{{ r.preview.refund }} €</strong> ({{ r.preview.percent }} % – {{ r.preview.label }}).</p>
-  <form method="post" onsubmit="return confirm('Diese Buchung wirklich stornieren?');">{% csrf_token %}
+  <form method="post" data-confirm="Diese Buchung wirklich stornieren?">{% csrf_token %}
     <input type="hidden" name="action" value="cancel">
     <input type="hidden" name="booking" value="{{ r.b.id }}">
     <button class="btn small ghost" type="submit">Buchung stornieren</button>

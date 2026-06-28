@@ -58,8 +58,7 @@
     Handy dabei hast. Bezahlt wird dort <strong>nicht</strong>; das läuft über die
     Rechnung. Die Teilnahme ist freiwillig: Du <strong>musst keine PIN setzen</strong>,
     und du kannst die Funktion hier auch ganz ausschalten.</p>
-  <form method="post" data-no-ajax autocomplete="off"
-        onsubmit="var p=this.pin.value; return p===''|| /^\d{6}$/.test(p) || (alert('Die PIN muss genau 6 Ziffern haben (oder leer lassen).'),false)">{% csrf_token %}
+  <form method="post" data-no-ajax autocomplete="off" data-pin-check>{% csrf_token %}
     <input type="hidden" name="action" value="terminal_prefs">
     <label class="opt" style="display:flex;gap:.5rem;align-items:flex-start">
       <input type="checkbox" name="terminal_enabled" {% if member.terminal_enabled %}checked{% endif %}>
@@ -115,7 +114,7 @@
 </details>
 
 {% if push_enabled %}
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   var card = document.getElementById("push-card");
   if (!card) return;

@@ -68,6 +68,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Content-Security-Policy: setzt den Header + erzeugt pro Antwort den Skript-Nonce
+    # (request.csp_nonce). Früh in der Kette, damit der Nonce beim Rendern bereitsteht.
+    "csp.middleware.CSPMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -168,6 +171,37 @@ CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
+
+# --- Content-Security-Policy (django-csp, ADR 0061) ------------------------
+# Strikt & nonce-basiert: Skripte laufen NUR mit dem pro-Antwort erzeugten Nonce
+# (KEIN 'unsafe-inline' für Skripte → injizierte <script> / javascript:-URIs
+# greifen nicht; das ist der hochwertige XSS-Schutz). Inline-STYLES bleiben
+# erlaubt (im Layout pervasiv, geringes Risiko). Alle Ressourcen kommen von der
+# eigenen Domain ('self') – es gibt bewusst keine externen CDNs. Das einbettbare
+# Externen-Widget (external_embed) lockert frame-ancestors per View-Dekorator.
+from csp.constants import NONE, SELF, NONCE  # noqa: E402
+
+_CSP_DIRECTIVES = {
+    "default-src": [SELF],
+    "script-src": [SELF, NONCE],
+    "style-src": [SELF, "'unsafe-inline'"],
+    "img-src": [SELF, "data:"],
+    "font-src": [SELF],
+    "connect-src": [SELF],
+    "manifest-src": [SELF],
+    "worker-src": [SELF],
+    "frame-src": [SELF],
+    "frame-ancestors": [NONE],   # Clickjacking-Schutz (wie X-Frame-Options: DENY)
+    "base-uri": [SELF],          # <base>-Injektion verhindern
+    "form-action": [SELF],       # Formular-Ziele auf die eigene Domain begrenzen
+    "object-src": [NONE],        # Plugins/Flash aus
+}
+# Vorsichtiger Rollout: CSP_REPORT_ONLY=1 meldet Verstöße nur (bricht nichts),
+# statt sie durchzusetzen. Default: durchsetzen.
+if env_bool("CSP_REPORT_ONLY", False):
+    CONTENT_SECURITY_POLICY_REPORT_ONLY = {"DIRECTIVES": _CSP_DIRECTIVES}
+else:
+    CONTENT_SECURITY_POLICY = {"DIRECTIVES": _CSP_DIRECTIVES}
 
 # --- E-Mail (provider-neutral über die Umgebung) ---------------------------
 # Ohne EMAIL_HOST landet alles im Container-Log (Konsole) – so läuft

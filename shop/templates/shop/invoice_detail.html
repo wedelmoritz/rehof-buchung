@@ -69,7 +69,7 @@
     <div>Verwendungszweck: <strong>{{ invoice.number }}</strong></div>
     {% if invoice.status == 'open' %}
     <form method="post" action="{% url 'shop_invoices' %}" style="margin-top:.6rem"
-          onsubmit="return confirm('Als bezahlt melden?');">{% csrf_token %}
+          data-confirm="Als bezahlt melden?">{% csrf_token %}
       <input type="hidden" name="action" value="mark_paid">
       <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
       <button class="btn" type="submit">Habe ich bezahlt</button>

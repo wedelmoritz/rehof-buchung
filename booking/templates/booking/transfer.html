@@ -71,7 +71,7 @@
   </form>
 </div>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   var q = document.getElementById("xfer-q");
   var hidden = document.getElementById("id_to_member");

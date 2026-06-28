@@ -54,7 +54,7 @@
         <a class="btn small" href="{% url 'pay_invoice' inv.id %}">Online bezahlen</a>
         {% endif %}
         {% if inv.status == 'open' %}
-        <form method="post" onsubmit="return confirm('Rechnung {{ inv.number }} als bezahlt melden?');">{% csrf_token %}
+        <form method="post" data-confirm="Rechnung {{ inv.number }} als bezahlt melden?">{% csrf_token %}
           <input type="hidden" name="action" value="mark_paid">
           <input type="hidden" name="invoice_id" value="{{ inv.id }}">
           <button class="btn small ghost" type="submit">Habe ich überwiesen</button>

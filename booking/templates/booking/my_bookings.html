@@ -62,7 +62,7 @@
         {% if a.waiters %}<span class="tag mine">{{ a.waiters|length }} wartet</span>{% endif %}
         <div class="muted">{{ a.start }} – {{ a.end }} · {{ a.nights }} Nächte · {{ a.persons }} Pers. · {{ a.get_source_display }}</div>
       </div>
-      <form method="post" onsubmit="return confirm('{{ a.quarter.name|escapejs }} vom {{ a.start }} bis {{ a.end }} wirklich stornieren? Das gibt den Zeitraum und deine Tage wieder frei.');" style="margin-left:auto">{% csrf_token %}
+      <form method="post" data-confirm="{{ a.quarter.name }} vom {{ a.start }} bis {{ a.end }} wirklich stornieren? Das gibt den Zeitraum und deine Tage wieder frei." style="margin-left:auto">{% csrf_token %}
         <input type="hidden" name="action" value="cancel">
         <input type="hidden" name="allocation_id" value="{{ a.id }}">
         <button class="btn ghost small danger" type="submit">stornieren</button>
@@ -121,7 +121,7 @@
         solange frei und im Budget. Verkürzen nur, wenn der Mindestaufenthalt
         ({{ a.min_nights }} Nächte) bleibt und die frei werdenden Nächte ≥1 Woche
         entfernt sind. Frei werdende Zeit/Unterkunft wird allen gemeldet.</p>
-      <form method="post" class="adjust-row" onsubmit="return confirm('Buchung ändern?');">{% csrf_token %}
+      <form method="post" class="adjust-row" data-confirm="Buchung ändern?">{% csrf_token %}
         <input type="hidden" name="action" value="adjust">
         <input type="hidden" name="allocation_id" value="{{ a.id }}">
         <label>Unterkunft

@@ -729,8 +729,13 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
 - **Keine Geheimnisse** ins Repo (`.env` ist gitignored; `SECRET_KEY`/DB-Passwort
   erzeugt `install.sh`).
 - Reine Logik bleibt Django-frei, damit `tests/` ohne DB lauffähig bleibt.
-
----
+- **CSP (ADR 0061):** strikte, nonce-basierte Content-Security-Policy. **Jedes neue
+  `<script>` braucht `nonce="{{ request.csp_nonce }}"`**, und **keine Inline-Event-
+  Handler** (`onclick`/`onsubmit`/`onchange`) – stattdessen die delegierten
+  `data-*`-Handler in `base.html` (`data-confirm`, `data-autosubmit`, `data-nav-tpl`,
+  `data-pin-check`, `data-filename-target`, `data-reload`) bzw. im Backend
+  `base_site.html` (`data-confirm`). Keine externen Skripte/CDNs (alles `'self'`).
+  `booking/tests_csp.py` wacht über Header + nonce + handler-freie Seiten.
 
 ## Offene Punkte / Roadmap (Kandidaten für Change-Requests)
 

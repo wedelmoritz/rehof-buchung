@@ -6,6 +6,7 @@ whitenoise>=6.6
 django-axes>=8.0
 django-otp>=1.5     # Zwei-Faktor (TOTP) fürs Backend/Admin (ADR 0061)
 qrcode>=7.4         # QR-Code für die TOTP-Einrichtung (manage.py admin_otp_setup)
+django-csp>=4.0     # Content-Security-Policy (nonce-basiert) – ADR 0061
 redis>=5.0          # optional: nur genutzt, wenn REDIS_URL gesetzt ist
 weasyprint>=61      # Rechnungs-PDF (braucht native Libs, siehe Dockerfile)
 pywebpush>=2.0      # Web-Push (mobil); nur genutzt, wenn VAPID-Keys gesetzt sind

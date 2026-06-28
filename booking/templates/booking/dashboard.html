@@ -88,11 +88,11 @@
   <form method="get" data-ajax class="inline-form">
     {# requestSubmit() (nicht submit()) feuert das submit-Event → AJAX-Layer greift. #}
     <label>Monat
-      <select name="month" onchange="this.form.requestSubmit()">
+      <select name="month" data-autosubmit>
         {% for m in months %}<option value="{{ m.num }}" {% if m.num == month %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
       </select></label>
     <label>Jahr
-      <select name="year" onchange="this.form.requestSubmit()">
+      <select name="year" data-autosubmit>
         {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
       </select></label>
     {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
@@ -215,7 +215,7 @@
     <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'xlsx' %}?status={{ inv_filter }}">Excel</a>
     <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status={{ inv_filter }}">CSV</a>
     {% if overdue %}
-    <form method="post" class="inline" onsubmit="return confirm('Zahlungserinnerung an alle {{ overdue|length }} überfälligen Rechnungen senden?');">{% csrf_token %}
+    <form method="post" class="inline" data-confirm="Zahlungserinnerung an alle {{ overdue|length }} überfälligen Rechnungen senden?">{% csrf_token %}
       <input type="hidden" name="action" value="remind_overdue">
       <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
       <button class="btn small" type="submit">Überfällige anschreiben &amp; erinnern ({{ overdue|length }})</button>
@@ -239,8 +239,7 @@
     <input type="hidden" name="action" value="import_bank">
     <span class="filefield">
       <input type="file" id="kontoauszug" name="statement" accept=".csv,.xml,.txt" required
-             class="filehidden"
-             onchange="document.getElementById('kontoauszug-name').textContent = this.files.length ? this.files[0].name : 'Keine Datei gewählt';">
+             class="filehidden" data-filename-target="kontoauszug-name">
       <label class="btn small ghost" for="kontoauszug">Datei wählen …</label>
       <span id="kontoauszug-name" class="muted filename">Keine Datei gewählt</span>
     </span>

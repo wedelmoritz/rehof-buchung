@@ -20,6 +20,7 @@ from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from csp.decorators import csp_replace
 
 from .forms import (
     EmailChangeForm, ProfileForm, RegistrationForm, TransferForm, WishForm,
@@ -1528,6 +1529,11 @@ def _fairness_karma_chart(rows: list) -> dict:
             "yticks": _yticks(vmax, y_of)}
 
 
+# Das Widget soll bewusst von der Re:Hof-Website (fremde Origin) per <iframe>
+# eingebettet werden. Die globale CSP setzt frame-ancestors 'none' (Clickjacking-
+# Schutz für die App); hier lockern wir NUR diese eine Direktive für diese eine
+# Antwort. @xframe_options_exempt bleibt als Fallback für ältere Browser.
+@csp_replace({"frame-ancestors": ["*"]})
 @xframe_options_exempt
 def external_embed(request):
     """Einbettbares Verfügbarkeits-Widget für die Re:Hof-Website (read-only).
