@@ -82,6 +82,7 @@ die Regelwerte zu wiederholen.
 | [0058](0058-frontend-ux-verfeinerungen.md) | Frontend-UX-Verfeinerungen (Benutzerbereich + Verwaltungs-Dashboard) | Accepted |
 | [0059](0059-uebersicht-belegung-hybrid.md) | Übersicht aufgeräumt: Belegungs-Zeitstrahl Standard + Wochen-Agenda + Detail im Kontext | Accepted |
 | [0060](0060-performance-skalierung.md) | Performance & Skalierung für >100 gleichzeitige Nutzer (Sicherheit vor Tempo) | Accepted |
+| [0061](0061-sicherheits-haertungspaket.md) | Sicherheits-Härtungspaket (Defense in Depth: Django-LTS, SECRET_KEY-Wächter, Backend-2FA, CSP, Rate-Limiting, IBAN-Feldverschlüsselung vorbereitet, Container/CI-Härtung) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

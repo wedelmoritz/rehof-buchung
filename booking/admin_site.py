@@ -8,7 +8,17 @@ ihre echten URLs). Siehe ADR 0049.
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib import admin
+
+# Zwei-Faktor fürs Backend (ADR 0061): Wir erben von der OTP-Admin-Site, damit die
+# Anmeldemaske ein TOTP-Token abfragt. Fällt der Import aus (Paket fehlt), bleibt
+# das Backend funktionsfähig (ohne 2FA) – fail-open NUR fürs Import-Problem, die
+# eigentliche Erzwingung hängt an ADMIN_OTP_REQUIRED (s. has_permission).
+try:  # pragma: no cover - trivialer Import-Fallback
+    from django_otp.admin import OTPAdminSite as _AdminBase
+except Exception:  # pragma: no cover
+    _AdminBase = admin.AdminSite
 
 # Reihenfolge der Sektionen + der Modelle darin (Schlüssel: "app_label.ModelName").
 # Nicht eingeplante Modelle landen als Sicherheitsnetz unter „Weitere".
@@ -44,7 +54,7 @@ SECTIONS: list[tuple[str, list[str]]] = [
 ]
 
 
-class RehofAdminSite(admin.AdminSite):
+class RehofAdminSite(_AdminBase):
     """Admin-Site mit fachlicher Sektions-Gliederung (site_header/index_template
     werden weiterhin in booking/admin.py gesetzt)."""
 
@@ -53,6 +63,18 @@ class RehofAdminSite(admin.AdminSite):
     # _rehof_navigator.html via base_site.html). Die eingebaute Leiste würde nur
     # doppeln, daher aus (ADR 0055).
     enable_nav_sidebar = False
+
+    def has_permission(self, request):
+        """Backend-Zugang. Zwei-Faktor wird nur erzwungen, wenn ADMIN_OTP_REQUIRED
+        gesetzt ist (Default: Produktion an, DEBUG/Tests aus) – dann muss das Konto
+        zusätzlich per bestätigter TOTP-App verifiziert sein (request.user.
+        is_verified()). Sonst gilt die normale Staff-Prüfung (force_login-Tests
+        bleiben grün)."""
+        base_ok = admin.AdminSite.has_permission(self, request)
+        if base_ok and getattr(settings, "ADMIN_OTP_REQUIRED", False):
+            verify = getattr(request.user, "is_verified", None)
+            return bool(verify and verify())
+        return base_ok
 
     def each_context(self, request):
         """Zähler offener „Neue Benutzer" für das Badge am Navigator-Eintrag (auf

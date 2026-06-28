@@ -59,6 +59,11 @@ INSTALLED_APPS = [
     "booking",
     "shop",
     "axes",  # Brute-Force-Schutz für Anmeldungen
+    # Zwei-Faktor (TOTP) für das Backend/Admin (ADR 0061). Nur das Admin/Backend
+    # verlangt die Bestätigung – siehe RehofAdminSite.has_permission + OTPMiddleware.
+    "django_otp",
+    "django_otp.plugins.otp_totp",
+    "django_otp.plugins.otp_static",
 ]
 
 MIDDLEWARE = [
@@ -68,6 +73,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Stellt request.user.is_verified() bereit (Zwei-Faktor-Status fürs Backend).
+    "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Sperrt eingeloggte Nutzer ohne Mitglieds-Profil aus (Freischaltung nötig).
@@ -147,6 +154,13 @@ AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 # Erfolgreiche An-/Abmeldungen nicht protokollieren (spart DB-Schreiblast); die
 # Fehlversuche fürs Lockout werden weiterhin erfasst.
 AXES_DISABLE_ACCESS_LOG = True
+
+# --- Zwei-Faktor fürs Backend/Admin (TOTP, ADR 0061) -----------------------
+# Erzwingt eine bestätigte TOTP-App für Superuser/Staff im Django-Admin.
+# Default: in Produktion an, in der Entwicklung/Tests (DEBUG=1) aus – so bleiben
+# die `force_login`-basierten Admin-Tests grün. In Prod per Env abschaltbar,
+# falls die Geräte-Einrichtung (manage.py admin_otp_setup) noch aussteht.
+ADMIN_OTP_REQUIRED = env_bool("ADMIN_OTP_REQUIRED", not DEBUG)
 
 # --- Sitzungs-/Cookie-Härtung ----------------------------------------------
 SESSION_COOKIE_HTTPONLY = True
