@@ -44,11 +44,18 @@ elif [ "${SEED_DEMO:-0}" = "1" ]; then
 fi
 
 echo "[entrypoint] Starte Gunicorn …"
-# --max-requests recycelt Worker periodisch (begrenzt Speicherwachstum auf dem
-# knappen VPS); --jitter verhindert, dass alle Worker gleichzeitig neu starten.
+# Django ist I/O-/DB-gebunden → THREADS erlauben echte Gleichzeitigkeit (viele
+# Nutzer gleichzeitig) ohne pro Request einen eigenen Prozess. Gleichzeitige
+# Requests ≈ workers × threads. ACHTUNG DB-Budget: jeder aktive Thread hält (mit
+# conn_max_age) eine eigene PostgreSQL-Verbindung → workers×threads ≤ Postgres
+# max_connections (Default 100); bei mehreren Web-Containern PgBouncer davor
+# (siehe docs/BETRIEB-SICHERHEIT.md). --max-requests recycelt Worker periodisch
+# (begrenzt Speicherwachstum); --jitter entzerrt die Neustarts.
 exec gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \
+    --worker-class "${GUNICORN_WORKER_CLASS:-gthread}" \
     --workers "${GUNICORN_WORKERS:-3}" \
+    --threads "${GUNICORN_THREADS:-8}" \
     --timeout 60 \
     --max-requests 1000 \
     --max-requests-jitter 100

@@ -93,6 +93,10 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if DATABASE_URL:
     import dj_database_url
     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+    # Persistente Verbindungen (conn_max_age) + Health-Check: eine vom Server
+    # geschlossene/abgelaufene Verbindung wird vor dem Request einmal geprüft und
+    # neu aufgebaut, statt unter Last einen Fehler zu werfen.
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
     DATABASES = {
         "default": {

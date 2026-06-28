@@ -157,6 +157,12 @@ def unbilled_total(member: Member) -> Decimal:
 # --------------------------------------------------------------------------- #
 
 def _next_number(prefix: str, year: int, month: int) -> str:
+    # Nummernvergabe GLOBAL serialisieren: die Singleton-Konfig-Zeile in der
+    # laufenden Transaktion sperren, damit bei gleichzeitigem Checkout nicht
+    # zweimal dieselbe Nummer entsteht (sonst bräche der unique-Constraint einen
+    # der Checkouts mit IntegrityError ab). Aufrufer laufen in @transaction.atomic;
+    # unter SQLite (Tests) ist select_for_update ein No-Op.
+    list(ShopConfig.objects.select_for_update().all()[:1])
     n = Invoice.objects.filter(year=year, month=month).count() + 1
     return f"{prefix}-{year}-{month:02d}-{n:03d}"
 

@@ -137,3 +137,37 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
    „14-Tage-Rückspielbar"-Wunsch.
 2. **Secrets-Hygiene + 2FA (4.1/4.2)** — gegen die häufigsten realen Vektoren.
 3. **IBAN-Feldverschlüsselung + LUKS (4.3/4.4)** — gezielte Tiefenverteidigung.
+
+---
+
+## Performance & Skalierung (>100 gleichzeitige Nutzer)
+
+Sicherheit hat Vorrang: Zeilensperren/Constraints für Buchung & Checkout bleiben,
+auch wenn sie minimal serialisieren (Integrität > Tempo); kein Cache
+berechtigungspflichtiger/personenbezogener Daten über Nutzer hinweg.
+
+**Web-Worker (Gunicorn, I/O-/DB-gebunden):** `gthread` mit Threads erlaubt echte
+Gleichzeitigkeit. Gleichzeitige Requests ≈ `GUNICORN_WORKERS × GUNICORN_THREADS`
+(Default 3×8 = 24). Per Env steuerbar: `GUNICORN_WORKERS`, `GUNICORN_THREADS`,
+`GUNICORN_WORKER_CLASS`.
+
+**DB-Verbindungsbudget:** Jeder aktive Thread hält mit `conn_max_age=600` eine
+eigene PostgreSQL-Verbindung. Faustregel: **workers×threads (aller Web-Container)
+≤ Postgres `max_connections`** (Default 100). Bei mehreren Web-Containern oder
+hoher Worker-Zahl **PgBouncer** (Transaction-Pooling) davorschalten und die App
+auf den Pooler zeigen lassen. `CONN_HEALTH_CHECKS=True` fängt abgelaufene
+Verbindungen ab.
+
+**Redis (empfohlen ab vielen gleichzeitigen Nutzern):** `REDIS_URL` setzen und
+`docker compose --profile cache up -d`. Dann liegen **Sessions** (statt je Request
+in PostgreSQL), der **Cache** und die **Axes-Brute-Force-Zähler** im gemeinsamen
+Redis → spürbar weniger DB-Schreiblast. Weiterhin serverseitig (kein
+Vertraulichkeitsverlust).
+
+**Geprüfte Query-Last (lokal, 50+ Mitglieder):** Startseite 23, Buchen 17,
+Hofladen 10, Dashboard 28 Queries. Hot-Pfade nutzen `select_related`/
+`prefetch_related`/Annotation; die geteilte Monats-Belegung kann zusätzlich kurz
+gecacht werden (nur allgemein sichtbare Daten, invalidiert bei Buchungsänderung).
+
+**Lasttest:** `k6` (ADR 0051) gegen Startseite **und** Checkout mit ~100 VUs fahren;
+p95-Latenz und Postgres-Verbindungen beobachten (`pg_stat_activity`).
