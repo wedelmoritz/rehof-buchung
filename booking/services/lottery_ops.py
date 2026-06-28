@@ -246,6 +246,15 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
         wins_by[a.party_id].append(a)
     for w in result.losses:
         losses_by[w.party_id].append(w)
+    # Übersprungene Wünsche je Partei (Budget erreicht / Saison-Regel) – zählen
+    # NICHT als Verlust, sollen aber erklärt werden (P2.6, ADR 0064).
+    budget_skips_by: dict[str, int] = defaultdict(int)
+    rule_skips_by: dict[str, int] = defaultdict(int)
+    for e in (result.log or []):
+        if e.get("event") == "budget_skip":
+            budget_skips_by[e["party"]] += 1
+        elif e.get("event") == "rule_skip":
+            rule_skips_by[e["party"]] += 1
 
     participant_ids = {
         str(mid) for mid in Wish.objects.filter(period=period, submitted=True)
@@ -270,13 +279,32 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
             lines.append("Du hast bekommen:")
             for a in wins:
                 qn = quarter_names.get(a.quarter_id, a.quarter_id)
-                sub = " (gleichwertiges Ausweichquartier)" if a.via_substitution else ""
-                lines.append(f"  ✓ {qn} {a.start:%d.%m.%Y}–{a.end:%d.%m.%Y}{sub}")
+                why = []
+                if a.via_substitution:
+                    orig = quarter_names.get(a.original_quarter_id, a.original_quarter_id)
+                    why.append(f"gleichwertiges Ausweichquartier – dein Wunsch „{orig}“ "
+                               f"war im Zeitraum schon belegt")
+                if a.contested:
+                    why.append("um diesen Zeitraum gab es Konkurrenz – das Los hat für "
+                               "dich entschieden")
+                suffix = f" ({'; '.join(why)})" if why else ""
+                lines.append(f"  ✓ {qn} {a.start:%d.%m.%Y}–{a.end:%d.%m.%Y}{suffix}")
         if losses:
             lines.append("Es tut uns leid – diese Wünsche waren nicht erfüllbar:")
             for w in losses:
                 qn = quarter_names.get(w.quarter_id, w.quarter_id)
-                lines.append(f"  ✗ {qn} {w.start:%d.%m.%Y}–{w.end:%d.%m.%Y}")
+                lines.append(f"  ✗ {qn} {w.start:%d.%m.%Y}–{w.end:%d.%m.%Y} – im gewünschten "
+                             f"Zeitraum war die ganze gleichwertige Quartiersgruppe belegt")
+        skipped = budget_skips_by.get(pid, 0) + rule_skips_by.get(pid, 0)
+        if skipped:
+            reasons = []
+            if budget_skips_by.get(pid):
+                reasons.append("Wunsch-Tagebudget erreicht")
+            if rule_skips_by.get(pid):
+                reasons.append("Saison-Regel (z. B. Höchstaufenthalt)")
+            lines.append(f"Hinweis: {skipped} weitere Wunsch/Wünsche wurden übersprungen "
+                         f"({', '.join(reasons)}) – das zählt NICHT als Verlust und bringt "
+                         f"daher kein Karma.")
         if new_f > old_f:
             lines.append(
                 f"Als Ausgleich steigt dein Ausgleichsfaktor um "

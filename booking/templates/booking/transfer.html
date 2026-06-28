@@ -159,10 +159,17 @@
   {% if incoming %}
   <strong>Erhalten</strong>
   <div class="table-wrap"><table style="margin-top:0.4rem">
-    <tr><th>Von</th><th>Tage</th><th>Notiz</th><th>Datum</th></tr>
+    <tr><th>Von</th><th>Tage</th><th>Notiz</th><th>Datum</th><th></th></tr>
     {% for t in incoming %}
     <tr><td>{{ t.from_member.display_name }}</td><td>{{ t.nights }}</td>
-        <td>{{ t.note }}</td><td>{{ t.created_at|date:"d.m.Y" }}</td></tr>
+        <td>{{ t.note }}</td><td>{{ t.created_at|date:"d.m.Y" }}</td>
+        <td>{% if t.thanked_at %}<span class="muted">bedankt&nbsp;✓</span>
+            {% else %}
+            <form method="post" class="inline">{% csrf_token %}
+              <input type="hidden" name="action" value="thank">
+              <input type="hidden" name="transfer_id" value="{{ t.id }}">
+              <button class="btn small ghost" type="submit">Danke sagen</button>
+            </form>{% endif %}</td></tr>
     {% endfor %}
   </table></div>
   {% endif %}

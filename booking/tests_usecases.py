@@ -1002,6 +1002,58 @@ class LosungVerifizierbarkeitTests(UseCaseBase):
 
 
 # --------------------------------------------------------------------------- #
+# Use-Case: Losergebnis-Erklärung (warum bekommen / nicht bekommen, P2.6)
+# --------------------------------------------------------------------------- #
+
+class LosErgebnisErklaerungTests(UseCaseBase):
+    def test_erklaerung_nennt_konkurrenz_und_belegung(self):
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+        s = date(NEXT_YEAR, 5, 24); e = s + timedelta(days=4)
+        svc.add_wish(self.alice, period, self.qa, s, e)
+        svc.add_wish(self.bob, period, self.qa, s, e)
+        svc.submit_wishlist(self.alice, period)
+        svc.submit_wishlist(self.bob, period)
+        run = svc.run_period_lottery(period, seed=1)
+        svc.confirm_lottery(run)
+        url = reverse("period_result", args=[period.id])
+        texts = " ".join(n.detail for n in Notification.objects.filter(url=url))
+        # Gewinner: Konkurrenz-/Los-Hinweis; Verlierer: Gruppe-komplett-belegt.
+        self.assertIn("Konkurrenz", texts)
+        self.assertIn("gleichwertige Quartiersgruppe belegt", texts)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Danke für eine Tage-Übertragung (Wertschätzung, P2.7)
+# --------------------------------------------------------------------------- #
+
+class DankeFuerUebertragungTests(UseCaseBase):
+    def test_danke_benachrichtigt_schenkende_idempotent(self):
+        from booking.models import Notification
+        t, err = svc.transfer_nights(self.alice, self.bob, 3, date.today().year)
+        self.assertIsNotNone(t, err)
+        n0 = Notification.objects.filter(member=self.alice).count()
+        ok, err = svc.thank_for_transfer(self.bob, t.id)
+        self.assertTrue(ok, err)
+        self.assertEqual(Notification.objects.filter(member=self.alice).count(), n0 + 1)
+        t.refresh_from_db()
+        self.assertIsNotNone(t.thanked_at)
+        # Zweites Danke ist gesperrt (idempotent).
+        ok2, err2 = svc.thank_for_transfer(self.bob, t.id)
+        self.assertFalse(ok2)
+        self.assertEqual(Notification.objects.filter(member=self.alice).count(), n0 + 1)
+
+    def test_nur_empfaenger_darf_danken(self):
+        t, _ = svc.transfer_nights(self.alice, self.bob, 2, date.today().year)
+        # carla war nicht beteiligt → darf nicht danken.
+        ok, err = svc.thank_for_transfer(self.carla, t.id)
+        self.assertFalse(ok)
+
+
+# --------------------------------------------------------------------------- #
 # Use-Case: Buchung anpassen (verlängern/verkürzen) + Wechselwunsch-Gruppen
 # --------------------------------------------------------------------------- #
 

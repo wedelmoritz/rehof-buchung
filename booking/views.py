@@ -831,6 +831,12 @@ def transfer(request):
         return redirect("overview")
 
     pending = None
+    # P2.7: „Danke sagen" für eine erhaltene Übertragung (idempotent).
+    if request.method == "POST" and request.POST.get("action") == "thank":
+        ok, err = svc.thank_for_transfer(member, request.POST.get("transfer_id"))
+        messages.success(request, "Dein Dank wurde übermittelt. 🌻") if ok \
+            else messages.error(request, err or "Nicht möglich.")
+        return redirect("transfer")
     form = TransferForm(exclude_member=member)
     if request.method == "POST":
         form = TransferForm(request.POST, exclude_member=member)

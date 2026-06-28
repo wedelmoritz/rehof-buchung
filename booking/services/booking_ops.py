@@ -19,8 +19,8 @@ __all__ = [
     'book_spontaneous', 'add_waitlist_entry', 'waiters_for_allocation',
     'notify_waitlist_if_free', 'concurrent_allocations', 'free_quarters_for',
     'concurrent_split', 'create_swap_request', 'respond_swap_request',
-    'pending_swaps_for', 'transfer_nights', 'cancel_allocation',
-    '_broadcast_spontaneously_free', 'adjust_allocation',
+    'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
+    'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
 ]
 
 @transaction.atomic
@@ -243,6 +243,29 @@ def transfer_nights(
         year=year, note=V.strip_controls(note, max_len=200),
     )
     return t, None
+
+
+def thank_for_transfer(member: Member, transfer_id) -> tuple[bool, str | None]:
+    """Die empfangende Person bedankt sich für eine Tage-Übertragung (P2.7).
+
+    Rein als private Wertschätzung: eine In-App-Benachrichtigung (+ E-Mail, je
+    Opt-in) an die schenkende Person. Idempotent (genau einmal je Übertragung) und
+    nur durch die tatsächliche Empfängerin auslösbar – keine öffentliche Rangliste."""
+    from django.utils import timezone
+    try:
+        t = NightTransfer.objects.select_related("from_member").get(
+            id=transfer_id, to_member=member)
+    except NightTransfer.DoesNotExist:
+        return False, "Übertragung nicht gefunden."
+    if t.thanked_at:
+        return False, "Du hast dich für diese Übertragung schon bedankt."
+    t.thanked_at = timezone.now()
+    t.save(update_fields=["thanked_at"])
+    msg = f"{member.display_name} bedankt sich für deine {t.nights} übertragenen Tage."
+    Notification.objects.create(member=t.from_member, message=msg, url="/tage-uebertragen/")
+    email_member(t.from_member, "Ein Dankeschön",
+                 f"Hallo {t.from_member.display_name},\n\n{msg}\n\nViele Grüße\nRe:Hof")
+    return True, None
 
 
 @transaction.atomic

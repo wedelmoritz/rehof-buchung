@@ -186,7 +186,9 @@ offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Empfänger:in über 
 ausgenommen; die Mitglieds-ID landet in einem versteckten Feld, der Server prüft
 sie weiter], dann Vorschau mit Empfänger – Anzeigename/Benutzername/Name – und
 Disclaimer, dass die Basis des Übertrags privatrechtlich zu regeln ist, dann
-„verbindlich übertragen“).
+„verbindlich übertragen“; **erhaltene** Übertragungen kann man mit **„Danke sagen“**
+einmalig quittieren – `services.thank_for_transfer`, idempotent über
+`NightTransfer.thanked_at`, private Benachrichtigung an die schenkende Person, ADR 0064).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
 den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
@@ -538,7 +540,10 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   (blockieren die Verfügbarkeit, sind aber für Mitglieder **unsichtbar**;
   `period_result`/`my_bookings`/Übersicht/`day_detail` filtern `provisional=False`),
   und es werden **keine** Benachrichtigungen zugestellt (nur am `LotteryRun`
-  vorbereitet: `notices`). Erst `services.confirm_lottery` veröffentlicht
+  vorbereitet: `notices` – die **je Wunsch erklären**, *warum* bekommen/nicht:
+  Ausweichgrund, Konkurrenz/Los, „ganze gleichwertige Gruppe belegt", übersprungen
+  wegen Budget/Saison-Regel; P2.6/ADR 0064, gespeist aus `result.log`). Erst
+  `services.confirm_lottery` veröffentlicht
   (Zuteilungen sichtbar, Benachrichtigungen + Mails raus, Status `lottery_done`) –
   danach **kein Undo**. `services.rollback_lottery` (nur unbestätigt) löscht die
   vorläufigen Zuteilungen, stellt das Karma aus `LotteryRun.karma_snapshot`

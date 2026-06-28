@@ -85,6 +85,7 @@ die Regelwerte zu wiederholen.
 | [0061](0061-sicherheits-haertungspaket.md) | Sicherheits-Härtungspaket (Defense in Depth: Django-LTS, SECRET_KEY-Wächter, Backend-2FA, CSP, Rate-Limiting, IBAN-Feldverschlüsselung vorbereitet, Container/CI-Härtung) | Accepted |
 | [0062](0062-verifizierbare-auslosung-commit-reveal.md) | Verifizierbare Auslosung: Commit-Reveal des Los-Seeds (intern, „provably fair") | Accepted |
 | [0063](0063-gemeinschafts-spiegel-karma-transparenz.md) | Gemeinschafts-Spiegel (aggregierte Transparenz) + Karma-Transparenz im Profil | Accepted |
+| [0064](0064-kooperative-transparenz-features.md) | Kooperative P2-Features: Losergebnis-Erklärung, „Danke", Wunsch-Koordination, Solidaritäts-Pool | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

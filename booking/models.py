@@ -596,6 +596,9 @@ class NightTransfer(models.Model):
     nights = models.PositiveIntegerField("Tage")
     note = models.CharField("Notiz", max_length=200, blank=True)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    # P2.7: ein „Danke" der empfangenden Person an die schenkende – idempotent
+    # (genau einmal je Übertragung), rein als private Wertschätzung.
+    thanked_at = models.DateTimeField("Bedankt am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Tage-Übertragung"
