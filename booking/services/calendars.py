@@ -12,7 +12,8 @@ from ..models import (
     Allocation, ExternalBooking, ExternalConfig, Member, Quarter, Wish,
 )
 from .dates import EXTERN_COLOR, GERMAN_MONTHS, next_month, school_holidays_in_range
-from .slots import _active_windows, _occupied_days_by_quarter, split_quarters_for_range
+from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter,
+                    split_quarters_for_range)
 
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
@@ -34,6 +35,17 @@ def week_agenda(member, start: date, days: int = 7) -> list[dict]:
             status=ExternalBooking.CONFIRMED, start__lt=end, end__gt=start)
         .select_related("quarter"))
     mid = member.id if member else None
+    # Belegte Tage je Quartier einmalig aus den bereits geladenen Buchungen
+    # bilden – KEINE per-Tag-Abfragen (sonst N+1 auf der Startseite, ADR 0060).
+    occ: dict = defaultdict(set)
+    for bk in allocs + exts:
+        d = max(bk.start, start)
+        upper = min(bk.end, end)
+        while d < upper:
+            occ[bk.quarter_id].add(d)
+            d += timedelta(days=1)
+    windows = _active_windows()                 # 1 Abfrage für die ganze Woche
+    quarters = list(Quarter.objects.all())      # 1 Abfrage
     out = []
     for i in range(days):
         d = start + timedelta(days=i)
@@ -53,10 +65,15 @@ def week_agenda(member, start: date, days: int = 7) -> list[dict]:
             if b.end == d:
                 departures.append({"who": "extern", "quarter": b.quarter.name,
                                    "mine": False, "external": True})
-        free, _occ = split_quarters_for_range(d, nxt)
+        # frei = freigeschaltet (Periode + Quartier-Saison) UND an dem Tag unbelegt
+        free_count = sum(
+            1 for q in quarters
+            if d not in occ[q.id]
+            and A.range_released(windows, str(q.id), d, nxt)
+            and _in_season_range(q, d, nxt))
         out.append({"date": d, "is_today": d == start,
                     "arrivals": arrivals, "departures": departures,
-                    "free_count": len(free)})
+                    "free_count": free_count})
     return out
 
 def build_booking_calendar(
