@@ -14,6 +14,7 @@ from django.contrib import admin
 # Nicht eingeplante Modelle landen als Sicherheitsnetz unter „Weitere".
 SECTIONS: list[tuple[str, list[str]]] = [
     ("Benutzer & Mitglieder", [
+        "booking.PendingUser",                       # Onboarding-Seite zuerst (ADR 0056)
         "auth.User", "auth.Group",
         "booking.Membership", "booking.NightTransfer",
     ]),

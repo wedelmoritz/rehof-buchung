@@ -528,6 +528,18 @@ class UpcomingAllocation(Allocation):
         verbose_name_plural = "Anstehende Buchungen"
 
 
+class PendingUser(User):
+    """Proxy auf User für die **geführte Erst-Zuordnung** neuer Konten (Onboarding).
+    Eigene Admin-Seite „Neue Benutzer (Zuordnung)": Konten ohne Mitglieds-Anteil
+    mit wenigen Klicks einem Anteil (Mitglied) ODER dem Hofladen-Terminal zuordnen –
+    oder (unbekannt) deaktivieren/löschen (ADR 0056)."""
+
+    class Meta:
+        proxy = True
+        verbose_name = "Neuer Benutzer (Zuordnung)"
+        verbose_name_plural = "Neue Benutzer (Zuordnung)"
+
+
 class LotteryRun(models.Model):
     """Ein protokollierter Losdurchlauf (Audit)."""
     period = models.ForeignKey(

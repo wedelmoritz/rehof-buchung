@@ -15,7 +15,8 @@ from .models import (
     EquivalenceClass, ExternalBooking,
     ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
     NightTransfer,
-    Notification, OpsConfig, OutboxEmail, Quarter, QuarterPrice, SchoolHoliday,
+    Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterPrice,
+    SchoolHoliday,
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
@@ -255,6 +256,82 @@ class UserAdmin(DjangoUserAdmin):
             "checkbox_name": ACTION_CHECKBOX_NAME,
             "opts": self.model._meta,
         })
+
+
+@admin.register(PendingUser)
+class PendingUserAdmin(admin.ModelAdmin):
+    """Geführtes Onboarding (ADR 0056): zeigt nur Konten OHNE Mitglieds-Anteil und
+    ordnet sie mit wenigen Klicks zu – als Mitglied (Anteil), als Hofladen-/
+    Terminal-Gast, oder (unbekannt) deaktivieren/löschen. Eigene Seite statt der
+    Standard-Liste."""
+    list_display = ("username", "email")
+    search_fields = ("username", "email", "first_name", "last_name")
+
+    def has_add_permission(self, request):
+        return False  # neue Konten entstehen durch Selbstregistrierung/Einladung
+
+    def changelist_view(self, request, extra_context=None):
+        from django.template.response import TemplateResponse
+        from . import services as svc
+        if request.method == "POST":
+            return self._handle(request, svc)
+        pending = list(svc.users_without_membership().select_related("member"))
+        for u in pending:
+            u.suggested_name = (u.get_full_name() or u.username).strip()
+        ctx = {
+            **self.admin_site.each_context(request),
+            "title": "Neue Benutzer zuordnen",
+            "opts": self.model._meta,
+            "pending": pending,
+            "memberships": Membership.objects.order_by("label", "eg_number"),
+            "default_budget": (db := Membership.suggest_budget()),
+            "default_wish": min(25, db),
+        }
+        return TemplateResponse(request, "admin/onboarding.html", ctx)
+
+    def _handle(self, request, svc):
+        action = request.POST.get("action")
+        user = User.objects.filter(pk=request.POST.get("user_id")).first()
+        if not user:
+            self.message_user(request, "Benutzer nicht gefunden.", level=messages.ERROR)
+            return redirect(request.path)
+        name = (user.get_full_name() or user.username).strip()
+        display_name = (request.POST.get("display_name") or "").strip() or user.username
+        try:
+            if action == "member":
+                mid = request.POST.get("membership") or ""
+                membership_id = mid if mid and mid != "new" else None
+                svc.onboard_as_member(
+                    user, display_name=display_name,
+                    night_budget=request.POST.get("night_budget") or 0,
+                    wish_night_budget=request.POST.get("wish_night_budget") or 0,
+                    membership_id=membership_id,
+                    new_label=(request.POST.get("new_label") or "").strip())
+                self.message_user(
+                    request, f"{name} wurde als Mitglied zugeordnet und kann jetzt "
+                    "buchen.", level=messages.SUCCESS)
+            elif action == "terminal":
+                svc.onboard_as_terminal(user, display_name=display_name)
+                self.message_user(
+                    request, f"{name} ist jetzt Hofladen-/Terminal-Gast. Die PIN "
+                    "setzt die Person selbst im Profil.", level=messages.SUCCESS)
+            elif action == "deactivate":
+                svc.deactivate_account(user)
+                self.message_user(request, f"Konto {name} deaktiviert (Login "
+                                  "gesperrt; reversibel im Benutzer-Formular).",
+                                  level=messages.SUCCESS)
+            elif action == "delete":
+                user.delete()
+                self.message_user(request, f"Konto {name} gelöscht.",
+                                  level=messages.SUCCESS)
+            else:
+                self.message_user(request, "Unbekannte Aktion.", level=messages.ERROR)
+        except Membership.DoesNotExist:
+            self.message_user(request, "Der gewählte Anteil existiert nicht (mehr).",
+                              level=messages.ERROR)
+        except (ValueError, TypeError) as e:
+            self.message_user(request, f"Eingabe ungültig: {e}", level=messages.ERROR)
+        return redirect(request.path)
 
 
 @admin.register(Member)

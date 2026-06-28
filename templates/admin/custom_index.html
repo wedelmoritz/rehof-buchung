@@ -14,16 +14,17 @@ Nur sichtbar, wenn es solche Konten gibt – so fällt es sofort auf.{% endcomme
   <h2>Neue Benutzer – noch ohne Mitglieds-Anteil <span class="rehof-nu-count">{{ new_users_count }}</span></h2>
   <div class="rehof-nu-body">
     <p class="rehof-nu-hint">Diese Konten sind angelegt, aber <strong>noch keinem
-      Mitglieds-Anteil zugeordnet</strong> – sie können noch nicht buchen und warten
-      auf die Freischaltung. Konto öffnen → Mitglieds-Profil ausfüllen → unter
-      <strong>Tage-Anteil</strong> einen Anteil zuordnen.</p>
+      Mitglieds-Anteil zugeordnet</strong> – sie können noch nicht buchen. Auf der
+      <a href="{% url 'admin:booking_pendinguser_changelist' %}"><strong>geführten
+      Zuordnungs-Seite</strong></a> ordnest du sie in wenigen Klicks zu (Mitglied
+      oder Hofladen/Terminal) – oder deaktivierst/löschst unbekannte Konten.</p>
     <ul class="rehof-nu-list">
       {% for u in new_users %}
       <li class="rehof-nu-item">
-        <a class="rehof-nu-name" href="{% url 'admin:auth_user_change' u.pk %}">
+        <a class="rehof-nu-name" href="{% url 'admin:booking_pendinguser_changelist' %}#u{{ u.pk }}">
           {{ u.get_full_name|default:u.username }}</a>
         <span class="rehof-nu-meta">{{ u.email|default:"ohne E-Mail" }} · registriert {{ u.date_joined|date:"d.m.Y" }}</span>
-        <a class="rehof-nu-go" href="{% url 'admin:auth_user_change' u.pk %}">zuordnen →</a>
+        <a class="rehof-nu-go" href="{% url 'admin:booking_pendinguser_changelist' %}#u{{ u.pk }}">zuordnen →</a>
       </li>
       {% endfor %}
     </ul>

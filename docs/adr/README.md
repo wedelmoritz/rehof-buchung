@@ -77,6 +77,7 @@ die Regelwerte zu wiederholen.
 | [0053](0053-hofladen-terminal-offline-kiosk.md) | Hofladen-Terminal vor Ort: offline-fähiger, token-authentifizierter Kiosk | Accepted |
 | [0054](0054-einheitliches-farbsystem.md) | Einheitliches Farbsystem (warmes Papier-Neutral + Terrakotta-Akzent) | Accepted |
 | [0055](0055-backend-persistenter-navigator-pjax.md) | Backend: persistenter Navigator (Suche + Bereiche) + pjax statt Layout-Wechsel | Accepted |
+| [0056](0056-gefuehrtes-onboarding-neuer-benutzer.md) | Geführtes Onboarding neuer Benutzer im Backend (Mitglied / Hofladen / deaktivieren) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

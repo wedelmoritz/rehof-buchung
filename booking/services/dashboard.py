@@ -18,7 +18,70 @@ __all__ = [
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
+    'onboard_as_member', 'onboard_as_terminal', 'deactivate_account',
 ]
+
+
+def onboard_as_member(user, *, display_name, night_budget, wish_night_budget,
+                      membership_id=None, new_label=""):
+    """Geführte Zuordnung „als Mitglied": stellt das Mitglieds-Profil sicher und
+    legt einen Tage-Anteil (`Share`) an einem bestehenden ODER neuen Mitglieds-
+    Anteil an. Danach kann die Person buchen (taucht nicht mehr unter „Neue
+    Benutzer" auf). Idempotent: ein vorhandener Share wird aktualisiert."""
+    from django.db import transaction
+    from ..models import Member, Membership, Share
+    name = (display_name or user.get_username()).strip()
+    nb, wb = int(night_budget), int(wish_night_budget)
+    if nb < 0 or wb < 0:
+        raise ValueError("Tage-Anteil darf nicht negativ sein.")
+    with transaction.atomic():
+        member, _ = Member.objects.get_or_create(
+            user=user, defaults={"display_name": name})
+        changed = []
+        if not member.display_name:
+            member.display_name = name; changed.append("display_name")
+        if member.is_external:                       # vom Hofladen-Gast zum Mitglied
+            member.is_external = False; changed.append("is_external")
+        if changed:
+            member.save(update_fields=changed)
+        if membership_id:
+            ms = Membership.objects.get(pk=membership_id)
+        else:
+            ms = Membership.objects.create(
+                label=(new_label or name), annual_night_budget=50, wish_night_budget=25)
+        share, created = Share.objects.get_or_create(
+            membership=ms, member=member,
+            defaults={"night_budget": nb, "wish_night_budget": wb})
+        if not created and (share.night_budget != nb or share.wish_night_budget != wb):
+            share.night_budget, share.wish_night_budget = nb, wb
+            share.save(update_fields=["night_budget", "wish_night_budget"])
+        return share
+
+
+def onboard_as_terminal(user, *, display_name):
+    """Geführte Zuordnung „nur Hofladen/Terminal": stellt ein Mitglieds-Profil als
+    **Hofladen-Gast** (`is_external=True`, kein Buchungs-Mitglied) mit aktivem
+    Terminal sicher. Die Person kann am Vor-Ort-Terminal auf die Monatsrechnung
+    einkaufen (PIN setzt sie selbst) und taucht nicht in Losung/Mitgliedersuche/
+    „Neue Benutzer" auf."""
+    from ..models import Member
+    name = (display_name or user.get_username()).strip()
+    member, _ = Member.objects.get_or_create(
+        user=user, defaults={"display_name": name})
+    if not member.display_name:
+        member.display_name = name
+    member.is_external = True
+    member.terminal_enabled = True
+    member.save()
+    return member
+
+
+def deactivate_account(user):
+    """Konto deaktivieren (Login gesperrt) – z.B. wenn die registrierte Person
+    unbekannt ist. Reversibel über das Benutzer-Formular (Haken „Aktiv")."""
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+    return user
 
 
 def users_without_membership():

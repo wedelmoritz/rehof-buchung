@@ -94,7 +94,8 @@ Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; Tage-/Wunsch-Budget =
 sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
-Buchungen“), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
+Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
+Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
 erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
@@ -658,8 +659,16 @@ geht eine E-Mail an die Verwaltung (`services.notify_admins_new_user` →
 Abschnitt **„Neue Benutzer – noch ohne Mitglieds-Anteil"** mit allen noch nicht
 zugeordneten Konten (`services.users_without_membership` = aktive Konten ohne
 `Share`, ohne Admin-/Staff-/Verwaltungs-Konten und ohne externe Gäste; gerendert
-über `RehofAdminSite.index`-Extra-Context in `custom_index.html`, Klick führt
-direkt aufs Benutzer-Formular). **Backend-Aufbau einheitlich (ADR 0055):** Statt
+über `RehofAdminSite.index`-Extra-Context in `custom_index.html`). **Geführtes
+Onboarding (ADR 0056):** Eigene Backend-Seite **„Neue Benutzer (Zuordnung)"**
+(Proxy-Modell `PendingUser` unter „Benutzer & Mitglieder", `PendingUserAdmin` →
+`templates/admin/onboarding.html`) ordnet jedes Konto in **wenigen Klicks** zu –
+**als Mitglied** (`services.onboard_as_member`: Profil + `Share` an bestehendem/
+neuem Anteil → kann buchen), **nur Hofladen/Terminal** (`services.onboard_as_terminal`:
+Profil als Hofladen-Gast `is_external=True`+`terminal_enabled` → PIN setzt die Person
+selbst, keine Buchung), oder **deaktivieren/löschen** (unbekannt; `services.
+deactivate_account`). JS-frei (pjax-sicher), POST → voller Reload. Das Startseiten-
+Panel verlinkt auf diese Seite. **Backend-Aufbau einheitlich (ADR 0055):** Statt
 die Standard-Seitenleiste zu nutzen (aus, `enable_nav_sidebar=False`), steht oben
 auf **jeder** Admin-Seite derselbe **Navigator** (Suche + die 5 fachlichen Bereiche
 als kollabierbare `<details>`, aus `available_apps`) – eingehängt über
