@@ -808,12 +808,17 @@ def push_unsubscribe(request):
     """Entfernt ein Web-Push-Abo (Browser hat sich abgemeldet)."""
     import json
     from .models import PushSubscription
+    member = _current_member(request)
+    if not member:
+        return JsonResponse({"ok": False}, status=403)
     try:
         endpoint = json.loads(request.body or "{}").get("endpoint", "")
     except ValueError:
         endpoint = ""
     if endpoint:
-        PushSubscription.objects.filter(endpoint=endpoint).delete()
+        # Nur das EIGENE Abo entfernen – kein Löschen fremder Geräte über einen
+        # (erratenen) Endpoint (ADR 0061, P3.9).
+        PushSubscription.objects.filter(endpoint=endpoint, member=member).delete()
     return JsonResponse({"ok": True})
 
 
@@ -1563,7 +1568,7 @@ def external_embed(request):
               if (cfg.active and start and end) else [])
     year, month = _month_from_request(request, today)
     cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
-    return render(request, "booking/external_embed.html", {
+    response = render(request, "booking/external_embed.html", {
         "cfg": cfg, "today": today, "cal": cal,
         "start": start, "end": end, "persons": persons,
         "offers": offers, "searched": bool(start and end),
@@ -1572,6 +1577,10 @@ def external_embed(request):
         "nav_qs": _ext_nav_qs(start, end, persons),
         **(_cal_nav(cal) if cal else {"months": [], "years": []}),
     })
+    # Widget ist bewusst fremd-einbettbar → Resource-Policy lockern (statt der
+    # globalen same-origin), passend zu @csp_replace(frame-ancestors) oben.
+    response["Cross-Origin-Resource-Policy"] = "cross-origin"
+    return response
 
 
 # --------------------------------------------------------------------------- #

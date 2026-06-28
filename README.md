@@ -7,8 +7,11 @@ Django-App per Docker (web + PostgreSQL) hinter Caddy auf einem Linux-VPS.
 
 > **Status:** lauffähige Proof-of-Concept, mehrstufig getestet (reine Logik inkl.
 > deterministischem Strategiesicherheits-Beweis · DB-Integration · Nebenläufigkeit ·
-> End-to-End im Browser · Belastungstests). Backup & weiteres Hardening sind als
-> Blueprint vorbereitet, aber noch nicht umgesetzt (siehe
+> End-to-End im Browser · Belastungstests). Ein **Sicherheits-Härtungspaket**
+> (ADR 0061) ist umgesetzt: Backend-2FA, nonce-basierte CSP, Rate-Limiting,
+> Abhängigkeits-Audit/Dependabot, Nicht-root-Container, verschlüsseltes
+> Backup-Skript, weitere Header u. a. Weiterführendes Hardening (Borg-Append-only,
+> LUKS) bleibt als Blueprint dokumentiert (siehe
 > [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md)).
 
 Das Herzstück – das fachlich abgenommene **Losverfahren** – liegt als getestetes,
@@ -161,7 +164,7 @@ beschrieben; das Belastungs-Runbook liegt in
 | **Tests & Testumgebungen** | [`docs/TESTEN.md`](docs/TESTEN.md) |
 | **Belastungstests (k6)** | [`loadtest/README.md`](loadtest/README.md) |
 | **Externe Gäste** (Konzept) | [`docs/EXTERNE-GAESTE.md`](docs/EXTERNE-GAESTE.md) |
-| **Backup & Härtung** (geplant) | [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md) |
+| **Sicherheit & Härtung** (umgesetzt + Blueprints) | [`docs/adr/0061-sicherheits-haertungspaket.md`](docs/adr/0061-sicherheits-haertungspaket.md) · [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md) |
 | **Datenschutz-Vorlage** | [`docs/DATENSCHUTZ-VORLAGE.md`](docs/DATENSCHUTZ-VORLAGE.md) |
 | **Tester:innen einladen/Feedback** | [`docs/TESTER-EINLADUNG.md`](docs/TESTER-EINLADUNG.md) · [`docs/TESTER-FEEDBACK.md`](docs/TESTER-FEEDBACK.md) |
 | **Code-Orientierung für Mitwirkende** | [`CLAUDE.md`](CLAUDE.md) |

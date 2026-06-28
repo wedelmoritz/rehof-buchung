@@ -127,6 +127,17 @@ Der Superuser ist die **Admin-Rolle** (volles Backend `/admin/`). Eine separate
 **Verwaltung**-Rolle (Dashboard `/verwaltung/`, kein Backend) entsteht, indem ein
 Nutzer im Backend der Gruppe „Verwaltung" hinzugefügt wird (ADR 0014).
 
+> ⚠️ **Wichtig – Backend-2FA (ADR 0061):** In Produktion (`DEBUG=0`) verlangt das
+> Backend einen zweiten Faktor (TOTP). **Direkt nach `createsuperuser`** ein
+> TOTP-Gerät einrichten, sonst sperrt sich der Admin selbst aus:
+> ```bash
+> docker compose exec web python manage.py admin_otp_setup --user <name>
+> ```
+> Den ausgegebenen QR-Code in einer Authenticator-App (Aegis/FreeOTP/…) scannen;
+> beim nächsten Backend-Login zusätzlich den 6-stelligen Code eingeben. Notnagel,
+> falls man sich ausgesperrt hat: `ADMIN_OTP_REQUIRED=0` in der `.env`, Stack neu
+> starten, Gerät einrichten, wieder auf `1`/leer setzen.
+
 ### 3.6 Caddy konfigurieren
 
 Den Block aus `caddy/Caddyfile.snippet` ins Caddyfile übernehmen, Domain anpassen:
@@ -167,12 +178,25 @@ greifen die genannten Defaults aus `config/settings.py` / `docker-compose.yml`.
 | `SECRET_KEY` | **ja** | Django-Geheimnis. Von `install.sh` erzeugt. |
 | `ALLOWED_HOSTS` | **ja** | Erlaubte Hostnamen, kommagetrennt. `127.0.0.1`/`localhost` werden automatisch ergänzt. |
 | `CSRF_TRUSTED_ORIGINS` | **ja** | https-Origin(s) der Domain (CSRF hinter Caddy). |
-| `SECURE_HSTS_SECONDS` | optional | HSTS-Dauer; `0` = aus. Erst aktivieren (z. B. `31536000`), wenn **alles** sicher über HTTPS läuft. |
+| `SECURE_HSTS_SECONDS` | optional | HSTS-Dauer; **Default 2592000 (30 Tage)**, `0` = aus. |
+| `SECURE_HSTS_INCLUDE_SUBDOMAINS` | optional | Default `0`. Erst `1`, wenn **alle** Subdomains dauerhaft HTTPS sind (schwer rückgängig). |
+| `SECURE_HSTS_PRELOAD` | optional | Default `0`. Nur `1` für die Browser-Preload-Liste (irreversibel). |
 | `TZ` | optional | Zeitzone für Logs/Monatswechsel. Default `Europe/Berlin`. |
 
 > Hinter Caddy gesetzt (in `settings.py`, greifen bei `DEBUG=0`):
 > `SECURE_PROXY_SSL_HEADER` (X-Forwarded-Proto), `USE_X_FORWARDED_HOST`,
 > Secure-Cookies an, `X_FRAME_OPTIONS=DENY`, Axes-Proxy-Count 1.
+
+### Sicherheits-Härtung (ADR 0061)
+
+| Variable | Pflicht | Bedeutung / Default |
+|---|---|---|
+| `ADMIN_OTP_REQUIRED` | optional | Backend-2FA erzwingen. Default: **an in Produktion** (`not DEBUG`). Vor dem ersten Login `manage.py admin_otp_setup` ausführen! |
+| `FIELD_ENCRYPTION_KEY` | optional | Schlüssel für die (noch inaktive) Feld-Verschlüsselung. Leer = aus. Mit `manage.py field_key` erzeugen, getrennt sichern. |
+| `RATELIMIT_ENABLE` | optional | Rate-Limiting sensibler Endpunkte. Default: **an in Produktion**. |
+| `CSP_REPORT_ONLY` | optional | `1` = CSP nur melden statt durchsetzen (vorsichtiger Rollout). Default: durchsetzen. |
+| `BACKUP_PASSPHRASE` | für Backup | Passphrase für `ops/backup.sh` (AES-256). Getrennt vom Backup aufbewahren – Verlust = Backups unwiederbringlich. |
+| `BACKUP_DIR` / `BACKUP_KEEP` / `BACKUP_RCLONE_REMOTE` | optional | Backup-Ziel / lokale Rotation / Off-site-Ziel (rclone). |
 
 ### Datenbank
 
@@ -476,9 +500,18 @@ docker compose exec web python manage.py migrate
 Der Dump nutzt `--clean --if-exists --no-owner --no-privileges`, räumt also vor dem
 Einspielen selbst auf (sauberer Restore auch in eine leere DB).
 
-> **Backup-Automatik & Härtung (Backups, 2FA, IBAN-Feldverschlüsselung, LUKS)
-> sind GEPLANT, nicht umgesetzt** — Risiken/Blueprints in
-> [`BETRIEB-SICHERHEIT.md`](BETRIEB-SICHERHEIT.md) (ADR 0037).
+**Verschlüsseltes Backup (ADR 0061):** für regelmäßige, off-site gesicherte Backups
+`ops/backup.sh` nutzen (pg_dump → gzip → GnuPG AES-256, optional rclone). Per
+Host-Cron einplanen (Beispiel im Skriptkopf):
+
+```bash
+BACKUP_PASSPHRASE=… ./ops/backup.sh backup          # erzeugt rehof-DATUM.sql.gz.gpg
+BACKUP_PASSPHRASE=… ./ops/backup.sh restore <datei> # spielt es wieder ein
+```
+
+> **Weiteres Hardening (Borg-Append-only-Backups, LUKS) bleibt GEPLANT** —
+> 2FA, CSP, Rate-Limiting, Audit, Nicht-root u. a. sind umgesetzt (ADR 0061);
+> Risiken/Blueprints in [`BETRIEB-SICHERHEIT.md`](BETRIEB-SICHERHEIT.md).
 
 ---
 

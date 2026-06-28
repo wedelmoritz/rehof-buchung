@@ -80,6 +80,8 @@ MIDDLEWARE = [
     "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Ergänzt Permissions-Policy + Cross-Origin-Resource-Policy (ADR 0061).
+    "booking.middleware.SecurityHeadersMiddleware",
     # Sperrt eingeloggte Nutzer ohne Mitglieds-Profil aus (Freischaltung nötig).
     "booking.middleware.ActivationGateMiddleware",
     # django-axes MUSS als letztes stehen (verarbeitet Login-Versuche).
@@ -302,9 +304,14 @@ if not DEBUG:
     # Testumgebung OHNE TLS (E2E-CI über http) per Env abschaltbar (ADR 0047).
     SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", True)
     CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", True)
-    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    # HSTS: sinnvoller Default 30 Tage (ADR 0061, P3.12) – nur über HTTPS gesendet
+    # (Caddy terminiert TLS). Bewusst nur für den Host (kein includeSubDomains) und
+    # OHNE preload by default → innerhalb von 30 Tagen reversibel, falls nötig. Beides
+    # (Subdomains/Preload, irreversibler) ist per Env zuschaltbar, sobald dauerhaft
+    # alle Subdomains unter HTTPS laufen und Preload gewünscht ist.
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "2592000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
     SECURE_CONTENT_TYPE_NOSNIFF = True
     # Hinter Caddy: TLS endet beim Proxy, der per X-Forwarded-Proto signalisiert,
     # dass die ursprüngliche Anfrage HTTPS war. So erkennt Django sie als sicher.

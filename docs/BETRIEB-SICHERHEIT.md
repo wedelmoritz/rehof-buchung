@@ -14,6 +14,15 @@ At-Rest-Verschlüsselung.** → Beides ist der eigentliche Schutzbedarf.
 
 ## Phase 2 — Backups (off-site, unveränderbar, 14 Tage)
 
+> **Status (ADR 0061, P3.10): ein verschlüsseltes Backup-Skript ist umgesetzt** –
+> `ops/backup.sh backup|restore` macht `pg_dump` → `gzip` → **GnuPG AES-256**
+> (Passphrase `BACKUP_PASSPHRASE`, getrennt sichern; Klartext landet nie auf der
+> Platte) und lädt optional per **rclone** off-site (`BACKUP_RCLONE_REMOTE`), mit
+> lokaler Rotation (`BACKUP_KEEP`). Per Host-Cron einplanen (Beispiel im Skriptkopf).
+> Der folgende **Borg-/Append-only-Ausbau** bleibt die empfohlene, ransomware-
+> resistente Weiterentwicklung (unveränderbare Snapshots) – das Skript ist die
+> sofort nutzbare Basis.
+
 **Ziel:** 14 Tage zurückspringen können; **separat** gespeichert, sodass ein
 DB-Verlust/-Angriff die Sicherung **nicht** mitnimmt (3-2-1-Regel).
 **Aufwand:** gering. **Voraussetzung:** eine **Hetzner Storage Box** (günstig).
@@ -93,9 +102,11 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
 - **Rotations-Runbook** für `SECRET_KEY` und DB-Passwort dokumentieren
   (SECRET_KEY-Wechsel invalidiert Sessions — unkritisch).
 
-### 4.2 2-Faktor für die Verwaltung — *Aufwand: gering*
-- `django-otp` + `django_otp.plugins.otp_totp`, `OTPMiddleware`, Admin auf
-  `OTPAdminSite` umstellen (oder `admin.site.login` per OTP absichern).
+### 4.2 2-Faktor für die Verwaltung — *UMGESETZT (P1.3/ADR 0061)*
+- **Erledigt:** `django-otp` + `otp_totp`/`otp_static`, `OTPMiddleware`, die
+  `RehofAdminSite` erbt von `OTPAdminSite` und erzwingt `is_verified()` (gesteuert
+  über `ADMIN_OTP_REQUIRED`, Default in Produktion an). Einrichtung:
+  `manage.py admin_otp_setup --user <name>` (TOTP-Gerät + QR).
 - Nur **Staff/Superuser** betroffen; Mitglieder bleiben unberührt.
 - Optional zusätzlich: Admin-Zugriff über Caddy auf bestimmte IPs/VPN
   beschränken (`@admin` matcher → `remote_ip`).
@@ -131,11 +142,14 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
   alles entschlüsselt gemountet). Auf Hetzner-VPS kontrolliert der Provider den
   Host; LUKS bleibt dennoch eine solide Basismaßnahme.
 
-### 4.5 Sonstiges Härten — *Aufwand: gering, laufend*
-- Abhängigkeiten aktuell halten (Dependabot/Renovate).
-- Security-Header/CSP via Caddy ergänzen; `SECURE_HSTS_SECONDS` setzen, sobald
-  dauerhaft HTTPS.
-- `django-axes` (Brute-Force) ist bereits aktiv.
+### 4.5 Sonstiges Härten — *großteils UMGESETZT (ADR 0061)*
+- **Erledigt:** **CSP** nonce-basiert (django-csp), **Rate-Limiting** über den Login
+  hinaus (django-ratelimit), **Abhängigkeits-Audit** im CI (`pip-audit`) + Dependabot,
+  **Nicht-root-Container**, **Permissions-Policy/CORP**-Header, **Anmelde-Audit-Log**,
+  **HSTS-Default 30 Tage** (Host-only, ohne Preload), **WeasyPrint** ohne Remote-Fetch.
+- `django-axes` (Brute-Force) war bereits aktiv.
+- Offen/laufend: Renovate als Alternative zu Dependabot; ggf. zusätzliche
+  Security-Header am Caddy-Edge.
 
 ---
 

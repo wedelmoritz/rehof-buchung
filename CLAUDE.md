@@ -471,7 +471,16 @@ Der Import wird i. d. R. nur einmalig beim Umzug gebraucht und ist über
 `OpsConfig.beds24_import_enabled` (Betriebs-Einstellungen, Abschnitt
 „Beds24-Migration“) **abschaltbar** – ausgeschaltet ist der Assistent im
 Dashboard ausgeblendet und gesperrt (auch für Admins).
-**Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
+**Sicherheits-Härtungspaket (ADR 0061) umgesetzt:** Backend-2FA (django-otp,
+`ADMIN_OTP_REQUIRED`, `manage.py admin_otp_setup`), Fail-closed `SECRET_KEY`-Wächter,
+nonce-basierte **CSP** (django-csp; jedes `<script>` mit `request.csp_nonce`, keine
+Inline-Handler – delegierte `data-*`-Handler in `base.html`), **Rate-Limiting**
+(django-ratelimit, `RATELIMIT_ENABLE`), **pip-audit** im CI + Dependabot,
+Nicht-root-Container, Permissions-Policy/CORP-Header + Anmelde-Audit-Log,
+HSTS-Default 30 Tage, WeasyPrint ohne Remote-Fetch, **verschlüsseltes Backup-Skript**
+`ops/backup.sh`. **IBAN-Feldverschlüsselung ist VORBEREITET, aber inaktiv**
+(`booking/fieldcrypt.py`+`fields.py`, `FIELD_ENCRYPTION_KEY` leer = Klartext).
+**Weiteres Hardening (Borg-Append-only-Backups, LUKS) bleibt Blueprint** in
 `docs/BETRIEB-SICHERHEIT.md`.
 
 **Verwaltungs-Dashboard (`dashboard`, Rolle Verwaltung **oder** Admin,
@@ -633,8 +642,11 @@ Checkouts gesperrt (kein doppelter `HL-…`-Stand). Lasttests in `loadtest/`
 (`browse`/`booking_rush`/`shop_rush`), Tiefenverteidigungs-Constraint dokumentiert
 in `docs/BETRIEB-SICHERHEIT.md`.
 **Server-Umzug inkl. DB:** `ops/migrate-server.sh dump|restore` (pg_dump/psql über
-den `db`-Container); Voraussetzungen + Ablauf stehen im README. **Backup/Hardening
-(Backups, 2FA, IBAN-Feldverschlüsselung, LUKS) sind GEPLANT, nicht umgesetzt** –
+den `db`-Container); Voraussetzungen + Ablauf stehen im README. **Verschlüsseltes
+Backup:** `ops/backup.sh backup|restore` (pg_dump → gzip → GnuPG AES-256, optional
+rclone off-site; ADR 0061). **2FA + Härtung sind umgesetzt** (s.o. „Sicherheits-
+Härtungspaket"); **IBAN-Feldverschlüsselung ist vorbereitet, aber inaktiv**.
+**Weiteres Hardening (Borg-Append-only-Backups, LUKS) bleibt GEPLANT** –
 Risiken/Blueprints im README-Abschnitt „Datensicherung & Härtung“ und in
 `docs/BETRIEB-SICHERHEIT.md`.
 

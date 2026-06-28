@@ -40,7 +40,11 @@ services:
       SEED_DEMO: ${SEED_DEMO:-0}     # 1 = Test-/Demo-Daten anlegen (additiv)
       DEMO_RESET: ${DEMO_RESET:-0}   # 1 = ALLES löschen + Demo neu (Vorsicht!)
       DEMO_WIPE: ${DEMO_WIPE:-0}     # 1 = NUR ALLES löschen (Vorsicht!)
-      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      # HSTS: Default 30 Tage (nur Host, ohne Preload → reversibel). Subdomains/
+      # Preload optional zuschalten, sobald dauerhaft alle unter HTTPS (ADR 0061).
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-2592000}
+      SECURE_HSTS_INCLUDE_SUBDOMAINS: ${SECURE_HSTS_INCLUDE_SUBDOMAINS:-0}
+      SECURE_HSTS_PRELOAD: ${SECURE_HSTS_PRELOAD:-0}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       TZ: ${TZ:-Europe/Berlin}
       # E-Mail (leer = Konsole/Log). Für echten Versand in der .env ausfüllen.

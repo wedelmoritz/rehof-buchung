@@ -98,6 +98,34 @@ Umsetzung in Batches; gemeinsame Klammer dieser ADR.
    collectstatic brauchen zur Laufzeit keine Schreibrechte; Gunicorn bindet 8000
    (>1024). Bei einem App-Einbruch bleibt der Schadensradius kleiner.
 
+### P3 – gezielte Tiefenverteidigung
+
+9. **Push-Endpunkte nach Mitglied scopen.** `push_unsubscribe` löschte ein Abo allein
+   über den Endpoint – mit Kenntnis eines (geheimen) Endpoints hätte ein angemeldetes
+   Konto fremde Geräte abmelden können. Jetzt `filter(endpoint=…, member=…)`: nur das
+   EIGENE Abo. (`push_subscribe` bleibt Endpoint-Upsert – nötig für legitimen
+   Geräte-Handover; bindet das Abo ohnehin an das angemeldete Konto.)
+
+10. **Verschlüsseltes Off-site-Backup.** `ops/backup.sh backup|restore`: `pg_dump` →
+    `gzip` → **GnuPG AES-256** (symmetrisch, Passphrase aus `BACKUP_PASSPHRASE`,
+    getrennt aufzubewahren) – der Klartext landet nie auf der Platte. Optionaler
+    Off-site-Upload via `rclone` (`BACKUP_RCLONE_REMOTE`), lokale Rotation
+    (`BACKUP_KEEP`). Runbook im README / docs/BETRIEB-SICHERHEIT.md.
+
+11. **Weitere Header + Anmelde-Audit + WeasyPrint-SSRF-Schutz.**
+    - `SecurityHeadersMiddleware`: **Permissions-Policy** (mächtige Browser-APIs aus)
+      und **Cross-Origin-Resource-Policy** `same-origin` (Embed-Widget: `cross-origin`).
+      COOP setzt Djangos SecurityMiddleware bereits auf `same-origin`.
+    - **Anmelde-Audit** über die Auth-Signale (`user_logged_in/out/login_failed`) →
+      strukturiertes Log (Benutzername + IP, **nie** das Passwort); ergänzt axes.
+    - **WeasyPrint** rendert das Rechnungs-PDF mit einem `url_fetcher`, der jeden
+      Netz-/Datei-Abruf ablehnt (nur `data:`) – kein SSRF über eingeschleusten Inhalt.
+
+12. **Sinnvoller HSTS-Default.** In Produktion jetzt `SECURE_HSTS_SECONDS=2592000`
+    (30 Tage) statt 0 – aber **nur für den Host** (kein `includeSubDomains`) und **ohne
+    `preload`** (beide per Env zuschaltbar). So ist HSTS aktiv, bleibt aber innerhalb
+    von 30 Tagen reversibel (die irreversiblen Optionen sind bewusste Opt-ins).
+
 ## Betrachtete Alternativen
 
 - **2FA über ein Drittpaket mit eigener Login-Maske (z. B. two-factor):** verworfen –
