@@ -16,7 +16,8 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
                     split_quarters_for_range)
 
 __all__ = [
-    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts', 'wish_deconfliction',
+    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
+    'wish_deconfliction', 'wish_alternatives',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
 ]
@@ -290,6 +291,76 @@ def wish_deconfliction(period, start: date, end: date, *, max_shift: int = 2) ->
                 best = {"start": s, "end": e, "count": c, "shift": d}
         if best:
             out[qid] = {"base": base, "best": best}
+    return out
+
+
+def wish_alternatives(period, member, wishes, *, max_shift: int = 2) -> dict:
+    """Unverbindliche Entzerrungs-Hinweise JE eingetragenem Wunsch (P2.4-Erweiterung,
+    ADR 0064): zeigt für umkämpfte Wünsche, wie sich Konflikte mit Wünschen
+    ANDERER Mitglieder vermeiden lassen – auf zwei Wegen:
+
+      * ``time``    – dieselbe Unterkunft, leicht verschobener Zeitraum (gleiche
+                      Länge, ±``max_shift`` Tage) mit weniger/keiner Konkurrenz,
+      * ``quarter`` – ein **gleichwertiges** Quartier (gleiche Äquivalenzklasse) zur
+                      GLEICHEN Zeit mit weniger/keiner Konkurrenz.
+
+    „Konflikt" = ein eingereichter Wunsch eines ANDEREN Mitglieds, der sich mit
+    diesem Quartier+Zeitraum überschneidet (eigene Wünsche zählen NICHT). Nur
+    Hinweise – kein Schreibpfad, keine Änderung am Losverfahren. Effizient: EINE
+    Abfrage für die Konkurrenz, EINE für die Quartiere; der Rest läuft in Python.
+    Gibt ``{wish_id: {"base", "time"|None, "quarter"|None}}`` für umkämpfte Wünsche
+    zurück (umkämpft = mindestens ein fremder Wunsch überschneidet sich)."""
+    out: dict = {}
+    if not period or not member or not wishes:
+        return out
+    rows = (Wish.objects.filter(period=period, submitted=True)
+            .exclude(member_id=member.id)
+            .values_list("quarter_id", "start", "end"))
+    by_q: dict[int, list] = defaultdict(list)
+    for qid, ws, we in rows:
+        by_q[qid].append((ws, we))
+
+    quarters = list(Quarter.objects.filter(active=True))
+    q_by_id = {q.id: q for q in quarters}
+    siblings: dict[int, list] = defaultdict(list)
+    for q in quarters:
+        siblings[q.eq_class_id].append(q)
+
+    def contention(spans, s, e) -> int:
+        return sum(1 for (ws, we) in spans if ws < e and s < we)
+
+    for w in wishes:
+        q = q_by_id.get(w.quarter_id)
+        if q is None:
+            continue
+        length = (w.end - w.start).days
+        base = contention(by_q.get(w.quarter_id, ()), w.start, w.end)
+        if base <= 0:
+            continue                      # nicht umkämpft -> kein Hinweis
+        # (a) gleiche Unterkunft, leicht anderer Zeitraum (saison-gültig)
+        time_alt = None
+        for d in range(-max_shift, max_shift + 1):
+            if d == 0:
+                continue
+            s = w.start + timedelta(days=d)
+            e = s + timedelta(days=length)
+            if not _in_season_range(q, s, e):
+                continue
+            c = contention(by_q.get(w.quarter_id, ()), s, e)
+            if c < base and (time_alt is None or c < time_alt["count"]
+                             or (c == time_alt["count"] and abs(d) < abs(time_alt["shift"]))):
+                time_alt = {"start": s, "end": e, "count": c, "shift": d}
+        # (b) gleichwertiges Quartier (gleiche Klasse), GLEICHE Zeit (saison-gültig)
+        quarter_alt = None
+        for sib in siblings.get(q.eq_class_id, ()):
+            if sib.id == q.id or not _in_season_range(sib, w.start, w.end):
+                continue
+            c = contention(by_q.get(sib.id, ()), w.start, w.end)
+            if c < base and (quarter_alt is None or c < quarter_alt["count"]
+                             or (c == quarter_alt["count"] and sib.name < quarter_alt["name"])):
+                quarter_alt = {"quarter_id": sib.id, "name": sib.name, "count": c}
+        if time_alt or quarter_alt:
+            out[w.id] = {"base": base, "time": time_alt, "quarter": quarter_alt}
     return out
 
 

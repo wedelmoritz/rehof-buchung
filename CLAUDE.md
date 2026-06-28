@@ -173,9 +173,14 @@ angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
 bleiben bewusst änderbar; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
-[`quarter_wish_counts`] und ein **unverbindlicher Ausweich-Tipp**
-[`services.wish_deconfliction`, P2.4/ADR 0064] die nahe Verschiebung mit der
-geringsten Konkurrenz – anklickbar, saison-gefiltert, kein Eingriff ins Losverfahren),
+[`quarter_wish_counts`]; **je eingetragenem, umkämpftem Wunsch** steht in „Meine
+Wünsche“ ein markanter **Entzerrungs-Hinweis** [`services.wish_alternatives`,
+P2.4/ADR 0064], wie sich **Konflikte mit Wünschen anderer Mitglieder** vermeiden
+lassen: ein **leicht anderer Zeitraum** für dieselbe Unterkunft UND/ODER ein
+**gleichwertiges Quartier** (gleiche Äquivalenzklasse) zur gleichen Zeit mit
+weniger/keiner Konkurrenz – beides anklickbar, saison-gefiltert, eigene Wünsche
+zählen nicht, kein Eingriff ins Losverfahren. (`services.wish_deconfliction`
+liefert weiter die reine Zeitraum-Verschiebung je Quartier.)),
 `my_bookings` (eigene Buchungen + Storno **mit
 Rückfrage**; je Buchung „wer ist gleichzeitig da“ – aufgeteilt in **exakt gleiche
 An-/Abreise** und **nur überlappend** [`services.concurrent_split`] – mit
