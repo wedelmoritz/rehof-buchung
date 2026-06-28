@@ -78,6 +78,7 @@ die Regelwerte zu wiederholen.
 | [0054](0054-einheitliches-farbsystem.md) | Einheitliches Farbsystem (warmes Papier-Neutral + Terrakotta-Akzent) | Accepted |
 | [0055](0055-backend-persistenter-navigator-pjax.md) | Backend: persistenter Navigator (Suche + Bereiche) + pjax statt Layout-Wechsel | Accepted |
 | [0056](0056-gefuehrtes-onboarding-neuer-benutzer.md) | Geführtes Onboarding neuer Benutzer im Backend (Mitglied / Hofladen / deaktivieren) | Accepted |
+| [0057](0057-backend-ux-verfeinerungen.md) | Backend-UX-Verfeinerungen (Navigator einklappbar/Akkordeon, Listen, Leer-Hinweise) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

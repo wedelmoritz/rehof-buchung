@@ -77,9 +77,28 @@
   #content-main .module table tbody tr:hover { background: #fbe9e4; }
 
   /* ---------- Persistenter Navigator (Suche + Bereiche), oben auf jeder Seite ---------- */
-  .rehof-navigator { margin: 0 0 18px; padding: 12px 14px 6px; background: var(--body-bg);
-    border: 1px solid #e4dfd8; border-radius: 14px;
+  .rehof-navigator { margin: 0 0 18px; background: var(--body-bg);
+    border: 1px solid #e4dfd8; border-radius: 14px; overflow: hidden;
     box-shadow: 0 1px 2px rgba(60,53,47,.035), 0 8px 22px rgba(60,53,47,.04); }
+  /* Einklapp-Leiste (immer sichtbar) */
+  .rehof-nav-bar { width: 100%; box-sizing: border-box; display: flex; align-items: center;
+    gap: 10px; padding: 10px 14px; cursor: pointer; border: 0; background: transparent;
+    font: inherit; color: var(--body-loud-color); text-align: left; }
+  .rehof-nav-bar-label { font-weight: 800; font-size: 12px; letter-spacing: .03em;
+    text-transform: uppercase; }
+  .rehof-nav-loc { color: var(--body-quiet-color); font-size: 12.5px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rehof-nav-chev { margin-left: auto; color: var(--body-quiet-color); font-size: 12px;
+    transition: transform .15s ease; }
+  .rehof-nav-bar:hover { background: var(--darkened-bg); }
+  .rehof-nav-body { padding: 0 14px 6px; }
+  /* Einklappen: Desktop per Klasse, Mobil per Default (außer wenn aufgeklappt). */
+  .rehof-navigator.rehof-collapsed .rehof-nav-body { display: none; }
+  .rehof-navigator.rehof-collapsed .rehof-nav-chev { transform: rotate(-90deg); }
+  @media (max-width: 768px) {
+    .rehof-navigator:not(.rehof-open) .rehof-nav-body { display: none; }
+    .rehof-navigator:not(.rehof-open) .rehof-nav-chev { transform: rotate(-90deg); }
+  }
   .rehof-nav-q { width: 100%; box-sizing: border-box; padding: 11px 14px; font-size: 15px;
     border: 1px solid #e4dfd8; border-radius: 11px; background: #fff; color: var(--body-fg);
     box-shadow: 0 1px 2px rgba(60,53,47,.04); }
@@ -114,9 +133,26 @@
     border: 1px solid #e4dfd8; border-radius: 7px; color: var(--secondary); text-decoration: none;
     font-weight: 800; }
   .rehof-nav-add:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  /* Zähler offener Aufgaben am Navigator-Eintrag (z.B. „Neue Benutzer"). */
+  .rehof-nav-badge { display: inline-block; min-width: 18px; text-align: center; margin-left: 4px;
+    padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 800;
+    background: var(--primary); color: #fff; vertical-align: 1px; }
+  /* Mobil: „+"-Schnellanlage ausblenden (Fehlklick-Gefahr neben dem Link). */
+  @media (max-width: 768px) { .rehof-nav-add { display: none; } }
   /* Sanfter Lade-Hinweis beim pjax-Wechsel (kein Neuladen). */
   #content { transition: opacity .12s ease; }
   body.rehof-loading #content { opacity: .55; }
+  /* P3: freundlicher Leer-Hinweis in Listen. */
+  .rehof-empty-hint { margin: 8px 0 14px; padding: 14px 16px; border-radius: 10px;
+    background: var(--darkened-bg); color: var(--body-quiet-color); font-weight: 600; }
+  /* P3: „Neueste Aktionen" als ruhige helle Karte (statt grauem Block). */
+  #content-related .module { background: #fff; border: 1px solid #e4dfd8; }
+  #content-related .module h2 { background: var(--darkened-bg); }
+  /* P3: Kopfzeile am Handy kompakter (Benutzer-Links brechen sauber um). */
+  @media (max-width: 768px) {
+    #header { padding: 10px 14px; }
+    #user-tools { font-size: 11px; line-height: 1.5; margin-top: 4px; }
+  }
 </style>
 {% endblock %}
 
@@ -133,43 +169,78 @@ definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{%
    Navigation zurück. (ADR 0055) */
 (function () {
   if (window.__rehofAdminNav) return; window.__rehofAdminNav = true;
-  var OPEN_KEY = "rehof.nav.open";
+  var COLLAPSE_KEY = "rehof.nav.collapsed";
 
   function nav() { return document.getElementById("rehof-nav"); }
-
-  function loadOpen() { try { return JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); } catch (e) { return {}; } }
-  function saveOpen(o) { try { localStorage.setItem(OPEN_KEY, JSON.stringify(o)); } catch (e) {} }
+  function secsOf(n) { return Array.prototype.slice.call(n.querySelectorAll(".rehof-nav-sec")); }
+  function searching(n) { var q = n.querySelector("#rehof-nav-q"); return !!(q && q.value.trim().length >= 2); }
+  function setLoc(n, txt) { var el = n.querySelector("#rehof-nav-loc"); if (el) el.textContent = txt ? ("· " + txt) : ""; }
+  function openOnly(n, sec) { secsOf(n).forEach(function (s) { s.open = (s === sec); }); }
 
   function markActive() {
     var n = nav(); if (!n) return;
-    var path = location.pathname;
-    var best = null, bestLen = -1;
+    var path = location.pathname, best = null, bestLen = -1;
     n.querySelectorAll("a.rehof-nav-link").forEach(function (a) {
       a.classList.remove("active");
-      var href = a.getAttribute("href") || "";
+      var href = a.getAttribute("href"); if (!href) return;
       try { var p = new URL(href, location.href).pathname; } catch (e) { return; }
       if (path === p || path.indexOf(p) === 0) { if (p.length > bestLen) { best = a; bestLen = p.length; } }
     });
     if (best) {
       best.classList.add("active");
-      var sec = best.closest(".rehof-nav-sec"); if (sec) sec.open = true;
-    }
+      var sec = best.closest(".rehof-nav-sec");
+      if (sec && !searching(n)) openOnly(n, sec);   // immer nur EIN Bereich offen
+      setLoc(n, best.textContent.trim());
+    } else { setLoc(n, ""); }
+  }
+
+  // P3: freundlicher Hinweis bei leeren Listen (Django zeigt sonst nur „0 …“).
+  function enhanceContent() {
+    if (!document.body.classList.contains("change-list")) return;
+    var form = document.getElementById("changelist-form");
+    if (!form || document.getElementById("rehof-empty-hint")) return;
+    if (document.querySelectorAll("#result_list tbody tr").length > 0) return;
+    var p = document.createElement("p");
+    p.id = "rehof-empty-hint"; p.className = "rehof-empty-hint";
+    p.textContent = location.search
+      ? "Keine Treffer für die aktuelle Suche/Filter."
+      : "Noch keine Einträge in dieser Liste.";
+    form.insertBefore(p, form.firstChild);
+  }
+
+  function setCollapsed(n, collapsed) {
+    n.classList.toggle("rehof-collapsed", collapsed);
+    n.classList.toggle("rehof-open", !collapsed);
+    var bar = n.querySelector("#rehof-nav-bar");
+    if (bar) bar.setAttribute("aria-expanded", String(!collapsed));
+    try { localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0"); } catch (e) {}
   }
 
   function bindNavigator() {
     var n = nav(); if (!n || n.__bound) return; n.__bound = true;
     var q = n.querySelector("#rehof-nav-q");
     var empty = n.querySelector(".rehof-nav-empty");
-    var secs = Array.prototype.slice.call(n.querySelectorAll(".rehof-nav-sec"));
-    var open = loadOpen();
+    var bar = n.querySelector("#rehof-nav-bar");
+    var secs = secsOf(n);
+
+    // Akkordeon: öffnet sich ein Bereich, schließen sich die anderen (begrenzt die Höhe).
     secs.forEach(function (s) {
-      var key = s.querySelector("summary").textContent.trim();
-      if (open[key]) s.open = true;
       s.addEventListener("toggle", function () {
-        if (q && q.value.trim().length >= 2) return; // während Suche nicht speichern
-        open[key] = s.open; saveOpen(open);
+        if (s.open && !searching(n)) secs.forEach(function (o) { if (o !== s) o.open = false; });
       });
     });
+
+    // Ein-/Ausklappen merken; ohne Wahl gilt der CSS-Default (mobil zu, Desktop offen).
+    if (bar) {
+      bar.addEventListener("click", function () {
+        var body = n.querySelector(".rehof-nav-body");
+        setCollapsed(n, getComputedStyle(body).display !== "none");
+      });
+      var pref = null; try { pref = localStorage.getItem(COLLAPSE_KEY); } catch (e) {}
+      if (pref === "1") setCollapsed(n, true);
+      else if (pref === "0") setCollapsed(n, false);
+    }
+
     if (q) {
       q.addEventListener("input", function () {
         var term = q.value.trim().toLowerCase();
@@ -177,9 +248,10 @@ definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{%
           secs.forEach(function (s) {
             s.hidden = false;
             s.querySelectorAll(".rehof-nav-item").forEach(function (l) { l.hidden = false; });
-            var key = s.querySelector("summary").textContent.trim(); s.open = !!open[key];
           });
-          if (empty) empty.hidden = true; markActive(); return;
+          if (empty) empty.hidden = true;
+          markActive();                              // wieder auf den aktiven Bereich reduzieren
+          return;
         }
         var any = false;
         secs.forEach(function (s) {
@@ -251,6 +323,7 @@ definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{%
         if (push) history.pushState({ rehof: 1 }, "", url);  // erst URL, dann aktiven Eintrag markieren
         swap(doc);
         markActive();
+        enhanceContent();
         window.scrollTo(0, 0);
         document.body.classList.remove("rehof-loading");
       })
@@ -279,8 +352,9 @@ definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{%
 
   window.addEventListener("popstate", function () { go(location.href, false); });
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindNavigator);
-  else bindNavigator();
+  function init() { bindNavigator(); enhanceContent(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 })();
 </script>
 {% endblock %}

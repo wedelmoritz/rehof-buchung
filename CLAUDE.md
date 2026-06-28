@@ -673,6 +673,10 @@ die Standard-Seitenleiste zu nutzen (aus, `enable_nav_sidebar=False`), steht obe
 auf **jeder** Admin-Seite derselbe **Navigator** (Suche + die 5 fachlichen Bereiche
 als kollabierbare `<details>`, aus `available_apps`) – eingehängt über
 `{% block pretitle %}` in `base_site.html` (`templates/admin/_rehof_navigator.html`).
+Der Navigator ist **einklappbar** (Leiste „Suche & Bereiche · <Standort>"; **mobil
+per Default zu**, Wahl gemerkt) und arbeitet als **Akkordeon** (immer nur EIN Bereich
+offen → begrenzte Höhe, ADR 0057); der Eintrag „Neue Benutzer (Zuordnung)" trägt ein
+**Badge** mit der Anzahl offener Konten (`RehofAdminSite.each_context`).
 Der gewählte Bereich/die Liste wird **darunter** aufgebaut, beim Klick **ohne
 Neuladen** (kleiner **pjax**-Layer in `base_site.html`: tauscht nur `#content` unter
 dem Navigator, lädt fehlende Stylesheets nach, `pushState`/`popstate`, harter

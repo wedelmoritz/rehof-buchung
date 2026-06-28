@@ -54,6 +54,17 @@ class RehofAdminSite(admin.AdminSite):
     # doppeln, daher aus (ADR 0055).
     enable_nav_sidebar = False
 
+    def each_context(self, request):
+        """Zähler offener „Neue Benutzer" für das Badge am Navigator-Eintrag (auf
+        jeder Seite). Günstige COUNT-Abfrage; nur für eingeloggte Staff-Sicht."""
+        ctx = super().each_context(request)
+        try:
+            from . import services as svc
+            ctx["pending_user_count"] = svc.users_without_membership().count()
+        except Exception:
+            ctx["pending_user_count"] = 0
+        return ctx
+
     def index(self, request, extra_context=None):
         """Backend-Startseite um den Abschnitt „Neue Benutzer“ ergänzen: Konten, die
         noch keinem Mitglieds-Anteil zugeordnet sind und freigeschaltet werden

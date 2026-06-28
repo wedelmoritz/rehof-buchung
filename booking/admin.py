@@ -471,7 +471,10 @@ class WishAdmin(admin.ModelAdmin):
     list_display = ("member", "period", "priority", "quarter", "start", "end",
                     "submitted")
     list_filter = ("period", "quarter", "submitted")
-    search_fields = ("member__display_name",)
+    search_fields = ("member__display_name", "member__user__username",
+                     "quarter__name")
+    date_hierarchy = "start"
+    list_select_related = ("member", "quarter", "period")
 
 
 @admin.register(Allocation)
@@ -481,10 +484,18 @@ class AllocationAdmin(admin.ModelAdmin):
     Quartiers-Rahmen und <b>keine Überschneidung</b> mit einer anderen Zuteilung
     oder bestätigten externen Buchung im selben Quartier – eine Doppelbuchung
     wird beim Speichern abgewiesen."""
-    list_display = ("member", "quarter", "start", "end", "persons", "source",
-                    "via_substitution", "contested")
+    list_display = ("start", "end", "nights_display", "quarter", "member",
+                    "persons", "source", "via_substitution", "contested")
     list_filter = ("source", "quarter", "contested")
-    search_fields = ("member__display_name",)
+    search_fields = ("member__display_name", "member__user__username",
+                     "quarter__name")
+    date_hierarchy = "start"
+    ordering = ("-start",)
+    list_select_related = ("quarter", "member")
+
+    @admin.display(description="Nächte")
+    def nights_display(self, obj):
+        return obj.nights
 
 
 @admin.action(description="Excel-Export der ausgewählten Buchungen")
@@ -625,6 +636,8 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ("member", "message", "read", "created_at")
     list_filter = ("read",)
     search_fields = ("member__display_name", "message")
+    date_hierarchy = "created_at"
+    list_select_related = ("member",)
 
 
 @admin.register(SwapRequest)
@@ -633,6 +646,7 @@ class SwapRequestAdmin(admin.ModelAdmin):
                     "to_allocation", "status", "created_at")
     list_filter = ("status",)
     search_fields = ("from_member__display_name", "to_member__display_name")
+    date_hierarchy = "created_at"
 
 
 @admin.register(OpsConfig)
