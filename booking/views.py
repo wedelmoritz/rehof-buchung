@@ -596,6 +596,17 @@ def wishlist(request):
         )
         wishlist_submitted = any(w.submitted for w in wishes) and len(wishes) > 0
         wish_nights = sum(w.nights for w in wishes)
+        # Entzerrungs-Tipp JE WUNSCH (verständlicher als unter den Kandidaten,
+        # P2.4-Folgeänderung): nur solange der Wunsch noch änderbar ist (nicht
+        # eingereicht) und nur, wenn der Zeitraum wirklich umkämpft ist und eine nahe,
+        # entspanntere Verschiebung existiert. Wenige Wünsche → wenige Abfragen.
+        if not wishlist_submitted:
+            for w in wishes:
+                hint = svc.wish_deconfliction(period, w.start, w.end).get(str(w.quarter_id))
+                if hint and not svc._in_season_range(
+                        w.quarter, hint["best"]["start"], hint["best"]["end"]):
+                    hint = None
+                w.hint = hint
 
     # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
     sel_start = _parse_date(request.GET.get("start"))
@@ -616,16 +627,11 @@ def wishlist(request):
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
         counts = svc.quarter_wish_counts(period, eff_start, eff_end)
-        # P2.4: unverbindliche Ausweich-Vorschläge (weniger Konkurrenz bei kleiner
-        # Verschiebung) – nur Hinweise, eine zusätzliche DB-Abfrage.
-        decon = svc.wish_deconfliction(period, eff_start, eff_end)
+        # Der Entzerrungs-Tipp (P2.4) steht jetzt JE WUNSCH in „Meine Wünsche" –
+        # erst wenn ein Wunsch wirklich aufgenommen wurde (verständlicher als unter
+        # den Kandidaten). Hier nur noch die Nachfrage-Ampel je Quartier.
         for q in Quarter.objects.filter(active=True).order_by("name"):
-            hint = decon.get(str(q.id))
-            # Nur Vorschläge zeigen, die im Quartier saisonal buchbar bleiben.
-            if hint and not svc._in_season_range(
-                    q, hint["best"]["start"], hint["best"]["end"]):
-                hint = None
-            candidates.append({"q": q, "count": counts.get(str(q.id), 0), "hint": hint})
+            candidates.append({"q": q, "count": counts.get(str(q.id), 0)})
 
     return render(request, "booking/wishlist.html", {
         "member": member,
