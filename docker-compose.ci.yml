@@ -26,7 +26,9 @@ services:
         condition: service_healthy
     environment:
       DEBUG: "0"
-      SECRET_KEY: ci-e2e-secret-not-for-production
+      # ≥50 Zeichen: erfüllt den Fail-closed-SECRET_KEY-Wächter (ADR 0061); reiner
+      # Test-/Wegwerf-Schlüssel, NICHT für Produktion.
+      SECRET_KEY: ci-e2e-secret-not-for-production-0123456789abcdef0123456789
       ALLOWED_HOSTS: localhost,127.0.0.1,web
       CSRF_TRUSTED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
       # Ohne TLS in der CI: Secure-Cookies aus, damit die Session über http hält.

@@ -55,7 +55,8 @@ Inhalt:
 - Davon höchstens **25 Tage über die Wunschliste** (Losung); der Rest läuft über
   die normale/spontane Buchung.
 - **Kein Übertrag ins Folgejahr** – das Kontingent gilt je Kalenderjahr frisch.
-- Tage sind **an andere Mitglieder übertragbar** (§ 11).
+- Tage sind **an andere Mitglieder übertragbar** oder in einen **Solidaritäts-Pool**
+  spendbar/daraus entnehmbar (§ 11). Beides verändert das wirksame Jahreskontingent.
 
 ---
 
@@ -135,6 +136,12 @@ Ziel: eine **faire**, **strategiesichere** Vergabe der umkämpften Wunsch-Slots.
   Reihenfolge der Parteien wird je Runde **gewichtet zufällig** gezogen (Gewicht =
   Karma, § 6).
 - **Reproduzierbar** über einen Seed; die Ziehung ist damit nachvollziehbar/auditbar.
+- **Verifizierbar (Commit-Reveal):** Der Seed ist **nicht manipulierbar**. Schon beim
+  Öffnen der Wünsche wird seine **Prüfsumme veröffentlicht** (der Seed selbst bleibt
+  geheim); nach der bestätigten Ziehung wird der Seed **offengelegt**. Jede:r kann die
+  Prüfsumme nachbilden und das Ergebnis mit dem offenen Algorithmus nachrechnen – so
+  ist belegt, dass der Zufall vor den Einträgen feststand (niemand kann ihn zu Gunsten
+  einzelner wählen). Siehe Fairness-Nachweis, Abschnitt 3.
 - **Ausweichen** auf gleichwertige Quartiere derselben Äquivalenzklasse (§ 2), bevor
   ein Wunsch als Verlust zählt.
 - **Nur eingereichte Wünsche** nehmen teil (§ 8).
@@ -256,6 +263,20 @@ zu oder lehnt ab.
 - Der Übertrag ist **verbindlich**; auf welcher (privatrechtlichen) Basis er erfolgt
   – Schenkung, Bezahlung, Tausch – regeln die Beteiligten **selbst**. Die
   Genossenschaft/App vermittelt **keine** Gegenleistung.
+- **Danke:** Die empfangende Person kann sich für eine Übertragung **einmalig**
+  bedanken (eine private Mitteilung an die schenkende Person – ohne Rangliste).
+
+**Solidaritäts-Pool (Tage):**
+
+- Mitglieder können **ungenutzte Tage** in einen **gemeinsamen Topf** spenden
+  (höchstens so viele, wie ihr Kontingent noch hergibt).
+- Wer das eigene Jahresbudget **fast aufgebraucht** hat, kann daraus **bei Bedarf,
+  gedeckelt** entnehmen (Standard: höchstens 10 Tage je Mitglied und Jahr, und nie
+  mehr, als im Topf ist). Wer sich aufgestockt hat, ist nicht mehr berechtigt.
+- Spenden/Entnahmen **wirken auf das wirksame Jahreskontingent** (wie eine
+  Übertragung) und gelten **nur fürs laufende Kalenderjahr**.
+- Der Topf-Stand ist sichtbar; die **eigenen** Spenden/Entnahmen sieht man selbst,
+  fremde Entnahmen werden **nicht namentlich** gezeigt (Datensparsamkeit).
 
 ---
 

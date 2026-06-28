@@ -1,4 +1,5 @@
 {% extends "booking/base.html" %}
+{% load l10n %}
 {% block title %}Hofladen{% endblock %}
 {% block content %}
 <h1>Hofladen</h1>
@@ -44,7 +45,7 @@
           <label class="muted tile-date">Termin <input type="date" name="service_date" required></label>
           {% endif %}
           <div class="tile-add">
-            <input type="number" name="quantity" value="{{ p.quantity_step }}" min="{{ p.quantity_step }}" step="{{ p.quantity_step }}" inputmode="decimal" aria-label="Menge">
+            {% localize off %}<input type="number" name="quantity" value="{{ p.quantity_step|default:1 }}" min="{{ p.quantity_step|default:1 }}" step="{{ p.quantity_step|default:1 }}" inputmode="decimal" aria-label="Menge">{% endlocalize %}
             <button class="btn small" type="submit">+ Warenkorb</button>
           </div>
         </form>
@@ -76,8 +77,8 @@
         <form method="post" class="cart-qty">{% csrf_token %}
           <input type="hidden" name="action" value="set_qty">
           <input type="hidden" name="item_id" value="{{ it.id }}">
-          <input type="number" name="quantity" value="{{ it.quantity|floatformat:'-3' }}"
-                 min="0" step="{% if it.product %}{{ it.product.quantity_step }}{% else %}1{% endif %}" aria-label="Menge für {{ it.name }}">
+          {% localize off %}<input type="number" name="quantity" value="{{ it.quantity|floatformat:'-3' }}"
+                 min="0" step="{% if it.product %}{{ it.product.quantity_step }}{% else %}1{% endif %}" aria-label="Menge für {{ it.name }}">{% endlocalize %}
           <button class="btn small ghost" title="Menge aktualisieren">✓</button>
         </form>
         <span class="cart-amount">{{ it.gross }} €</span>
@@ -164,7 +165,7 @@
   #oc-sync { display:block; width:100%; margin-top:.6rem; }
 </style>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   // Die Offline-Warenkorb-Engine (window.__offlineCart) wird erst am Ende von
   // base.html definiert – also ggf. nach diesem Skript. Init verzögern, bis sie da

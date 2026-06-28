@@ -32,13 +32,19 @@ services:
     environment:
       DEBUG: "0"
       SECRET_KEY: ${SECRET_KEY}
+      # App-seitige Feld-Verschlüsselung (vorbereitet, noch inaktiv – ADR 0061).
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SEED_DEMO: ${SEED_DEMO:-0}     # 1 = Test-/Demo-Daten anlegen (additiv)
       DEMO_RESET: ${DEMO_RESET:-0}   # 1 = ALLES löschen + Demo neu (Vorsicht!)
       DEMO_WIPE: ${DEMO_WIPE:-0}     # 1 = NUR ALLES löschen (Vorsicht!)
-      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      # HSTS: Default 30 Tage (nur Host, ohne Preload → reversibel). Subdomains/
+      # Preload optional zuschalten, sobald dauerhaft alle unter HTTPS (ADR 0061).
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-2592000}
+      SECURE_HSTS_INCLUDE_SUBDOMAINS: ${SECURE_HSTS_INCLUDE_SUBDOMAINS:-0}
+      SECURE_HSTS_PRELOAD: ${SECURE_HSTS_PRELOAD:-0}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       TZ: ${TZ:-Europe/Berlin}
       # E-Mail (leer = Konsole/Log). Für echten Versand in der .env ausfüllen.
@@ -99,6 +105,7 @@ services:
     environment:
       DEBUG: "0"
       SECRET_KEY: ${SECRET_KEY}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-}
@@ -125,15 +132,25 @@ services:
     networks:
       - internal
 
-  # Optionaler Cache/Session-Store. Standardmäßig AUS – erst mit
-  # `docker compose --profile cache up -d` starten und REDIS_URL setzen
-  # (z.B. REDIS_URL=redis://redis:6379/0 in der .env).
+  # Cache/Session-/Axes-Store (empfohlen ab vielen gleichzeitigen Nutzern).
+  # Standardmäßig AUS (minimaler, robuster DB-only-Stack). Aktivieren in 1 Schritt:
+  #   1) in der .env:  REDIS_URL=redis://redis:6379/0
+  #   2) starten:      docker compose --profile cache up -d
+  # Sitzungen sind dank `cached_db` durabel (in der DB) – ein Redis-Neustart loggt
+  # NICHT alle aus. `volatile-lru` verdrängt unter Speicherdruck nur Schlüssel mit
+  # Ablauf (Sessions/Cache haben TTL), nie versehentlich dauerhafte Daten.
+  # WICHTIG (Sicherheit): KEINEN Host-Port veröffentlichen – nur im internen Netz.
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     profiles: ["cache"]
-    command: ["redis-server", "--save", "", "--maxmemory", "128mb",
-              "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--save", "", "--maxmemory", "256mb",
+              "--maxmemory-policy", "volatile-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - internal
 

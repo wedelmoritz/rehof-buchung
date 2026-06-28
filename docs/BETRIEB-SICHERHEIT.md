@@ -14,6 +14,15 @@ At-Rest-Verschlüsselung.** → Beides ist der eigentliche Schutzbedarf.
 
 ## Phase 2 — Backups (off-site, unveränderbar, 14 Tage)
 
+> **Status (ADR 0061, P3.10): ein verschlüsseltes Backup-Skript ist umgesetzt** –
+> `ops/backup.sh backup|restore` macht `pg_dump` → `gzip` → **GnuPG AES-256**
+> (Passphrase `BACKUP_PASSPHRASE`, getrennt sichern; Klartext landet nie auf der
+> Platte) und lädt optional per **rclone** off-site (`BACKUP_RCLONE_REMOTE`), mit
+> lokaler Rotation (`BACKUP_KEEP`). Per Host-Cron einplanen (Beispiel im Skriptkopf).
+> Der folgende **Borg-/Append-only-Ausbau** bleibt die empfohlene, ransomware-
+> resistente Weiterentwicklung (unveränderbare Snapshots) – das Skript ist die
+> sofort nutzbare Basis.
+
 **Ziel:** 14 Tage zurückspringen können; **separat** gespeichert, sodass ein
 DB-Verlust/-Angriff die Sicherung **nicht** mitnimmt (3-2-1-Regel).
 **Aufwand:** gering. **Voraussetzung:** eine **Hetzner Storage Box** (günstig).
@@ -93,27 +102,37 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
 - **Rotations-Runbook** für `SECRET_KEY` und DB-Passwort dokumentieren
   (SECRET_KEY-Wechsel invalidiert Sessions — unkritisch).
 
-### 4.2 2-Faktor für die Verwaltung — *Aufwand: gering*
-- `django-otp` + `django_otp.plugins.otp_totp`, `OTPMiddleware`, Admin auf
-  `OTPAdminSite` umstellen (oder `admin.site.login` per OTP absichern).
+### 4.2 2-Faktor für die Verwaltung — *UMGESETZT (P1.3/ADR 0061)*
+- **Erledigt:** `django-otp` + `otp_totp`/`otp_static`, `OTPMiddleware`, die
+  `RehofAdminSite` erbt von `OTPAdminSite` und erzwingt `is_verified()` (gesteuert
+  über `ADMIN_OTP_REQUIRED`, Default in Produktion an). Einrichtung:
+  `manage.py admin_otp_setup --user <name>` (TOTP-Gerät + QR).
 - Nur **Staff/Superuser** betroffen; Mitglieder bleiben unberührt.
 - Optional zusätzlich: Admin-Zugriff über Caddy auf bestimmte IPs/VPN
   beschränken (`@admin` matcher → `remote_ip`).
 
-### 4.3 IBAN-Feldverschlüsselung — *Aufwand: mittel, bewusst klein halten*
-- **TBD / temporäre Entscheidung (Profil-Audit Phase 3):** `Member.iban` wird
-  **vorerst weiter erhoben und gespeichert**, weil es heute im Rechnungs-Export
-  der Verwaltung auftaucht (`shop.services.invoice_export_rows`). Es ist aber das
-  sensibelste PII im System; ob es wirklich gebraucht wird (oder die Anschrift als
-  Rechnungsadresse genügt), ist **offen** und im Zuge der Datensparsamkeit (Phase 4
-  DSGVO) erneut zu prüfen. Bis dahin gilt: minimal halten, nicht weiter ausbauen.
-- **Nur** das sensibelste PII verschlüsseln: `Member.iban` (ggf. Anschrift).
-- App-seitig mit **Fernet** (z.B. `django-cryptography` oder eigenes
-  `EncryptedCharField`); Schlüssel in `.env` (`FIELD_ENCRYPTION_KEY`), **getrennt**
-  von der DB.
+### 4.3 IBAN-Feldverschlüsselung — *VORBEREITET (P2.5/ADR 0061), noch nicht scharf*
+- **Status:** Die app-seitige Feld-Verschlüsselung liegt **fertig vorbereitet**,
+  ist aber bewusst an **keinem** Modellfeld aktiv (kein Datenzugriff geändert):
+  - `booking/fieldcrypt.py` – Django-freie Fernet-Naht (Round-Trip, Rotation;
+    getestet in `tests/test_fieldcrypt.py`).
+  - `booking/fields.py` – `EncryptedCharField` (verschlüsselt beim Schreiben,
+    entschlüsselt beim Lesen; **ohne Schlüssel = Klartext** → gefahrloser Rollout;
+    getestet in `booking/tests_fieldcrypt.py`).
+  - `FIELD_ENCRYPTION_KEY` (Settings + docker-compose, leer = inaktiv);
+    Schlüssel erzeugen mit `manage.py field_key`.
+- **In Produktion scharf schalten (kleiner, gezielter Schritt):**
+  1. `python manage.py field_key` → Ausgabe als `FIELD_ENCRYPTION_KEY` in die `.env`
+     (GETRENNT von der DB sichern!).
+  2. Das sensibelste PII-Feld (`Member.iban`, ggf. Anschrift) von `CharField` auf
+     `EncryptedCharField` umstellen, `max_length` großzügig (Fernet-Token ≫ IBAN).
+  3. Daten-Migration: bestehende Klartext-Werte einmalig verschlüsseln.
+- **TBD (Datensparsamkeit, Profil-Audit Phase 3):** Ob `Member.iban` überhaupt
+  gebraucht wird (heute im Rechnungs-Export der Verwaltung), ist weiterhin offen.
+  Bis zur Klärung: minimal halten, nicht weiter ausbauen.
 - **Trade-offs/Merker:** Feld wird nicht such-/sortierbar; **Schlüsselverlust =
-  Datenverlust** → Schlüssel mitsichern (getrennt!). Migration: bestehende Werte
-  beim Deploy einmalig ver­schlüsseln (Daten-Migration).
+  Datenverlust** → Schlüssel mitsichern (getrennt!). **Rotation:**
+  `FIELD_ENCRYPTION_KEY=neu,alt` (erster verschlüsselt, alle entschlüsseln).
 - **64 % der DB-Breaches** kommen aus schlechtem **Key-Management**, nicht aus
   schwacher Krypto — deshalb Schlüsselablage/-rotation sauber dokumentieren.
 
@@ -123,11 +142,14 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
   alles entschlüsselt gemountet). Auf Hetzner-VPS kontrolliert der Provider den
   Host; LUKS bleibt dennoch eine solide Basismaßnahme.
 
-### 4.5 Sonstiges Härten — *Aufwand: gering, laufend*
-- Abhängigkeiten aktuell halten (Dependabot/Renovate).
-- Security-Header/CSP via Caddy ergänzen; `SECURE_HSTS_SECONDS` setzen, sobald
-  dauerhaft HTTPS.
-- `django-axes` (Brute-Force) ist bereits aktiv.
+### 4.5 Sonstiges Härten — *großteils UMGESETZT (ADR 0061)*
+- **Erledigt:** **CSP** nonce-basiert (django-csp), **Rate-Limiting** über den Login
+  hinaus (django-ratelimit), **Abhängigkeits-Audit** im CI (`pip-audit`) + Dependabot,
+  **Nicht-root-Container**, **Permissions-Policy/CORP**-Header, **Anmelde-Audit-Log**,
+  **HSTS-Default 30 Tage** (Host-only, ohne Preload), **WeasyPrint** ohne Remote-Fetch.
+- `django-axes` (Brute-Force) war bereits aktiv.
+- Offen/laufend: Renovate als Alternative zu Dependabot; ggf. zusätzliche
+  Security-Header am Caddy-Edge.
 
 ---
 
@@ -137,3 +159,66 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
    „14-Tage-Rückspielbar"-Wunsch.
 2. **Secrets-Hygiene + 2FA (4.1/4.2)** — gegen die häufigsten realen Vektoren.
 3. **IBAN-Feldverschlüsselung + LUKS (4.3/4.4)** — gezielte Tiefenverteidigung.
+
+---
+
+## Performance & Skalierung (>100 gleichzeitige Nutzer)
+
+Sicherheit hat Vorrang: Zeilensperren/Constraints für Buchung & Checkout bleiben,
+auch wenn sie minimal serialisieren (Integrität > Tempo); kein Cache
+berechtigungspflichtiger/personenbezogener Daten über Nutzer hinweg.
+
+**Web-Worker (Gunicorn, I/O-/DB-gebunden):** `gthread` mit Threads erlaubt echte
+Gleichzeitigkeit. Gleichzeitige Requests ≈ `GUNICORN_WORKERS × GUNICORN_THREADS`
+(Default 3×8 = 24). Per Env steuerbar: `GUNICORN_WORKERS`, `GUNICORN_THREADS`,
+`GUNICORN_WORKER_CLASS`.
+
+**DB-Verbindungsbudget:** Jeder aktive Thread hält mit `conn_max_age=600` eine
+eigene PostgreSQL-Verbindung. Faustregel: **workers×threads (aller Web-Container)
+≤ Postgres `max_connections`** (Default 100). Bei mehreren Web-Containern oder
+hoher Worker-Zahl **PgBouncer** (Transaction-Pooling) davorschalten und die App
+auf den Pooler zeigen lassen. `CONN_HEALTH_CHECKS=True` fängt abgelaufene
+Verbindungen ab.
+
+**Redis (empfohlen ab vielen gleichzeitigen Nutzern):** `REDIS_URL` setzen und
+`docker compose --profile cache up -d`. Dann liegen **Sessions** (statt je Request
+in PostgreSQL), der **Cache** und die **Axes-Brute-Force-Zähler** im gemeinsamen
+Redis → spürbar weniger DB-Schreiblast. Weiterhin serverseitig (kein
+Vertraulichkeitsverlust).
+
+**Geprüfte Query-Last (lokal, 50+ Mitglieder):** Startseite 23, Buchen 17,
+Hofladen 10, Dashboard 28 Queries. Hot-Pfade nutzen `select_related`/
+`prefetch_related`/Annotation; die geteilte Monats-Belegung kann zusätzlich kurz
+gecacht werden (nur allgemein sichtbare Daten, invalidiert bei Buchungsänderung).
+
+**Lasttest:** `k6` (ADR 0051) gegen Startseite **und** Checkout mit ~100 VUs fahren;
+p95-Latenz und Postgres-Verbindungen beobachten (`pg_stat_activity`).
+
+### Optionale Tiefenverteidigung: DB-Constraint gegen Doppelbuchung
+
+Die Doppelbuchung ist bereits **korrekt** über die Zeilensperre verhindert
+(`book_spontaneous`: `select_for_update` auf der Quartier-Zeile + frische
+`quarter_is_free`-Prüfung; getestet in `booking/tests_concurrency.py`). Wer auf
+DB-Ebene zusätzlich absichern will (Belt-and-Suspenders), kann auf PostgreSQL einen
+**Exclusion-Constraint** setzen, der überlappende *bestätigte* Zuteilungen je
+Quartier hart unterbindet:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+ALTER TABLE booking_allocation
+  ADD CONSTRAINT alloc_no_overlap
+  EXCLUDE USING gist (quarter_id WITH =, daterange(start, "end") WITH &&)
+  WHERE (provisional = false);
+```
+
+Bewusst **nicht** als Migration eingespielt: Postgres-spezifisch (die SQLite-
+Testsuite kann ihn nicht ausführen), und er greift nur Allocation↔Allocation –
+Allocation↔ExternalBooking deckt weiterhin die Sperre ab. Vor dem Setzen sicher-
+stellen, dass keine bestehenden Überschneidungen vorliegen (sonst schlägt das
+`ALTER TABLE` fehl). Entfernen: `ALTER TABLE booking_allocation DROP CONSTRAINT alloc_no_overlap;`
+
+### Lasttest-Szenarien (`loadtest/`)
+- `browse.js` – Lese-Last (Übersicht/Buchen/Meine Buchungen).
+- `booking_rush.js` – gleichzeitige Buchungen desselben Slots (Sperre).
+- `shop_rush.js` – Hofladen: Katalog/Warenkorb/Checkout unter Last (Rechnungs-
+  nummer-Vergabe, Warenkorb-Schreibpfade).

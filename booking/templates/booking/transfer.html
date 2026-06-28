@@ -48,7 +48,7 @@
     <div class="field">
       <label for="xfer-q">An Mitglied</label>
       <input type="search" id="xfer-q" autocomplete="off" spellcheck="false"
-             placeholder="Name, Benutzername oder E-Mail tippen … (ab 3 Zeichen)"
+             placeholder="Tippen … (ab 3 Zeichen)"
              aria-describedby="xfer-hint">
       <div id="xfer-hint" class="muted" style="font-size:.85rem">Suche nach
         Anzeigename, Benutzername, E-Mail, Vor- oder Nachname.</div>
@@ -71,7 +71,7 @@
   </form>
 </div>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   var q = document.getElementById("xfer-q");
   var hidden = document.getElementById("id_to_member");
@@ -144,6 +144,47 @@
 </script>
 {% endif %}
 
+<details class="card"{% if pool.eligible_to_withdraw %} open{% endif %}>
+  <summary style="cursor:pointer;font-weight:600">Solidaritäts-Pool ·
+    {{ pool.balance }} Tag(e) im Topf</summary>
+  <p class="muted" style="margin:.6rem 0 0">Spende ungenutzte Tage in einen gemeinsamen Topf –
+    Mitglieder, deren Jahresbudget fast aufgebraucht ist, können daraus
+    <strong>gedeckelt</strong> ({{ pool.cap }} Tage/Jahr) entnehmen. So bleibt kein Tag
+    ungenutzt und niemand steht ganz ohne da.</p>
+
+  <div class="pool-actions" style="display:flex;flex-wrap:wrap;gap:1.4rem;margin-top:.8rem">
+    {% if pool.can_donate %}
+    <form method="post" class="pool-form" data-confirm="Tage in den Solidaritäts-Pool spenden? Sie werden von deinem Kontingent abgezogen.">{% csrf_token %}
+      <input type="hidden" name="action" value="pool_donate">
+      <label>Spenden<br><input type="number" name="nights" min="1" max="{{ pool.max_donate }}" value="1" style="width:5rem"> von {{ pool.max_donate }} Tagen</label>
+      <button class="btn small sage" type="submit" style="margin-left:.4rem">In den Pool spenden</button>
+    </form>
+    {% endif %}
+
+    {% if pool.eligible_to_withdraw and pool.max_withdraw > 0 %}
+    <form method="post" class="pool-form">{% csrf_token %}
+      <input type="hidden" name="action" value="pool_withdraw">
+      <label>Entnehmen<br><input type="number" name="nights" min="1" max="{{ pool.max_withdraw }}" value="1" style="width:5rem"> (max. {{ pool.max_withdraw }})</label>
+      <button class="btn small" type="submit" style="margin-left:.4rem">Aus dem Pool entnehmen</button>
+    </form>
+    {% elif not pool.eligible_to_withdraw %}
+    <p class="sm muted" style="align-self:center;margin:0">Entnahme ist erst möglich, wenn dein
+      Jahresbudget fast aufgebraucht ist (≤&nbsp;{{ pool.eligible_remaining_threshold }} Tage übrig).
+      Du hast aktuell {{ pool.remaining }}.</p>
+    {% endif %}
+  </div>
+
+  {% if my_pool_entries %}
+  <div class="table-wrap" style="margin-top:.8rem"><table>
+    <tr><th>Art</th><th>Tage</th><th>Datum</th></tr>
+    {% for e in my_pool_entries %}
+    <tr><td>{{ e.get_kind_display }}</td><td>{{ e.nights }}</td>
+        <td>{{ e.created_at|date:"d.m.Y" }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</details>
+
 <h2>Übertragungen {{ year }}</h2>
 <div class="card">
   {% if outgoing %}
@@ -159,10 +200,17 @@
   {% if incoming %}
   <strong>Erhalten</strong>
   <div class="table-wrap"><table style="margin-top:0.4rem">
-    <tr><th>Von</th><th>Tage</th><th>Notiz</th><th>Datum</th></tr>
+    <tr><th>Von</th><th>Tage</th><th>Notiz</th><th>Datum</th><th></th></tr>
     {% for t in incoming %}
     <tr><td>{{ t.from_member.display_name }}</td><td>{{ t.nights }}</td>
-        <td>{{ t.note }}</td><td>{{ t.created_at|date:"d.m.Y" }}</td></tr>
+        <td>{{ t.note }}</td><td>{{ t.created_at|date:"d.m.Y" }}</td>
+        <td>{% if t.thanked_at %}<span class="muted">bedankt&nbsp;✓</span>
+            {% else %}
+            <form method="post" class="inline">{% csrf_token %}
+              <input type="hidden" name="action" value="thank">
+              <input type="hidden" name="transfer_id" value="{{ t.id }}">
+              <button class="btn small ghost" type="submit">Danke sagen</button>
+            </form>{% endif %}</td></tr>
     {% endfor %}
   </table></div>
   {% endif %}

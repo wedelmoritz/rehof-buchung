@@ -3,7 +3,6 @@
 {% block content %}
 <h1>Wunschliste fürs nächste Jahr</h1>
 
-{% include "booking/_notifications.html" %}
 
 {% if not member %}
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
@@ -24,6 +23,16 @@
       (erst alle Erstwünsche, dann Zweitwünsche …); die Reihenfolge ist fair gewichtet
       (wer früher verloren hat, hat mehr Gewicht). Taktieren bringt nichts –
       <a href="{% url 'help' %}#losung">ausführliche Erklärung →</a></p>
+    {% if period.seed_commit %}
+    <div class="muted" style="margin-top:.4rem"><strong>Verifizierbar:</strong> Der Zufalls-Seed
+      der Ziehung steht bereits fest – seine Prüfsumme (SHA-256):
+      <code>{{ period.seed_commit|slice:":10" }}…{{ period.seed_commit|slice:"-6:" }}</code>.
+      Nach der Ziehung legen wir den Seed offen; du kannst das Ergebnis selbst nachrechnen
+      (<a href="{% url 'lottery_fairness' %}">mehr</a>).
+      <details style="margin-top:.2rem"><summary class="sm">vollständige Prüfsumme</summary>
+        <code style="word-break:break-all;font-size:.8rem">{{ period.seed_commit }}</code></details>
+    </div>
+    {% endif %}
   </details>
 
   {% include "booking/_calnav.html" %}
@@ -96,6 +105,11 @@
     <span class="spacer"></span>
     <button class="btn small" type="submit">Wunsch eintragen</button>
   </form>
+  {% if c.hint %}
+  <p class="sm muted" style="margin:-.35rem 0 .55rem .1rem">💡 Weniger Andrang mit
+    <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ c.hint.best.start|date:'Y-m-d' }}&end={{ c.hint.best.end|date:'Y-m-d' }}">{{ c.hint.best.start|date:'D, d.m.' }}–{{ c.hint.best.end|date:'d.m.' }}</a>:
+    dann nur {{ c.hint.best.count }} statt {{ c.hint.base }} Wünsche auf „{{ c.q.name }}“. Rein freiwillig.</p>
+  {% endif %}
   {% endfor %}
 </div>
 {% endif %}
@@ -137,7 +151,7 @@
             <input type="hidden" name="direction" value="down">
             <button class="btn small ghost" type="submit" aria-label="Priorität niedriger" title="Priorität niedriger" {% if forloop.last %}disabled{% endif %}>&#9660;</button>
           </form>
-          <form method="post" class="inline" onsubmit="return confirm('Wunsch löschen?');">{% csrf_token %}
+          <form method="post" class="inline" data-confirm="Wunsch löschen?">{% csrf_token %}
             <input type="hidden" name="action" value="delete_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
             <button class="btn small ghost danger" type="submit" aria-label="Wunsch entfernen" title="Wunsch entfernen">&#10005;</button>
           </form>
@@ -152,9 +166,9 @@
     <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei umkämpften
       Zeiträumen (rot im Kalender) lohnt ein Blick, ob du einen Wunsch <strong>entzerren</strong>
       kannst – z.&nbsp;B. die Anreise einen Tag verschieben. Das erhöht für alle die Chance.</p>
-    <form method="post">{% csrf_token %}
+    <form method="post" data-confirm="Wunschliste verbindlich in den Lostopf geben?">{% csrf_token %}
       <input type="hidden" name="action" value="submit_wishlist">
-      <button class="btn sage" type="submit" onclick="return confirm('Wunschliste verbindlich in den Lostopf geben?');">
+      <button class="btn sage" type="submit">
         &#10003; Bestätigen &ndash; in den Lostopf</button>
     </form>
     {% else %}
@@ -198,7 +212,7 @@
   li.wish { display:flex; align-items:center; gap:.7rem; background:var(--card);
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem; }
   li.wish.dragover { border-color:var(--accent); background:var(--accent-soft); }
-  li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; }
+  li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; touch-action:none; }
   .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
     display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto; }
   .wish-main { flex:1 1 auto; } .wish-actions { display:flex; gap:.25rem; align-items:center; }
@@ -206,7 +220,7 @@
     border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; margin:.2rem 0 .7rem; }
 </style>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   var list = document.getElementById('wishlist');
   if (!list) return;
@@ -222,11 +236,40 @@
       else { li.parentNode.insertBefore(dragEl, li); } });
     li.addEventListener('dragleave', function () { li.classList.remove('dragover'); });
   });
-  list.addEventListener('drop', function (e) {
-    e.preventDefault();
+  function commit() {
     var ids = Array.prototype.map.call(list.querySelectorAll('li.wish'), function (x) { return x.getAttribute('data-id'); });
     document.getElementById('reorder-order').value = ids.join(',');
     document.getElementById('reorder-form').submit();
+  }
+  list.addEventListener('drop', function (e) { e.preventDefault(); commit(); });
+
+  // Touch-Geräte: HTML5-Drag feuert dort nicht – daher per Pointer-Events am
+  // Ziehgriff sortieren (nur Touch/Stift; Maus nutzt weiterhin das HTML5-Drag).
+  list.querySelectorAll('li.wish').forEach(function (li) {
+    var handle = li.querySelector('.drag'); if (!handle) return;
+    handle.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse') return;
+      e.preventDefault();
+      li.style.opacity = '0.5'; li.classList.add('dragover');
+      function onMove(ev) {
+        var el = document.elementFromPoint(ev.clientX, ev.clientY);
+        var over = el && el.closest ? el.closest('li.wish') : null;
+        if (!over || over === li) return;
+        var rect = over.getBoundingClientRect();
+        if ((ev.clientY - rect.top) > rect.height / 2) over.parentNode.insertBefore(li, over.nextSibling);
+        else over.parentNode.insertBefore(li, over);
+      }
+      function onUp() {
+        li.style.opacity = ''; li.classList.remove('dragover');
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        commit();
+      }
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+    });
   });
 })();
 </script>

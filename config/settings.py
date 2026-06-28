@@ -23,6 +23,17 @@ def env_bool(key: str, default: bool = False) -> bool:
 SECRET_KEY = os.environ.get("SECRET_KEY", "unsafe-dev-key-change-me")
 DEBUG = env_bool("DEBUG", False)
 
+# Fail-closed: in Produktion (DEBUG=0) NICHT mit dem Default-/einem schwachen
+# SECRET_KEY starten. Ein bekannter Schlüssel erlaubt Session-/Signatur-Fälschung –
+# lieber hart abbrechen als unsicher laufen. (install.sh erzeugt einen Zufallswert.)
+if not DEBUG:
+    from django.core.exceptions import ImproperlyConfigured
+    if SECRET_KEY in ("", "unsafe-dev-key-change-me") or len(SECRET_KEY) < 50:
+        raise ImproperlyConfigured(
+            "SECRET_KEY fehlt oder ist zu schwach (Default/<50 Zeichen). In "
+            "Produktion einen langen Zufallswert setzen (siehe install.sh / "
+            "docs/DEPLOYMENT.md).")
+
 ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if h.strip()
@@ -48,17 +59,29 @@ INSTALLED_APPS = [
     "booking",
     "shop",
     "axes",  # Brute-Force-Schutz für Anmeldungen
+    # Zwei-Faktor (TOTP) für das Backend/Admin (ADR 0061). Nur das Admin/Backend
+    # verlangt die Bestätigung – siehe RehofAdminSite.has_permission + OTPMiddleware.
+    "django_otp",
+    "django_otp.plugins.otp_totp",
+    "django_otp.plugins.otp_static",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Content-Security-Policy: setzt den Header + erzeugt pro Antwort den Skript-Nonce
+    # (request.csp_nonce). Früh in der Kette, damit der Nonce beim Rendern bereitsteht.
+    "csp.middleware.CSPMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Stellt request.user.is_verified() bereit (Zwei-Faktor-Status fürs Backend).
+    "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Ergänzt Permissions-Policy + Cross-Origin-Resource-Policy (ADR 0061).
+    "booking.middleware.SecurityHeadersMiddleware",
     # Sperrt eingeloggte Nutzer ohne Mitglieds-Profil aus (Freischaltung nötig).
     "booking.middleware.ActivationGateMiddleware",
     # django-axes MUSS als letztes stehen (verarbeitet Login-Versuche).
@@ -93,6 +116,10 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if DATABASE_URL:
     import dj_database_url
     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+    # Persistente Verbindungen (conn_max_age) + Health-Check: eine vom Server
+    # geschlossene/abgelaufene Verbindung wird vor dem Request einmal geprüft und
+    # neu aufgebaut, statt unter Last einen Fehler zu werfen.
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
     DATABASES = {
         "default": {
@@ -133,12 +160,63 @@ AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 # Fehlversuche fürs Lockout werden weiterhin erfasst.
 AXES_DISABLE_ACCESS_LOG = True
 
+# --- Zwei-Faktor fürs Backend/Admin (TOTP, ADR 0061) -----------------------
+# Erzwingt eine bestätigte TOTP-App für Superuser/Staff im Django-Admin.
+# Default: in Produktion an, in der Entwicklung/Tests (DEBUG=1) aus – so bleiben
+# die `force_login`-basierten Admin-Tests grün. In Prod per Env abschaltbar,
+# falls die Geräte-Einrichtung (manage.py admin_otp_setup) noch aussteht.
+ADMIN_OTP_REQUIRED = env_bool("ADMIN_OTP_REQUIRED", not DEBUG)
+
 # --- Sitzungs-/Cookie-Härtung ----------------------------------------------
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
+
+# --- Rate-Limiting (django-ratelimit, ADR 0061) ----------------------------
+# Greift über den Login-Schutz (django-axes) hinaus auf weitere sensible
+# Endpunkte (Registrierung, Passwort-Reset, Magic-Link, Terminal-Token,
+# Mitglieder-Suche). Default: in Produktion an, in DEBUG/Tests aus, damit die
+# Integrationstests nicht an Limits laufen (gezielter Test schaltet es scharf).
+RATELIMIT_ENABLE = env_bool("RATELIMIT_ENABLE", not DEBUG)
+
+# --- App-seitige Feld-Verschlüsselung (VORBEREITET, P2.5/ADR 0061) ---------
+# Schlüssel für booking.fields.EncryptedCharField (Fernet). Noch an KEINEM Feld
+# aktiv – ohne Schlüssel bleibt alles Klartext. Erzeugen mit `manage.py field_key`,
+# getrennt von der DB sichern. Rotation: `neuer,alter` (komma-separiert).
+FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+
+# --- Content-Security-Policy (django-csp, ADR 0061) ------------------------
+# Strikt & nonce-basiert: Skripte laufen NUR mit dem pro-Antwort erzeugten Nonce
+# (KEIN 'unsafe-inline' für Skripte → injizierte <script> / javascript:-URIs
+# greifen nicht; das ist der hochwertige XSS-Schutz). Inline-STYLES bleiben
+# erlaubt (im Layout pervasiv, geringes Risiko). Alle Ressourcen kommen von der
+# eigenen Domain ('self') – es gibt bewusst keine externen CDNs. Das einbettbare
+# Externen-Widget (external_embed) lockert frame-ancestors per View-Dekorator.
+from csp.constants import NONE, SELF, NONCE  # noqa: E402
+
+_CSP_DIRECTIVES = {
+    "default-src": [SELF],
+    "script-src": [SELF, NONCE],
+    "style-src": [SELF, "'unsafe-inline'"],
+    "img-src": [SELF, "data:"],
+    "font-src": [SELF],
+    "connect-src": [SELF],
+    "manifest-src": [SELF],
+    "worker-src": [SELF],
+    "frame-src": [SELF],
+    "frame-ancestors": [NONE],   # Clickjacking-Schutz (wie X-Frame-Options: DENY)
+    "base-uri": [SELF],          # <base>-Injektion verhindern
+    "form-action": [SELF],       # Formular-Ziele auf die eigene Domain begrenzen
+    "object-src": [NONE],        # Plugins/Flash aus
+}
+# Vorsichtiger Rollout: CSP_REPORT_ONLY=1 meldet Verstöße nur (bricht nichts),
+# statt sie durchzusetzen. Default: durchsetzen.
+if env_bool("CSP_REPORT_ONLY", False):
+    CONTENT_SECURITY_POLICY_REPORT_ONLY = {"DIRECTIVES": _CSP_DIRECTIVES}
+else:
+    CONTENT_SECURITY_POLICY = {"DIRECTIVES": _CSP_DIRECTIVES}
 
 # --- E-Mail (provider-neutral über die Umgebung) ---------------------------
 # Ohne EMAIL_HOST landet alles im Container-Log (Konsole) – so läuft
@@ -184,7 +262,11 @@ if REDIS_URL:
             "LOCATION": REDIS_URL,
         }
     }
-    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    # `cached_db` statt reinem `cache`: lesen aus Redis (entlastet die DB bei jedem
+    # Request), ABER persistent in der DB. Fällt Redis aus oder wird neu gestartet,
+    # bleiben die Sitzungen erhalten (kein Massen-Logout) – nur kurz wieder DB-Lese.
+    # Bestehende DB-Sitzungen werden weiter gelesen → nahtloser Umstieg.
+    SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
     SESSION_CACHE_ALIAS = "default"
     # Brute-Force-Zähler im gemeinsamen Cache (statt je Request in der DB).
     AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"
@@ -222,9 +304,14 @@ if not DEBUG:
     # Testumgebung OHNE TLS (E2E-CI über http) per Env abschaltbar (ADR 0047).
     SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", True)
     CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", True)
-    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    # HSTS: sinnvoller Default 30 Tage (ADR 0061, P3.12) – nur über HTTPS gesendet
+    # (Caddy terminiert TLS). Bewusst nur für den Host (kein includeSubDomains) und
+    # OHNE preload by default → innerhalb von 30 Tagen reversibel, falls nötig. Beides
+    # (Subdomains/Preload, irreversibler) ist per Env zuschaltbar, sobald dauerhaft
+    # alle Subdomains unter HTTPS laufen und Preload gewünscht ist.
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "2592000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
     SECURE_CONTENT_TYPE_NOSNIFF = True
     # Hinter Caddy: TLS endet beim Proxy, der per X-Forwarded-Proto signalisiert,
     # dass die ursprüngliche Anfrage HTTPS war. So erkennt Django sie als sicher.

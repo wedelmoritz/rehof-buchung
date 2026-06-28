@@ -168,6 +168,17 @@ class InvoiceTests(ShopBase):
         self.assertEqual(svc.open_items(self.alice).count(), 0)
         self.assertTrue(inv_a.number.startswith("HL-"))
 
+    def test_rechnungsnummern_eindeutig_und_fortlaufend(self):
+        # Zwei Rechnungen im selben Monat bekommen unterschiedliche, fortlaufende
+        # Nummern (die Nummernvergabe ist gegen gleichzeitigen Checkout gesperrt).
+        svc.add_item(self.alice, self.apple, "1"); svc.checkout(self.alice)
+        svc.add_item(self.bob, self.apple, "1"); svc.checkout(self.bob)
+        inv_a, _ = svc.generate_invoice_now(self.alice)
+        inv_b, _ = svc.generate_invoice_now(self.bob)
+        self.assertNotEqual(inv_a.number, inv_b.number)
+        self.assertEqual(Invoice.objects.values("number").distinct().count(),
+                         Invoice.objects.count())
+
     def test_run_monthly_invoices_command_idempotent(self):
         from django.core.management import call_command
         svc.add_item(self.alice, self.apple, "2")

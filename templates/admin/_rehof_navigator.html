@@ -1,0 +1,38 @@
+{% load i18n %}
+{% comment %}Persistenter Backend-Navigator: Suche + fachliche Bereiche (ADR 0049).
+Wird über {% block pretitle %} in base_site.html auf JEDER Admin-Seite oben
+eingebunden – so bleibt die Struktur (Suche + Bereiche) immer gleich, der jeweils
+gewählte Bereich wird DARUNTER aufgebaut. Quelle: `available_apps` (in jedem
+Admin-Kontext vorhanden). Nur für eingeloggte Verwaltung, nicht in Popups.
+Einklappbar (mobil per Default zu) + Akkordeon (immer nur EIN Bereich offen),
+damit der Navigator den Inhalt nicht verdrängt (ADR 0057).{% endcomment %}
+{% if available_apps and not is_popup %}
+<div class="rehof-navigator" id="rehof-nav">
+  <button type="button" class="rehof-nav-bar" id="rehof-nav-bar" aria-expanded="true" aria-controls="rehof-nav-body">
+    <span class="rehof-nav-bar-label">Suche &amp; Bereiche</span>
+    <span class="rehof-nav-loc" id="rehof-nav-loc"></span>
+    <span class="rehof-nav-chev" aria-hidden="true">▾</span>
+  </button>
+  <div class="rehof-nav-body" id="rehof-nav-body">
+    <input type="search" class="rehof-nav-q" id="rehof-nav-q" autocomplete="off" spellcheck="false"
+           placeholder="Im Backend suchen …" aria-label="Backend durchsuchen (ab 2 Zeichen; Taste / fokussiert)">
+    <p class="rehof-nav-empty" hidden>Keine Treffer.</p>
+    <div class="rehof-nav-secs">
+      {% for app in available_apps %}
+      <details class="rehof-nav-sec">
+        <summary>{{ app.name }} <span class="rehof-nav-count">{{ app.models|length }}</span></summary>
+        <ul>
+          {% for model in app.models %}
+          <li class="rehof-nav-item" data-label="{{ model.name|lower }} {{ app.name|lower }}">
+            {% if model.admin_url %}<a class="rehof-nav-link" href="{{ model.admin_url }}">{{ model.name }}{% if model.object_name == "PendingUser" and pending_user_count %} <span class="rehof-nav-badge">{{ pending_user_count }}</span>{% endif %}</a>
+            {% else %}<span class="rehof-nav-link">{{ model.name }}</span>{% endif %}
+            {% if model.add_url %}<a class="rehof-nav-add" href="{{ model.add_url }}" title="Neu anlegen" aria-label="{{ model.name }} neu anlegen">+</a>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}

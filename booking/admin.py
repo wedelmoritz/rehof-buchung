@@ -14,12 +14,14 @@ from .models import (
     Allocation, Beds24Import, Beds24ImportRow, BookingPeriod, BookingPolicy,
     EquivalenceClass, ExternalBooking,
     ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
-    NightTransfer,
-    Notification, OpsConfig, OutboxEmail, Quarter, QuarterPrice, SchoolHoliday,
+    NightTransfer, DayPoolEntry,
+    Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterPrice,
+    SchoolHoliday,
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
-from .services import confirm_lottery, rollback_lottery, run_period_lottery
+from .services import (confirm_lottery, ensure_seed_commit, rollback_lottery,
+                       run_period_lottery)
 
 
 class Beds24ImportRowInline(admin.TabularInline):
@@ -257,6 +259,82 @@ class UserAdmin(DjangoUserAdmin):
         })
 
 
+@admin.register(PendingUser)
+class PendingUserAdmin(admin.ModelAdmin):
+    """Geführtes Onboarding (ADR 0056): zeigt nur Konten OHNE Mitglieds-Anteil und
+    ordnet sie mit wenigen Klicks zu – als Mitglied (Anteil), als Hofladen-/
+    Terminal-Gast, oder (unbekannt) deaktivieren/löschen. Eigene Seite statt der
+    Standard-Liste."""
+    list_display = ("username", "email")
+    search_fields = ("username", "email", "first_name", "last_name")
+
+    def has_add_permission(self, request):
+        return False  # neue Konten entstehen durch Selbstregistrierung/Einladung
+
+    def changelist_view(self, request, extra_context=None):
+        from django.template.response import TemplateResponse
+        from . import services as svc
+        if request.method == "POST":
+            return self._handle(request, svc)
+        pending = list(svc.users_without_membership().select_related("member"))
+        for u in pending:
+            u.suggested_name = (u.get_full_name() or u.username).strip()
+        ctx = {
+            **self.admin_site.each_context(request),
+            "title": "Neue Benutzer zuordnen",
+            "opts": self.model._meta,
+            "pending": pending,
+            "memberships": Membership.objects.order_by("label", "eg_number"),
+            "default_budget": (db := Membership.suggest_budget()),
+            "default_wish": min(25, db),
+        }
+        return TemplateResponse(request, "admin/onboarding.html", ctx)
+
+    def _handle(self, request, svc):
+        action = request.POST.get("action")
+        user = User.objects.filter(pk=request.POST.get("user_id")).first()
+        if not user:
+            self.message_user(request, "Benutzer nicht gefunden.", level=messages.ERROR)
+            return redirect(request.path)
+        name = (user.get_full_name() or user.username).strip()
+        display_name = (request.POST.get("display_name") or "").strip() or user.username
+        try:
+            if action == "member":
+                mid = request.POST.get("membership") or ""
+                membership_id = mid if mid and mid != "new" else None
+                svc.onboard_as_member(
+                    user, display_name=display_name,
+                    night_budget=request.POST.get("night_budget") or 0,
+                    wish_night_budget=request.POST.get("wish_night_budget") or 0,
+                    membership_id=membership_id,
+                    new_label=(request.POST.get("new_label") or "").strip())
+                self.message_user(
+                    request, f"{name} wurde als Mitglied zugeordnet und kann jetzt "
+                    "buchen.", level=messages.SUCCESS)
+            elif action == "terminal":
+                svc.onboard_as_terminal(user, display_name=display_name)
+                self.message_user(
+                    request, f"{name} ist jetzt Hofladen-/Terminal-Gast. Die PIN "
+                    "setzt die Person selbst im Profil.", level=messages.SUCCESS)
+            elif action == "deactivate":
+                svc.deactivate_account(user)
+                self.message_user(request, f"Konto {name} deaktiviert (Login "
+                                  "gesperrt; reversibel im Benutzer-Formular).",
+                                  level=messages.SUCCESS)
+            elif action == "delete":
+                user.delete()
+                self.message_user(request, f"Konto {name} gelöscht.",
+                                  level=messages.SUCCESS)
+            else:
+                self.message_user(request, "Unbekannte Aktion.", level=messages.ERROR)
+        except Membership.DoesNotExist:
+            self.message_user(request, "Der gewählte Anteil existiert nicht (mehr).",
+                              level=messages.ERROR)
+        except (ValueError, TypeError) as e:
+            self.message_user(request, f"Eingabe ungültig: {e}", level=messages.ERROR)
+        return redirect(request.path)
+
+
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
     """Wird nicht eigenständig angezeigt (Profil steckt im Benutzer). Bleibt nur
@@ -304,13 +382,20 @@ class MembershipAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_queryset(self, request):
+        # N+1 vermeiden: Anteile je Zeile vorladen + Anzahl annotieren, statt pro
+        # Zeile allocated_budget (Summe) und is_tandem (count) einzeln abzufragen.
+        from django.db.models import Count
+        return (super().get_queryset(request)
+                .prefetch_related("shares").annotate(_n_shares=Count("shares")))
+
     @admin.display(description="vergeben")
     def allocated_display(self, obj):
-        return f"{obj.allocated_budget}/{obj.annual_night_budget}"
+        return f"{sum(s.night_budget for s in obj.shares.all())}/{obj.annual_night_budget}"
 
     @admin.display(boolean=True, description="Tandem")
     def is_tandem_display(self, obj):
-        return obj.is_tandem
+        return obj._n_shares > 1
 
     def get_changeform_initial_data(self, request):
         return {"annual_night_budget": Membership.suggest_budget()}
@@ -345,6 +430,9 @@ class BookingPeriodAdmin(admin.ModelAdmin):
                     "wishlist_open", "wishlist_close", "draw_at")
     list_filter = ("status", "target_year")
     actions = ["action_run_lottery"]
+    # Seed + Commit werden vom Commit-Reveal verwaltet (ADR 0062) und dürfen NICHT
+    # von Hand geändert werden – sonst passte der veröffentlichte Hash nicht mehr.
+    readonly_fields = ("seed", "seed_commit", "seed_committed_at")
     fieldsets = (
         (None, {
             "fields": ("name", "target_year", "status"),
@@ -359,17 +447,36 @@ class BookingPeriodAdmin(admin.ModelAdmin):
         }),
         ("Termine (steuern den Ablauf)", {
             "fields": ("wishlist_open", "wishlist_close", "draw_at",
-                       "start", "end", "seed"),
+                       "start", "end"),
             "description": (
                 "Zeitlicher Ablauf eines Buchungsjahres: <b>Wünsche ab/bis</b> = "
                 "Anmeldefenster für die Wunschliste; <b>Losung am</b> = Termin der "
                 "automatischen Auslosung; <b>buchbar ab/bis</b> = Zeitraum der "
                 "freien Bebuchbarkeit (Ende exklusiv; „buchbar ab“ darf vor dem "
-                "1.1. liegen). Übliche Reihenfolge: Wünsche → Losung → buchbar. "
-                "Der Seed macht die Auslosung reproduzierbar (leer = zufällig)."
+                "1.1. liegen). Übliche Reihenfolge: Wünsche → Losung → buchbar."
+            ),
+        }),
+        ("Verifizierbarkeit (Commit-Reveal, ADR 0062)", {
+            "fields": ("seed", "seed_commit", "seed_committed_at"),
+            "classes": ("collapse",),
+            "description": (
+                "Wird automatisch verwaltet: Sobald die Wünsche öffnen, wird der "
+                "geheime <b>Seed</b> erzeugt und seine <b>Prüfsumme</b> "
+                "veröffentlicht; nach der bestätigten Ziehung ist der Seed "
+                "offengelegt. Per <code>manage.py verify_lottery &lt;id&gt;</code> "
+                "prüfbar. <b>Nicht von Hand ändern.</b>"
             ),
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        """Sobald eine Periode (im Backend) in „Wünsche offen" oder weiter steht,
+        die Seed-Prüfsumme festlegen/veröffentlichen – damit der Seed VOR den
+        Einträgen feststeht, auch ohne Cron (Commit-Reveal, ADR 0062)."""
+        super().save_model(request, obj, form, change)
+        open_rank = BookingPeriod.LIFECYCLE.index(BookingPeriod.WISHES_OPEN)
+        if not obj.seed_commit and obj.status_rank >= open_rank:
+            ensure_seed_commit(obj)
 
     @admin.action(description="Losung für gewählte Periode(n) durchführen")
     def action_run_lottery(self, request, queryset):
@@ -394,7 +501,10 @@ class WishAdmin(admin.ModelAdmin):
     list_display = ("member", "period", "priority", "quarter", "start", "end",
                     "submitted")
     list_filter = ("period", "quarter", "submitted")
-    search_fields = ("member__display_name",)
+    search_fields = ("member__display_name", "member__user__username",
+                     "quarter__name")
+    date_hierarchy = "start"
+    list_select_related = ("member", "quarter", "period")
 
 
 @admin.register(Allocation)
@@ -404,10 +514,18 @@ class AllocationAdmin(admin.ModelAdmin):
     Quartiers-Rahmen und <b>keine Überschneidung</b> mit einer anderen Zuteilung
     oder bestätigten externen Buchung im selben Quartier – eine Doppelbuchung
     wird beim Speichern abgewiesen."""
-    list_display = ("member", "quarter", "start", "end", "persons", "source",
-                    "via_substitution", "contested")
+    list_display = ("start", "end", "nights_display", "quarter", "member",
+                    "persons", "source", "via_substitution", "contested")
     list_filter = ("source", "quarter", "contested")
-    search_fields = ("member__display_name",)
+    search_fields = ("member__display_name", "member__user__username",
+                     "quarter__name")
+    date_hierarchy = "start"
+    ordering = ("-start",)
+    list_select_related = ("quarter", "member")
+
+    @admin.display(description="Nächte")
+    def nights_display(self, obj):
+        return obj.nights
 
 
 @admin.action(description="Excel-Export der ausgewählten Buchungen")
@@ -534,6 +652,13 @@ class NightTransferAdmin(admin.ModelAdmin):
     search_fields = ("from_member__display_name", "to_member__display_name")
 
 
+@admin.register(DayPoolEntry)
+class DayPoolEntryAdmin(admin.ModelAdmin):
+    list_display = ("year", "kind", "member", "nights", "created_at")
+    list_filter = ("year", "kind")
+    search_fields = ("member__display_name",)
+
+
 @admin.register(WaitlistEntry)
 class WaitlistEntryAdmin(admin.ModelAdmin):
     list_display = ("quarter", "start", "end", "persons", "member",
@@ -548,6 +673,8 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ("member", "message", "read", "created_at")
     list_filter = ("read",)
     search_fields = ("member__display_name", "message")
+    date_hierarchy = "created_at"
+    list_select_related = ("member",)
 
 
 @admin.register(SwapRequest)
@@ -556,6 +683,7 @@ class SwapRequestAdmin(admin.ModelAdmin):
                     "to_allocation", "status", "created_at")
     list_filter = ("status",)
     search_fields = ("from_member__display_name", "to_member__display_name")
+    date_hierarchy = "created_at"
 
 
 @admin.register(OpsConfig)
@@ -638,6 +766,11 @@ class OutboxEmailAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
     readonly_fields = ("to_email", "subject", "body", "html_body", "member",
                        "created_at", "sent_at", "attempts", "last_error")
+
+    def get_queryset(self, request):
+        # Große Felder (Mailtext/HTML/Anhang-Blob) NICHT in die Liste laden – sie
+        # stehen nicht in list_display; im Detail werden sie bei Bedarf nachgeladen.
+        return super().get_queryset(request).defer("body", "html_body", "attachment")
 
     def has_add_permission(self, request):
         return False

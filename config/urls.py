@@ -3,6 +3,14 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path, reverse_lazy
 from django.views.generic import TemplateView
+from django_ratelimit.decorators import ratelimit
+
+
+def _rl_post(view, rate):
+    """Rate-Limit nur für POST je IP (ADR 0061) – für die klassenbasierten
+    Auth-Views (Passwort-Reset). GET/Anzeige bleibt frei."""
+    return ratelimit(key="ip", rate=rate, method="POST", block=True)(view)
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -12,17 +20,20 @@ urlpatterns = [
     # Passwort selbst setzen – EIN Token-Mechanismus für beides: die Einladung neuer
     # Konten (services.send_account_invite) UND „Passwort vergessen". Standard-
     # Django-Reset-Views/-Namen, nur mit deutschen Pfaden + eigenen Templates.
-    path("passwort-vergessen/", auth_views.PasswordResetView.as_view(
+    # Passwort-Reset gegen E-Mail-Bombing/Probing: 10 POSTs/Stunde je IP.
+    path("passwort-vergessen/", _rl_post(auth_views.PasswordResetView.as_view(
         template_name="registration/password_reset_form.html",
         email_template_name="registration/password_reset_email.txt",
         subject_template_name="registration/password_reset_subject.txt",
-        success_url=reverse_lazy("password_reset_done")), name="password_reset"),
+        success_url=reverse_lazy("password_reset_done")), "10/h"), name="password_reset"),
     path("passwort-vergessen/gesendet/", auth_views.PasswordResetDoneView.as_view(
         template_name="registration/password_reset_done.html"),
         name="password_reset_done"),
-    path("passwort-setzen/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(
-        template_name="registration/password_set_confirm.html",
-        success_url=reverse_lazy("password_reset_complete")),
+    # Passwort-Setzen (Token) gegen Erraten bremsen: 20 POSTs/Stunde je IP.
+    path("passwort-setzen/<uidb64>/<token>/", _rl_post(
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name="registration/password_set_confirm.html",
+            success_url=reverse_lazy("password_reset_complete")), "20/h"),
         name="password_reset_confirm"),
     path("passwort-gesetzt/", auth_views.PasswordResetCompleteView.as_view(
         template_name="registration/password_set_done.html"),

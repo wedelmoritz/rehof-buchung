@@ -14,11 +14,96 @@ from .notify import absolute_url, queue_email_many
 
 __all__ = [
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
-    '_month_occupancy', 'dashboard_stats', 'arrivals_in_range',
+    '_month_occupancy', 'dashboard_stats', 'karma_distribution',
+    'community_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
-    'notify_admins_upcoming',
+    'notify_admins_upcoming', 'users_without_membership',
+    'onboard_as_member', 'onboard_as_terminal', 'deactivate_account',
 ]
+
+
+def onboard_as_member(user, *, display_name, night_budget, wish_night_budget,
+                      membership_id=None, new_label=""):
+    """Geführte Zuordnung „als Mitglied": stellt das Mitglieds-Profil sicher und
+    legt einen Tage-Anteil (`Share`) an einem bestehenden ODER neuen Mitglieds-
+    Anteil an. Danach kann die Person buchen (taucht nicht mehr unter „Neue
+    Benutzer" auf). Idempotent: ein vorhandener Share wird aktualisiert."""
+    from django.db import transaction
+    from ..models import Member, Membership, Share
+    name = (display_name or user.get_username()).strip()
+    nb, wb = int(night_budget), int(wish_night_budget)
+    if nb < 0 or wb < 0:
+        raise ValueError("Tage-Anteil darf nicht negativ sein.")
+    with transaction.atomic():
+        member, _ = Member.objects.get_or_create(
+            user=user, defaults={"display_name": name})
+        changed = []
+        if not member.display_name:
+            member.display_name = name; changed.append("display_name")
+        if member.is_external:                       # vom Hofladen-Gast zum Mitglied
+            member.is_external = False; changed.append("is_external")
+        if changed:
+            member.save(update_fields=changed)
+        if membership_id:
+            ms = Membership.objects.get(pk=membership_id)
+        else:
+            ms = Membership.objects.create(
+                label=(new_label or name), annual_night_budget=50, wish_night_budget=25)
+        share, created = Share.objects.get_or_create(
+            membership=ms, member=member,
+            defaults={"night_budget": nb, "wish_night_budget": wb})
+        if not created and (share.night_budget != nb or share.wish_night_budget != wb):
+            share.night_budget, share.wish_night_budget = nb, wb
+            share.save(update_fields=["night_budget", "wish_night_budget"])
+        return share
+
+
+def onboard_as_terminal(user, *, display_name):
+    """Geführte Zuordnung „nur Hofladen/Terminal": stellt ein Mitglieds-Profil als
+    **Hofladen-Gast** (`is_external=True`, kein Buchungs-Mitglied) mit aktivem
+    Terminal sicher. Die Person kann am Vor-Ort-Terminal auf die Monatsrechnung
+    einkaufen (PIN setzt sie selbst) und taucht nicht in Losung/Mitgliedersuche/
+    „Neue Benutzer" auf."""
+    from ..models import Member
+    name = (display_name or user.get_username()).strip()
+    member, _ = Member.objects.get_or_create(
+        user=user, defaults={"display_name": name})
+    if not member.display_name:
+        member.display_name = name
+    member.is_external = True
+    member.terminal_enabled = True
+    member.save()
+    return member
+
+
+def deactivate_account(user):
+    """Konto deaktivieren (Login gesperrt) – z.B. wenn die registrierte Person
+    unbekannt ist. Reversibel über das Benutzer-Formular (Haken „Aktiv")."""
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+    return user
+
+
+def users_without_membership():
+    """Aktive Login-Konten, die **noch keinem Mitglieds-Anteil** (`Share`) zugeordnet
+    sind – also die frisch registrierten Benutzer, die die Verwaltung im Backend noch
+    freischalten muss (Mitglieds-Profil + Tage-Anteil). Schließt Admin-/Staff- und
+    Verwaltungs-Konten (brauchen kein Profil) sowie externe Gäste aus. Erfasst sowohl
+    Konten ohne Mitglieds-Profil als auch solche mit Profil, aber ohne Anteil.
+    Neueste zuerst."""
+    from django.contrib.auth.models import User
+    from django.db.models import Count
+    from ..permissions import VERWALTUNG_GROUP
+    return (
+        User.objects.filter(is_active=True, is_superuser=False, is_staff=False)
+        .exclude(groups__name=VERWALTUNG_GROUP)
+        .exclude(member__is_external=True)
+        .annotate(_n_shares=Count("member__shares"))
+        .filter(_n_shares=0)
+        .order_by("-date_joined")
+    )
+
 
 def _annotate_cleaning(qs):
     """Markiert je Buchung, ob eine Endreinigung mitgebucht wurde."""
@@ -96,6 +181,64 @@ def dashboard_stats() -> dict:
         "occ_next": _month_occupancy(ny, nm),
         "last_lottery": last_lottery,
     }
+
+
+def karma_distribution() -> dict:
+    """Anonyme Verteilung der Ausgleichsfaktoren (Karma) über alle Mitglieder.
+
+    Reine Aggregat-Ansicht (k-anonym, keine Namen) für den Gemeinschafts-Spiegel.
+    Eine einzige DB-Abfrage; Buckets in 0,1-Schritten von 1,0 bis 1,5."""
+    factors = list(Member.objects.filter(is_external=False)
+                   .values_list("factor", flat=True))
+    buckets = {round(1.0 + i * 0.1, 1): 0 for i in range(6)}   # 1.0 … 1.5
+    for f in factors:
+        key = round(round((min(max(f, 1.0), 1.5) - 1.0) / 0.1) * 0.1 + 1.0, 1)
+        buckets[key] = buckets.get(key, 0) + 1
+    total = len(factors)
+    max_count = max(buckets.values()) if buckets else 0
+    rows = [{"factor": k, "count": v,
+             "pct": round(100 * v / total) if total else 0,
+             "bar": round(100 * v / max_count) if max_count else 0}
+            for k, v in sorted(buckets.items())]
+    return {"rows": rows, "total": total}
+
+
+def community_stats() -> dict:
+    """Aggregierte, mitglieder-sichtbare Transparenz-Kennzahlen (Gemeinschafts-
+    Spiegel, ADR 0063): Auslastung (aktueller + kommender Monat), Ergebnis-Historie
+    der letzten Verlosungen und die anonyme Karma-Verteilung. Bewusst nur Aggregate
+    (Datensparsamkeit), wenige Abfragen.
+
+    Kurz gecacht (10 Min): die Zahlen ändern sich langsam, der Spiegel kann aber von
+    vielen gleichzeitig abgerufen werden – so entlastet der Cache die DB (greift mit
+    Redis workerübergreifend, mit LocMem je Worker; beides unkritisch, da nur
+    ohnehin allgemein sichtbare Aggregate, ADR 0064/E2)."""
+    from django.core.cache import cache
+    cached = cache.get("community_stats")
+    if cached is not None:
+        return cached
+    today = date.today()
+    ny, nm = next_month(today)
+    runs = list(LotteryRun.objects.filter(confirmed=True).select_related("period")
+                .order_by("-confirmed_at")[:6])
+    history = []
+    for r in runs:
+        total = r.n_allocations + r.n_losses
+        history.append({
+            "year": r.period.target_year,
+            "fulfilled": r.n_allocations, "unfulfilled": r.n_losses,
+            "total": total,
+            "pct": round(100 * r.n_allocations / total) if total else 0,
+        })
+    stats = {
+        "occ_current": _month_occupancy(today.year, today.month),
+        "occ_next": _month_occupancy(ny, nm),
+        "lottery_history": history,
+        "karma": karma_distribution(),
+        "n_members": Member.objects.filter(is_external=False).count(),
+    }
+    cache.set("community_stats", stats, 600)   # 10 Minuten
+    return stats
 
 
 def arrivals_in_range(d_from: date, d_to: date):

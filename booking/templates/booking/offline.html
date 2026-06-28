@@ -23,7 +23,10 @@
     <h1>Gerade offline</h1>
     <p>Es besteht keine Internetverbindung. Zuletzt geöffnete Seiten sind weiter
        sichtbar; zum Buchen brauchst du wieder Verbindung.</p>
-    <button onclick="location.reload()">Erneut versuchen</button>
+    <button id="retry">Erneut versuchen</button>
   </div>
+  <script nonce="{{ request.csp_nonce }}">
+    document.getElementById("retry").addEventListener("click", function () { location.reload(); });
+  </script>
 </body>
 </html>

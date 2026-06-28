@@ -8,14 +8,25 @@ ihre echten URLs). Siehe ADR 0049.
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib import admin
+
+# Zwei-Faktor fürs Backend (ADR 0061): Wir erben von der OTP-Admin-Site, damit die
+# Anmeldemaske ein TOTP-Token abfragt. Fällt der Import aus (Paket fehlt), bleibt
+# das Backend funktionsfähig (ohne 2FA) – fail-open NUR fürs Import-Problem, die
+# eigentliche Erzwingung hängt an ADMIN_OTP_REQUIRED (s. has_permission).
+try:  # pragma: no cover - trivialer Import-Fallback
+    from django_otp.admin import OTPAdminSite as _AdminBase
+except Exception:  # pragma: no cover
+    _AdminBase = admin.AdminSite
 
 # Reihenfolge der Sektionen + der Modelle darin (Schlüssel: "app_label.ModelName").
 # Nicht eingeplante Modelle landen als Sicherheitsnetz unter „Weitere".
 SECTIONS: list[tuple[str, list[str]]] = [
     ("Benutzer & Mitglieder", [
+        "booking.PendingUser",                       # Onboarding-Seite zuerst (ADR 0056)
         "auth.User", "auth.Group",
-        "booking.Membership", "booking.NightTransfer",
+        "booking.Membership", "booking.NightTransfer", "booking.DayPoolEntry",
     ]),
     ("Quartiere & Buchungssystem", [
         "booking.Quarter", "booking.EquivalenceClass", "booking.BookingPolicy",
@@ -43,9 +54,49 @@ SECTIONS: list[tuple[str, list[str]]] = [
 ]
 
 
-class RehofAdminSite(admin.AdminSite):
+class RehofAdminSite(_AdminBase):
     """Admin-Site mit fachlicher Sektions-Gliederung (site_header/index_template
     werden weiterhin in booking/admin.py gesetzt)."""
+
+    # Statt der eingebauten linken Seitenleiste rendern wir EINEN persistenten
+    # Navigator (Suche + Bereiche) oben auf jeder Seite (templates/admin/
+    # _rehof_navigator.html via base_site.html). Die eingebaute Leiste würde nur
+    # doppeln, daher aus (ADR 0055).
+    enable_nav_sidebar = False
+
+    def has_permission(self, request):
+        """Backend-Zugang. Zwei-Faktor wird nur erzwungen, wenn ADMIN_OTP_REQUIRED
+        gesetzt ist (Default: Produktion an, DEBUG/Tests aus) – dann muss das Konto
+        zusätzlich per bestätigter TOTP-App verifiziert sein (request.user.
+        is_verified()). Sonst gilt die normale Staff-Prüfung (force_login-Tests
+        bleiben grün)."""
+        base_ok = admin.AdminSite.has_permission(self, request)
+        if base_ok and getattr(settings, "ADMIN_OTP_REQUIRED", False):
+            verify = getattr(request.user, "is_verified", None)
+            return bool(verify and verify())
+        return base_ok
+
+    def each_context(self, request):
+        """Zähler offener „Neue Benutzer" für das Badge am Navigator-Eintrag (auf
+        jeder Seite). Günstige COUNT-Abfrage; nur für eingeloggte Staff-Sicht."""
+        ctx = super().each_context(request)
+        try:
+            from . import services as svc
+            ctx["pending_user_count"] = svc.users_without_membership().count()
+        except Exception:
+            ctx["pending_user_count"] = 0
+        return ctx
+
+    def index(self, request, extra_context=None):
+        """Backend-Startseite um den Abschnitt „Neue Benutzer“ ergänzen: Konten, die
+        noch keinem Mitglieds-Anteil zugeordnet sind und freigeschaltet werden
+        müssen (so sieht die Verwaltung sie sofort und kann sie schnell zuordnen)."""
+        extra_context = extra_context or {}
+        from . import services as svc
+        pending = list(svc.users_without_membership()[:50])
+        extra_context["new_users"] = pending
+        extra_context["new_users_count"] = len(pending)
+        return super().index(request, extra_context)
 
     def get_app_list(self, request, app_label=None):
         app_list = super().get_app_list(request, app_label)

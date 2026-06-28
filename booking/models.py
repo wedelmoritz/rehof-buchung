@@ -246,13 +246,33 @@ class Member(models.Model):
     def nights_given_in_year(self, year: int) -> int:
         return sum(t.nights for t in self.transfers_out.filter(year=year))
 
+    def pool_received_in_year(self, year: int) -> int:
+        """Aus dem Solidaritäts-Pool entnommene Tage (P2.5)."""
+        return sum(e.nights for e in self.pool_entries.filter(
+            year=year, kind="withdraw"))
+
+    def pool_donated_in_year(self, year: int) -> int:
+        """In den Solidaritäts-Pool gespendete Tage (P2.5)."""
+        return sum(e.nights for e in self.pool_entries.filter(
+            year=year, kind="donate"))
+
+    def pool_net_in_year(self, year: int) -> int:
+        """Netto-Wirkung des Pools aufs Budget (Entnahmen − Spenden) in EINER
+        Aggregat-Abfrage – für den heißen Budget-Pfad (ADR 0060/0064)."""
+        from django.db.models import Sum
+        rows = (self.pool_entries.filter(year=year)
+                .values("kind").annotate(s=Sum("nights")))
+        by = {r["kind"]: r["s"] or 0 for r in rows}
+        return by.get("withdraw", 0) - by.get("donate", 0)
+
     def effective_annual_budget(self, year: int) -> int:
-        """Jahreskontingent inkl. erhaltener/abgegebener Tage (kein Übertrag
-        aus dem Vorjahr)."""
+        """Jahreskontingent inkl. erhaltener/abgegebener Tage und Pool-Spenden/
+        -Entnahmen (kein Übertrag aus dem Vorjahr)."""
         return (
             self.annual_night_budget
             + self.nights_received_in_year(year)
             - self.nights_given_in_year(year)
+            + self.pool_net_in_year(year)
         )
 
     def nights_remaining_in_year(self, year: int) -> int:
@@ -357,6 +377,13 @@ class BookingPeriod(models.Model):
     )
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
     seed = models.BigIntegerField("Zufalls-Seed", null=True, blank=True)
+    # Verifizierbarkeit (Commit-Reveal, ADR 0062): Die Prüfsumme des Seeds wird
+    # VOR der Ziehung veröffentlicht (sobald die Wünsche öffnen), der Seed selbst
+    # erst NACH der bestätigten Ziehung offengelegt. So ist belegbar, dass der Seed
+    # vorab feststand (lottery.seed_commitment / verify_commitment).
+    seed_commit = models.CharField("Seed-Prüfsumme (SHA-256)", max_length=64, blank=True)
+    seed_committed_at = models.DateTimeField(
+        "Prüfsumme veröffentlicht am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Buchungsperiode (Jahr)"
@@ -528,6 +555,18 @@ class UpcomingAllocation(Allocation):
         verbose_name_plural = "Anstehende Buchungen"
 
 
+class PendingUser(User):
+    """Proxy auf User für die **geführte Erst-Zuordnung** neuer Konten (Onboarding).
+    Eigene Admin-Seite „Neue Benutzer (Zuordnung)": Konten ohne Mitglieds-Anteil
+    mit wenigen Klicks einem Anteil (Mitglied) ODER dem Hofladen-Terminal zuordnen –
+    oder (unbekannt) deaktivieren/löschen (ADR 0056)."""
+
+    class Meta:
+        proxy = True
+        verbose_name = "Neuer Benutzer (Zuordnung)"
+        verbose_name_plural = "Neue Benutzer (Zuordnung)"
+
+
 class LotteryRun(models.Model):
     """Ein protokollierter Losdurchlauf (Audit)."""
     period = models.ForeignKey(
@@ -577,6 +616,9 @@ class NightTransfer(models.Model):
     nights = models.PositiveIntegerField("Tage")
     note = models.CharField("Notiz", max_length=200, blank=True)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    # P2.7: ein „Danke" der empfangenden Person an die schenkende – idempotent
+    # (genau einmal je Übertragung), rein als private Wertschätzung.
+    thanked_at = models.DateTimeField("Bedankt am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Tage-Übertragung"
@@ -586,6 +628,36 @@ class NightTransfer(models.Model):
     def __str__(self) -> str:
         return (f"{self.nights} Tage: {self.from_member} → {self.to_member} "
                 f"({self.year})")
+
+
+class DayPoolEntry(models.Model):
+    """Solidaritäts-/Schenkungs-Pool für Tage (P2.5, ADR 0064): Mitglieder spenden
+    ungenutzte Tage in einen gemeinsamen Topf; wer (fast) kein Budget mehr hat, kann
+    daraus – gedeckelt – entnehmen. Eine Zeile je Spende/Entnahme (transparentes,
+    nachvollziehbares Protokoll). Der Topf-Stand eines Jahres = Σ Spenden − Σ Entnahmen.
+    Spenden/Entnahmen wirken über `Member.effective_annual_budget`."""
+    DONATE = "donate"
+    WITHDRAW = "withdraw"
+    KIND = [(DONATE, "Spende in den Pool"), (WITHDRAW, "Entnahme aus dem Pool")]
+
+    year = models.PositiveIntegerField("Jahr")
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="pool_entries",
+        verbose_name="Mitglied")
+    kind = models.CharField("Art", max_length=10, choices=KIND)
+    nights = models.PositiveIntegerField("Tage")
+    note = models.CharField("Notiz", max_length=200, blank=True)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Tage-Pool-Buchung"
+        verbose_name_plural = "Tage-Pool-Buchungen"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["year", "kind"])]
+
+    def __str__(self) -> str:
+        sign = "+" if self.kind == self.DONATE else "−"
+        return f"{sign}{self.nights} Tage: {self.member} ({self.year})"
 
 
 class WaitlistEntry(models.Model):

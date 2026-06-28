@@ -7,8 +7,11 @@ Django-App per Docker (web + PostgreSQL) hinter Caddy auf einem Linux-VPS.
 
 > **Status:** lauffähige Proof-of-Concept, mehrstufig getestet (reine Logik inkl.
 > deterministischem Strategiesicherheits-Beweis · DB-Integration · Nebenläufigkeit ·
-> End-to-End im Browser · Belastungstests). Backup & weiteres Hardening sind als
-> Blueprint vorbereitet, aber noch nicht umgesetzt (siehe
+> End-to-End im Browser · Belastungstests). Ein **Sicherheits-Härtungspaket**
+> (ADR 0061) ist umgesetzt: Backend-2FA, nonce-basierte CSP, Rate-Limiting,
+> Abhängigkeits-Audit/Dependabot, Nicht-root-Container, verschlüsseltes
+> Backup-Skript, weitere Header u. a. Weiterführendes Hardening (Borg-Append-only,
+> LUKS) bleibt als Blueprint dokumentiert (siehe
 > [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md)).
 
 Das Herzstück – das fachlich abgenommene **Losverfahren** – liegt als getestetes,
@@ -27,11 +30,15 @@ Oberfläche, die als **PWA** auch mobil installierbar und teils offline nutzbar 
 - **Wunschliste + faires Losverfahren** fürs Folgejahr (gewichtete Zufallsreihenfolge
   im Runden-Prinzip, Karma-Ausgleich, **nachgewiesene** Strategiesicherheit/Fairness).
   Beim Eintragen sieht man bereits die **Nachfrage der anderen** (wie umkämpft ein
-  Zeitraum ist) und kann die eigenen Wünsche **vor dem Einreichen entzerren** – z. B.
-  die Anreise um einen Tag verschieben, um Konflikte zu vermeiden.
+  Zeitraum ist) und bekommt **unverbindliche Ausweich-Tipps**, um Konflikte zu
+  entzerren. Die Auslosung ist **verifizierbar** (Commit-Reveal: Prüfsumme des Zufalls
+  vorab veröffentlicht, Seed danach offengelegt – selbst nachrechenbar).
 - **Meine Buchungen** – Storno, **Buchung ändern** (Zeitraum/Unterkunft/Personen),
   **Wechselwunsch** an andere Mitglieder.
-- **Tage übertragen** an andere Mitglieder (Typeahead-Suche).
+- **Tage übertragen** an andere Mitglieder (Typeahead-Suche), „Danke" sagen, oder
+  Tage in einen **Solidaritäts-Pool** spenden / bei Bedarf gedeckelt entnehmen.
+- **Gemeinschafts-Spiegel** – aggregierte, anonyme Transparenz (Auslastung,
+  Los-Ergebnisse, Karma-Verteilung); der eigene Ausgleichsfaktor steht im Profil.
 - **Hofladen** – Warenkorb → Rechnung (PDF, §14) → **online bezahlen** (Mollie).
 - **Profil**, **Benachrichtigungen** (In-App · E-Mail · optional **Web-Push**),
   installierbar & teils **offline**.
@@ -88,6 +95,15 @@ terminiert TLS und proxyt im gemeinsamen Docker-Netz auf den `web`-Container (de
 ➡️ **Die vollständige, schrittweise Anleitung** – alle Umgebungsvariablen, Web-Push/
 VAPID, Monitoring-Anbindung, Mollie, Scheduler, Redis, Updates und Server-Umzug –
 steht im **[Deployment-Runbook `docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
+
+**Viele gleichzeitige Nutzer (Richtwert ab ~50–100)?** Den Standard belassen
+(robuster DB-only-Stack) und bei Bedarf **Redis** dazuschalten – das entlastet die
+DB (Sessions/Brute-Force-Zähler) und macht den geteilten Belegungs-Cache wirksam:
+in der `.env` `REDIS_URL=redis://redis:6379/0` setzen, dann
+`docker compose --profile cache up -d`. Sitzungen bleiben dabei durabel
+(`cached_db`) – ein Redis-Neustart loggt **niemanden** aus. Details +
+Sicherheitshinweise: [`docs/DEPLOYMENT.md` Abschnitt 10](docs/DEPLOYMENT.md) und
+ADR 0060.
 
 ---
 
@@ -152,7 +168,7 @@ beschrieben; das Belastungs-Runbook liegt in
 | **Tests & Testumgebungen** | [`docs/TESTEN.md`](docs/TESTEN.md) |
 | **Belastungstests (k6)** | [`loadtest/README.md`](loadtest/README.md) |
 | **Externe Gäste** (Konzept) | [`docs/EXTERNE-GAESTE.md`](docs/EXTERNE-GAESTE.md) |
-| **Backup & Härtung** (geplant) | [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md) |
+| **Sicherheit & Härtung** (umgesetzt + Blueprints) | [`docs/adr/0061-sicherheits-haertungspaket.md`](docs/adr/0061-sicherheits-haertungspaket.md) · [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md) |
 | **Datenschutz-Vorlage** | [`docs/DATENSCHUTZ-VORLAGE.md`](docs/DATENSCHUTZ-VORLAGE.md) |
 | **Tester:innen einladen/Feedback** | [`docs/TESTER-EINLADUNG.md`](docs/TESTER-EINLADUNG.md) · [`docs/TESTER-FEEDBACK.md`](docs/TESTER-FEEDBACK.md) |
 | **Code-Orientierung für Mitwirkende** | [`CLAUDE.md`](CLAUDE.md) |

@@ -11,6 +11,32 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 
+# Sparsame, restriktive Permissions-Policy: mächtige Browser-Funktionen aus, die
+# die App nicht nutzt (Kamera/Mikro/Geolocation/USB/Bezahl-API; FLoC abwählen).
+_PERMISSIONS_POLICY = (
+    "geolocation=(), camera=(), microphone=(), usb=(), magnetometer=(), "
+    "gyroscope=(), accelerometer=(), payment=(), interest-cohort=()"
+)
+
+
+class SecurityHeadersMiddleware:
+    """Ergänzt Sicherheits-Header, die Django nicht von Haus aus setzt
+    (ADR 0061, P3.11): Permissions-Policy global; Cross-Origin-Resource-Policy
+    `same-origin`, AUSSER für das bewusst fremd-einbettbare Externen-Widget –
+    dort setzt die View den Wert selbst auf `cross-origin`. (Cross-Origin-Opener-
+    Policy setzt Djangos SecurityMiddleware bereits auf `same-origin`.)"""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        response.setdefault("Permissions-Policy", _PERMISSIONS_POLICY)
+        if "Cross-Origin-Resource-Policy" not in response:
+            response["Cross-Origin-Resource-Policy"] = "same-origin"
+        return response
+
+
 class ActivationGateMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response

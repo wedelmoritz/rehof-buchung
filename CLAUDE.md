@@ -64,13 +64,16 @@ booking/
     dashboard.py external_ops.py beds24_ops.py retention.py
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
-                        #  (Backend-Startseite mit Erklär-Panel: templates/admin/custom_index.html,
+                        #  (Backend-Startseite mit Erklär-Panel + „Neue Benutzer": custom_index.html,
                         #   gesetzt über admin.site.index_template). Buchungen: Allocation.clean
                         #   erzwingt die Domänenregeln auch im Backend (keine Doppelbuchung, ADR 0045).
   admin_site.py         # RehofAdminSite: gliedert das Backend fachlich in 5 Sektionen
-                        #   (get_app_list, ADR 0049) – Index UND Seitenleiste. Aktiviert über
-  admin_apps.py         #   booking.admin_apps.RehofAdminConfig (default_site; in INSTALLED_APPS
-                        #   statt django.contrib.admin). Warmes Theme: templates/admin/base_site.html.
+                        #   (get_app_list, ADR 0049). Persistenter Navigator (Suche + Bereiche) oben
+                        #   auf JEDER Seite + pjax (ADR 0055): die eingebaute Seitenleiste ist AUS
+  admin_apps.py         #   (enable_nav_sidebar=False). Aktiviert über booking.admin_apps.
+                        #   RehofAdminConfig (default_site; in INSTALLED_APPS statt django.contrib.
+                        #   admin). Warmes Theme + Navigator/pjax: templates/admin/base_site.html
+                        #   (+ _rehof_navigator.html).
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html
@@ -91,8 +94,10 @@ Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; Tage-/Wunsch-Budget =
 sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
-Buchungen“), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
-erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
+Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
+Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
+erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thanked_at` =
+„Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5), `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
@@ -139,13 +144,18 @@ werden externe Gäste in **einer** Farbe (`services.EXTERN_COLOR`) nur als „ex
 gezeigt. Die **Online-Bezahlung (Mollie)** ist aktiv (s. „Hofladen“ →
 Online-Bezahlung) und gilt für Gäste wie Mitglieder gleichermaßen.
 
-Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
-farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
-unten, wer da ist und was noch frei ist; **Umschalter „Kalender / Belegung“** –
-„Belegung“ zeigt pro Unterkunft EINE Zeile mit Balken Anreise→Abreise [Farbe je
-Mitglied, externe Gäste neutral], also „von wann bis wann ist wer wo“ auf einen
-Blick; Service `services.build_occupancy_timeline`; das Monatsraster bleibt
-Standard), `book` (Ampel-Kalender → Personen/
+Frontend-Seiten (`booking/views.py`): `overview` (Community-Übersicht, aufgeräumt
+nach ADR 0059): oben schlanke **Status-Chips** (Tage frei / offene Losung) +
+eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
+**„Diese Woche"-Agenda** (`services.week_agenda`: je Tag An-/Abreisen + freie
+Quartiere, mobil der Schnell-Überblick). **Held ist der Belegungs-Zeitstrahl**
+(`services.build_occupancy_timeline`, Standard-Ansicht: pro Unterkunft EINE Zeile
+mit Balken Anreise→Abreise, Farbe je Mitglied/extern neutral – „wer ist wo" auf
+einen Blick); **Umschalter „Belegung / Kalender"** schaltet aufs Monatsraster
+(`?view=grid`). Klick auf Balken/Tag öffnet das **Tag-Detail im Kontext** – ein
+Panel **rechts** neben dem Plan (Desktop, sticky) bzw. **darunter** am Handy
+(`day_detail`: wer da ist · noch frei · „An diesem Tag buchen"). **Eine**
+kombinierte Legende (Personen + heute + Ferien)), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
 eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
@@ -157,7 +167,11 @@ angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
 Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
-bleiben bewusst änderbar), `my_bookings` (eigene Buchungen + Storno **mit
+bleiben bewusst änderbar; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
+[`quarter_wish_counts`] und ein **unverbindlicher Ausweich-Tipp**
+[`services.wish_deconfliction`, P2.4/ADR 0064] die nahe Verschiebung mit der
+geringsten Konkurrenz – anklickbar, saison-gefiltert, kein Eingriff ins Losverfahren),
+`my_bookings` (eigene Buchungen + Storno **mit
 Rückfrage**; je Buchung „wer ist gleichzeitig da“ – aufgeteilt in **exakt gleiche
 An-/Abreise** und **nur überlappend** [`services.concurrent_split`] – mit
 Wechselwunsch an andere Mitglieder [auch bei Überlappung möglich, mit Hinweis;
@@ -177,7 +191,14 @@ offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Empfänger:in über 
 ausgenommen; die Mitglieds-ID landet in einem versteckten Feld, der Server prüft
 sie weiter], dann Vorschau mit Empfänger – Anzeigename/Benutzername/Name – und
 Disclaimer, dass die Basis des Übertrags privatrechtlich zu regeln ist, dann
-„verbindlich übertragen“).
+„verbindlich übertragen“; **erhaltene** Übertragungen kann man mit **„Danke sagen“**
+einmalig quittieren – `services.thank_for_transfer`, idempotent über
+`NightTransfer.thanked_at`, private Benachrichtigung an die schenkende Person, ADR 0064.
+Auf derselben Seite der **Solidaritäts-Pool** [P2.5/ADR 0064]: Tage in einen
+gemeinsamen Topf **spenden** und **bei Bedarf, gedeckelt entnehmen** [`DayPoolEntry`,
+`services/pool.py`: `pool_donate`/`pool_withdraw`/`pool_status`; wirkt über
+`Member.effective_annual_budget`; Entnahme nur bei fast aufgebrauchtem Budget
+[`POOL_ELIGIBLE_REMAINING`], gedeckelt `POOL_WITHDRAW_CAP_PER_YEAR`]).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
 den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
@@ -219,7 +240,12 @@ statistisch dieselbe Chance haben (Chi-Quadrat-Anpassungstest + Wilson-KI =
 „equal treatment of equals" der RSD) und dass das Karma nachweisbar wirkt.
 Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
 (Admin-Knopf „Simulation jetzt berechnen", Ergebnis als JSON gespeichert);
-Service `services.run_fairness_simulation`. Das **Test-Szenario**
+Service `services.run_fairness_simulation`. **Gemeinschafts-Spiegel** (`community`,
+`/gemeinschaft/`, login-pflichtig, ADR 0063): aggregierte, anonyme Transparenz –
+Auslastung, Los-Ergebnis-Historie, **Karma-Verteilung** (`services.community_stats`/
+`karma_distribution`) als schlanke **CSS-Balken** (kein JS); in der Sekundär-Nav
+(„Gemeinschaft"). Den **eigenen** Ausgleichsfaktor zeigt eine Karte im `profile`
+(Karma-Transparenz). Das **Test-Szenario**
 `seed_demo --testdata` (kompletter Wipe inkl. Superuser → Test-Konten
 admin [Superuser] / verwaltung [Gruppe „Verwaltung“, **kein** Staff] / test
 + 50 Mitglieder, wilde Buchungen im laufenden Jahr, offene
@@ -462,7 +488,16 @@ Der Import wird i. d. R. nur einmalig beim Umzug gebraucht und ist über
 `OpsConfig.beds24_import_enabled` (Betriebs-Einstellungen, Abschnitt
 „Beds24-Migration“) **abschaltbar** – ausgeschaltet ist der Assistent im
 Dashboard ausgeblendet und gesperrt (auch für Admins).
-**Backup/Hardening sind GEPLANT, nicht umgesetzt** – Blueprints in
+**Sicherheits-Härtungspaket (ADR 0061) umgesetzt:** Backend-2FA (django-otp,
+`ADMIN_OTP_REQUIRED`, `manage.py admin_otp_setup`), Fail-closed `SECRET_KEY`-Wächter,
+nonce-basierte **CSP** (django-csp; jedes `<script>` mit `request.csp_nonce`, keine
+Inline-Handler – delegierte `data-*`-Handler in `base.html`), **Rate-Limiting**
+(django-ratelimit, `RATELIMIT_ENABLE`), **pip-audit** im CI + Dependabot,
+Nicht-root-Container, Permissions-Policy/CORP-Header + Anmelde-Audit-Log,
+HSTS-Default 30 Tage, WeasyPrint ohne Remote-Fetch, **verschlüsseltes Backup-Skript**
+`ops/backup.sh`. **IBAN-Feldverschlüsselung ist VORBEREITET, aber inaktiv**
+(`booking/fieldcrypt.py`+`fields.py`, `FIELD_ENCRYPTION_KEY` leer = Klartext).
+**Weiteres Hardening (Borg-Append-only-Backups, LUKS) bleibt Blueprint** in
 `docs/BETRIEB-SICHERHEIT.md`.
 
 **Verwaltungs-Dashboard (`dashboard`, Rolle Verwaltung **oder** Admin,
@@ -501,12 +536,24 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
   sich über `BookingPeriod.draw_at` terminieren; das Kommando
   `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
+- **Verifizierbarkeit (Commit-Reveal, ADR 0062):** Der Seed ist nicht
+  manipulierbar. Beim Öffnen der Wünsche legt `services.ensure_seed_commit` einen
+  CSPRNG-Seed fest und veröffentlicht **nur dessen SHA-256-Prüfsumme**
+  (`BookingPeriod.seed_commit`/`seed_committed_at`, im Backend read-only); nach der
+  bestätigten Ziehung wird der Seed offengelegt (Ergebnisseite). Reine Logik
+  `lottery.seed_commitment`/`verify_commitment`; Verifikation
+  `services.verify_period_lottery` + Kommando `manage.py verify_lottery`. Anzeige
+  schlank auf Wunschliste/Ergebnis (`<details>`) + Abschnitt 3 auf „Fairness-Nachweis".
+  `run_period_lottery` nutzt **immer** den committeten Seed (sonst passt die Prüfsumme nicht).
 - **Losung-Bestätigung (Review-Workflow):** Ein Lauf landet zunächst im Status
   `lottery_review` – die Zuteilungen sind `Allocation.provisional=True`
   (blockieren die Verfügbarkeit, sind aber für Mitglieder **unsichtbar**;
   `period_result`/`my_bookings`/Übersicht/`day_detail` filtern `provisional=False`),
   und es werden **keine** Benachrichtigungen zugestellt (nur am `LotteryRun`
-  vorbereitet: `notices`). Erst `services.confirm_lottery` veröffentlicht
+  vorbereitet: `notices` – die **je Wunsch erklären**, *warum* bekommen/nicht:
+  Ausweichgrund, Konkurrenz/Los, „ganze gleichwertige Gruppe belegt", übersprungen
+  wegen Budget/Saison-Regel; P2.6/ADR 0064, gespeist aus `result.log`). Erst
+  `services.confirm_lottery` veröffentlicht
   (Zuteilungen sichtbar, Benachrichtigungen + Mails raus, Status `lottery_done`) –
   danach **kein Undo**. `services.rollback_lottery` (nur unbestätigt) löscht die
   vorläufigen Zuteilungen, stellt das Karma aus `LotteryRun.karma_snapshot`
@@ -534,7 +581,9 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   `free_booking` steht).
 - **Tage:** 50/Jahr je Mitglied, davon max. 25 über die Wunschliste. **Kein
   Übertrag ins Folgejahr** (Kontingent gilt je Kalenderjahr frisch). Tage sind
-  **an andere Mitglieder übertragbar** (`NightTransfer`).
+  **an andere Mitglieder übertragbar** (`NightTransfer`) **oder in den
+  Solidaritäts-Pool spendbar/daraus entnehmbar** (`DayPoolEntry`, gedeckelt, nur bei
+  Bedarf; P2.5/ADR 0064). Beides fließt in `Member.effective_annual_budget` ein.
 - **Saison-Regeln (`SeasonRule`):** **jährlich wiederkehrend** (Monat/Tag, ohne
   Jahr); je Zeitraum optional `min_nights`, `max_parallel_units` (gleichzeitige
   Wohneinheiten), `max_stay_nights` (Einheiten-Nächte-Deckel). Der Service
@@ -609,9 +658,26 @@ Caddy). **Observability (ADR 0046):** strukturierte Logs nach stdout
 für Container-Healthcheck **und** externes Uptime-Monitoring. **Optionales
 Redis** (Cache/Sessions/Axes-Lockout) ist über `REDIS_URL` + Profil `cache`
 zuschaltbar (`docker compose --profile cache up -d`); Standard bleibt DB-Sessions.
+**Performance & Skalierung (>100 gleichzeitige Nutzer, ADR 0060, Sicherheit vor
+Tempo):** Gunicorn läuft als **`gthread`** (gleichzeitige Requests ≈
+`GUNICORN_WORKERS`×`GUNICORN_THREADS`, Default 3×8; DB-Budget workers×threads ≤
+`max_connections`, sonst PgBouncer); `CONN_HEALTH_CHECKS=True` zu `conn_max_age`.
+Hot-Pfade ohne N+1 (gemessen: Startseite 23, Backend Mitglieds-Anteile 14,
+Rechnungen 18 Queries – via `select_related`/`prefetch`/Annotation/Indizes, u. a.
+`shop.LineItem(member,purchase,invoice)`). **Geteilter Belegungs-Cache**
+(`_occupied_days_by_quarter`) ist **nur mit Redis** aktiv (LocMem = pro Worker →
+stale) und wird per Signal nach jeder Buchungsänderung invalidiert (`on_commit`);
+gecacht werden nur ohnehin allgemein sichtbare Belegungsdaten – die Buchung prüft
+IMMER frisch unter Sperre. Die **Rechnungsnummer-Vergabe** ist gegen gleichzeitige
+Checkouts gesperrt (kein doppelter `HL-…`-Stand). Lasttests in `loadtest/`
+(`browse`/`booking_rush`/`shop_rush`), Tiefenverteidigungs-Constraint dokumentiert
+in `docs/BETRIEB-SICHERHEIT.md`.
 **Server-Umzug inkl. DB:** `ops/migrate-server.sh dump|restore` (pg_dump/psql über
-den `db`-Container); Voraussetzungen + Ablauf stehen im README. **Backup/Hardening
-(Backups, 2FA, IBAN-Feldverschlüsselung, LUKS) sind GEPLANT, nicht umgesetzt** –
+den `db`-Container); Voraussetzungen + Ablauf stehen im README. **Verschlüsseltes
+Backup:** `ops/backup.sh backup|restore` (pg_dump → gzip → GnuPG AES-256, optional
+rclone off-site; ADR 0061). **2FA + Härtung sind umgesetzt** (s.o. „Sicherheits-
+Härtungspaket"); **IBAN-Feldverschlüsselung ist vorbereitet, aber inaktiv**.
+**Weiteres Hardening (Borg-Append-only-Backups, LUKS) bleibt GEPLANT** –
 Risiken/Blueprints im README-Abschnitt „Datensicherung & Härtung“ und in
 `docs/BETRIEB-SICHERHEIT.md`.
 
@@ -648,7 +714,37 @@ Axes-Block). Nutzer können sich **selbst registrieren** (`register` →
 `registration/register.html`); dabei entsteht NUR ein Login-Konto. Bis die
 Verwaltung ein **Mitglieds-Profil** (`Member`) zuordnet, sperrt
 `booking/middleware.py::ActivationGateMiddleware` alles und leitet auf die
-Warte-Seite `pending` um (Verwaltungs-/Admin-Konten ausgenommen). Cookies/Sessions
+Warte-Seite `pending` um (Verwaltungs-/Admin-Konten ausgenommen). **Damit die
+Verwaltung neue Konten schnell freischaltet:** (a) bei jeder Selbstregistrierung
+geht eine E-Mail an die Verwaltung (`services.notify_admins_new_user` →
+`OpsConfig.admin_emails`), und (b) die **Backend-Startseite** zeigt oben den
+Abschnitt **„Neue Benutzer – noch ohne Mitglieds-Anteil"** mit allen noch nicht
+zugeordneten Konten (`services.users_without_membership` = aktive Konten ohne
+`Share`, ohne Admin-/Staff-/Verwaltungs-Konten und ohne externe Gäste; gerendert
+über `RehofAdminSite.index`-Extra-Context in `custom_index.html`). **Geführtes
+Onboarding (ADR 0056):** Eigene Backend-Seite **„Neue Benutzer (Zuordnung)"**
+(Proxy-Modell `PendingUser` unter „Benutzer & Mitglieder", `PendingUserAdmin` →
+`templates/admin/onboarding.html`) ordnet jedes Konto in **wenigen Klicks** zu –
+**als Mitglied** (`services.onboard_as_member`: Profil + `Share` an bestehendem/
+neuem Anteil → kann buchen), **nur Hofladen/Terminal** (`services.onboard_as_terminal`:
+Profil als Hofladen-Gast `is_external=True`+`terminal_enabled` → PIN setzt die Person
+selbst, keine Buchung), oder **deaktivieren/löschen** (unbekannt; `services.
+deactivate_account`). JS-frei (pjax-sicher), POST → voller Reload. Das Startseiten-
+Panel verlinkt auf diese Seite. **Backend-Aufbau einheitlich (ADR 0055):** Statt
+die Standard-Seitenleiste zu nutzen (aus, `enable_nav_sidebar=False`), steht oben
+auf **jeder** Admin-Seite derselbe **Navigator** (Suche + die 5 fachlichen Bereiche
+als kollabierbare `<details>`, aus `available_apps`) – eingehängt über
+`{% block pretitle %}` in `base_site.html` (`templates/admin/_rehof_navigator.html`).
+Der Navigator ist **einklappbar** (Leiste „Suche & Bereiche · <Standort>"; **mobil
+per Default zu**, Wahl gemerkt) und arbeitet als **Akkordeon** (immer nur EIN Bereich
+offen → begrenzte Höhe, ADR 0057); der Eintrag „Neue Benutzer (Zuordnung)" trägt ein
+**Badge** mit der Anzahl offener Konten (`RehofAdminSite.each_context`).
+Der gewählte Bereich/die Liste wird **darunter** aufgebaut, beim Klick **ohne
+Neuladen** (kleiner **pjax**-Layer in `base_site.html`: tauscht nur `#content` unter
+dem Navigator, lädt fehlende Stylesheets nach, `pushState`/`popstate`, harter
+Fallback auf normale Navigation). **Bewusst voller Reload** bei Änderungs-/Anlage-
+Formularen und POSTs (jQuery/Widgets zuverlässig; Struktur bleibt durch den
+server-gerenderten Navigator dennoch gleich). Cookies/Sessions
 sind gehärtet (HttpOnly, SameSite=Lax, Secure in Prod). OIDC/Keycloak-Naht
 bleibt in `settings.py` markiert.
 
@@ -676,8 +772,13 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
 - **Keine Geheimnisse** ins Repo (`.env` ist gitignored; `SECRET_KEY`/DB-Passwort
   erzeugt `install.sh`).
 - Reine Logik bleibt Django-frei, damit `tests/` ohne DB lauffähig bleibt.
-
----
+- **CSP (ADR 0061):** strikte, nonce-basierte Content-Security-Policy. **Jedes neue
+  `<script>` braucht `nonce="{{ request.csp_nonce }}"`**, und **keine Inline-Event-
+  Handler** (`onclick`/`onsubmit`/`onchange`) – stattdessen die delegierten
+  `data-*`-Handler in `base.html` (`data-confirm`, `data-autosubmit`, `data-nav-tpl`,
+  `data-pin-check`, `data-filename-target`, `data-reload`) bzw. im Backend
+  `base_site.html` (`data-confirm`). Keine externen Skripte/CDNs (alles `'self'`).
+  `booking/tests_csp.py` wacht über Header + nonce + handler-freie Seiten.
 
 ## Offene Punkte / Roadmap (Kandidaten für Change-Requests)
 

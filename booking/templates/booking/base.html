@@ -51,6 +51,12 @@
        Systemmeldungen) dürfen die Seite nicht über die Handybreite hinaus dehnen. */
     .msg, .notif li, .notif-detail { overflow-wrap: anywhere; }
     a { color: var(--accent-deep); }
+    /* Gut sichtbarer Tastatur-Fokus (nur bei Tastatur, nicht bei Maus-Klick). */
+    a:focus-visible, button:focus-visible, .btn:focus-visible, summary:focus-visible,
+    input:focus-visible, select:focus-visible, textarea:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px;
+    }
 
     /* Kopf / Navigation */
     header {
@@ -368,7 +374,7 @@
       .table-wrap > table { width: auto; min-width: 100%; white-space: nowrap; }
     }
   </style>
-  <script>/* Eingeklappt-Zustand vor dem Rendern setzen (kein Aufblitzen). */
+  <script nonce="{{ request.csp_nonce }}">/* Eingeklappt-Zustand vor dem Rendern setzen (kein Aufblitzen). */
     try { if (localStorage.getItem("rehofNav") === "collapsed") document.documentElement.classList.add("nav-collapsed"); } catch (e) {}</script>
   {% block extrahead %}{% endblock %}
 </head>
@@ -407,6 +413,7 @@
     <symbol id="ic-invoices" viewBox="0 0 24 24"><path d="M6 2.5h9l4 4v15l-2.2-1.4L14.5 21l-2.2-1.4L10 21l-2.2-1.4L6 21z"/><path d="M9 9h7M9 13h7"/></symbol>
     <symbol id="ic-profile" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
     <symbol id="ic-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.5 3.5"/><path d="M12 17h.01"/></symbol>
+    <symbol id="ic-community" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M6 21v-7M12 21V4M18 21v-11"/></symbol>
     <symbol id="ic-admin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9 19 19M19 5l-2.1 2.1M7.1 16.9 5 19"/></symbol>
     <symbol id="ic-backend" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
   </defs></svg>
@@ -427,6 +434,7 @@
       <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}" title="Tage übertragen"><svg class="nav-ic"><use href="#ic-transfer"/></svg><span class="nav-label">Tage übertragen</span></a>
       <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_checkout' %}active{% endif %}" title="Hofladen"><svg class="nav-ic"><use href="#ic-shop"/></svg><span class="nav-label">Hofladen</span></a>
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}" title="Meine Rechnungen"><svg class="nav-ic"><use href="#ic-invoices"/></svg><span class="nav-label">Meine Rechnungen</span></a>
+      <a href="{% url 'community' %}" class="{% if url_name == 'community' %}active{% endif %}" title="Gemeinschaft"><svg class="nav-ic"><use href="#ic-community"/></svg><span class="nav-label">Gemeinschaft</span></a>
       <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}" title="Profil"><svg class="nav-ic"><use href="#ic-profile"/></svg><span class="nav-label">Profil</span></a>
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}" title="Hilfe"><svg class="nav-ic"><use href="#ic-help"/></svg><span class="nav-label">Hilfe</span></a>
       {% if is_verwaltung %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}" title="Verwaltung"><svg class="nav-ic"><use href="#ic-admin"/></svg><span class="nav-label">Verwaltung</span></a>{% endif %}
@@ -450,6 +458,7 @@
       <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-wish"/></svg>Wunschliste</a>
       <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-transfer"/></svg>Tage übertragen</a>
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Meine Rechnungen</a>
+      <a href="{% url 'community' %}" class="{% if url_name == 'community' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-community"/></svg>Gemeinschaft</a>
       <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-profile"/></svg>Profil</a>
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-help"/></svg>Hilfe</a>
       {% if is_verwaltung %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>{% endif %}
@@ -469,7 +478,7 @@
   {% if footer.contact_email %}<span class="sep">·</span><a href="mailto:{{ footer.contact_email }}">Kontakt</a>{% endif %}
 </footer>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
   // Navigation ein-/ausklappen (Desktop). Standard: angezeigt; Zustand gemerkt.
   (function () {
     var root = document.documentElement, KEY = "rehofNav";
@@ -554,6 +563,53 @@
     harvest(document);   // beim Laden vorhandene Meldungen einsammeln
   })();
 
+  // Unaufdringliche Handler statt Inline-Attributen (CSP-Nonce, ADR 0061: keine
+  // onclick/onsubmit/onchange mehr im HTML). MUSS vor dem AJAX-Submit-Layer
+  // registriert sein, damit ein abgebrochenes confirm() per defaultPrevented auch
+  // das AJAX-Nachschicken stoppt (der AJAX-Layer prüft e.defaultPrevented).
+  (function () {
+    // Bestätigungsdialoge: data-confirm am Formular ODER am auslösenden Button.
+    // PIN-Plausibilität (Profil): data-pin-check (leer ODER genau 6 Ziffern).
+    document.addEventListener("submit", function (e) {
+      var form = e.target;
+      var msg = (e.submitter && e.submitter.getAttribute("data-confirm")) ||
+                form.getAttribute("data-confirm");
+      if (msg && !window.confirm(msg)) { e.preventDefault(); return; }
+      if (form.hasAttribute("data-pin-check")) {
+        var pinEl = form.querySelector("[name=pin]");
+        var p = pinEl ? pinEl.value : "";
+        if (p !== "" && !/^\d{6}$/.test(p)) {
+          e.preventDefault();
+          window.alert("Die PIN muss genau 6 Ziffern haben (oder leer lassen).");
+        }
+      }
+    }, false);
+    // change: Auto-Submit (data-autosubmit), Kalender-Navigation (data-nav-tpl,
+    // __V__ = gewählter Wert), Datei-Namen anzeigen (data-filename-target).
+    document.addEventListener("change", function (e) {
+      var el = e.target;
+      if (el.hasAttribute && el.hasAttribute("data-autosubmit") && el.form) {
+        if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit();
+      }
+      if (el.hasAttribute && el.hasAttribute("data-nav-tpl")) {
+        var url = el.getAttribute("data-nav-tpl")
+          .replace("__V__", encodeURIComponent(el.value));
+        (window.__nav || function (u) { location.href = u; })(url);
+      }
+      var tgt = el.getAttribute && el.getAttribute("data-filename-target");
+      if (tgt) {
+        var out = document.getElementById(tgt);
+        if (out) out.textContent = el.files && el.files.length
+          ? el.files[0].name : "Keine Datei gewählt";
+      }
+    }, false);
+    // Buttons mit data-reload (z.B. „Erneut versuchen").
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-reload]") : null;
+      if (b) { e.preventDefault(); location.reload(); }
+    }, false);
+  })();
+
   // AJAX-Formulare: POST ohne Neuladen, Scrollposition halten, Meldung als Toast.
   // Progressive Enhancement – ohne JS bzw. bei Fehlern normales Abschicken.
   (function () {
@@ -592,7 +648,7 @@
     }
     document.addEventListener("submit", function (e) {
       var form = e.target;
-      // Hat ein Inline-Handler (z.B. onsubmit="return confirm(...)") schon
+      // Hat der delegierte Bestätigungs-Handler (data-confirm, s.o.) schon
       // abgebrochen, NICHT per AJAX nachschicken – sonst liefe die Aktion trotz
       // „Abbrechen" weiter.
       if (e.defaultPrevented) return;

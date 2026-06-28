@@ -23,6 +23,21 @@
 </div>
 
 <div class="card">
+  <h2 style="margin-top:0">Mein Ausgleichsfaktor (Karma)</h2>
+  <p style="margin:.2rem 0 .4rem;font-size:1.15rem">
+    Aktuell: <strong>{{ member.factor|floatformat:1 }}</strong>
+    {% if member.factor > 1.0 %}<span class="tag" style="background:var(--good-soft);color:var(--good)">erhöht</span>{% endif %}
+  </p>
+  <p class="muted" style="margin:0">Der Ausgleichsfaktor sorgt dafür, dass die Auslosung
+    über die Jahre fair bleibt: <strong>1,0</strong> ist der Normalstand. Wer einen Wunsch
+    nicht erfüllt bekam, steigt um&nbsp;0,1 (max&nbsp;1,5) und hat im nächsten Jahr bessere
+    Chancen auf einen vorderen Platz; nach dem Gewinn eines umkämpften Wunsches geht der
+    Faktor wieder auf&nbsp;1,0. Wie das nachweislich fair ist, zeigt der
+    <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis</a> – die Verteilung über alle
+    Mitglieder im <a href="{% url 'community' %}">Gemeinschafts-Spiegel</a>.</p>
+</div>
+
+<div class="card">
   <h2 style="margin-top:0">Benachrichtigungen</h2>
   <p class="muted" style="margin-top:0"><strong>In-App</strong> (auf der Übersicht)
     bekommst du wichtige Hinweise immer. Zusätzlich kannst du sie per
@@ -58,8 +73,7 @@
     Handy dabei hast. Bezahlt wird dort <strong>nicht</strong>; das läuft über die
     Rechnung. Die Teilnahme ist freiwillig: Du <strong>musst keine PIN setzen</strong>,
     und du kannst die Funktion hier auch ganz ausschalten.</p>
-  <form method="post" data-no-ajax autocomplete="off"
-        onsubmit="var p=this.pin.value; return p===''|| /^\d{6}$/.test(p) || (alert('Die PIN muss genau 6 Ziffern haben (oder leer lassen).'),false)">{% csrf_token %}
+  <form method="post" data-no-ajax autocomplete="off" data-pin-check>{% csrf_token %}
     <input type="hidden" name="action" value="terminal_prefs">
     <label class="opt" style="display:flex;gap:.5rem;align-items:flex-start">
       <input type="checkbox" name="terminal_enabled" {% if member.terminal_enabled %}checked{% endif %}>
@@ -115,7 +129,7 @@
 </details>
 
 {% if push_enabled %}
-<script>
+<script nonce="{{ request.csp_nonce }}">
 (function () {
   var card = document.getElementById("push-card");
   if (!card) return;

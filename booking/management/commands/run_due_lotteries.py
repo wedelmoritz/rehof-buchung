@@ -21,7 +21,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from booking.models import BookingPeriod
-from booking.services import run_period_lottery
+from booking.services import ensure_seed_commit, run_period_lottery
 
 
 class Command(BaseCommand):
@@ -40,6 +40,16 @@ class Command(BaseCommand):
         did_something = False
 
         for period in BookingPeriod.objects.exclude(status=BookingPeriod.SUSPENDED):
+            # 0) Sobald die Wünsche offen sind, die Seed-Prüfsumme veröffentlichen
+            # (Commit-Reveal, ADR 0062) – steht damit VOR der Ziehung fest.
+            if (period.status_rank >= BookingPeriod.LIFECYCLE.index(
+                    BookingPeriod.WISHES_OPEN) and not period.seed_commit):
+                if dry:
+                    self.stdout.write(f"[dry-run] Seed-Commit fällig: {period}")
+                else:
+                    ensure_seed_commit(period)
+                    did_something = True
+
             # 1) Fällige Losung ausführen (genau einmal).
             if (period.draw_at and now >= period.draw_at
                     and not period.runs.exists()):

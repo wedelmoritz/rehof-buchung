@@ -1,0 +1,123 @@
+{% extends "admin/base_site.html" %}
+{% comment %}Geführtes Onboarding neuer Benutzer (ADR 0056): pro Konto drei Wege in
+wenigen Klicks – als Mitglied (Anteil), als Hofladen-/Terminal-Gast, oder
+deaktivieren/löschen. Bewusst OHNE JavaScript (außer Lösch-Rückfrage), damit es
+auch beim pjax-Laden ohne erneutes Skript funktioniert (ADR 0055).{% endcomment %}
+{% block content %}
+<p class="rehof-ob-intro">Diese Konten haben sich registriert (oder wurden angelegt),
+  sind aber <strong>noch keinem Mitglieds-Anteil zugeordnet</strong> – sie können noch
+  nicht buchen. Ordne sie hier mit wenigen Klicks zu. Die Benachrichtigung an die
+  Verwaltung bleibt davon unberührt.</p>
+
+{% if not pending %}
+  <div class="rehof-ob-empty">✅ Alles erledigt – aktuell keine offenen neuen Benutzer.</div>
+{% endif %}
+
+{% for u in pending %}
+<div class="rehof-ob-card" id="u{{ u.pk }}">
+  <div class="rehof-ob-head">
+    <div class="rehof-ob-who">
+      <span class="rehof-ob-name">{{ u.suggested_name }}</span>
+      <span class="rehof-ob-meta">Benutzername: {{ u.username }} ·
+        {{ u.email|default:"ohne E-Mail" }} · registriert {{ u.date_joined|date:"d.m.Y" }}</span>
+    </div>
+    <a class="rehof-ob-full" href="{% url 'admin:auth_user_change' u.pk %}">vollständiges Formular →</a>
+  </div>
+
+  <div class="rehof-ob-paths">
+    {# Weg 1: Mitglied #}
+    <form method="post" class="rehof-ob-path">
+      {% csrf_token %}
+      <input type="hidden" name="user_id" value="{{ u.pk }}">
+      <input type="hidden" name="action" value="member">
+      <h3>① Als Mitglied</h3>
+      <p class="rehof-ob-hint">Kann Quartiere buchen. Ordnet die Person mit einem
+        Tage-Anteil einem Mitglieds-Anteil zu.</p>
+      <label class="rehof-ob-f">Anzeigename
+        <input type="text" name="display_name" value="{{ u.suggested_name }}" required></label>
+      <label class="rehof-ob-f">Mitglieds-Anteil
+        <select name="membership">
+          <option value="new">➕ Neuen Anteil anlegen</option>
+          {% for ms in memberships %}<option value="{{ ms.pk }}">{{ ms }} ({{ ms.allocated_budget }}/{{ ms.annual_night_budget }} vergeben)</option>{% endfor %}
+        </select></label>
+      <label class="rehof-ob-f">Bezeichnung <span class="rehof-ob-sub">(nur bei „neuem Anteil“)</span>
+        <input type="text" name="new_label" placeholder="z. B. {{ u.suggested_name }}"></label>
+      <div class="rehof-ob-budgets">
+        <label class="rehof-ob-f">Tage/Jahr
+          <input type="number" name="night_budget" value="{{ default_budget }}" min="0" step="1"></label>
+        <label class="rehof-ob-f">davon Wunsch
+          <input type="number" name="wish_night_budget" value="{{ default_wish }}" min="0" step="1"></label>
+      </div>
+      <button type="submit" class="rehof-ob-btn primary">Als Mitglied zuordnen</button>
+    </form>
+
+    {# Weg 2: Hofladen / Terminal #}
+    <form method="post" class="rehof-ob-path">
+      {% csrf_token %}
+      <input type="hidden" name="user_id" value="{{ u.pk }}">
+      <input type="hidden" name="action" value="terminal">
+      <h3>② Nur Hofladen / Terminal</h3>
+      <p class="rehof-ob-hint">Hofladen-Gast (kein Buchungs-Mitglied). Darf am
+        Vor-Ort-Terminal auf die Monatsrechnung einkaufen; die <strong>PIN</strong>
+        setzt die Person selbst im Profil.</p>
+      <label class="rehof-ob-f">Anzeigename
+        <input type="text" name="display_name" value="{{ u.suggested_name }}" required></label>
+      <button type="submit" class="rehof-ob-btn sage">Für Hofladen/Terminal freischalten</button>
+    </form>
+
+    {# Weg 3: Unbekannt #}
+    <form method="post" class="rehof-ob-path rehof-ob-end">
+      {% csrf_token %}
+      <input type="hidden" name="user_id" value="{{ u.pk }}">
+      <h3>③ Unbekannt?</h3>
+      <p class="rehof-ob-hint">Wenn nicht klar ist, wer das ist.</p>
+      <button type="submit" name="action" value="deactivate" class="rehof-ob-btn ghost">Konto deaktivieren</button>
+      <button type="submit" name="action" value="delete" class="rehof-ob-btn danger"
+              data-confirm="Konto {{ u.suggested_name }} wirklich endgültig löschen?">Konto löschen</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .rehof-ob-intro { max-width: 70ch; margin: 0 0 16px; }
+  .rehof-ob-empty { padding: 16px; border-radius: 12px; background: var(--message-success-bg);
+    font-weight: 600; }
+  .rehof-ob-card { border: 1px solid #e4dfd8; border-left: 4px solid var(--primary);
+    border-radius: 12px; margin: 0 0 16px; overflow: hidden; background: #fff;
+    box-shadow: 0 1px 2px rgba(60,53,47,.035), 0 8px 22px rgba(60,53,47,.04); }
+  .rehof-ob-head { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; padding: 12px 16px; background: var(--accent-soft, #fbe9e4); }
+  .rehof-ob-name { font-weight: 800; font-size: 15px; }
+  .rehof-ob-meta { color: var(--body-quiet-color); font-size: 12px; margin-left: 8px; }
+  .rehof-ob-full { font-weight: 700; white-space: nowrap; }
+  .rehof-ob-paths { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0; }
+  .rehof-ob-path { padding: 14px 16px; border-top: 1px solid var(--hairline-color); }
+  .rehof-ob-path + .rehof-ob-path { border-left: 1px solid var(--hairline-color); }
+  .rehof-ob-path h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase;
+    letter-spacing: .03em; color: var(--body-loud-color); }
+  .rehof-ob-hint { color: var(--body-quiet-color); font-size: 12.5px; margin: 0 0 10px; }
+  .rehof-ob-f { display: block; font-size: 12px; color: var(--body-quiet-color);
+    margin: 0 0 8px; }
+  .rehof-ob-sub { font-weight: 400; }
+  .rehof-ob-f input, .rehof-ob-f select { display: block; width: 100%; box-sizing: border-box;
+    margin-top: 3px; padding: 7px 9px; border: 1px solid #e4dfd8; border-radius: 8px;
+    background: #fff; color: var(--body-fg); font-size: 14px; }
+  .rehof-ob-budgets { display: flex; gap: 10px; }
+  .rehof-ob-budgets .rehof-ob-f { flex: 1 1 0; }
+  .rehof-ob-btn { margin-top: 4px; cursor: pointer; border: 0; border-radius: 9px;
+    padding: 9px 14px; font-weight: 700; font-size: 13px; color: #fff; }
+  .rehof-ob-btn.primary { background: var(--primary); }
+  .rehof-ob-btn.primary:hover { background: var(--secondary); }
+  .rehof-ob-btn.sage { background: var(--accent); }
+  .rehof-ob-btn.sage:hover { background: #566c68; }
+  .rehof-ob-btn.ghost { background: #fff; color: var(--body-fg); border: 1px solid #e4dfd8;
+    margin-right: 8px; }
+  .rehof-ob-btn.ghost:hover { background: var(--body-bg); }
+  .rehof-ob-btn.danger { background: #fff; color: #b23a2a; border: 1px solid #e6c4bd; }
+  .rehof-ob-btn.danger:hover { background: #b23a2a; color: #fff; border-color: #b23a2a; }
+</style>
+{% endblock %}

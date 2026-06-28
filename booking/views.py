@@ -20,6 +20,8 @@ from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from csp.decorators import csp_replace
+from django_ratelimit.decorators import ratelimit
 
 from .forms import (
     EmailChangeForm, ProfileForm, RegistrationForm, TransferForm, WishForm,
@@ -142,8 +144,9 @@ def overview(request):
                     legend.append({"name": b["who"], "color": color_map[mid],
                                    "mine": b["mine"]})
                 b["color"] = color_map[mid]
-    # Optionaler Belegungs-Zeitstrahl (pro Unterkunft eine Zeile mit Balken).
-    view_mode = "timeline" if request.GET.get("view") == "timeline" else "grid"
+    # Belegungs-Zeitstrahl ist der Standard (modernes „wer ist wo"); das
+    # Monatsraster gibt es weiter über ?view=grid (ADR 0059).
+    view_mode = "grid" if request.GET.get("view") == "grid" else "timeline"
     timeline = None
     if view_mode == "timeline":
         timeline = svc.build_occupancy_timeline(member, year, month)
@@ -163,8 +166,9 @@ def overview(request):
         "legend": legend,
         "sel_day": sel_day,
         "detail": detail,
-        "nav_qs": "&view=timeline" if view_mode == "timeline" else "",
+        "nav_qs": "&view=grid" if view_mode == "grid" else "",
         "show_today": True,
+        "agenda": svc.week_agenda(member, today, 7),
         **_cal_nav(cal),
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0
@@ -612,8 +616,16 @@ def wishlist(request):
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
         counts = svc.quarter_wish_counts(period, eff_start, eff_end)
+        # P2.4: unverbindliche Ausweich-Vorschläge (weniger Konkurrenz bei kleiner
+        # Verschiebung) – nur Hinweise, eine zusätzliche DB-Abfrage.
+        decon = svc.wish_deconfliction(period, eff_start, eff_end)
         for q in Quarter.objects.filter(active=True).order_by("name"):
-            candidates.append({"q": q, "count": counts.get(str(q.id), 0)})
+            hint = decon.get(str(q.id))
+            # Nur Vorschläge zeigen, die im Quartier saisonal buchbar bleiben.
+            if hint and not svc._in_season_range(
+                    q, hint["best"]["start"], hint["best"]["end"]):
+                hint = None
+            candidates.append({"q": q, "count": counts.get(str(q.id), 0), "hint": hint})
 
     return render(request, "booking/wishlist.html", {
         "member": member,
@@ -643,6 +655,8 @@ def wishlist(request):
 # Tage übertragen
 # --------------------------------------------------------------------------- #
 
+# Registrierung gegen Konto-Spam: max. 10 POSTs/Stunde je IP (ADR 0061).
+@ratelimit(key="ip", rate="10/h", method="POST", block=True)
 def register(request):
     """Selbstregistrierung. Legt nur ein Login-Konto an; das Buchungs-Profil
     (Member) vergibt anschließend die Verwaltung. Bis dahin: Warte-Seite."""
@@ -652,6 +666,9 @@ def register(request):
         form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            # Die Verwaltung benachrichtigen: neues Konto wartet auf Zuordnung
+            # eines Mitglieds-Anteils (sonst kann die Person nicht buchen).
+            svc.notify_admins_new_user(user)
             login(request, user,
                   backend="booking.auth.EmailOrUsernameModelBackend")
             return redirect("pending")
@@ -799,12 +816,17 @@ def push_unsubscribe(request):
     """Entfernt ein Web-Push-Abo (Browser hat sich abgemeldet)."""
     import json
     from .models import PushSubscription
+    member = _current_member(request)
+    if not member:
+        return JsonResponse({"ok": False}, status=403)
     try:
         endpoint = json.loads(request.body or "{}").get("endpoint", "")
     except ValueError:
         endpoint = ""
     if endpoint:
-        PushSubscription.objects.filter(endpoint=endpoint).delete()
+        # Nur das EIGENE Abo entfernen – kein Löschen fremder Geräte über einen
+        # (erratenen) Endpoint (ADR 0061, P3.9).
+        PushSubscription.objects.filter(endpoint=endpoint, member=member).delete()
     return JsonResponse({"ok": True})
 
 
@@ -817,6 +839,25 @@ def transfer(request):
         return redirect("overview")
 
     pending = None
+    # P2.7: „Danke sagen" für eine erhaltene Übertragung (idempotent).
+    if request.method == "POST" and request.POST.get("action") == "thank":
+        ok, err = svc.thank_for_transfer(member, request.POST.get("transfer_id"))
+        messages.success(request, "Dein Dank wurde übermittelt. 🌻") if ok \
+            else messages.error(request, err or "Nicht möglich.")
+        return redirect("transfer")
+    # P2.5: Solidaritäts-Pool – spenden / (bei Bedarf, gedeckelt) entnehmen.
+    if request.method == "POST" and request.POST.get("action") in ("pool_donate",
+                                                                    "pool_withdraw"):
+        nights = request.POST.get("nights")
+        if request.POST["action"] == "pool_donate":
+            _e, err = svc.pool_donate(member, nights, year)
+            ok_msg = "Danke! Deine Tage liegen jetzt im Solidaritäts-Pool. 🌻"
+        else:
+            _e, err = svc.pool_withdraw(member, nights, year)
+            ok_msg = "Tage aus dem Pool entnommen – sie stehen dir nun zur Verfügung."
+        messages.success(request, ok_msg) if _e \
+            else messages.error(request, err or "Nicht möglich.")
+        return redirect("transfer")
     form = TransferForm(exclude_member=member)
     if request.method == "POST":
         form = TransferForm(request.POST, exclude_member=member)
@@ -846,10 +887,14 @@ def transfer(request):
         "form": form, "member": member, "year": year,
         "remaining": member.nights_remaining_in_year(year),
         "outgoing": outgoing, "incoming": incoming, "pending": pending,
+        "pool": svc.pool_status(member, year),
+        "my_pool_entries": member.pool_entries.filter(year=year),
     })
 
 
 @login_required
+# Typeahead-Suche gegen Verzeichnis-Scraping bremsen (je angemeldetem Konto).
+@ratelimit(key="user", rate="60/m", block=True)
 def member_search(request):
     """Typeahead für „Tage übertragen": passende Mitglieder ab 3 Zeichen.
     Sucht über Anzeigename, Benutzername, E-Mail, Vor- und Nachname (das eigene
@@ -1359,6 +1404,8 @@ def _ext_nav_qs(start, end, persons) -> str:
     return "&" + "&".join(parts)
 
 
+# Magic-Link-Endpunkte gegen Token-Erraten bremsen (je IP).
+@ratelimit(key="ip", rate="30/m", block=True)
 def external_manage(request, token):
     """Magic-Link-Selbstverwaltung für externe Gäste (kein Login): eigene
     Buchungen ansehen und – im Rahmen der Stornobedingungen – stornieren."""
@@ -1390,6 +1437,7 @@ def external_manage(request, token):
         "payments_active": pay_svc.payments_enabled()})
 
 
+@ratelimit(key="ip", rate="30/m", block=True)
 def external_pay(request, token):
     """Externer Gast startet die Online-Bezahlung einer seiner Buchungen
     (login-frei über den Magic-Link-Token)."""
@@ -1415,6 +1463,15 @@ def external_pay(request, token):
         messages.error(request, "Online-Bezahlung ist derzeit nicht möglich.")
         return redirect("external_manage", token=token)
     return redirect(pay.checkout_url)
+
+
+@login_required
+def community(request):
+    """Gemeinschafts-Spiegel (ADR 0063): aggregierte, mitglieder-sichtbare
+    Transparenz – Auslastung, Los-Ergebnis-Historie und anonyme Karma-Verteilung.
+    Bewusst nur Aggregate (Datensparsamkeit), wenige DB-Abfragen."""
+    return render(request, "booking/community.html",
+                  {"stats": svc.community_stats()})
 
 
 @login_required
@@ -1523,6 +1580,11 @@ def _fairness_karma_chart(rows: list) -> dict:
             "yticks": _yticks(vmax, y_of)}
 
 
+# Das Widget soll bewusst von der Re:Hof-Website (fremde Origin) per <iframe>
+# eingebettet werden. Die globale CSP setzt frame-ancestors 'none' (Clickjacking-
+# Schutz für die App); hier lockern wir NUR diese eine Direktive für diese eine
+# Antwort. @xframe_options_exempt bleibt als Fallback für ältere Browser.
+@csp_replace({"frame-ancestors": ["*"]})
 @xframe_options_exempt
 def external_embed(request):
     """Einbettbares Verfügbarkeits-Widget für die Re:Hof-Website (read-only).
@@ -1544,7 +1606,7 @@ def external_embed(request):
               if (cfg.active and start and end) else [])
     year, month = _month_from_request(request, today)
     cal = svc.build_external_calendar(year, month, cfg) if cfg.active else None
-    return render(request, "booking/external_embed.html", {
+    response = render(request, "booking/external_embed.html", {
         "cfg": cfg, "today": today, "cal": cal,
         "start": start, "end": end, "persons": persons,
         "offers": offers, "searched": bool(start and end),
@@ -1553,6 +1615,10 @@ def external_embed(request):
         "nav_qs": _ext_nav_qs(start, end, persons),
         **(_cal_nav(cal) if cal else {"months": [], "years": []}),
     })
+    # Widget ist bewusst fremd-einbettbar → Resource-Policy lockern (statt der
+    # globalen same-origin), passend zu @csp_replace(frame-ancestors) oben.
+    response["Cross-Origin-Resource-Policy"] = "cross-origin"
+    return response
 
 
 # --------------------------------------------------------------------------- #
@@ -1578,6 +1644,8 @@ def _terminal_token_from(request):
 
 @csrf_exempt
 @require_POST
+# Token-Endpunkt gegen Token-Brute-Force bremsen (je IP).
+@ratelimit(key="ip", rate="60/m", block=True)
 def terminal_data(request):
     """Roster + Katalog + Einstellungen – nur mit gültigem Geräte-Token."""
     token, _ = _terminal_token_from(request)
@@ -1588,6 +1656,7 @@ def terminal_data(request):
 
 @csrf_exempt
 @require_POST
+@ratelimit(key="ip", rate="60/m", block=True)
 def terminal_sync(request):
     """Nimmt offline erfasste Einkäufe entgegen (idempotent) und bucht sie auf die
     Monatsrechnung. Nur mit gültigem Token."""

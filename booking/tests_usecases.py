@@ -943,6 +943,173 @@ class LosungBestaetigungTests(UseCaseBase):
 
 
 # --------------------------------------------------------------------------- #
+# Use-Case: Verifizierbare Auslosung (Commit-Reveal, ADR 0062)
+# --------------------------------------------------------------------------- #
+
+class LosungVerifizierbarkeitTests(UseCaseBase):
+    def _period(self):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def _two_rivals(self, period):
+        s = date(NEXT_YEAR, 5, 24); e = s + timedelta(days=4)
+        svc.add_wish(self.alice, period, self.qa, s, e)
+        svc.add_wish(self.bob, period, self.qa, s, e)
+        svc.submit_wishlist(self.alice, period)
+        svc.submit_wishlist(self.bob, period)
+
+    def test_commit_vorab_und_passt_zum_seed(self):
+        period = self._period()
+        # Commit beim Öffnen der Wünsche (vor der Ziehung) – idempotent.
+        svc.ensure_seed_commit(period)
+        commit1 = period.seed_commit
+        self.assertTrue(commit1)
+        self.assertIsNotNone(period.seed_committed_at)
+        svc.ensure_seed_commit(period)
+        self.assertEqual(period.seed_commit, commit1)  # idempotent
+        # Die Prüfsumme passt zum (geheimen) Seed.
+        from booking import lottery as L
+        self.assertTrue(L.verify_commitment(period.seed, period.seed_commit))
+
+    def test_ziehung_nutzt_committeten_seed(self):
+        period = self._period()
+        svc.ensure_seed_commit(period)
+        committed = period.seed
+        self._two_rivals(period)
+        # Ein abweichend übergebener Seed darf den Commit NICHT aushebeln.
+        run = svc.run_period_lottery(period, seed=committed + 999)
+        period.refresh_from_db()
+        self.assertEqual(period.seed, committed)
+        self.assertEqual(run.seed, committed)
+
+    def test_verify_period_lottery_und_command(self):
+        period = self._period()
+        self._two_rivals(period)
+        svc.run_period_lottery(period, seed=7)
+        rep = svc.verify_period_lottery(period)
+        self.assertTrue(rep["ok"], rep)
+        self.assertTrue(rep["commit_ok"])
+        self.assertTrue(rep["replay_ok"])
+        # Das Kommando läuft fehlerfrei (Exit 0 = keine Exception).
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("verify_lottery", str(period.id), stdout=out)
+        self.assertIn("reproduzierbar", out.getvalue())
+
+    def test_commit_rechtzeitigkeit_wird_gemeldet(self):
+        period = self._period()
+        svc.ensure_seed_commit(period)          # committet heute (= wishlist_close)
+        self._two_rivals(period)
+        svc.run_period_lottery(period, seed=7)
+        self.assertTrue(svc.verify_period_lottery(period)["commit_timely"])
+        # Künstlich „spät": Wunschschluss VOR dem Commit-Zeitpunkt.
+        period.wishlist_close = date.today() - timedelta(days=2)
+        period.save(update_fields=["wishlist_close"])
+        self.assertFalse(svc.verify_period_lottery(period)["commit_timely"])
+
+    def test_admin_save_committet_seed_bei_wuenschen_offen(self):
+        from django.contrib import admin as djadmin
+        from booking.admin import BookingPeriodAdmin
+        period = BookingPeriod(
+            name="P", target_year=NEXT_YEAR + 5,
+            start=date(NEXT_YEAR + 5, 1, 1), end=date(NEXT_YEAR + 6, 1, 1),
+            status=BookingPeriod.WISHES_OPEN)
+        BookingPeriodAdmin(BookingPeriod, djadmin.site).save_model(
+            None, period, None, False)
+        self.assertTrue(period.seed_commit)
+        self.assertIsNotNone(period.seed_committed_at)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Losergebnis-Erklärung (warum bekommen / nicht bekommen, P2.6)
+# --------------------------------------------------------------------------- #
+
+class LosErgebnisErklaerungTests(UseCaseBase):
+    def test_erklaerung_nennt_konkurrenz_und_belegung(self):
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+        s = date(NEXT_YEAR, 5, 24); e = s + timedelta(days=4)
+        svc.add_wish(self.alice, period, self.qa, s, e)
+        svc.add_wish(self.bob, period, self.qa, s, e)
+        svc.submit_wishlist(self.alice, period)
+        svc.submit_wishlist(self.bob, period)
+        run = svc.run_period_lottery(period, seed=1)
+        svc.confirm_lottery(run)
+        url = reverse("period_result", args=[period.id])
+        texts = " ".join(n.detail for n in Notification.objects.filter(url=url))
+        # Gewinner: Konkurrenz-/Los-Hinweis; Verlierer: Gruppe-komplett-belegt.
+        self.assertIn("Konkurrenz", texts)
+        self.assertIn("gleichwertige Quartiersgruppe belegt", texts)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Wunsch-Koordination – unverbindliche Ausweich-Hinweise (P2.4)
+# --------------------------------------------------------------------------- #
+
+class WunschKoordinationTests(UseCaseBase):
+    def _period(self):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_hinweis_auf_weniger_umkaempften_zeitraum(self):
+        period = self._period()
+        # Drei kurze Wünsche ballen sich auf EINEN Tag (s). Eine Verschiebung um
+        # +2 Tage entgeht der Ballung → weniger Konkurrenz.
+        s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=1)
+        for m in (self.alice, self.bob, self.carla):
+            Wish.objects.create(member=m, period=period, quarter=self.qa,
+                                start=s, end=e, priority=1, submitted=True)
+        decon = svc.wish_deconfliction(period, s, e)
+        qid = str(self.qa.id)
+        self.assertIn(qid, decon)
+        self.assertEqual(decon[qid]["base"], 3)
+        self.assertEqual(decon[qid]["best"]["count"], 0)
+        self.assertNotEqual(decon[qid]["best"]["shift"], 0)
+
+    def test_kein_hinweis_ohne_konkurrenz(self):
+        period = self._period()
+        s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=3)
+        self.assertEqual(svc.wish_deconfliction(period, s, e), {})
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Danke für eine Tage-Übertragung (Wertschätzung, P2.7)
+# --------------------------------------------------------------------------- #
+
+class DankeFuerUebertragungTests(UseCaseBase):
+    def test_danke_benachrichtigt_schenkende_idempotent(self):
+        from booking.models import Notification
+        t, err = svc.transfer_nights(self.alice, self.bob, 3, date.today().year)
+        self.assertIsNotNone(t, err)
+        n0 = Notification.objects.filter(member=self.alice).count()
+        ok, err = svc.thank_for_transfer(self.bob, t.id)
+        self.assertTrue(ok, err)
+        self.assertEqual(Notification.objects.filter(member=self.alice).count(), n0 + 1)
+        t.refresh_from_db()
+        self.assertIsNotNone(t.thanked_at)
+        # Zweites Danke ist gesperrt (idempotent).
+        ok2, err2 = svc.thank_for_transfer(self.bob, t.id)
+        self.assertFalse(ok2)
+        self.assertEqual(Notification.objects.filter(member=self.alice).count(), n0 + 1)
+
+    def test_nur_empfaenger_darf_danken(self):
+        t, _ = svc.transfer_nights(self.alice, self.bob, 2, date.today().year)
+        # carla war nicht beteiligt → darf nicht danken.
+        ok, err = svc.thank_for_transfer(self.carla, t.id)
+        self.assertFalse(ok)
+
+
+# --------------------------------------------------------------------------- #
 # Use-Case: Buchung anpassen (verlängern/verkürzen) + Wechselwunsch-Gruppen
 # --------------------------------------------------------------------------- #
 
@@ -1468,3 +1635,65 @@ class AdminBuchungsregelnTests(UseCaseBase):
         self.assertEqual(resp.status_code, 200)   # Formular mit Fehler, kein Redirect
         self.assertEqual(
             Allocation.objects.filter(member=self.bob, quarter=self.k1).count(), 0)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: „Diese Woche"-Agenda der Übersicht (ADR 0059)
+# --------------------------------------------------------------------------- #
+
+class WochenAgendaTests(UseCaseBase):
+    def test_agenda_bucketet_anreise_abreise_und_zaehlt_frei(self):
+        """week_agenda ordnet An-/Abreisen dem richtigen Tag zu und zählt freie
+        Quartiere pro Tag."""
+        self.open_full_year_window(NEXT_YEAR)
+        start = date(NEXT_YEAR, 5, 4)            # ein fester Wochentag
+        end = start + timedelta(days=3)
+        a, err = svc.book_spontaneous(self.alice, self.k1, start, end)
+        self.assertIsNotNone(a, err)
+
+        agenda = svc.week_agenda(self.alice, start, 7)
+        self.assertEqual(len(agenda), 7)
+        # Tag 0 = Anreise alice -> K1; als „heute" (start) markiert
+        day0 = agenda[0]
+        self.assertTrue(day0["is_today"])
+        self.assertEqual(len(day0["arrivals"]), 1)
+        self.assertEqual(day0["arrivals"][0]["quarter"], "K1")
+        self.assertTrue(day0["arrivals"][0]["mine"])
+        self.assertEqual(day0["departures"], [])
+        # während der Buchung ist K1 belegt -> ein Quartier weniger frei
+        total_q = 5
+        self.assertEqual(day0["free_count"], total_q - 1)
+        # Abreisetag (Tag 3) trägt die Abreise, K1 wieder frei
+        day3 = agenda[3]
+        self.assertEqual(len(day3["departures"]), 1)
+        self.assertEqual(day3["arrivals"], [])
+        self.assertEqual(day3["free_count"], total_q)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Belegungs-Cache korrekt invalidiert (ADR 0060)
+# --------------------------------------------------------------------------- #
+
+class BelegungsCacheTests(UseCaseBase):
+    def test_cache_zeigt_buchung_erst_nach_invalidierung(self):
+        """Mit aktivem (geteiltem) Cache liefert _occupied_days_by_quarter erst
+        nach Versions-Bump die neue Buchung – die Invalidierung greift."""
+        from unittest.mock import patch
+        from django.core.cache import cache
+        from booking.services import slots
+        cache.clear()
+        first, last = date(NEXT_YEAR, 7, 1), date(NEXT_YEAR, 7, 31)
+        with patch.object(slots, "_occ_cache_on", return_value=True):
+            occ0 = slots._occupied_days_by_quarter(first, last)
+            self.assertEqual(sum(len(v) for v in occ0.values()), 0)   # nichts belegt → gecacht
+            self.open_full_year_window(NEXT_YEAR)
+            svc.book_spontaneous(self.alice, self.k1,
+                                 date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 13))
+            # ohne Invalidierung weiterhin der alte (leere) Stand aus dem Cache
+            self.assertEqual(
+                sum(len(v) for v in slots._occupied_days_by_quarter(first, last).values()), 0)
+            slots.bump_occupancy_version()
+            # nach Bump wird neu gerechnet → 3 belegte Nächte sichtbar
+            self.assertEqual(
+                sum(len(v) for v in slots._occupied_days_by_quarter(first, last).values()), 3)
+        cache.clear()

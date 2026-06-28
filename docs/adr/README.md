@@ -76,6 +76,16 @@ die Regelwerte zu wiederholen.
 | [0052](0052-konto-einladung-passwort-selbst-setzen.md) | Konto-Einladung: Passwort selbst setzen statt Admin-Vergabe | Accepted |
 | [0053](0053-hofladen-terminal-offline-kiosk.md) | Hofladen-Terminal vor Ort: offline-fähiger, token-authentifizierter Kiosk | Accepted |
 | [0054](0054-einheitliches-farbsystem.md) | Einheitliches Farbsystem (warmes Papier-Neutral + Terrakotta-Akzent) | Accepted |
+| [0055](0055-backend-persistenter-navigator-pjax.md) | Backend: persistenter Navigator (Suche + Bereiche) + pjax statt Layout-Wechsel | Accepted |
+| [0056](0056-gefuehrtes-onboarding-neuer-benutzer.md) | Geführtes Onboarding neuer Benutzer im Backend (Mitglied / Hofladen / deaktivieren) | Accepted |
+| [0057](0057-backend-ux-verfeinerungen.md) | Backend-UX-Verfeinerungen (Navigator einklappbar/Akkordeon, Listen, Leer-Hinweise) | Accepted |
+| [0058](0058-frontend-ux-verfeinerungen.md) | Frontend-UX-Verfeinerungen (Benutzerbereich + Verwaltungs-Dashboard) | Accepted |
+| [0059](0059-uebersicht-belegung-hybrid.md) | Übersicht aufgeräumt: Belegungs-Zeitstrahl Standard + Wochen-Agenda + Detail im Kontext | Accepted |
+| [0060](0060-performance-skalierung.md) | Performance & Skalierung für >100 gleichzeitige Nutzer (Sicherheit vor Tempo) | Accepted |
+| [0061](0061-sicherheits-haertungspaket.md) | Sicherheits-Härtungspaket (Defense in Depth: Django-LTS, SECRET_KEY-Wächter, Backend-2FA, CSP, Rate-Limiting, IBAN-Feldverschlüsselung vorbereitet, Container/CI-Härtung) | Accepted |
+| [0062](0062-verifizierbare-auslosung-commit-reveal.md) | Verifizierbare Auslosung: Commit-Reveal des Los-Seeds (intern, „provably fair") | Accepted |
+| [0063](0063-gemeinschafts-spiegel-karma-transparenz.md) | Gemeinschafts-Spiegel (aggregierte Transparenz) + Karma-Transparenz im Profil | Accepted |
+| [0064](0064-kooperative-transparenz-features.md) | Kooperative P2-Features: Losergebnis-Erklärung, „Danke", Wunsch-Koordination, Solidaritäts-Pool | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

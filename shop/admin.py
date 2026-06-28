@@ -262,8 +262,10 @@ class InvoiceAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         # Hofladen = Mitglieder-Rechnungen; Gäste-Rechnungen laufen über die
-        # getrennte ExternalInvoice-Ansicht.
-        return super().get_queryset(request).filter(guest__isnull=True)
+        # getrennte ExternalInvoice-Ansicht. Empfänger + Positionen (für die
+        # Brutto-Summe je Zeile) vorladen, sonst N+1 in der Liste.
+        return (super().get_queryset(request).filter(guest__isnull=True)
+                .select_related("member", "guest").prefetch_related("items"))
 
     @admin.display(description="Empfänger")
     def recipient(self, obj):
@@ -379,6 +381,11 @@ class BankTransactionAdmin(admin.ModelAdmin):
     readonly_fields = ("batch", "booked_on", "amount", "purpose",
                        "counterparty_name", "counterparty_iban", "fingerprint",
                        "raw", "imported_at", "matched_at", "note")
+
+    def get_queryset(self, request):
+        # Rohzeile (groß) nicht in die Liste laden; Empfänger-Rechnung vorladen.
+        return (super().get_queryset(request).defer("raw")
+                .select_related("matched_invoice"))
 
     def has_add_permission(self, request):
         return False

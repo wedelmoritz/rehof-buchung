@@ -12,13 +12,69 @@ from ..models import (
     Allocation, ExternalBooking, ExternalConfig, Member, Quarter, Wish,
 )
 from .dates import EXTERN_COLOR, GERMAN_MONTHS, next_month, school_holidays_in_range
-from .slots import _active_windows, _occupied_days_by_quarter, split_quarters_for_range
+from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter,
+                    split_quarters_for_range)
 
 __all__ = [
-    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
+    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts', 'wish_deconfliction',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
-    'build_occupancy_timeline', 'build_external_calendar',
+    'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
 ]
+
+
+def week_agenda(member, start: date, days: int = 7) -> list[dict]:
+    """Kompakte „Diese Woche"-Agenda ab `start`: je Tag die An-/Abreisen
+    (Mitglieder UND externe Gäste) und die Zahl freier Quartiere. Für die
+    aufgeräumte Übersicht (schneller Wochenblick, mobil-tauglich)."""
+    end = start + timedelta(days=days)
+    allocs = list(
+        Allocation.objects.select_related("quarter", "member")
+        .filter(provisional=False, start__lt=end, end__gt=start))
+    exts = list(
+        ExternalBooking.objects.filter(
+            status=ExternalBooking.CONFIRMED, start__lt=end, end__gt=start)
+        .select_related("quarter"))
+    mid = member.id if member else None
+    # Belegte Tage je Quartier einmalig aus den bereits geladenen Buchungen
+    # bilden – KEINE per-Tag-Abfragen (sonst N+1 auf der Startseite, ADR 0060).
+    occ: dict = defaultdict(set)
+    for bk in allocs + exts:
+        d = max(bk.start, start)
+        upper = min(bk.end, end)
+        while d < upper:
+            occ[bk.quarter_id].add(d)
+            d += timedelta(days=1)
+    windows = _active_windows()                 # 1 Abfrage für die ganze Woche
+    quarters = list(Quarter.objects.all())      # 1 Abfrage
+    out = []
+    for i in range(days):
+        d = start + timedelta(days=i)
+        nxt = d + timedelta(days=1)
+        arrivals, departures = [], []
+        for a in allocs:
+            if a.start == d:
+                arrivals.append({"who": a.member.display_name, "quarter": a.quarter.name,
+                                 "persons": a.persons, "mine": a.member_id == mid})
+            if a.end == d:
+                departures.append({"who": a.member.display_name, "quarter": a.quarter.name,
+                                   "mine": a.member_id == mid})
+        for b in exts:
+            if b.start == d:
+                arrivals.append({"who": "extern", "quarter": b.quarter.name,
+                                 "persons": b.persons, "mine": False, "external": True})
+            if b.end == d:
+                departures.append({"who": "extern", "quarter": b.quarter.name,
+                                   "mine": False, "external": True})
+        # frei = freigeschaltet (Periode + Quartier-Saison) UND an dem Tag unbelegt
+        free_count = sum(
+            1 for q in quarters
+            if d not in occ[q.id]
+            and A.range_released(windows, str(q.id), d, nxt)
+            and _in_season_range(q, d, nxt))
+        out.append({"date": d, "is_today": d == start,
+                    "arrivals": arrivals, "departures": departures,
+                    "free_count": free_count})
+    return out
 
 def build_booking_calendar(
     member, year: int, month: int,
@@ -192,6 +248,49 @@ def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
     ):
         counts[str(w.quarter_id)] += 1
     return counts
+
+
+def wish_deconfliction(period, start: date, end: date, *, max_shift: int = 2) -> dict:
+    """Unverbindliche Ausweich-Vorschläge (P2.4, ADR 0064): pro Quartier die nahe
+    Zeitraum-Verschiebung (gleiche Länge, ±`max_shift` Tage) mit der GERINGSTEN
+    Konkurrenz – sofern besser als der gewählte Zeitraum.
+
+    Nur Hinweise: keine Buchung, keine Änderung am Losverfahren, kein Schreibpfad.
+    EINE DB-Abfrage (alle eingereichten Wünsche im Fenster), Rest in Python; gibt
+    `{quarter_id: {"base": n, "best": {start,end,count,shift}}}` für umkämpfte
+    Quartiere zurück."""
+    out: dict[str, dict] = {}
+    if not period or end <= start:
+        return out
+    length = (end - start).days
+    win_s = start - timedelta(days=max_shift)
+    win_e = end + timedelta(days=max_shift)
+    by_q: dict[str, list] = defaultdict(list)
+    for qid, ws, we in Wish.objects.filter(
+        period=period, submitted=True, start__lt=win_e, end__gt=win_s,
+    ).values_list("quarter_id", "start", "end"):
+        by_q[str(qid)].append((ws, we))
+
+    def contention(spans, s, e) -> int:
+        return sum(1 for (ws, we) in spans if ws < e and s < we)
+
+    for qid, spans in by_q.items():
+        base = contention(spans, start, end)
+        if base == 0:
+            continue
+        best = None
+        for d in range(-max_shift, max_shift + 1):
+            if d == 0:
+                continue
+            s = start + timedelta(days=d)
+            e = s + timedelta(days=length)
+            c = contention(spans, s, e)
+            if c < base and (best is None or c < best["count"]
+                             or (c == best["count"] and abs(d) < abs(best["shift"]))):
+                best = {"start": s, "end": e, "count": c, "shift": d}
+        if best:
+            out[qid] = {"base": base, "best": best}
+    return out
 
 
 def day_detail(member, day: date) -> dict:

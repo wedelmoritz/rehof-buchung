@@ -1,11 +1,61 @@
 """Signal-Handler der Buchungs-App."""
 from __future__ import annotations
 
+import logging
+
+from django.contrib.auth.signals import (
+    user_logged_in, user_logged_out, user_login_failed)
 from django.db import transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from .models import Member, Notification
+from .models import Allocation, ExternalBooking, Member, Notification
+
+# --- Anmelde-Audit (ADR 0061, P3.11) ---------------------------------------
+# Erfolgreiche/fehlgeschlagene An-/Abmeldungen strukturiert ins Log (stdout →
+# Observability). Bewusst nur Benutzername + IP, NIE das Passwort. Ergänzt
+# django-axes (das nur fürs Lockout zählt, Erfolge nicht protokolliert).
+_audit = logging.getLogger("booking.audit")
+
+
+def _client_ip(request) -> str:
+    if request is None:
+        return "-"
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "-")
+
+
+@receiver(user_logged_in)
+def _audit_login(sender, request, user, **kwargs):
+    _audit.info("login ok user=%s ip=%s",
+                getattr(user, "username", "?"), _client_ip(request))
+
+
+@receiver(user_logged_out)
+def _audit_logout(sender, request, user, **kwargs):
+    _audit.info("logout user=%s ip=%s",
+                getattr(user, "username", "?"), _client_ip(request))
+
+
+@receiver(user_login_failed)
+def _audit_login_failed(sender, credentials, request=None, **kwargs):
+    _audit.warning("login FAILED user=%s ip=%s",
+                   (credentials or {}).get("username", "?"), _client_ip(request))
+
+
+@receiver(post_save, sender=Allocation)
+@receiver(post_delete, sender=Allocation)
+@receiver(post_save, sender=ExternalBooking)
+@receiver(post_delete, sender=ExternalBooking)
+def _invalidate_occupancy_cache(sender, **kwargs):
+    """Jede Buchungsänderung (anlegen/ändern/löschen, intern wie extern)
+    invalidiert den geteilten Belegungs-Cache – garantiert über das Signal, egal
+    über welchen Code-Pfad. Erst nach Commit (sonst sähen Leser kurz den alten
+    Stand). Ohne Redis ist das ein No-Op."""
+    from .services.slots import bump_occupancy_version
+    transaction.on_commit(bump_occupancy_version)
 
 
 @receiver(post_save, sender=Notification)

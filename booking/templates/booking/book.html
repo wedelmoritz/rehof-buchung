@@ -7,24 +7,6 @@
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% else %}
 
-{% if notifications %}
-<div class="card notif">
-  <strong>Benachrichtigungen</strong>
-  <ul>
-    {% for n in notifications %}
-    <li>{% if n.url %}<a href="{{ n.url }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
-      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span></li>
-    {% endfor %}
-  </ul>
-  <form method="post" class="inline">{% csrf_token %}
-    <input type="hidden" name="action" value="read_notifications">
-    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-    <input type="hidden" name="persons" value="{{ persons }}">{% if need_accessible %}<input type="hidden" name="accessible" value="1">{% endif %}
-    <button class="btn small ghost" type="submit">Als gelesen markieren</button>
-  </form>
-</div>
-{% endif %}
-
 <div class="card">
   <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage verfügbar.
     Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
@@ -61,12 +43,12 @@
       {% for week in cal.weeks %}
       <tr>
         {% for d in week %}
-        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %} {% if d.is_end %}is-end{% endif %}"
-            {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
+        <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.in_month and d.is_past %}past{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %} {% if d.is_end %}is-end{% endif %}"
+            {% if d.holiday %}title="{{ d.holiday }}"{% elif d.in_month and d.is_past %}title="Vergangener Tag – nicht mehr buchbar"{% endif %}>
           {% if d.is_start %}<span class="cap-flag start">Anreise</span>{% endif %}
           {% if d.is_end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.in_month and not d.is_past and d.level != 'none' %}
-            <a class="dlink" data-ajax href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">
+            <a class="dlink" data-ajax title="{{ d.free }} von {{ d.total }} frei" aria-label="Tag {{ d.day }}: {{ d.free }} von {{ d.total }} Einheiten frei" href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">
               <span class="d-num">{{ d.day }}{% if d.mine %} <span class="mine-dot">●</span>{% endif %}</span>
               <span class="free-badge">{{ d.free }}/{{ d.total }}</span>
             </a>
@@ -176,6 +158,10 @@
   td.lvl-full { background:#f6ddd6; }
   td.lvl-none { background:transparent; }
   td.out.lvl-free, td.out.lvl-many, td.out.lvl-few, td.out.lvl-full { opacity:.45; }
+  /* Vergangene Tage des aktuellen Monats: nicht buchbar – gedämpft und neutral,
+     damit sie nicht wie freie (grüne) Tage aussehen. */
+  table.book-cal td.past { background:#f1ede7; cursor:default; }
+  table.book-cal td.past .d-num { color:#bdb4a4; }
   table.book-cal td { position:relative; }
   table.book-cal td.today { outline:2px dotted #9d958a; outline-offset:-2px; }
   /* Auswahl-Band: sattes Akzent, überdeckt die Ampelfarbe, damit Anreise→Abreise klar lesbar ist */

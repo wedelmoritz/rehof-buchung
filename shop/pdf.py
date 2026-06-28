@@ -40,7 +40,19 @@ def weasyprint_available() -> bool:
         return False
 
 
+def _no_remote_fetcher(url, *args, **kwargs):
+    """URL-Fetcher für WeasyPrint, der KEINE Netz-/Datei-Abrufe zulässt (nur
+    `data:`-URIs). Das Rechnungs-PDF referenziert ohnehin keine externen
+    Ressourcen; so kann selbst eingeschleuster Inhalt WeasyPrint nicht zu einem
+    Abruf interner URLs verleiten (SSRF-Schutz, ADR 0061)."""
+    if url.startswith("data:"):
+        from weasyprint.urls import default_url_fetcher
+        return default_url_fetcher(url, *args, **kwargs)
+    raise ValueError(f"Externer Ressourcen-Abruf im Rechnungs-PDF blockiert: {url}")
+
+
 def invoice_pdf_bytes(invoice: Invoice) -> bytes:
     """Rendert die Rechnung als PDF. Wirft, wenn WeasyPrint/native Libs fehlen."""
     from weasyprint import HTML
-    return HTML(string=invoice_html(invoice)).write_pdf()
+    return HTML(string=invoice_html(invoice),
+                url_fetcher=_no_remote_fetcher).write_pdf()

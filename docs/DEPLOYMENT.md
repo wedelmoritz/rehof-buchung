@@ -127,6 +127,17 @@ Der Superuser ist die **Admin-Rolle** (volles Backend `/admin/`). Eine separate
 **Verwaltung**-Rolle (Dashboard `/verwaltung/`, kein Backend) entsteht, indem ein
 Nutzer im Backend der Gruppe „Verwaltung" hinzugefügt wird (ADR 0014).
 
+> ⚠️ **Wichtig – Backend-2FA (ADR 0061):** In Produktion (`DEBUG=0`) verlangt das
+> Backend einen zweiten Faktor (TOTP). **Direkt nach `createsuperuser`** ein
+> TOTP-Gerät einrichten, sonst sperrt sich der Admin selbst aus:
+> ```bash
+> docker compose exec web python manage.py admin_otp_setup --user <name>
+> ```
+> Den ausgegebenen QR-Code in einer Authenticator-App (Aegis/FreeOTP/…) scannen;
+> beim nächsten Backend-Login zusätzlich den 6-stelligen Code eingeben. Notnagel,
+> falls man sich ausgesperrt hat: `ADMIN_OTP_REQUIRED=0` in der `.env`, Stack neu
+> starten, Gerät einrichten, wieder auf `1`/leer setzen.
+
 ### 3.6 Caddy konfigurieren
 
 Den Block aus `caddy/Caddyfile.snippet` ins Caddyfile übernehmen, Domain anpassen:
@@ -167,12 +178,25 @@ greifen die genannten Defaults aus `config/settings.py` / `docker-compose.yml`.
 | `SECRET_KEY` | **ja** | Django-Geheimnis. Von `install.sh` erzeugt. |
 | `ALLOWED_HOSTS` | **ja** | Erlaubte Hostnamen, kommagetrennt. `127.0.0.1`/`localhost` werden automatisch ergänzt. |
 | `CSRF_TRUSTED_ORIGINS` | **ja** | https-Origin(s) der Domain (CSRF hinter Caddy). |
-| `SECURE_HSTS_SECONDS` | optional | HSTS-Dauer; `0` = aus. Erst aktivieren (z. B. `31536000`), wenn **alles** sicher über HTTPS läuft. |
+| `SECURE_HSTS_SECONDS` | optional | HSTS-Dauer; **Default 2592000 (30 Tage)**, `0` = aus. |
+| `SECURE_HSTS_INCLUDE_SUBDOMAINS` | optional | Default `0`. Erst `1`, wenn **alle** Subdomains dauerhaft HTTPS sind (schwer rückgängig). |
+| `SECURE_HSTS_PRELOAD` | optional | Default `0`. Nur `1` für die Browser-Preload-Liste (irreversibel). |
 | `TZ` | optional | Zeitzone für Logs/Monatswechsel. Default `Europe/Berlin`. |
 
 > Hinter Caddy gesetzt (in `settings.py`, greifen bei `DEBUG=0`):
 > `SECURE_PROXY_SSL_HEADER` (X-Forwarded-Proto), `USE_X_FORWARDED_HOST`,
 > Secure-Cookies an, `X_FRAME_OPTIONS=DENY`, Axes-Proxy-Count 1.
+
+### Sicherheits-Härtung (ADR 0061)
+
+| Variable | Pflicht | Bedeutung / Default |
+|---|---|---|
+| `ADMIN_OTP_REQUIRED` | optional | Backend-2FA erzwingen. Default: **an in Produktion** (`not DEBUG`). Vor dem ersten Login `manage.py admin_otp_setup` ausführen! |
+| `FIELD_ENCRYPTION_KEY` | optional | Schlüssel für die (noch inaktive) Feld-Verschlüsselung. Leer = aus. Mit `manage.py field_key` erzeugen, getrennt sichern. |
+| `RATELIMIT_ENABLE` | optional | Rate-Limiting sensibler Endpunkte. Default: **an in Produktion**. |
+| `CSP_REPORT_ONLY` | optional | `1` = CSP nur melden statt durchsetzen (vorsichtiger Rollout). Default: durchsetzen. |
+| `BACKUP_PASSPHRASE` | für Backup | Passphrase für `ops/backup.sh` (AES-256). Getrennt vom Backup aufbewahren – Verlust = Backups unwiederbringlich. |
+| `BACKUP_DIR` / `BACKUP_KEEP` / `BACKUP_RCLONE_REMOTE` | optional | Backup-Ziel / lokale Rotation / Off-site-Ziel (rclone). |
 
 ### Datenbank
 
@@ -369,22 +393,67 @@ docker compose exec web python manage.py run_scheduler --once
 
 ---
 
-## 10. Optional: Redis (Cache/Sessions/Axes)
+## 10. Redis aktivieren (Cache/Sessions/Axes) – empfohlen ab vielen Nutzern
 
-Standard sind **DB-Sessions**. Bei hoher Last entlastet Redis die DB (Sessions +
-Brute-Force-Zähler im Cache). Zwei Schritte nötig:
+**Standard ist bewusst DB-only** (nur PostgreSQL → minimaler, robuster Stack).
+**Wann einschalten?** Sobald viele gleichzeitige Nutzer erwartet werden
+(Richtwert ab ~50–100): Redis nimmt die **Session-Lese-Last bei jedem Request**
+sowie die **Brute-Force-Zähler** aus der DB und macht den **geteilten Belegungs-
+Cache** (ADR 0060) erst wirksam (mit nur einem Worker-Prozess wäre er „stale“).
+
+### Aktivieren in zwei Schritten
 
 1. In der `.env` setzen:
    ```dotenv
    REDIS_URL=redis://redis:6379/0
    ```
-2. Dienst über das Profil `cache` mitstarten:
+2. Stack inkl. Redis-Dienst (Profil `cache`) neu starten:
    ```bash
    docker compose --profile cache up -d
    ```
 
-Nur dann greifen `RedisCache`, Cache-Sessions und der Cache-basierte
-Axes-Handler (siehe `config/settings.py`).
+> Damit das Profil **bei jedem** `docker compose …` mitläuft (z.B. künftige
+> Updates), dauerhaft setzen: `COMPOSE_PROFILES=cache` in der `.env` – dann genügt
+> wieder `docker compose up -d`.
+
+### Prüfen
+
+```bash
+docker compose ps                                   # redis: „healthy“
+docker compose exec web python manage.py shell -c \
+  "from django.conf import settings as s; print(s.SESSION_ENGINE, s.CACHES['default']['BACKEND'])"
+# erwartet: django.contrib.sessions.backends.cached_db … RedisCache
+docker compose exec redis redis-cli ping            # PONG
+```
+
+### Was passiert dabei (sicher per Default)
+
+- **Sitzungen: `cached_db`** – gelesen aus Redis (DB-Entlastung), aber **persistent
+  in der DB**. Ein Redis-Neustart/-Ausfall loggt **niemanden** aus (nur kurz wieder
+  DB-Lesen). Bestehende DB-Sitzungen werden weitergelesen → **nahtloser Umstieg**,
+  kein Logout beim Aktivieren.
+- **Eviction `volatile-lru` + `--save ""`**: Redis hält keine Platte vor (reiner
+  Cache) und verdrängt unter Speicherdruck nur Schlüssel **mit Ablauf** – nie
+  versehentlich dauerhafte Daten. 256 MB genügen für eine Genossenschaft.
+- **Axes (Brute-Force) im Cache**: weniger DB-Schreibzugriffe beim Login.
+
+### Sicherheit
+
+- Redis läuft **nur im internen Docker-Netz** und veröffentlicht **keinen
+  Host-Port** – nicht ändern, nicht exponieren (Redis hat hier keine Auth).
+- Im Cache liegen nur **Sitzungs-/Belegungs-/Zähler-Daten**, keine Geheimnisse;
+  Belegungsdaten sind ohnehin allen Mitgliedern sichtbar (kein Vertraulichkeits-
+  verlust). Buchung/Checkout prüfen weiterhin **immer frisch unter Sperre** – der
+  Cache ist reine Anzeige-/Sitzungs-Beschleunigung.
+
+### Wieder ausschalten (zurück zu DB-only)
+
+`REDIS_URL` in der `.env` leeren (bzw. `COMPOSE_PROFILES` entfernen) und
+`docker compose up -d` – die App nutzt wieder DB-Sessions; die in der DB
+gespeicherten Sitzungen bleiben gültig.
+
+> Siehe auch `docs/BETRIEB-SICHERHEIT.md` → „Performance & Skalierung“ (Worker-/
+> DB-Verbindungsbudget, PgBouncer) und ADR 0060.
 
 ---
 
@@ -431,9 +500,18 @@ docker compose exec web python manage.py migrate
 Der Dump nutzt `--clean --if-exists --no-owner --no-privileges`, räumt also vor dem
 Einspielen selbst auf (sauberer Restore auch in eine leere DB).
 
-> **Backup-Automatik & Härtung (Backups, 2FA, IBAN-Feldverschlüsselung, LUKS)
-> sind GEPLANT, nicht umgesetzt** — Risiken/Blueprints in
-> [`BETRIEB-SICHERHEIT.md`](BETRIEB-SICHERHEIT.md) (ADR 0037).
+**Verschlüsseltes Backup (ADR 0061):** für regelmäßige, off-site gesicherte Backups
+`ops/backup.sh` nutzen (pg_dump → gzip → GnuPG AES-256, optional rclone). Per
+Host-Cron einplanen (Beispiel im Skriptkopf):
+
+```bash
+BACKUP_PASSPHRASE=… ./ops/backup.sh backup          # erzeugt rehof-DATUM.sql.gz.gpg
+BACKUP_PASSPHRASE=… ./ops/backup.sh restore <datei> # spielt es wieder ein
+```
+
+> **Weiteres Hardening (Borg-Append-only-Backups, LUKS) bleibt GEPLANT** —
+> 2FA, CSP, Rate-Limiting, Audit, Nicht-root u. a. sind umgesetzt (ADR 0061);
+> Risiken/Blueprints in [`BETRIEB-SICHERHEIT.md`](BETRIEB-SICHERHEIT.md).
 
 ---
 
