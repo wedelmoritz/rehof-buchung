@@ -53,7 +53,7 @@ __all__ = [
     '_occupied_days_by_quarter', '_beds24_member_candidates',
     '_beds24_quarter_candidates', 'beds24_stage', 'beds24_create_member',
     'beds24_apply', 'run_data_retention', 'anonymize_member',
-    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
+    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts', 'wish_deconfliction',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
     'karma_distribution', 'community_stats',

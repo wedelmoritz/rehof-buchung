@@ -16,7 +16,7 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
                     split_quarters_for_range)
 
 __all__ = [
-    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
+    'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts', 'wish_deconfliction',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
 ]
@@ -248,6 +248,49 @@ def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
     ):
         counts[str(w.quarter_id)] += 1
     return counts
+
+
+def wish_deconfliction(period, start: date, end: date, *, max_shift: int = 2) -> dict:
+    """Unverbindliche Ausweich-Vorschläge (P2.4, ADR 0064): pro Quartier die nahe
+    Zeitraum-Verschiebung (gleiche Länge, ±`max_shift` Tage) mit der GERINGSTEN
+    Konkurrenz – sofern besser als der gewählte Zeitraum.
+
+    Nur Hinweise: keine Buchung, keine Änderung am Losverfahren, kein Schreibpfad.
+    EINE DB-Abfrage (alle eingereichten Wünsche im Fenster), Rest in Python; gibt
+    `{quarter_id: {"base": n, "best": {start,end,count,shift}}}` für umkämpfte
+    Quartiere zurück."""
+    out: dict[str, dict] = {}
+    if not period or end <= start:
+        return out
+    length = (end - start).days
+    win_s = start - timedelta(days=max_shift)
+    win_e = end + timedelta(days=max_shift)
+    by_q: dict[str, list] = defaultdict(list)
+    for qid, ws, we in Wish.objects.filter(
+        period=period, submitted=True, start__lt=win_e, end__gt=win_s,
+    ).values_list("quarter_id", "start", "end"):
+        by_q[str(qid)].append((ws, we))
+
+    def contention(spans, s, e) -> int:
+        return sum(1 for (ws, we) in spans if ws < e and s < we)
+
+    for qid, spans in by_q.items():
+        base = contention(spans, start, end)
+        if base == 0:
+            continue
+        best = None
+        for d in range(-max_shift, max_shift + 1):
+            if d == 0:
+                continue
+            s = start + timedelta(days=d)
+            e = s + timedelta(days=length)
+            c = contention(spans, s, e)
+            if c < base and (best is None or c < best["count"]
+                             or (c == best["count"] and abs(d) < abs(best["shift"]))):
+                best = {"start": s, "end": e, "count": c, "shift": d}
+        if best:
+            out[qid] = {"base": base, "best": best}
+    return out
 
 
 def day_detail(member, day: date) -> dict:

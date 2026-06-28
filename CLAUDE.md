@@ -166,7 +166,11 @@ angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
 Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
-bleiben bewusst änderbar), `my_bookings` (eigene Buchungen + Storno **mit
+bleiben bewusst änderbar; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
+[`quarter_wish_counts`] und ein **unverbindlicher Ausweich-Tipp**
+[`services.wish_deconfliction`, P2.4/ADR 0064] die nahe Verschiebung mit der
+geringsten Konkurrenz – anklickbar, saison-gefiltert, kein Eingriff ins Losverfahren),
+`my_bookings` (eigene Buchungen + Storno **mit
 Rückfrage**; je Buchung „wer ist gleichzeitig da“ – aufgeteilt in **exakt gleiche
 An-/Abreise** und **nur überlappend** [`services.concurrent_split`] – mit
 Wechselwunsch an andere Mitglieder [auch bei Überlappung möglich, mit Hinweis;

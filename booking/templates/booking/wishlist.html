@@ -102,6 +102,11 @@
     <span class="spacer"></span>
     <button class="btn small" type="submit">Wunsch eintragen</button>
   </form>
+  {% if c.hint %}
+  <p class="sm muted" style="margin:-.35rem 0 .55rem .1rem">💡 Weniger Andrang mit
+    <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ c.hint.best.start|date:'Y-m-d' }}&end={{ c.hint.best.end|date:'Y-m-d' }}">{{ c.hint.best.start|date:'D, d.m.' }}–{{ c.hint.best.end|date:'d.m.' }}</a>:
+    dann nur {{ c.hint.best.count }} statt {{ c.hint.base }} Wünsche auf „{{ c.q.name }}“. Rein freiwillig.</p>
+  {% endif %}
   {% endfor %}
 </div>
 {% endif %}

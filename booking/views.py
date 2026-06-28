@@ -616,8 +616,16 @@ def wishlist(request):
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
         counts = svc.quarter_wish_counts(period, eff_start, eff_end)
+        # P2.4: unverbindliche Ausweich-Vorschläge (weniger Konkurrenz bei kleiner
+        # Verschiebung) – nur Hinweise, eine zusätzliche DB-Abfrage.
+        decon = svc.wish_deconfliction(period, eff_start, eff_end)
         for q in Quarter.objects.filter(active=True).order_by("name"):
-            candidates.append({"q": q, "count": counts.get(str(q.id), 0)})
+            hint = decon.get(str(q.id))
+            # Nur Vorschläge zeigen, die im Quartier saisonal buchbar bleiben.
+            if hint and not svc._in_season_range(
+                    q, hint["best"]["start"], hint["best"]["end"]):
+                hint = None
+            candidates.append({"q": q, "count": counts.get(str(q.id), 0), "hint": hint})
 
     return render(request, "booking/wishlist.html", {
         "member": member,

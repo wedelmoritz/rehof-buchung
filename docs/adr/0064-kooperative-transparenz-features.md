@@ -32,6 +32,17 @@ Quelle ist das ohnehin vorhandene Ziehungsprotokoll (`result.log`/`allocations`/
 `losses`) – **keine** zusätzlichen Felder/Queries. Wirkt automatisch in
 `period_result` (eigene Notiz) und der Mail.
 
+### P2.4 – Wunsch-Koordination (unverbindliche Ausweich-Hinweise)
+
+Auf der Wunschliste zeigt `services.wish_deconfliction` zu einem gewählten Zeitraum
+pro umkämpftem Quartier die **nahe Verschiebung** (gleiche Länge, ±2 Tage) mit der
+**geringsten Konkurrenz** – als anklickbaren Tipp („💡 Weniger Andrang mit …"), der den
+Kalender auf die entspanntere Zeit umstellt. **Rein freiwillig**, kein Schreibpfad ins
+Losverfahren (Strategiesicherheit unberührt). **Eine** zusätzliche DB-Abfrage (alle
+eingereichten Wünsche im Fenster), Rest in Python; Vorschläge werden auf die
+Quartier-Saison gefiltert (`_in_season_range`). Bewusst gewählt (statt verbindlichem
+Tausch) für Schlankheit und Strategiesicherheit.
+
 ### P2.7 – Leichte Wertschätzung („Danke")
 
 Die empfangende Person kann sich für eine Tage-Übertragung **einmalig** bedanken

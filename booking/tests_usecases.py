@@ -1027,6 +1027,39 @@ class LosErgebnisErklaerungTests(UseCaseBase):
 
 
 # --------------------------------------------------------------------------- #
+# Use-Case: Wunsch-Koordination – unverbindliche Ausweich-Hinweise (P2.4)
+# --------------------------------------------------------------------------- #
+
+class WunschKoordinationTests(UseCaseBase):
+    def _period(self):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_hinweis_auf_weniger_umkaempften_zeitraum(self):
+        period = self._period()
+        # Drei kurze Wünsche ballen sich auf EINEN Tag (s). Eine Verschiebung um
+        # +2 Tage entgeht der Ballung → weniger Konkurrenz.
+        s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=1)
+        for m in (self.alice, self.bob, self.carla):
+            Wish.objects.create(member=m, period=period, quarter=self.qa,
+                                start=s, end=e, priority=1, submitted=True)
+        decon = svc.wish_deconfliction(period, s, e)
+        qid = str(self.qa.id)
+        self.assertIn(qid, decon)
+        self.assertEqual(decon[qid]["base"], 3)
+        self.assertEqual(decon[qid]["best"]["count"], 0)
+        self.assertNotEqual(decon[qid]["best"]["shift"], 0)
+
+    def test_kein_hinweis_ohne_konkurrenz(self):
+        period = self._period()
+        s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=3)
+        self.assertEqual(svc.wish_deconfliction(period, s, e), {})
+
+
+# --------------------------------------------------------------------------- #
 # Use-Case: Danke für eine Tage-Übertragung (Wertschätzung, P2.7)
 # --------------------------------------------------------------------------- #
 
