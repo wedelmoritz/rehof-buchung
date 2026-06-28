@@ -103,14 +103,18 @@
     <span class="muted qmeta">{{ c.q.size_sqm }} m² · {{ c.q.min_occupancy }}–{{ c.q.max_occupancy }} Pers.</span>
     {% if c.count %}<span class="tag con">{{ c.count }}× gewünscht</span>{% else %}<span class="tag">frei</span>{% endif %}
     <span class="spacer"></span>
+    {% if memberships|length > 1 %}
+    <select name="membership" aria-label="Mitglieds-Anteil" class="ms-pick">
+      {% for ms in memberships %}<option value="{{ ms.id }}">{{ ms }}</option>{% endfor %}
+    </select>
+    {% endif %}
     <button class="btn small" type="submit">Wunsch eintragen</button>
   </form>
-  {% if c.hint %}
-  <p class="sm muted" style="margin:-.35rem 0 .55rem .1rem">💡 Weniger Andrang mit
-    <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ c.hint.best.start|date:'Y-m-d' }}&end={{ c.hint.best.end|date:'Y-m-d' }}">{{ c.hint.best.start|date:'D, d.m.' }}–{{ c.hint.best.end|date:'d.m.' }}</a>:
-    dann nur {{ c.hint.best.count }} statt {{ c.hint.base }} Wünsche auf „{{ c.q.name }}“. Rein freiwillig.</p>
-  {% endif %}
   {% endfor %}
+  {% if memberships|length > 1 %}
+  <p class="muted" style="font-size:.85rem;margin:.4rem 0 0">Du gehörst mehreren
+    Anteilen an – wähle je Wunsch, zu welchem Anteil er bei der Auslosung zählt.</p>
+  {% endif %}
 </div>
 {% endif %}
 {% endif %}
@@ -139,7 +143,7 @@
         <span class="drag" title="Ziehen zum Sortieren">&#10287;</span>
         <span class="wish-prio">{{ forloop.counter }}</span>
         <span class="wish-main">{{ w.quarter.name }}<br>
-          <span class="muted">{{ w.start }} &ndash; {{ w.end }} &middot; {{ w.nights }} Nächte</span></span>
+          <span class="muted">{{ w.start }} &ndash; {{ w.end }} &middot; {{ w.nights }} Nächte{% if memberships|length > 1 and w.membership %} &middot; Anteil: {{ w.membership }}{% endif %}</span></span>
         <span class="wish-actions">
           <form method="post" class="inline">{% csrf_token %}
             <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
@@ -156,6 +160,13 @@
             <button class="btn small ghost danger" type="submit" aria-label="Wunsch entfernen" title="Wunsch entfernen">&#10005;</button>
           </form>
         </span>
+        {% if w.hint %}
+        <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist gerade umkämpft</strong>
+          ({{ w.hint.base }}&nbsp;Wünsche im Zeitraum). Wenn du diese Unterkunft wirklich
+          willst, würde aktuell auch
+          <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.hint.best.start|date:'Y-m-d' }}&end={{ w.hint.best.end|date:'Y-m-d' }}">{{ w.hint.best.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.hint.best.end|date:'d.m.' }}</a>
+          passen &ndash; dann nur {{ w.hint.best.count }}&nbsp;Wünsche. Ganz freiwillig.</div>
+        {% endif %}
       </li>
       {% endfor %}
     </ul>
@@ -209,8 +220,11 @@
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.45rem; }
   .qrow .qname { font-weight:600; } .qrow .qmeta { font-size:.85rem; } .qrow .spacer { margin-left:auto; }
   ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
-  li.wish { display:flex; align-items:center; gap:.7rem; background:var(--card);
+  li.wish { display:flex; flex-wrap:wrap; align-items:center; gap:.7rem; background:var(--card);
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem; }
+  .wish-hint { flex:1 1 100%; font-size:.86rem; line-height:1.4; background:var(--accent-soft);
+    border-left:3px solid var(--accent); border-radius:8px; padding:.5rem .65rem; margin-top:.15rem; }
+  .wish-hint a { color:var(--accent-deep); font-weight:700; white-space:nowrap; }
   li.wish.dragover { border-color:var(--accent); background:var(--accent-soft); }
   li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; touch-action:none; }
   .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;

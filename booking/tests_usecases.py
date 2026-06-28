@@ -730,6 +730,62 @@ class TandemTests(UseCaseBase):
         self.assertEqual(self.share.allocated_budget, 50)
         self.assertEqual([p.id for p in self.alice.tandem_partners], [self.bob.id])
 
+    def test_buchung_traegt_mitglieds_anteil(self):
+        """Eine Spontanbuchung wird dem (eindeutigen) Mitglieds-Anteil zugerechnet."""
+        a, err = svc.book_spontaneous(
+            self.alice, self.k1, date(NEXT_YEAR, 3, 1), date(NEXT_YEAR, 3, 8))
+        self.assertIsNotNone(a, err)
+        self.assertEqual(a.membership_id, self.share.id)
+
+    def test_parallel_limit_gilt_auf_vollen_anteil(self):
+        """Das Parallel-Limit zählt über den VOLLEN Anteil inkl. Tandem-Partner
+        (ADR 0066): bucht alice eine Einheit, darf bob (gleicher Anteil) im selben
+        Zeitraum KEINE zweite Einheit buchen – ein fremdes Mitglied dagegen schon."""
+        BookingPolicy.get_solo()
+        SeasonRule.objects.create(
+            name="Limit 1", start_month=1, start_day=1, end_month=12, end_day=31,
+            max_parallel_units=1, active=True)
+        s, e = date(NEXT_YEAR, 3, 1), date(NEXT_YEAR, 3, 8)
+        a, err = svc.book_spontaneous(self.alice, self.k1, s, e)
+        self.assertIsNotNone(a, err)
+        # bob (gleicher Anteil) – überlappende zweite Einheit: blockiert
+        b, berr = svc.book_spontaneous(self.bob, self.k2, s, e)
+        self.assertIsNone(b)
+        self.assertIn("gleichzeitig", berr)
+        # carla (eigener Anteil) – nicht betroffen, bucht parallel
+        c, cerr = svc.book_spontaneous(self.carla, self.k3, s, e)
+        self.assertIsNotNone(c, cerr)
+
+    def test_losung_poolt_tandem_partner_und_setzt_anteil(self):
+        """In der Losung teilen sich Tandem-Partner das Parallel-Limit ihres
+        Anteils (ADR 0066): je ein überlappender Wunsch auf verschiedene
+        Einzelquartiere → nur EINE Einheit wird zugeteilt; der Gewinn trägt den
+        Anteil, der Wunsch ebenso."""
+        BookingPolicy.get_solo()
+        SeasonRule.objects.create(
+            name="Limit 1", start_month=1, start_day=1, end_month=12, end_day=31,
+            max_parallel_units=1, active=True)
+        yr = NEXT_YEAR + 1
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=yr,
+            start=date(yr, 1, 1), end=date(yr + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+        s, e = date(yr, 5, 10), date(yr, 5, 15)
+        svc.add_wish(self.alice, period, self.qa, s, e)
+        svc.add_wish(self.bob, period, self.qb, s, e)
+        svc.submit_wishlist(self.alice, period)
+        svc.submit_wishlist(self.bob, period)
+        # Beide Wünsche tragen den gemeinsamen Anteil.
+        self.assertEqual(
+            set(Wish.objects.filter(period=period)
+                .values_list("membership_id", flat=True)),
+            {self.share.id})
+        svc.run_period_lottery(period, seed=1)
+        allocs = Allocation.objects.filter(period=period, source="lottery")
+        self.assertEqual(allocs.count(), 1)          # gepoolt über den Anteil
+        self.assertEqual(allocs.first().membership_id, self.share.id)
+
 
 class BuchungBestaetigungTests(UseCaseBase):
     """Buchen ist zweistufig: erst Bestätigungsseite, erst „confirm“ bucht –

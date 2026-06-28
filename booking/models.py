@@ -294,6 +294,25 @@ class Member(models.Model):
             .exclude(pk=self.pk).distinct()
         )
 
+    def membership_for(self, membership_id=None):
+        """Der Mitglieds-Anteil, dem eine Buchung/ein Wunsch zugerechnet wird –
+        damit die Buchungsregeln (Parallel-Limit/Aufenthaltsdeckel) auf den
+        VOLLEN Anteil (inkl. Tandem-Partner) wirken.
+
+        Bei genau einem Anteil dieser; bei mehreren (Mehrfach-Tandem) der explizit
+        gewählte (sofern dem Nutzer zugeordnet) bzw. – ohne Wahl – deterministisch
+        der größte Anteil (Tage-Anteil, dann id). None, wenn der Nutzer keinem
+        Anteil angehört (z.B. externer Gast)."""
+        shares = list(self.shares.select_related("membership"))
+        if not shares:
+            return None
+        if membership_id not in (None, ""):
+            for s in shares:
+                if s.membership_id == int(membership_id):
+                    return s.membership
+        shares.sort(key=lambda s: (-s.night_budget, s.membership_id))
+        return shares[0].membership
+
 
 class Share(models.Model):
     """Tage-Anteil eines Nutzers an einem Mitglieds-Anteil. Über mehrere Shares
@@ -426,6 +445,13 @@ class Wish(models.Model):
         Member, on_delete=models.CASCADE, related_name="wishes",
         verbose_name="Mitglied",
     )
+    # Mitglieds-Anteil, dem der Wunsch (und ein evtl. Losgewinn) zugerechnet wird –
+    # damit das Parallel-Limit/der Aufenthaltsdeckel in der Losung auf den vollen
+    # Anteil inkl. Tandem-Partner wirkt (ADR 0066). Null = nicht zugeordnet.
+    membership = models.ForeignKey(
+        "Membership", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="wishes", verbose_name="Mitglieds-Anteil",
+    )
     priority = models.PositiveIntegerField("Priorität (1 = höchste)", default=1)
     quarter = models.ForeignKey(
         Quarter, on_delete=models.CASCADE, related_name="wishes",
@@ -465,6 +491,13 @@ class Allocation(models.Model):
     member = models.ForeignKey(
         Member, on_delete=models.CASCADE, related_name="allocations",
         verbose_name="Mitglied",
+    )
+    # Mitglieds-Anteil, dem die Buchung zugerechnet wird (für die Buchungsregeln
+    # auf den vollen Anteil inkl. Tandem-Partner, ADR 0066). Null = nicht
+    # zugeordnet (externer Gast oder Altbuchung ohne eindeutigen Anteil).
+    membership = models.ForeignKey(
+        "Membership", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="allocations", verbose_name="Mitglieds-Anteil",
     )
     quarter = models.ForeignKey(
         Quarter, on_delete=models.PROTECT, related_name="allocations",

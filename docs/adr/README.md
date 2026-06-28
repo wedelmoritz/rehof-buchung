@@ -86,6 +86,8 @@ die Regelwerte zu wiederholen.
 | [0062](0062-verifizierbare-auslosung-commit-reveal.md) | Verifizierbare Auslosung: Commit-Reveal des Los-Seeds (intern, „provably fair") | Accepted |
 | [0063](0063-gemeinschafts-spiegel-karma-transparenz.md) | Gemeinschafts-Spiegel (aggregierte Transparenz) + Karma-Transparenz im Profil | Accepted |
 | [0064](0064-kooperative-transparenz-features.md) | Kooperative P2-Features: Losergebnis-Erklärung, „Danke", Wunsch-Koordination, Solidaritäts-Pool | Accepted |
+| [0065](0065-backend-theme-konsolidierung.md) | Backend-Theme-Konsolidierung (ein warmes Theme, kein Modus-Umschalter) + UX-Fixes (Recent-Actions, Navigator-Default, Onboarding zweistufig, Static-Devices entfernt) | Accepted |
+| [0066](0066-buchungsregeln-je-mitglieds-anteil.md) | Buchungsregeln (Parallel-Limit/Aufenthaltsdeckel) auf den vollen Mitglieds-Anteil – exakte Zurechnung Buchung/Wunsch→Anteil; Losung bleibt je Benutzer | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

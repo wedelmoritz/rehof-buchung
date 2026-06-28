@@ -495,4 +495,37 @@ def test_rule_skip_prueft_naechste_prioritaet_in_gleicher_runde():
     assert assign["round"] == 1 and assign["priority"] == 2
     skip = next(e for e in res.log if e["event"] == "rule_skip")
     assert skip["round"] == 1 and skip["priority"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# rule_group: Parallel-Limit/Deckel je Mitglieds-Anteil (Tandem-Bündelung)
+# --------------------------------------------------------------------------- #
+
+def test_rule_group_buendelt_tandem_partner():
+    """Zwei Parteien mit GLEICHER rule_group (Tandem auf EINEM Mitglieds-Anteil)
+    teilen sich das Parallel-Limit: nur EINE überlappende Einheit insgesamt –
+    obwohl beide unterschiedliche, freie Quartiere wünschen."""
+    parties = [Party("a", "A"), Party("b", "B")]
+    s, e = week(0)
+    wishes = [
+        Wish("a", 1, "g_salix", s, e, rule_group="m1"),
+        Wish("b", 1, "p_nord", s, e, rule_group="m1"),
+    ]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, rule_check=_max_one_parallel)
+    assert len(res.allocations) == 1                 # gepoolt über den Anteil
+    assert any(ev["event"] == "rule_skip" for ev in res.log)
+
+
+def test_rule_group_getrennte_anteile_beide_ok():
+    """Verschiedene rule_groups (zwei eigenständige Mitglieds-Anteile) zählen das
+    Limit je Anteil – beide Parteien bekommen ihre Einheit (Regression: das
+    bisherige Verhalten je Partei bleibt für getrennte Anteile erhalten)."""
+    parties = [Party("a", "A"), Party("b", "B")]
+    s, e = week(0)
+    wishes = [
+        Wish("a", 1, "g_salix", s, e, rule_group="m1"),
+        Wish("b", 1, "p_nord", s, e, rule_group="m2"),
+    ]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, rule_check=_max_one_parallel)
+    assert len(res.allocations) == 2
     assert res.losses == [] and res.new_factors["a"] == 1.0

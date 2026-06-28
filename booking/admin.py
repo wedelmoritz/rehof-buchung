@@ -498,13 +498,14 @@ class BookingPeriodAdmin(admin.ModelAdmin):
 
 @admin.register(Wish)
 class WishAdmin(admin.ModelAdmin):
-    list_display = ("member", "period", "priority", "quarter", "start", "end",
-                    "submitted")
+    list_display = ("member", "membership", "period", "priority", "quarter",
+                    "start", "end", "submitted")
     list_filter = ("period", "quarter", "submitted")
     search_fields = ("member__display_name", "member__user__username",
                      "quarter__name")
     date_hierarchy = "start"
-    list_select_related = ("member", "quarter", "period")
+    autocomplete_fields = ("membership",)
+    list_select_related = ("member", "membership", "quarter", "period")
 
 
 @admin.register(Allocation)
@@ -515,13 +516,15 @@ class AllocationAdmin(admin.ModelAdmin):
     oder bestätigten externen Buchung im selben Quartier – eine Doppelbuchung
     wird beim Speichern abgewiesen."""
     list_display = ("start", "end", "nights_display", "quarter", "member",
-                    "persons", "source", "via_substitution", "contested")
+                    "membership", "persons", "source", "via_substitution",
+                    "contested")
     list_filter = ("source", "quarter", "contested")
     search_fields = ("member__display_name", "member__user__username",
                      "quarter__name")
     date_hierarchy = "start"
     ordering = ("-start",)
-    list_select_related = ("quarter", "member")
+    autocomplete_fields = ("membership",)
+    list_select_related = ("quarter", "member", "membership")
 
     @admin.display(description="Nächte")
     def nights_display(self, obj):

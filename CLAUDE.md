@@ -71,8 +71,10 @@ booking/
                         #   (get_app_list, ADR 0049). Persistenter Navigator (Suche + Bereiche) oben
                         #   auf JEDER Seite + pjax (ADR 0055): die eingebaute Seitenleiste ist AUS
   admin_apps.py         #   (enable_nav_sidebar=False). Aktiviert über booking.admin_apps.
-                        #   RehofAdminConfig (default_site; in INSTALLED_APPS statt django.contrib.
-                        #   admin). Warmes Theme + Navigator/pjax: templates/admin/base_site.html
+                        #   RehofAdminConfig (default_site; meldet ungenutzte „Static devices"
+                        #   ab; in INSTALLED_APPS statt django.contrib.admin). EIN warmes Theme
+                        #   in ALLEN Django-Modi (Variablen mit !important, Modus-Umschalter aus;
+                        #   ADR 0065) + Navigator/pjax: templates/admin/base_site.html
                         #   (+ _rehof_navigator.html).
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
@@ -92,8 +94,10 @@ Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; Tage-/Wunsch-Budget =
 **Summe** der `Share`-Anteile), `Share` (Through-Modell Nutzer↔Anteil mit festem
 `night_budget`; ein Nutzer kann mehreren Anteilen angehören → Budgets summieren
 sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
-buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`), `Allocation`
-(mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
+buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`
++ `membership` = zugerechneter Mitglieds-Anteil, ADR 0066), `Allocation`
+(mit `persons` + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066),
+`UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
 erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thanked_at` =
@@ -596,15 +600,23 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   (`services.external_min_nights`): **Default identisch zu intern** (inkl. Saison),
   per `ExternalConfig.min_nights_follow_internal` auf einen abweichenden festen Wert
   umstellbar. **Parallel-Limit** und **Aufenthaltsdeckel über mehrere Buchungen**
-  werden bei der normalen Buchung **und in der Losung** erzwungen: `run_lottery`
-  nimmt einen `rule_check`-Callback (gebaut in `run_period_lottery` aus
-  `rules.validate_booking` + einmalig materialisierten Saison-Regeln) und führt je
-  Partei die schon zugeteilten Zeiträume (`party_stays`). Ein gedeckelter Wunsch
+  werden bei der normalen Buchung **und in der Losung** erzwungen – und zwar **auf
+  den vollen Mitglieds-Anteil** (inkl. Tandem-Partner, ADR 0066): `Allocation`/`Wish`
+  tragen einen `membership`-FK (Zurechnung über `Member.membership_for`: eindeutiger/
+  größter Anteil, bei Mehrfach-Tandem die Wahl). `check_booking_rules(member, …,
+  membership)` zählt die schon vorhandenen Belegungen über `Allocation.objects.filter(
+  membership=…)` (alle Nutzer des Anteils). `run_lottery` nimmt einen `rule_check`-
+  Callback (gebaut in `run_period_lottery` aus `rules.validate_booking` + einmalig
+  materialisierten Saison-Regeln) und bündelt die schon zugeteilten Zeiträume je
+  **`rule_group`** (= Mitglieds-Anteil) statt je Partei – so teilen sich Tandem-
+  Partner die Grenzen, das **Budget** bleibt je Partei. Ohne `rule_group` fällt die
+  Gruppe auf die Partei zurück (Regression-sicher). Ein gedeckelter Wunsch
   wird **übersprungen** (kein Verlust, kein Karma – wie ein Budget-Übersprung; wahrt
   die Strategiesicherheit). Ein Skip übergeht die Partei **nicht**: der innere
   `while`-Loop prüft in **derselben Runde** sofort den nächsten Wunsch derselben
   Partei (kein „erst nächste Runde"). Der Deckel-Check sieht nur die laufeigenen
-  Zuteilungen (dokumentierte Grenze, s. ADR 0009).
+  Zuteilungen (dokumentierte Grenze, s. ADR 0009). **Die Losung selbst läuft je
+  Benutzer** (eine Los-Partei = ein `Member`), nicht je Anteil/Tandem.
 - **Schulferien (`SchoolHoliday`):** ebenfalls **jährlich wiederkehrend**;
   werden im Kalender angezeigt UND setzen, wenn aktiv und mit Regelfeldern
   versehen, im Zeitraum dieselben Regeln durch wie eine Saison-Regel (leere
@@ -619,10 +631,10 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 68 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 77 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 212 passed (3 skips)
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 301 passed (4 skips)
 python manage.py test booking shop
 
 # 3) E2E-Smoke-Tests (Playwright, gegen einen LAUFENDEN Stack) — optional lokal
@@ -735,10 +747,13 @@ die Standard-Seitenleiste zu nutzen (aus, `enable_nav_sidebar=False`), steht obe
 auf **jeder** Admin-Seite derselbe **Navigator** (Suche + die 5 fachlichen Bereiche
 als kollabierbare `<details>`, aus `available_apps`) – eingehängt über
 `{% block pretitle %}` in `base_site.html` (`templates/admin/_rehof_navigator.html`).
-Der Navigator ist **einklappbar** (Leiste „Suche & Bereiche · <Standort>"; **mobil
-per Default zu**, Wahl gemerkt) und arbeitet als **Akkordeon** (immer nur EIN Bereich
-offen → begrenzte Höhe, ADR 0057); der Eintrag „Neue Benutzer (Zuordnung)" trägt ein
-**Badge** mit der Anzahl offener Konten (`RehofAdminSite.each_context`).
+Der Navigator ist **einklappbar** (Leiste „Suche & Bereiche · <Standort>"; **per
+Default AUF** – Desktop UND mobil, Wahl gemerkt; ADR 0065 kehrt den früheren
+mobilen Default-Collapse um, damit man sofort sieht, was man tun kann) und arbeitet
+als **Akkordeon** (immer nur EIN Bereich offen → begrenzte Höhe, ADR 0057); der
+Eintrag „Neue Benutzer (Zuordnung)" trägt ein **Badge** mit der Anzahl offener Konten
+(`RehofAdminSite.each_context`). Der **„Neue Benutzer"-Kasten** auf der Startseite ist
+ein per Default **eingeklapptes** `<details>` mit Anzahl-Badge (Dringlichkeit sichtbar).
 Der gewählte Bereich/die Liste wird **darunter** aufgebaut, beim Klick **ohne
 Neuladen** (kleiner **pjax**-Layer in `base_site.html`: tauscht nur `#content` unter
 dem Navigator, lädt fehlende Stylesheets nach, `pushState`/`popstate`, harter

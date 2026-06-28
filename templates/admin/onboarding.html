@@ -37,10 +37,10 @@ auch beim pjax-Laden ohne erneutes Skript funktioniert (ADR 0055).{% endcomment 
         <input type="text" name="display_name" value="{{ u.suggested_name }}" required></label>
       <label class="rehof-ob-f">Mitglieds-Anteil
         <select name="membership">
-          <option value="new">➕ Neuen Anteil anlegen</option>
           {% for ms in memberships %}<option value="{{ ms.pk }}">{{ ms }} ({{ ms.allocated_budget }}/{{ ms.annual_night_budget }} vergeben)</option>{% endfor %}
+          <option value="new">➕ Neuen Anteil anlegen …</option>
         </select></label>
-      <label class="rehof-ob-f">Bezeichnung <span class="rehof-ob-sub">(nur bei „neuem Anteil“)</span>
+      <label class="rehof-ob-f rehof-ob-newlabel">Bezeichnung des neuen Anteils
         <input type="text" name="new_label" placeholder="z. B. {{ u.suggested_name }}"></label>
       <div class="rehof-ob-budgets">
         <label class="rehof-ob-f">Tage/Jahr
@@ -97,12 +97,18 @@ auch beim pjax-Laden ohne erneutes Skript funktioniert (ADR 0055).{% endcomment 
     gap: 0; }
   .rehof-ob-path { padding: 14px 16px; border-top: 1px solid var(--hairline-color); }
   .rehof-ob-path + .rehof-ob-path { border-left: 1px solid var(--hairline-color); }
-  .rehof-ob-path h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase;
-    letter-spacing: .03em; color: var(--body-loud-color); }
+  .rehof-ob-path h3 { margin: 0 0 6px; font-size: 14px; font-weight: 800;
+    letter-spacing: .01em; color: #23201d; }
   .rehof-ob-hint { color: var(--body-quiet-color); font-size: 12.5px; margin: 0 0 10px; }
   .rehof-ob-f { display: block; font-size: 12px; color: var(--body-quiet-color);
     margin: 0 0 8px; }
   .rehof-ob-sub { font-weight: 400; }
+  /* Zweistufig (g): die „Bezeichnung" erscheint NUR, wenn „Neuen Anteil anlegen"
+     gewählt ist – rein per CSS (:has), ohne JS (CSP-konform). Browser ohne :has
+     zeigen das Feld einfach immer (unkritischer Fallback). */
+  .rehof-ob-newlabel { display: none; }
+  .rehof-ob-path:has(select[name="membership"] option[value="new"]:checked) .rehof-ob-newlabel {
+    display: block; }
   .rehof-ob-f input, .rehof-ob-f select { display: block; width: 100%; box-sizing: border-box;
     margin-top: 3px; padding: 7px 9px; border: 1px solid #e4dfd8; border-radius: 8px;
     background: #fff; color: var(--body-fg); font-size: 14px; }

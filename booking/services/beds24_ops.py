@@ -197,7 +197,8 @@ def beds24_apply(batch, decisions: dict) -> dict:
             row.allocation = Allocation.objects.create(
                 member=row.chosen_member, quarter=row.chosen_quarter,
                 start=row.arrival, end=row.departure, persons=row.persons or 1,
-                source="import", provisional=False)
+                source="import", provisional=False,
+                membership=row.chosen_member.membership_for())
             row.status = Beds24ImportRow.IMPORTED
         row.save()
         summary["imported"] += 1

@@ -100,13 +100,23 @@ def run_period_lottery(
         L.Quarter(id=str(q.id), name=q.name, eq_class=str(q.eq_class_id))
         for q in quarters
     ]
+    # rule_group = Mitglieds-Anteil: so wirkt das Parallel-Limit/der Aufenthalts-
+    # deckel in der Losung auf den vollen Anteil inkl. Tandem-Partner (ADR 0066).
+    # Ohne zugeordneten Anteil fällt die Gruppe auf die Partei zurück.
     w_payload = [
         L.Wish(
             party_id=str(w.member_id), priority=w.priority,
             quarter_id=str(w.quarter_id), start=w.start, end=w.end,
+            rule_group=str(w.membership_id) if w.membership_id else str(w.member_id),
         )
         for w in wishes_qs
     ]
+    # Rückzuordnung Wunsch -> Anteil, um die Los-Zuteilung dem Anteil zuzuschreiben
+    # (Schlüssel: Partei + ursprünglich gewünschtes Quartier + Zeitraum).
+    wish_membership = {
+        (str(w.member_id), str(w.quarter_id), w.start, w.end): w.membership_id
+        for w in wishes_qs
+    }
 
     # Saison-Regeln über mehrere Buchungen (Parallel-Limit/Aufenthaltsdeckel) auch
     # in der Losung erzwingen. Die Saison-Regeln werden EINMAL für die gesamte
@@ -147,6 +157,8 @@ def run_period_lottery(
             quarter_id=int(a.quarter_id),
             start=a.start, end=a.end,
             source="lottery", period=period,
+            membership_id=wish_membership.get(
+                (a.party_id, a.original_quarter_id, a.start, a.end)),
             via_substitution=a.via_substitution, contested=a.contested,
             provisional=True,
         )
@@ -360,7 +372,9 @@ def verify_period_lottery(period: BookingPeriod) -> dict:
     q_payload = [L.Quarter(id=str(q.id), name=q.name, eq_class=str(q.eq_class_id))
                  for q in quarters]
     w_payload = [L.Wish(party_id=str(w.member_id), priority=w.priority,
-                        quarter_id=str(w.quarter_id), start=w.start, end=w.end)
+                        quarter_id=str(w.quarter_id), start=w.start, end=w.end,
+                        rule_group=str(w.membership_id) if w.membership_id
+                        else str(w.member_id))
                  for w in wishes_qs]
 
     policy = BookingPolicy.get_solo()

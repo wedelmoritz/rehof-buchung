@@ -45,6 +45,21 @@
                placeholder="z. B. Familie Muster, 2 Kinder">
       </div>
     </div>
+    {% if memberships|length > 1 %}
+    <div class="form-row">
+      <div class="field" style="flex:1 1 16rem">
+        <label for="id_membership">Auf welchen Mitglieds-Anteil buchen?</label>
+        <select id="id_membership" name="membership">
+          {% for ms in memberships %}
+          <option value="{{ ms.id }}">{{ ms }}</option>
+          {% endfor %}
+        </select>
+        <p class="muted" style="font-size:.85rem;margin:.3rem 0 0">
+          Du gehörst mehreren Anteilen an – die Buchung zählt für die Regeln
+          (z.&nbsp;B. gleichzeitige Unterkünfte) zum gewählten Anteil.</p>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   {% if offers %}
