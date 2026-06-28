@@ -10,49 +10,69 @@
 <style>
   /* Re:hof-Theme fürs Backend — SELBES Farbsystem wie die App (warmes Papier-
      Neutral, near-black Text, Terrakotta-Akzent sparsam, Salbei sekundär).
-     Überschreibt die CSS-Variablen des Django-Admins. */
+     BEWUSST EIN einziges, helles Theme in ALLEN Schalter-Stellungen (Hell/Dunkel/
+     Auto): die Variablen sind mit !important gesetzt, damit sie Djangos Dunkel-/
+     Auto-Modus-Werte (höhere Spezifität via [data-theme] / prefers-color-scheme)
+     zuverlässig schlagen. So gibt es kein gebrochenes Dunkel-/Blau-Theme mehr.
+     Der Modus-Umschalter wird ausgeblendet (siehe .theme-toggle unten). */
+  html { color-scheme: light; }
   :root {
     /* Akzent Terrakotta #BE3E23, Sekundär Salbei #7F8F8C. */
-    --primary: #be3e23;
-    --secondary: #9e3119;
-    --accent: #7f8f8c;
-    --primary-fg: #ffffff;
+    --primary: #be3e23 !important;
+    --secondary: #9e3119 !important;
+    --accent: #7f8f8c !important;
+    --primary-fg: #ffffff !important;
 
-    --body-bg: #f6f4f1;
-    --body-fg: #23201d;
-    --body-quiet-color: #6b6259;
-    --body-loud-color: #23201d;
+    --body-bg: #f6f4f1 !important;
+    --body-fg: #23201d !important;
+    --body-quiet-color: #6b6259 !important;
+    --body-loud-color: #23201d !important;
+    --hairline-color: #e4dfd8 !important;
+    --border-color: #e4dfd8 !important;
 
-    --header-bg: #efebe5;
-    --header-color: #4a423b;
-    --header-branding-color: #be3e23;
-    --header-link-color: #4a423b;
+    --header-bg: #efebe5 !important;
+    --header-color: #4a423b !important;
+    --header-branding-color: #be3e23 !important;
+    --header-link-color: #4a423b !important;
 
-    --breadcrumbs-bg: #efebe5;
-    --breadcrumbs-fg: #6b6259;
-    --breadcrumbs-link-fg: #9e3119;
+    --breadcrumbs-bg: #efebe5 !important;
+    --breadcrumbs-fg: #6b6259 !important;
+    --breadcrumbs-link-fg: #9e3119 !important;
 
-    --link-fg: #b03720;
-    --link-hover-color: #8a2c16;
-    --link-selected-fg: #8a2c16;
+    --link-fg: #b03720 !important;
+    --link-hover-color: #8a2c16 !important;
+    --link-selected-fg: #8a2c16 !important;
 
-    --button-bg: #be3e23;
-    --button-fg: #ffffff;
-    --button-hover-bg: #9e3119;
-    --default-button-bg: #7f8f8c;
-    --default-button-hover-bg: #566c68;
-    --close-button-bg: #8a8079;
-    --close-button-hover-bg: #6b6259;
-    --object-tools-bg: #9e3119;
-    --object-tools-hover-bg: #8a2c16;
+    --button-bg: #be3e23 !important;
+    --button-fg: #ffffff !important;
+    --button-hover-bg: #9e3119 !important;
+    --default-button-bg: #7f8f8c !important;
+    --default-button-hover-bg: #566c68 !important;
+    --close-button-bg: #8a8079 !important;
+    --close-button-hover-bg: #6b6259 !important;
+    --object-tools-bg: #9e3119 !important;
+    --object-tools-hover-bg: #8a2c16 !important;
+    --object-tools-fg: #ffffff !important;
 
-    --selected-bg: #fbe9e4;
-    --selected-row: #fbe9e4;
-    --darkened-bg: #ece7e0;
-    --message-success-bg: #e8eceb;
-    --message-warning-bg: #f7ecd6;
-    --message-error-bg: #f8e4e0;
+    /* Formularfelder hell halten (Django-Dunkelmodus setzt diese sonst dunkel). */
+    --darkened-bg: #ece7e0 !important;
+    --selected-bg: #fbe9e4 !important;
+    --selected-row: #fbe9e4 !important;
+    --message-success-bg: #e8eceb !important;
+    --message-warning-bg: #f7ecd6 !important;
+    --message-error-bg: #f8e4e0 !important;
   }
+  /* Eingabefelder/Flächen, die der Django-Dunkelmodus dunkel färbt, hell erzwingen
+     (sie nutzen teils KEINE Variable, daher direkt). */
+  body, .module, .form-row, fieldset { background-color: var(--body-bg); }
+  body { background: var(--body-bg) !important; color: var(--body-fg) !important; }
+  input, textarea, select, .vTextField,
+  .form-row input, .form-row textarea, .form-row select {
+    background: #fff !important; color: var(--body-fg) !important;
+    border-color: #d9d2c8 !important; }
+  .module, #content-related .module, .dashboard .module { background: #fff !important; }
+  /* Den Hell/Dunkel-Umschalter ausblenden: das Backend hat bewusst EIN Theme. */
+  .theme-toggle { display: none !important; }
   /* LESBARKEIT: Fieldset-/Inline-Überschriften dunkel statt hellgrau auf Beige. */
   .module h2, .module caption, .inline-group h2, fieldset.module > h2,
   .inline-related h3, .inline-related h3 b, .module table caption,
@@ -92,13 +112,10 @@
     transition: transform .15s ease; }
   .rehof-nav-bar:hover { background: var(--darkened-bg); }
   .rehof-nav-body { padding: 0 14px 6px; }
-  /* Einklappen: Desktop per Klasse, Mobil per Default (außer wenn aufgeklappt). */
+  /* Einklappen rein per Klasse – Default ist AUF (Desktop UND Mobil), damit man
+     sofort sieht, was man tun kann (d). Manuelles Einklappen wird gemerkt. */
   .rehof-navigator.rehof-collapsed .rehof-nav-body { display: none; }
   .rehof-navigator.rehof-collapsed .rehof-nav-chev { transform: rotate(-90deg); }
-  @media (max-width: 768px) {
-    .rehof-navigator:not(.rehof-open) .rehof-nav-body { display: none; }
-    .rehof-navigator:not(.rehof-open) .rehof-nav-chev { transform: rotate(-90deg); }
-  }
   .rehof-nav-q { width: 100%; box-sizing: border-box; padding: 11px 14px; font-size: 15px;
     border: 1px solid #e4dfd8; border-radius: 11px; background: #fff; color: var(--body-fg);
     box-shadow: 0 1px 2px rgba(60,53,47,.04); }
@@ -145,7 +162,21 @@
   /* P3: freundlicher Leer-Hinweis in Listen. */
   .rehof-empty-hint { margin: 8px 0 14px; padding: 14px 16px; border-radius: 10px;
     background: var(--darkened-bg); color: var(--body-quiet-color); font-weight: 600; }
-  /* P3: „Neueste Aktionen" als ruhige helle Karte (statt grauem Block). */
+  /* „Neueste Aktionen" zuverlässig OBEN rechts andocken (c): das Django-Float-
+     Layout lässt die Spalte je nach Quell-Reihenfolge nach unten rutschen. Wir
+     legen #content (Sidebar-Seiten = colMS, v.a. die Startseite) als Flexbox aus:
+     der Navigator nimmt die ganze erste Zeile, darunter Inhalt links + „Neueste
+     Aktionen" rechts, beide oben ausgerichtet. */
+  @media (min-width: 1024px) {
+    #content.colMS { display: flex; flex-wrap: wrap; align-items: flex-start;
+      column-gap: 22px; row-gap: 0; }
+    #content.colMS > #rehof-nav { flex: 1 1 100%; }
+    #content.colMS > #content-main { flex: 1 1 auto; min-width: 0; width: auto;
+      float: none; margin: 0; }
+    #content.colMS > #content-related { flex: 0 0 17em; width: auto; float: none;
+      margin: 0; position: sticky; top: 16px; }
+  }
+  /* „Neueste Aktionen" als ruhige helle Karte (statt grauem Block). */
   #content-related .module { background: #fff; border: 1px solid #e4dfd8; }
   #content-related .module h2 { background: var(--darkened-bg); }
   /* P3: Kopfzeile am Handy kompakter (Benutzer-Links brechen sauber um). */

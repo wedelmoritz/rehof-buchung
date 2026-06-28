@@ -71,8 +71,10 @@ booking/
                         #   (get_app_list, ADR 0049). Persistenter Navigator (Suche + Bereiche) oben
                         #   auf JEDER Seite + pjax (ADR 0055): die eingebaute Seitenleiste ist AUS
   admin_apps.py         #   (enable_nav_sidebar=False). Aktiviert über booking.admin_apps.
-                        #   RehofAdminConfig (default_site; in INSTALLED_APPS statt django.contrib.
-                        #   admin). Warmes Theme + Navigator/pjax: templates/admin/base_site.html
+                        #   RehofAdminConfig (default_site; meldet ungenutzte „Static devices"
+                        #   ab; in INSTALLED_APPS statt django.contrib.admin). EIN warmes Theme
+                        #   in ALLEN Django-Modi (Variablen mit !important, Modus-Umschalter aus;
+                        #   ADR 0065) + Navigator/pjax: templates/admin/base_site.html
                         #   (+ _rehof_navigator.html).
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
@@ -735,10 +737,13 @@ die Standard-Seitenleiste zu nutzen (aus, `enable_nav_sidebar=False`), steht obe
 auf **jeder** Admin-Seite derselbe **Navigator** (Suche + die 5 fachlichen Bereiche
 als kollabierbare `<details>`, aus `available_apps`) – eingehängt über
 `{% block pretitle %}` in `base_site.html` (`templates/admin/_rehof_navigator.html`).
-Der Navigator ist **einklappbar** (Leiste „Suche & Bereiche · <Standort>"; **mobil
-per Default zu**, Wahl gemerkt) und arbeitet als **Akkordeon** (immer nur EIN Bereich
-offen → begrenzte Höhe, ADR 0057); der Eintrag „Neue Benutzer (Zuordnung)" trägt ein
-**Badge** mit der Anzahl offener Konten (`RehofAdminSite.each_context`).
+Der Navigator ist **einklappbar** (Leiste „Suche & Bereiche · <Standort>"; **per
+Default AUF** – Desktop UND mobil, Wahl gemerkt; ADR 0065 kehrt den früheren
+mobilen Default-Collapse um, damit man sofort sieht, was man tun kann) und arbeitet
+als **Akkordeon** (immer nur EIN Bereich offen → begrenzte Höhe, ADR 0057); der
+Eintrag „Neue Benutzer (Zuordnung)" trägt ein **Badge** mit der Anzahl offener Konten
+(`RehofAdminSite.each_context`). Der **„Neue Benutzer"-Kasten** auf der Startseite ist
+ein per Default **eingeklapptes** `<details>` mit Anzahl-Badge (Dringlichkeit sichtbar).
 Der gewählte Bereich/die Liste wird **darunter** aufgebaut, beim Klick **ohne
 Neuladen** (kleiner **pjax**-Layer in `base_site.html`: tauscht nur `#content` unter
 dem Navigator, lädt fehlende Stylesheets nach, `pushState`/`popstate`, harter

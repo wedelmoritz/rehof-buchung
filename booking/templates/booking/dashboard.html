@@ -296,8 +296,15 @@
   /* Abschnitts-Sprünge (klebrig oben), Anker etwas tiefer ansetzen (Sticky-Header) */
   .dash-jump { position:sticky; top:56px; z-index:5; display:flex; gap:.5rem; flex-wrap:wrap;
     margin:0 0 1rem; padding:.5rem 0; background:var(--bg); }
-  /* Am Handy klebt der Kopf höher/variabel – dort nicht kleben (Tab-Leiste navigiert). */
-  @media (max-width:680px){ .dash-jump { position:static; } }
+  /* Am Handy klebt der Header (sticky, top:0) – die Sprung-Leiste klebt direkt
+     DARUNTER (Safe-Area-bewusst) und scrollt EINZEILIG horizontal statt auf zwei
+     Zeilen umzubrechen (b). */
+  @media (max-width:680px){
+    .dash-jump { position:sticky; top:calc(48px + env(safe-area-inset-top));
+      flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;
+      margin:0 -1rem 1rem; padding:.5rem 1rem; box-shadow:0 1px 0 var(--line); }
+    .dash-jump a { flex:0 0 auto; white-space:nowrap; }
+  }
   .dash-jump a { font-size:.82rem; font-weight:600; text-decoration:none; color:var(--accent-deep);
     padding:.3rem .7rem; border:1px solid var(--line); border-radius:999px; background:var(--card); }
   .dash-jump a:hover { background:var(--accent-soft); }
