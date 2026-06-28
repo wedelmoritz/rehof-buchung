@@ -258,6 +258,11 @@ class LineItem(models.Model):
         verbose_name = "Einkaufsposition"
         verbose_name_plural = "Einkaufspositionen"
         ordering = ["-created_at"]
+        indexes = [
+            # Warenkorb/offene-Posten je Nutzer (purchase/invoice leer/gesetzt) und
+            # Monatsabrechnung (invoice leer) – die häufigen Hofladen-Filter.
+            models.Index(fields=["member", "purchase", "invoice"]),
+        ]
 
     def __str__(self) -> str:
         return f"{self.quantity}× {self.name} ({self.member})"

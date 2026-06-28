@@ -253,8 +253,34 @@ def split_quarters_for_range(
     return free, occupied
 
 
-def _occupied_days_by_quarter(first: date, last: date) -> dict[str, set[date]]:
-    """Belegte Tage je Quartier-ID im Bereich [first, last]."""
+_OCC_VER_KEY = "rehof:occ:ver"
+
+
+def _occ_cache_on() -> bool:
+    """Belegungs-Cache nur mit GETEILTEM Cache (Redis) – LocMemCache ist pro
+    Prozess/Worker, eine Invalidierung erreichte andere Worker nicht (stale).
+    Ohne Redis (Dev/Tests) wird direkt aus der DB gerechnet (kein Verhalten ändert
+    sich)."""
+    from django.conf import settings
+    try:
+        return "redis" in settings.CACHES["default"]["BACKEND"].lower()
+    except Exception:
+        return False
+
+
+def bump_occupancy_version() -> None:
+    """Invalidiert den geteilten Belegungs-Cache (alle Monate auf einmal). Wird per
+    Signal nach jeder Buchungsänderung aufgerufen (Allocation/ExternalBooking)."""
+    if not _occ_cache_on():
+        return
+    from django.core.cache import cache
+    try:
+        cache.incr(_OCC_VER_KEY)
+    except ValueError:
+        cache.set(_OCC_VER_KEY, 1, None)
+
+
+def _compute_occupied(first: date, last: date) -> dict[str, set[date]]:
     occupied: dict[str, set[date]] = defaultdict(set)
     rows = [(a.quarter_id, a.start, a.end)
             for a in Allocation.objects.filter(start__lte=last, end__gt=first)]
@@ -267,3 +293,25 @@ def _occupied_days_by_quarter(first: date, last: date) -> dict[str, set[date]]:
             occupied[str(qid)].add(d)
             d += timedelta(days=1)
     return occupied
+
+
+def _occupied_days_by_quarter(first: date, last: date) -> dict[str, set[date]]:
+    """Belegte Tage je Quartier-ID im Bereich [first, last]. GETEILTE, nicht
+    personenbezogene Daten (wer wo belegt ist sehen ohnehin alle Mitglieder) →
+    bei aktivem Redis kurz gecacht und per Signal invalidiert (sonst direkt aus
+    der DB). Die eigentliche Buchung prüft IMMER frisch unter Sperre – der Cache
+    ist reine Anzeige-Beschleunigung."""
+    if not _occ_cache_on():
+        return _compute_occupied(first, last)
+    from django.core.cache import cache
+    ver = cache.get(_OCC_VER_KEY)
+    if ver is None:
+        cache.set(_OCC_VER_KEY, 1, None)
+        ver = 1
+    key = f"rehof:occ:{ver}:{first.isoformat()}:{last.isoformat()}"
+    hit = cache.get(key)
+    if hit is not None:
+        return hit
+    val = _compute_occupied(first, last)
+    cache.set(key, val, 120)
+    return val

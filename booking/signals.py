@@ -2,10 +2,23 @@
 from __future__ import annotations
 
 from django.db import transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from .models import Member, Notification
+from .models import Allocation, ExternalBooking, Member, Notification
+
+
+@receiver(post_save, sender=Allocation)
+@receiver(post_delete, sender=Allocation)
+@receiver(post_save, sender=ExternalBooking)
+@receiver(post_delete, sender=ExternalBooking)
+def _invalidate_occupancy_cache(sender, **kwargs):
+    """Jede Buchungsänderung (anlegen/ändern/löschen, intern wie extern)
+    invalidiert den geteilten Belegungs-Cache – garantiert über das Signal, egal
+    über welchen Code-Pfad. Erst nach Commit (sonst sähen Leser kurz den alten
+    Stand). Ohne Redis ist das ein No-Op."""
+    from .services.slots import bump_occupancy_version
+    transaction.on_commit(bump_occupancy_version)
 
 
 @receiver(post_save, sender=Notification)

@@ -1501,3 +1501,32 @@ class WochenAgendaTests(UseCaseBase):
         self.assertEqual(len(day3["departures"]), 1)
         self.assertEqual(day3["arrivals"], [])
         self.assertEqual(day3["free_count"], total_q)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: Belegungs-Cache korrekt invalidiert (ADR 0060)
+# --------------------------------------------------------------------------- #
+
+class BelegungsCacheTests(UseCaseBase):
+    def test_cache_zeigt_buchung_erst_nach_invalidierung(self):
+        """Mit aktivem (geteiltem) Cache liefert _occupied_days_by_quarter erst
+        nach Versions-Bump die neue Buchung – die Invalidierung greift."""
+        from unittest.mock import patch
+        from django.core.cache import cache
+        from booking.services import slots
+        cache.clear()
+        first, last = date(NEXT_YEAR, 7, 1), date(NEXT_YEAR, 7, 31)
+        with patch.object(slots, "_occ_cache_on", return_value=True):
+            occ0 = slots._occupied_days_by_quarter(first, last)
+            self.assertEqual(sum(len(v) for v in occ0.values()), 0)   # nichts belegt → gecacht
+            self.open_full_year_window(NEXT_YEAR)
+            svc.book_spontaneous(self.alice, self.k1,
+                                 date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 13))
+            # ohne Invalidierung weiterhin der alte (leere) Stand aus dem Cache
+            self.assertEqual(
+                sum(len(v) for v in slots._occupied_days_by_quarter(first, last).values()), 0)
+            slots.bump_occupancy_version()
+            # nach Bump wird neu gerechnet → 3 belegte Nächte sichtbar
+            self.assertEqual(
+                sum(len(v) for v in slots._occupied_days_by_quarter(first, last).values()), 3)
+        cache.clear()

@@ -381,13 +381,20 @@ class MembershipAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_queryset(self, request):
+        # N+1 vermeiden: Anteile je Zeile vorladen + Anzahl annotieren, statt pro
+        # Zeile allocated_budget (Summe) und is_tandem (count) einzeln abzufragen.
+        from django.db.models import Count
+        return (super().get_queryset(request)
+                .prefetch_related("shares").annotate(_n_shares=Count("shares")))
+
     @admin.display(description="vergeben")
     def allocated_display(self, obj):
-        return f"{obj.allocated_budget}/{obj.annual_night_budget}"
+        return f"{sum(s.night_budget for s in obj.shares.all())}/{obj.annual_night_budget}"
 
     @admin.display(boolean=True, description="Tandem")
     def is_tandem_display(self, obj):
-        return obj.is_tandem
+        return obj._n_shares > 1
 
     def get_changeform_initial_data(self, request):
         return {"annual_night_budget": Membership.suggest_budget()}
