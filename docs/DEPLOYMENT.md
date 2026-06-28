@@ -369,22 +369,67 @@ docker compose exec web python manage.py run_scheduler --once
 
 ---
 
-## 10. Optional: Redis (Cache/Sessions/Axes)
+## 10. Redis aktivieren (Cache/Sessions/Axes) – empfohlen ab vielen Nutzern
 
-Standard sind **DB-Sessions**. Bei hoher Last entlastet Redis die DB (Sessions +
-Brute-Force-Zähler im Cache). Zwei Schritte nötig:
+**Standard ist bewusst DB-only** (nur PostgreSQL → minimaler, robuster Stack).
+**Wann einschalten?** Sobald viele gleichzeitige Nutzer erwartet werden
+(Richtwert ab ~50–100): Redis nimmt die **Session-Lese-Last bei jedem Request**
+sowie die **Brute-Force-Zähler** aus der DB und macht den **geteilten Belegungs-
+Cache** (ADR 0060) erst wirksam (mit nur einem Worker-Prozess wäre er „stale“).
+
+### Aktivieren in zwei Schritten
 
 1. In der `.env` setzen:
    ```dotenv
    REDIS_URL=redis://redis:6379/0
    ```
-2. Dienst über das Profil `cache` mitstarten:
+2. Stack inkl. Redis-Dienst (Profil `cache`) neu starten:
    ```bash
    docker compose --profile cache up -d
    ```
 
-Nur dann greifen `RedisCache`, Cache-Sessions und der Cache-basierte
-Axes-Handler (siehe `config/settings.py`).
+> Damit das Profil **bei jedem** `docker compose …` mitläuft (z.B. künftige
+> Updates), dauerhaft setzen: `COMPOSE_PROFILES=cache` in der `.env` – dann genügt
+> wieder `docker compose up -d`.
+
+### Prüfen
+
+```bash
+docker compose ps                                   # redis: „healthy“
+docker compose exec web python manage.py shell -c \
+  "from django.conf import settings as s; print(s.SESSION_ENGINE, s.CACHES['default']['BACKEND'])"
+# erwartet: django.contrib.sessions.backends.cached_db … RedisCache
+docker compose exec redis redis-cli ping            # PONG
+```
+
+### Was passiert dabei (sicher per Default)
+
+- **Sitzungen: `cached_db`** – gelesen aus Redis (DB-Entlastung), aber **persistent
+  in der DB**. Ein Redis-Neustart/-Ausfall loggt **niemanden** aus (nur kurz wieder
+  DB-Lesen). Bestehende DB-Sitzungen werden weitergelesen → **nahtloser Umstieg**,
+  kein Logout beim Aktivieren.
+- **Eviction `volatile-lru` + `--save ""`**: Redis hält keine Platte vor (reiner
+  Cache) und verdrängt unter Speicherdruck nur Schlüssel **mit Ablauf** – nie
+  versehentlich dauerhafte Daten. 256 MB genügen für eine Genossenschaft.
+- **Axes (Brute-Force) im Cache**: weniger DB-Schreibzugriffe beim Login.
+
+### Sicherheit
+
+- Redis läuft **nur im internen Docker-Netz** und veröffentlicht **keinen
+  Host-Port** – nicht ändern, nicht exponieren (Redis hat hier keine Auth).
+- Im Cache liegen nur **Sitzungs-/Belegungs-/Zähler-Daten**, keine Geheimnisse;
+  Belegungsdaten sind ohnehin allen Mitgliedern sichtbar (kein Vertraulichkeits-
+  verlust). Buchung/Checkout prüfen weiterhin **immer frisch unter Sperre** – der
+  Cache ist reine Anzeige-/Sitzungs-Beschleunigung.
+
+### Wieder ausschalten (zurück zu DB-only)
+
+`REDIS_URL` in der `.env` leeren (bzw. `COMPOSE_PROFILES` entfernen) und
+`docker compose up -d` – die App nutzt wieder DB-Sessions; die in der DB
+gespeicherten Sitzungen bleiben gültig.
+
+> Siehe auch `docs/BETRIEB-SICHERHEIT.md` → „Performance & Skalierung“ (Worker-/
+> DB-Verbindungsbudget, PgBouncer) und ADR 0060.
 
 ---
 

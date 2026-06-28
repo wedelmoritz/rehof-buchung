@@ -89,6 +89,15 @@ terminiert TLS und proxyt im gemeinsamen Docker-Netz auf den `web`-Container (de
 VAPID, Monitoring-Anbindung, Mollie, Scheduler, Redis, Updates und Server-Umzug –
 steht im **[Deployment-Runbook `docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
 
+**Viele gleichzeitige Nutzer (Richtwert ab ~50–100)?** Den Standard belassen
+(robuster DB-only-Stack) und bei Bedarf **Redis** dazuschalten – das entlastet die
+DB (Sessions/Brute-Force-Zähler) und macht den geteilten Belegungs-Cache wirksam:
+in der `.env` `REDIS_URL=redis://redis:6379/0` setzen, dann
+`docker compose --profile cache up -d`. Sitzungen bleiben dabei durabel
+(`cached_db`) – ein Redis-Neustart loggt **niemanden** aus. Details +
+Sicherheitshinweise: [`docs/DEPLOYMENT.md` Abschnitt 10](docs/DEPLOYMENT.md) und
+ADR 0060.
+
 ---
 
 ## Lokales Setup (Entwicklung, SQLite)

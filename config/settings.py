@@ -188,7 +188,11 @@ if REDIS_URL:
             "LOCATION": REDIS_URL,
         }
     }
-    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    # `cached_db` statt reinem `cache`: lesen aus Redis (entlastet die DB bei jedem
+    # Request), ABER persistent in der DB. Fällt Redis aus oder wird neu gestartet,
+    # bleiben die Sitzungen erhalten (kein Massen-Logout) – nur kurz wieder DB-Lese.
+    # Bestehende DB-Sitzungen werden weiter gelesen → nahtloser Umstieg.
+    SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
     SESSION_CACHE_ALIAS = "default"
     # Brute-Force-Zähler im gemeinsamen Cache (statt je Request in der DB).
     AXES_HANDLER = "axes.handlers.cache.AxesCacheHandler"
