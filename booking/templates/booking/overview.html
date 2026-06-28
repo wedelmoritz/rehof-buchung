@@ -2,151 +2,214 @@
 {% block title %}Übersicht{% endblock %}
 {% block content %}
 <h1>Übersicht – wer ist wann da</h1>
-<p class="muted" style="margin-top:-.3rem">Tippe einen Tag für Details – oder
-  <a href="{% url 'book' %}">buche selbst</a>.</p>
 
-{% include "booking/_notifications.html" %}
-
-{% if open_period %}
-<div class="msg info">
-  Anmeldung fürs Losverfahren offen: <strong>{{ open_period }}</strong>{% if open_period.wishlist_close %} (bis {{ open_period.wishlist_close }}){% endif %}.
-  <a href="{% url 'wishlist' %}">Wünsche fürs nächste Jahr eintragen →</a>
-  <span class="muted">· <a href="{% url 'help' %}#losung">Wie funktioniert die Auslosung?</a></span>
+{# --- Status-Zeile: schlanke Chips statt Banner/Karten (ADR 0059) --- #}
+<div class="ov-status">
+  {% if member %}<a class="ov-chip" href="{% url 'book' %}"><strong>{{ nights_remaining }}</strong> Tage frei · buchen →</a>{% endif %}
+  {% if open_period %}<a class="ov-chip accent" href="{% url 'wishlist' %}">Losung {{ open_period }} offen → Wünsche eintragen</a>{% endif %}
 </div>
+
+{% if notifications %}
+<details class="card ov-notif">
+  <summary>🔔 {{ notifications|length }} neue Nachricht{{ notifications|length|pluralize:"en" }}</summary>
+  <ul>
+    {% for n in notifications %}
+    <li>{% if n.url %}<a href="{{ n.url }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
+      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span></li>
+    {% endfor %}
+  </ul>
+  <form method="post" class="inline">{% csrf_token %}
+    <input type="hidden" name="action" value="read_notifications">
+    <button class="btn small ghost" type="submit">Als gelesen markieren</button>
+  </form>
+</details>
 {% endif %}
 
-<div class="card">
-  <div class="view-toggle" role="tablist" aria-label="Ansicht wählen">
-    <a class="vt {% if view_mode != 'timeline' %}on{% endif %}" role="tab" title="Monatsraster" aria-selected="{% if view_mode != 'timeline' %}true{% else %}false{% endif %}"
-       href="?year={{ cal.year }}&month={{ cal.month }}">Kalender</a>
-    <a class="vt {% if view_mode == 'timeline' %}on{% endif %}" role="tab" title="Zeitstrahl je Unterkunft" aria-selected="{% if view_mode == 'timeline' %}true{% else %}false{% endif %}"
-       href="?year={{ cal.year }}&month={{ cal.month }}&view=timeline">Belegung</a>
-  </div>
+{# --- Diese Woche: kompakte Agenda (schneller Wochenblick) --- #}
+<div class="card ov-week">
+  <h2>Diese Woche</h2>
+  <ul class="agenda">
+    {% for d in agenda %}{% if d.arrivals or d.departures or d.is_today %}
+    <li class="ag-row {% if d.is_today %}today{% endif %}">
+      <span class="ag-date">{{ d.date|date:"D d.m." }}{% if d.is_today %} · heute{% endif %}</span>
+      <span class="ag-events">
+        {% for a in d.arrivals %}<span class="ag-ev in {% if a.mine %}mine{% endif %}">▸&nbsp;{{ a.who }} → {{ a.quarter }}{% if not a.external %}&nbsp;({{ a.persons }}){% endif %}</span>{% endfor %}
+        {% for dp in d.departures %}<span class="ag-ev out {% if dp.mine %}mine{% endif %}">◂&nbsp;{{ dp.who }} ab&nbsp;{{ dp.quarter }}</span>{% endfor %}
+        {% if not d.arrivals and not d.departures %}<span class="muted">keine An-/Abreise</span>{% endif %}
+      </span>
+      <span class="ag-free muted">{{ d.free_count }} frei</span>
+    </li>
+    {% endif %}{% endfor %}
+    {% if not agenda %}<li class="muted">Diese Woche keine Belegung.</li>{% endif %}
+  </ul>
+</div>
 
-  {% include "booking/_calnav.html" %}
-
-  {% if view_mode == 'timeline' %}
-  <p class="muted" style="margin:.2rem 0 .5rem">Pro Unterkunft eine Zeile; Balken
-    anklicken für die Tagesansicht.</p>
-  <div class="occ" tabindex="0" aria-label="Belegungs-Zeitstrahl pro Unterkunft">
-    <div class="occ-table" style="--days:{{ timeline.days_in_month }}">
-      <div class="occ-row occ-header">
-        <div class="occ-qname"></div>
-        <div class="occ-track">
-          {% for d in timeline.days %}
-          <div class="occ-day {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %} {% if d.holiday %}hol{% endif %}"
-               style="grid-column:{{ forloop.counter }};grid-row:1"{% if d.holiday %} title="{{ d.holiday }}"{% endif %}>{{ d.day }}</div>
-          {% endfor %}
-        </div>
-      </div>
-      {% for row in timeline.rows %}
-      <div class="occ-row">
-        <div class="occ-qname" title="{{ row.quarter.name }}">{{ row.quarter.name }}</div>
-        <div class="occ-track">
-          {% for d in timeline.days %}
-          <div class="occ-cell {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %}"
-               style="grid-column:{{ forloop.counter }};grid-row:1"></div>
-          {% endfor %}
-          {% for b in row.bars %}
-          <a class="occ-bar {% if b.mine %}mine{% endif %}" data-ajax
-             style="grid-column:{{ b.col }} / span {{ b.span }};grid-row:1;background:{{ b.color }}"
-             href="?year={{ cal.year }}&month={{ cal.month }}&view=timeline&day={{ b.start|date:'Y-m-d' }}#tag"
-             title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if not b.external %} · {{ b.persons }} Pers.{% endif %}">{{ b.who }}{% if not b.external %} ({{ b.persons }}){% endif %}</a>
-          {% endfor %}
-        </div>
-      </div>
-      {% endfor %}
+{# --- Plan (Belegung = Standard / Kalender) + Tagesdetail im Kontext --- #}
+<div class="card ov-plan">
+  <div class="ov-plan-head">
+    <div class="view-toggle" role="tablist" aria-label="Ansicht wählen">
+      <a class="vt {% if view_mode == 'timeline' %}on{% endif %}" role="tab" title="Zeitstrahl je Unterkunft" aria-selected="{% if view_mode == 'timeline' %}true{% else %}false{% endif %}"
+         href="?year={{ cal.year }}&month={{ cal.month }}">Belegung</a>
+      <a class="vt {% if view_mode == 'grid' %}on{% endif %}" role="tab" title="Monatsraster" aria-selected="{% if view_mode == 'grid' %}true{% else %}false{% endif %}"
+         href="?year={{ cal.year }}&month={{ cal.month }}&view=grid">Kalender</a>
     </div>
+    {% include "booking/_calnav.html" %}
   </div>
-  {% else %}
-  <p class="muted" style="margin:.2rem 0 .5rem">Farbe = Mitglied (Legende unten).
-    Tippe einen Tag für <strong>wer da ist und was frei ist</strong>.</p>
-  <table class="cal community-cal">
-    <thead><tr>
-      <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
-    </tr></thead>
-    <tbody>
-      {% for week in cal.weeks %}
-      <tr>
-        {% for d in week %}
-        <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %} {% if sel_day and d.date == sel_day %}sel-day{% endif %}"
-            {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
-          {% if d.in_month %}
-          <a class="cell-link" data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&day={{ d.date|date:'Y-m-d' }}#tag">
-            <span class="d-num">{{ d.day }}</span>
-            {% for b in d.bookings %}
-            <span class="d-book person {% if b.mine %}mine{% endif %}" style="background:{{ b.color }}"
-                  title="{{ b.quarter }} – {{ b.who }} ({{ b.persons }} Pers.)">{{ b.quarter }}: {{ b.who }} ({{ b.persons }})</span>
-            {% endfor %}
-          </a>
-          {% else %}<div class="d-num">{{ d.day }}</div>{% endif %}
-        </td>
-        {% endfor %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
 
-  <div class="legend">
-    <span><i class="sw today"></i> heute</span>
-    <span><i class="sw holiday"></i> Berliner Ferien</span>
-  </div>
-  {% if legend %}
-  <div class="who-legend">
-    {% for m in legend %}
-    <span class="who-item {% if m.mine %}mine{% endif %}">
-      <i class="sw" style="background:{{ m.color }}"></i>{{ m.name }}{% if m.mine %} (du){% endif %}</span>
-    {% endfor %}
-    {% if cal.any_external %}
-    <span class="who-item"><i class="sw" style="background:{{ cal.extern_color }}"></i>externe Gäste</span>
+  <div class="ov-grid {% if sel_day %}has-detail{% endif %}">
+    <div class="ov-main">
+      {% if view_mode == 'timeline' %}
+      <div class="occ" tabindex="0" aria-label="Belegungs-Zeitstrahl pro Unterkunft">
+        <div class="occ-table" style="--days:{{ timeline.days_in_month }}">
+          <div class="occ-row occ-header">
+            <div class="occ-qname"></div>
+            <div class="occ-track">
+              {% for d in timeline.days %}
+              <div class="occ-day {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %} {% if d.holiday %}hol{% endif %}"
+                   style="grid-column:{{ forloop.counter }};grid-row:1"{% if d.holiday %} title="{{ d.holiday }}"{% endif %}>{{ d.day }}</div>
+              {% endfor %}
+            </div>
+          </div>
+          {% for row in timeline.rows %}
+          <div class="occ-row">
+            <div class="occ-qname" title="{{ row.quarter.name }}">{{ row.quarter.name }}</div>
+            <div class="occ-track">
+              {% for d in timeline.days %}
+              <div class="occ-cell {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %}"
+                   style="grid-column:{{ forloop.counter }};grid-row:1"></div>
+              {% endfor %}
+              {% for b in row.bars %}
+              <a class="occ-bar {% if b.mine %}mine{% endif %}" data-ajax
+                 style="grid-column:{{ b.col }} / span {{ b.span }};grid-row:1;background:{{ b.color }}"
+                 href="?year={{ cal.year }}&month={{ cal.month }}&day={{ b.start|date:'Y-m-d' }}#tag"
+                 title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if not b.external %} · {{ b.persons }} Pers.{% endif %}">{{ b.who }}{% if not b.external %} ({{ b.persons }}){% endif %}</a>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <table class="cal community-cal">
+        <thead><tr>
+          <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
+        </tr></thead>
+        <tbody>
+          {% for week in cal.weeks %}
+          <tr>
+            {% for d in week %}
+            <td class="{% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_weekend %}weekend{% endif %} {% if d.holiday %}holiday{% endif %} {% if sel_day and d.date == sel_day %}sel-day{% endif %}"
+                {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
+              {% if d.in_month %}
+              <a class="cell-link" data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&view=grid&day={{ d.date|date:'Y-m-d' }}#tag">
+                <span class="d-num">{{ d.day }}</span>
+                {% for b in d.bookings %}
+                <span class="d-book person {% if b.mine %}mine{% endif %}" style="background:{{ b.color }}"
+                      title="{{ b.quarter }} – {{ b.who }} ({{ b.persons }} Pers.)">{{ b.quarter }}: {{ b.who }} ({{ b.persons }})</span>
+                {% endfor %}
+              </a>
+              {% else %}<div class="d-num">{{ d.day }}</div>{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      {# EINE kompakte Legende: Personen + heute/Ferien + extern #}
+      <div class="who-legend">
+        {% for m in legend %}<span class="who-item {% if m.mine %}mine{% endif %}"><i class="sw" style="background:{{ m.color }}"></i>{{ m.name }}{% if m.mine %} (du){% endif %}</span>{% endfor %}
+        {% if cal.any_external %}<span class="who-item"><i class="sw" style="background:{{ cal.extern_color }}"></i>extern</span>{% endif %}
+        <span class="who-item"><i class="sw today"></i>heute</span>
+        <span class="who-item"><i class="sw holiday"></i>Ferien</span>
+      </div>
+    </div>
+
+    {% if sel_day %}
+    <aside class="ov-detail" id="tag">
+      <div class="ov-detail-head">
+        <h2>{{ sel_day|date:"D, d.m.Y" }}</h2>
+        <a class="ov-detail-close" data-ajax title="Schließen" aria-label="Detail schließen"
+           href="?year={{ cal.year }}&month={{ cal.month }}{{ nav_qs }}">✕</a>
+      </div>
+      <h3>Wer ist da</h3>
+      {% if detail.occupied %}
+      <ul class="ov-occ">
+        {% for o in detail.occupied %}
+        <li><strong>{{ o.quarter }}</strong> · {{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %} · {{ o.persons }}&nbsp;Pers.</li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted">Niemand eingebucht.</p>{% endif %}
+      <h3>Noch frei</h3>
+      {% if detail.free %}<p class="ov-free">{% for q in detail.free %}<span class="tag">{{ q }}</span> {% endfor %}</p>
+      {% else %}<p class="muted">Keine freien Quartiere.</p>{% endif %}
+      <p style="margin-bottom:0"><a class="btn small" href="{% url 'book' %}?start={{ sel_day|date:'Y-m-d' }}">An diesem Tag buchen →</a></p>
+    </aside>
     {% endif %}
   </div>
-  {% elif cal.any_external %}
-  <div class="who-legend">
-    <span class="who-item"><i class="sw" style="background:{{ cal.extern_color }}"></i>externe Gäste</span>
-  </div>
-  {% endif %}
-  {% if cal.holidays %}
-  <p class="muted" style="margin:.5rem 0 0">
-    Ferien in diesem Monat:
-    {% for h in cal.holidays %}{{ h.name }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
-  </p>
-  {% endif %}
 </div>
 
-{% if sel_day %}
-<div class="card" id="tag">
-  <h2 style="margin-top:0">{{ sel_day|date:"l, d.m.Y" }}</h2>
-  {% if detail.occupied %}
-  <h3>Wer ist da</h3>
-  <div class="table-wrap"><table>
-    <tr><th>Quartier</th><th>Wer</th><th>Personen</th></tr>
-    {% for o in detail.occupied %}
-    <tr><td>{{ o.quarter }}</td><td>{{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %}</td><td>{{ o.persons }}</td></tr>
-    {% endfor %}
-  </table></div>
-  {% else %}<p class="muted">An diesem Tag ist niemand eingebucht.</p>{% endif %}
-
-  <h3>Noch frei</h3>
-  {% if detail.free %}
-  <p>{% for q in detail.free %}<span class="tag">{{ q }}</span> {% endfor %}</p>
-  {% else %}<p class="muted">Keine freien Quartiere an diesem Tag.</p>{% endif %}
-
-  <p class="muted" style="margin-bottom:0"><a href="{% url 'book' %}?start={{ sel_day|date:'Y-m-d' }}">Im Buchen-Kalender öffnen →</a></p>
-</div>
-{% endif %}
-
-{% if member %}
-<p class="muted">
-  Du hast {{ nights_remaining }} Tage in {{ year }} verfügbar.
-  <a href="{% url 'book' %}">Selbst buchen →</a>
-</p>
-{% else %}
+{% if not member %}
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% endif %}
 
 <style>
+  /* Status-Chips */
+  .ov-status { display:flex; flex-wrap:wrap; gap:.5rem; margin:.1rem 0 1rem; }
+  .ov-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.4rem .8rem;
+    border-radius:999px; border:1px solid var(--line); background:var(--card);
+    font-size:.9rem; font-weight:600; text-decoration:none; color:var(--ink); }
+  .ov-chip:hover { border-color:var(--accent); }
+  .ov-chip strong { color:var(--accent-deep); font-size:1.05em; }
+  .ov-chip.accent { background:var(--accent-soft); color:var(--accent-deep); border-color:transparent; }
+
+  /* Benachrichtigungen schlank, eingeklappt */
+  .ov-notif { margin-bottom:1rem; }
+  .ov-notif > summary { cursor:pointer; font-weight:600; list-style:none; }
+  .ov-notif > summary::-webkit-details-marker { display:none; }
+  .ov-notif > summary::before { content:"▸ "; color:var(--muted); }
+  .ov-notif[open] > summary::before { content:"▾ "; }
+  .ov-notif ul { margin:.6rem 0; }
+
+  /* Diese-Woche-Agenda */
+  .ov-week { margin-bottom:1rem; }
+  .ov-week h2 { margin-top:0; }
+  .agenda { list-style:none; margin:0; padding:0; }
+  .ag-row { display:flex; gap:.7rem; align-items:baseline; flex-wrap:wrap;
+    padding:.45rem 0; border-bottom:1px solid var(--line); }
+  .ag-row:last-child { border-bottom:0; }
+  .ag-row.today { background:var(--accent-soft); border-radius:8px; padding:.45rem .55rem; }
+  .ag-date { flex:0 0 7rem; font-weight:600; font-size:.9rem; }
+  .ag-events { flex:1 1 12rem; display:flex; flex-wrap:wrap; gap:.25rem .7rem; font-size:.9rem; }
+  .ag-ev.out { color:var(--muted); }
+  .ag-ev.mine { font-weight:700; color:var(--accent-deep); }
+  .ag-free { flex:0 0 auto; font-size:.82rem; }
+
+  /* Plan-Kopf: Umschalter + Monatsnavigation */
+  .ov-plan-head { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem 1rem; margin-bottom:.6rem; }
+  .ov-plan-head .cal-head { margin-left:auto; flex-wrap:wrap; }
+
+  /* Zwei-Spalten: Plan + Detail-Panel (Desktop); mobil untereinander */
+  .ov-grid { display:grid; grid-template-columns:1fr; gap:1rem; align-items:start; }
+  @media (min-width:900px){ .ov-grid.has-detail { grid-template-columns:minmax(0,1fr) 300px; } }
+  .ov-main { min-width:0; }
+  .ov-detail { border:1px solid var(--line); border-radius:12px; padding:.9rem 1rem;
+    background:var(--bg); }
+  @media (min-width:900px){ .ov-detail { position:sticky; top:72px; } }
+  .ov-detail-head { display:flex; align-items:center; gap:.5rem; }
+  .ov-detail-head h2 { margin:0; font-size:1.05rem; flex:1 1 auto; }
+  .ov-detail-close { text-decoration:none; color:var(--muted); font-size:1.1rem;
+    line-height:1; padding:.2rem .4rem; border-radius:8px; }
+  .ov-detail-close:hover { background:var(--accent-soft); color:var(--accent-deep); }
+  .ov-detail h3 { font-size:.82rem; text-transform:uppercase; letter-spacing:.03em;
+    color:var(--muted); margin:.9rem 0 .35rem; }
+  .ov-occ { list-style:none; margin:0; padding:0; font-size:.92rem; }
+  .ov-occ li { padding:.2rem 0; border-bottom:1px solid var(--line); }
+  .ov-occ li:last-child { border-bottom:0; }
+  .ov-free .tag { margin-bottom:.25rem; display:inline-block; }
+
+  /* Monatsraster + Belegung (geerbt) */
   table.community-cal td { padding:0; }
   .cell-link { display:block; min-height:78px; height:100%; padding:3px 4px;
     text-decoration:none; color:var(--ink); }
@@ -157,20 +220,20 @@
   .d-book.person { display:block; color:#23201d; }
   .d-book.person.mine { box-shadow: inset 0 0 0 2px var(--accent-deep); font-weight:600; }
   .who-legend { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin-top:.6rem;
-    font-size:.82rem; color:var(--muted); }
+    font-size:.8rem; color:var(--muted); }
   .who-item { display:inline-flex; align-items:center; }
-  .who-item .sw { width:14px; height:14px; border-radius:4px; margin-right:5px; }
+  .who-item .sw { width:13px; height:13px; border-radius:4px; margin-right:5px; }
   .who-item.mine { color:var(--ink); font-weight:600; }
+  .who-legend .sw.today { background:#fff; box-shadow:inset 0 0 0 2px var(--accent); }
+  .who-legend .sw.holiday { background:var(--warn-soft); }
 
-  /* Ansicht-Umschalter Kalender/Belegung */
   .view-toggle { display:inline-flex; gap:2px; background:#efe8db; border-radius:10px;
-    padding:2px; margin-bottom:.6rem; }
+    padding:2px; }
   .view-toggle .vt { padding:.3rem .8rem; border-radius:8px; font-size:.85rem;
     text-decoration:none; color:var(--muted); }
   .view-toggle .vt.on { background:#fff; color:var(--ink); font-weight:600;
     box-shadow:0 1px 3px rgba(0,0,0,.08); }
 
-  /* Belegungs-Zeitstrahl (pro Unterkunft eine Zeile, Balken Anreise→Abreise) */
   .occ { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .occ-table { min-width:680px; }
   .occ-row { display:flex; align-items:stretch; gap:2px; }

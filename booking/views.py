@@ -142,8 +142,9 @@ def overview(request):
                     legend.append({"name": b["who"], "color": color_map[mid],
                                    "mine": b["mine"]})
                 b["color"] = color_map[mid]
-    # Optionaler Belegungs-Zeitstrahl (pro Unterkunft eine Zeile mit Balken).
-    view_mode = "timeline" if request.GET.get("view") == "timeline" else "grid"
+    # Belegungs-Zeitstrahl ist der Standard (modernes „wer ist wo"); das
+    # Monatsraster gibt es weiter über ?view=grid (ADR 0059).
+    view_mode = "grid" if request.GET.get("view") == "grid" else "timeline"
     timeline = None
     if view_mode == "timeline":
         timeline = svc.build_occupancy_timeline(member, year, month)
@@ -163,8 +164,9 @@ def overview(request):
         "legend": legend,
         "sel_day": sel_day,
         "detail": detail,
-        "nav_qs": "&view=timeline" if view_mode == "timeline" else "",
+        "nav_qs": "&view=grid" if view_mode == "grid" else "",
         "show_today": True,
+        "agenda": svc.week_agenda(member, today, 7),
         **_cal_nav(cal),
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0

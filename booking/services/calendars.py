@@ -17,8 +17,47 @@ from .slots import _active_windows, _occupied_days_by_quarter, split_quarters_fo
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
-    'build_occupancy_timeline', 'build_external_calendar',
+    'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
 ]
+
+
+def week_agenda(member, start: date, days: int = 7) -> list[dict]:
+    """Kompakte „Diese Woche"-Agenda ab `start`: je Tag die An-/Abreisen
+    (Mitglieder UND externe Gäste) und die Zahl freier Quartiere. Für die
+    aufgeräumte Übersicht (schneller Wochenblick, mobil-tauglich)."""
+    end = start + timedelta(days=days)
+    allocs = list(
+        Allocation.objects.select_related("quarter", "member")
+        .filter(provisional=False, start__lt=end, end__gt=start))
+    exts = list(
+        ExternalBooking.objects.filter(
+            status=ExternalBooking.CONFIRMED, start__lt=end, end__gt=start)
+        .select_related("quarter"))
+    mid = member.id if member else None
+    out = []
+    for i in range(days):
+        d = start + timedelta(days=i)
+        nxt = d + timedelta(days=1)
+        arrivals, departures = [], []
+        for a in allocs:
+            if a.start == d:
+                arrivals.append({"who": a.member.display_name, "quarter": a.quarter.name,
+                                 "persons": a.persons, "mine": a.member_id == mid})
+            if a.end == d:
+                departures.append({"who": a.member.display_name, "quarter": a.quarter.name,
+                                   "mine": a.member_id == mid})
+        for b in exts:
+            if b.start == d:
+                arrivals.append({"who": "extern", "quarter": b.quarter.name,
+                                 "persons": b.persons, "mine": False, "external": True})
+            if b.end == d:
+                departures.append({"who": "extern", "quarter": b.quarter.name,
+                                   "mine": False, "external": True})
+        free, _occ = split_quarters_for_range(d, nxt)
+        out.append({"date": d, "is_today": d == start,
+                    "arrivals": arrivals, "departures": departures,
+                    "free_count": len(free)})
+    return out
 
 def build_booking_calendar(
     member, year: int, month: int,

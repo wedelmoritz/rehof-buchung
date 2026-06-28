@@ -55,7 +55,7 @@ __all__ = [
     'beds24_apply', 'run_data_retention', 'anonymize_member',
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
-    'build_occupancy_timeline', 'build_external_calendar',
+    'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
     'run_period_lottery', '_restore_factors', 'confirm_lottery',
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',

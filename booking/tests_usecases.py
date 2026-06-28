@@ -1468,3 +1468,36 @@ class AdminBuchungsregelnTests(UseCaseBase):
         self.assertEqual(resp.status_code, 200)   # Formular mit Fehler, kein Redirect
         self.assertEqual(
             Allocation.objects.filter(member=self.bob, quarter=self.k1).count(), 0)
+
+
+# --------------------------------------------------------------------------- #
+# Use-Case: „Diese Woche"-Agenda der Übersicht (ADR 0059)
+# --------------------------------------------------------------------------- #
+
+class WochenAgendaTests(UseCaseBase):
+    def test_agenda_bucketet_anreise_abreise_und_zaehlt_frei(self):
+        """week_agenda ordnet An-/Abreisen dem richtigen Tag zu und zählt freie
+        Quartiere pro Tag."""
+        self.open_full_year_window(NEXT_YEAR)
+        start = date(NEXT_YEAR, 5, 4)            # ein fester Wochentag
+        end = start + timedelta(days=3)
+        a, err = svc.book_spontaneous(self.alice, self.k1, start, end)
+        self.assertIsNotNone(a, err)
+
+        agenda = svc.week_agenda(self.alice, start, 7)
+        self.assertEqual(len(agenda), 7)
+        # Tag 0 = Anreise alice -> K1; als „heute" (start) markiert
+        day0 = agenda[0]
+        self.assertTrue(day0["is_today"])
+        self.assertEqual(len(day0["arrivals"]), 1)
+        self.assertEqual(day0["arrivals"][0]["quarter"], "K1")
+        self.assertTrue(day0["arrivals"][0]["mine"])
+        self.assertEqual(day0["departures"], [])
+        # während der Buchung ist K1 belegt -> ein Quartier weniger frei
+        total_q = 5
+        self.assertEqual(day0["free_count"], total_q - 1)
+        # Abreisetag (Tag 3) trägt die Abreise, K1 wieder frei
+        day3 = agenda[3]
+        self.assertEqual(len(day3["departures"]), 1)
+        self.assertEqual(day3["arrivals"], [])
+        self.assertEqual(day3["free_count"], total_q)

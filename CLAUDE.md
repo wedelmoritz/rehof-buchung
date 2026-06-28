@@ -143,13 +143,18 @@ werden externe Gäste in **einer** Farbe (`services.EXTERN_COLOR`) nur als „ex
 gezeigt. Die **Online-Bezahlung (Mollie)** ist aktiv (s. „Hofladen“ →
 Online-Bezahlung) und gilt für Gäste wie Mitglieder gleichermaßen.
 
-Frontend-Seiten (`booking/views.py`): `overview` (Community-Monatsübersicht,
-farbcodiert je Mitglied mit Name + Personenzahl; Klick auf einen Tag zeigt
-unten, wer da ist und was noch frei ist; **Umschalter „Kalender / Belegung“** –
-„Belegung“ zeigt pro Unterkunft EINE Zeile mit Balken Anreise→Abreise [Farbe je
-Mitglied, externe Gäste neutral], also „von wann bis wann ist wer wo“ auf einen
-Blick; Service `services.build_occupancy_timeline`; das Monatsraster bleibt
-Standard), `book` (Ampel-Kalender → Personen/
+Frontend-Seiten (`booking/views.py`): `overview` (Community-Übersicht, aufgeräumt
+nach ADR 0059): oben schlanke **Status-Chips** (Tage frei / offene Losung) +
+eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
+**„Diese Woche"-Agenda** (`services.week_agenda`: je Tag An-/Abreisen + freie
+Quartiere, mobil der Schnell-Überblick). **Held ist der Belegungs-Zeitstrahl**
+(`services.build_occupancy_timeline`, Standard-Ansicht: pro Unterkunft EINE Zeile
+mit Balken Anreise→Abreise, Farbe je Mitglied/extern neutral – „wer ist wo" auf
+einen Blick); **Umschalter „Belegung / Kalender"** schaltet aufs Monatsraster
+(`?view=grid`). Klick auf Balken/Tag öffnet das **Tag-Detail im Kontext** – ein
+Panel **rechts** neben dem Plan (Desktop, sticky) bzw. **darunter** am Handy
+(`day_detail`: wer da ist · noch frei · „An diesem Tag buchen"). **Eine**
+kombinierte Legende (Personen + heute + Ferien)), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
 eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
