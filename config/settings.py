@@ -172,6 +172,13 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
 
+# --- Rate-Limiting (django-ratelimit, ADR 0061) ----------------------------
+# Greift über den Login-Schutz (django-axes) hinaus auf weitere sensible
+# Endpunkte (Registrierung, Passwort-Reset, Magic-Link, Terminal-Token,
+# Mitglieder-Suche). Default: in Produktion an, in DEBUG/Tests aus, damit die
+# Integrationstests nicht an Limits laufen (gezielter Test schaltet es scharf).
+RATELIMIT_ENABLE = env_bool("RATELIMIT_ENABLE", not DEBUG)
+
 # --- App-seitige Feld-Verschlüsselung (VORBEREITET, P2.5/ADR 0061) ---------
 # Schlüssel für booking.fields.EncryptedCharField (Fernet). Noch an KEINEM Feld
 # aktiv – ohne Schlüssel bleibt alles Klartext. Erzeugen mit `manage.py field_key`,

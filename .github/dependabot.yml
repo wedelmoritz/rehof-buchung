@@ -1,0 +1,25 @@
+# Dependabot: automatische Update-PRs für Sicherheits-/Versions-Aktualisierungen
+# (ADR 0061). Ergänzt das pip-audit-Gate im CI um regelmäßige Bump-PRs.
+version: 2
+updates:
+  # Python-Abhängigkeiten (requirements.txt – Quelle der Docker-Pins).
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        patterns: ["*"]
+
+  # GitHub-Actions in den Workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Basis-Image im Dockerfile.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

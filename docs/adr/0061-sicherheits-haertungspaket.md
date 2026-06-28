@@ -79,6 +79,25 @@ Umsetzung in Batches; gemeinsame Klammer dieser ADR.
    keinem Modellfeld aktiv** und **keine Migration** – Aktivierung ist ein kleiner,
    dokumentierter Schritt (docs/BETRIEB-SICHERHEIT.md § 4.3).
 
+6. **Rate-Limiting über den Login hinaus (`django-ratelimit`).** `django-axes` schützt
+   nur die Anmeldung. Zusätzlich gedrosselt (je IP bzw. je Konto, 403 bei Überschreitung
+   – `Ratelimited` ist `PermissionDenied`): Registrierung (10/h), Passwort-Reset (10/h)
+   und Passwort-Setzen (20/h), Magic-Link `external_manage`/`external_pay` (30/min),
+   Terminal-Token `terminal_data`/`terminal_sync` (60/min), Mitglieder-Typeahead
+   `member_search` (60/min). Gesteuert über `RATELIMIT_ENABLE` (Default `not DEBUG`),
+   damit die Integrationstests nicht an Limits laufen; ein gezielter Test schaltet es
+   scharf. (Mit Redis greift der Zähler workerübergreifend; mit LocMem je Worker.)
+
+7. **Abhängigkeits-Scanning im CI.** Neuer Job `abhaengigkeits-audit` (`pip-audit -r
+   requirements.txt`) prüft den aufgelösten Abhängigkeitsbaum auf bekannte CVE/GHSA und
+   lässt das CI rot werden, wenn etwas auftaucht. Dazu `.github/dependabot.yml`
+   (wöchentliche Bump-PRs für pip, GitHub-Actions, Docker-Basisimage).
+
+8. **Nicht-root-Container.** Das Image legt einen unprivilegierten Nutzer (`app`,
+   UID 10001) an, dem `/app` gehört, und schaltet per `USER app` um. Migrationen/
+   collectstatic brauchen zur Laufzeit keine Schreibrechte; Gunicorn bindet 8000
+   (>1024). Bei einem App-Einbruch bleibt der Schadensradius kleiner.
+
 ## Betrachtete Alternativen
 
 - **2FA über ein Drittpaket mit eigener Login-Maske (z. B. two-factor):** verworfen –

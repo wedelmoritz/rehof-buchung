@@ -21,6 +21,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from csp.decorators import csp_replace
+from django_ratelimit.decorators import ratelimit
 
 from .forms import (
     EmailChangeForm, ProfileForm, RegistrationForm, TransferForm, WishForm,
@@ -646,6 +647,8 @@ def wishlist(request):
 # Tage übertragen
 # --------------------------------------------------------------------------- #
 
+# Registrierung gegen Konto-Spam: max. 10 POSTs/Stunde je IP (ADR 0061).
+@ratelimit(key="ip", rate="10/h", method="POST", block=True)
 def register(request):
     """Selbstregistrierung. Legt nur ein Login-Konto an; das Buchungs-Profil
     (Member) vergibt anschließend die Verwaltung. Bis dahin: Warte-Seite."""
@@ -856,6 +859,8 @@ def transfer(request):
 
 
 @login_required
+# Typeahead-Suche gegen Verzeichnis-Scraping bremsen (je angemeldetem Konto).
+@ratelimit(key="user", rate="60/m", block=True)
 def member_search(request):
     """Typeahead für „Tage übertragen": passende Mitglieder ab 3 Zeichen.
     Sucht über Anzeigename, Benutzername, E-Mail, Vor- und Nachname (das eigene
@@ -1365,6 +1370,8 @@ def _ext_nav_qs(start, end, persons) -> str:
     return "&" + "&".join(parts)
 
 
+# Magic-Link-Endpunkte gegen Token-Erraten bremsen (je IP).
+@ratelimit(key="ip", rate="30/m", block=True)
 def external_manage(request, token):
     """Magic-Link-Selbstverwaltung für externe Gäste (kein Login): eigene
     Buchungen ansehen und – im Rahmen der Stornobedingungen – stornieren."""
@@ -1396,6 +1403,7 @@ def external_manage(request, token):
         "payments_active": pay_svc.payments_enabled()})
 
 
+@ratelimit(key="ip", rate="30/m", block=True)
 def external_pay(request, token):
     """Externer Gast startet die Online-Bezahlung einer seiner Buchungen
     (login-frei über den Magic-Link-Token)."""
@@ -1589,6 +1597,8 @@ def _terminal_token_from(request):
 
 @csrf_exempt
 @require_POST
+# Token-Endpunkt gegen Token-Brute-Force bremsen (je IP).
+@ratelimit(key="ip", rate="60/m", block=True)
 def terminal_data(request):
     """Roster + Katalog + Einstellungen – nur mit gültigem Geräte-Token."""
     token, _ = _terminal_token_from(request)
@@ -1599,6 +1609,7 @@ def terminal_data(request):
 
 @csrf_exempt
 @require_POST
+@ratelimit(key="ip", rate="60/m", block=True)
 def terminal_sync(request):
     """Nimmt offline erfasste Einkäufe entgegen (idempotent) und bucht sie auf die
     Monatsrechnung. Nur mit gültigem Token."""
