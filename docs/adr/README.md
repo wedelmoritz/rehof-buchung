@@ -84,6 +84,7 @@ die Regelwerte zu wiederholen.
 | [0060](0060-performance-skalierung.md) | Performance & Skalierung für >100 gleichzeitige Nutzer (Sicherheit vor Tempo) | Accepted |
 | [0061](0061-sicherheits-haertungspaket.md) | Sicherheits-Härtungspaket (Defense in Depth: Django-LTS, SECRET_KEY-Wächter, Backend-2FA, CSP, Rate-Limiting, IBAN-Feldverschlüsselung vorbereitet, Container/CI-Härtung) | Accepted |
 | [0062](0062-verifizierbare-auslosung-commit-reveal.md) | Verifizierbare Auslosung: Commit-Reveal des Los-Seeds (intern, „provably fair") | Accepted |
+| [0063](0063-gemeinschafts-spiegel-karma-transparenz.md) | Gemeinschafts-Spiegel (aggregierte Transparenz) + Karma-Transparenz im Profil | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

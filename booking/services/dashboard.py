@@ -14,7 +14,8 @@ from .notify import absolute_url, queue_email_many
 
 __all__ = [
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
-    '_month_occupancy', 'dashboard_stats', 'arrivals_in_range',
+    '_month_occupancy', 'dashboard_stats', 'karma_distribution',
+    'community_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
@@ -179,6 +180,53 @@ def dashboard_stats() -> dict:
         "occ_current": _month_occupancy(today.year, today.month),
         "occ_next": _month_occupancy(ny, nm),
         "last_lottery": last_lottery,
+    }
+
+
+def karma_distribution() -> dict:
+    """Anonyme Verteilung der Ausgleichsfaktoren (Karma) über alle Mitglieder.
+
+    Reine Aggregat-Ansicht (k-anonym, keine Namen) für den Gemeinschafts-Spiegel.
+    Eine einzige DB-Abfrage; Buckets in 0,1-Schritten von 1,0 bis 1,5."""
+    factors = list(Member.objects.filter(is_external=False)
+                   .values_list("factor", flat=True))
+    buckets = {round(1.0 + i * 0.1, 1): 0 for i in range(6)}   # 1.0 … 1.5
+    for f in factors:
+        key = round(round((min(max(f, 1.0), 1.5) - 1.0) / 0.1) * 0.1 + 1.0, 1)
+        buckets[key] = buckets.get(key, 0) + 1
+    total = len(factors)
+    max_count = max(buckets.values()) if buckets else 0
+    rows = [{"factor": k, "count": v,
+             "pct": round(100 * v / total) if total else 0,
+             "bar": round(100 * v / max_count) if max_count else 0}
+            for k, v in sorted(buckets.items())]
+    return {"rows": rows, "total": total}
+
+
+def community_stats() -> dict:
+    """Aggregierte, mitglieder-sichtbare Transparenz-Kennzahlen (Gemeinschafts-
+    Spiegel, ADR 0063): Auslastung (aktueller + kommender Monat), Ergebnis-Historie
+    der letzten Verlosungen und die anonyme Karma-Verteilung. Bewusst nur Aggregate
+    (Datensparsamkeit), wenige Abfragen."""
+    today = date.today()
+    ny, nm = next_month(today)
+    runs = list(LotteryRun.objects.filter(confirmed=True).select_related("period")
+                .order_by("-confirmed_at")[:6])
+    history = []
+    for r in runs:
+        total = r.n_allocations + r.n_losses
+        history.append({
+            "year": r.period.target_year,
+            "fulfilled": r.n_allocations, "unfulfilled": r.n_losses,
+            "total": total,
+            "pct": round(100 * r.n_allocations / total) if total else 0,
+        })
+    return {
+        "occ_current": _month_occupancy(today.year, today.month),
+        "occ_next": _month_occupancy(ny, nm),
+        "lottery_history": history,
+        "karma": karma_distribution(),
+        "n_members": Member.objects.filter(is_external=False).count(),
     }
 
 

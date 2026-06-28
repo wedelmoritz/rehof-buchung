@@ -228,7 +228,12 @@ statistisch dieselbe Chance haben (Chi-Quadrat-Anpassungstest + Wilson-KI =
 „equal treatment of equals" der RSD) und dass das Karma nachweisbar wirkt.
 Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
 (Admin-Knopf „Simulation jetzt berechnen", Ergebnis als JSON gespeichert);
-Service `services.run_fairness_simulation`. Das **Test-Szenario**
+Service `services.run_fairness_simulation`. **Gemeinschafts-Spiegel** (`community`,
+`/gemeinschaft/`, login-pflichtig, ADR 0063): aggregierte, anonyme Transparenz –
+Auslastung, Los-Ergebnis-Historie, **Karma-Verteilung** (`services.community_stats`/
+`karma_distribution`) als schlanke **CSS-Balken** (kein JS); in der Sekundär-Nav
+(„Gemeinschaft"). Den **eigenen** Ausgleichsfaktor zeigt eine Karte im `profile`
+(Karma-Transparenz). Das **Test-Szenario**
 `seed_demo --testdata` (kompletter Wipe inkl. Superuser → Test-Konten
 admin [Superuser] / verwaltung [Gruppe „Verwaltung“, **kein** Staff] / test
 + 50 Mitglieder, wilde Buchungen im laufenden Jahr, offene

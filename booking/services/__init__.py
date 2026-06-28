@@ -56,6 +56,7 @@ __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
+    'karma_distribution', 'community_stats',
     'run_period_lottery', '_restore_factors', 'confirm_lottery',
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
     'ensure_seed_commit', 'verify_period_lottery',

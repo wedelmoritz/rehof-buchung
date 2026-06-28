@@ -1437,6 +1437,15 @@ def external_pay(request, token):
 
 
 @login_required
+def community(request):
+    """Gemeinschafts-Spiegel (ADR 0063): aggregierte, mitglieder-sichtbare
+    Transparenz – Auslastung, Los-Ergebnis-Historie und anonyme Karma-Verteilung.
+    Bewusst nur Aggregate (Datensparsamkeit), wenige DB-Abfragen."""
+    return render(request, "booking/community.html",
+                  {"stats": svc.community_stats()})
+
+
+@login_required
 def lottery_fairness(request):
     """Login-geschützte Beweis-/Erklärseite: zeigt den statistischen Fairness-
     Nachweis des Losverfahrens (Monte-Carlo) als Grafen. Konfiguriert/gestartet
