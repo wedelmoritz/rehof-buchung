@@ -1434,6 +1434,7 @@ name = "rehof-buchung"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "dj-database-url" },
     { name = "django" },
     { name = "django-axes" },
@@ -1465,6 +1466,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=42" },
     { name = "dj-database-url", specifier = ">=2.1" },
     { name = "django", specifier = ">=5.2,<5.3" },
     { name = "django-axes", specifier = ">=8.0" },

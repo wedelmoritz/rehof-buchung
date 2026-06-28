@@ -70,6 +70,15 @@ Umsetzung in Batches; gemeinsame Klammer dieser ADR.
    - **Rollout-Schalter:** `CSP_REPORT_ONLY=1` schaltet auf reines Melden (bricht nichts),
      Default ist durchsetzen.
 
+5. **IBAN-Feldverschlüsselung – VORBEREITET, nicht aktiv.** Auftrag war ausdrücklich
+   *nur für Produktion vorbereiten*, app-seitig. Geliefert: `booking/fieldcrypt.py`
+   (Django-freie Fernet-Naht, in `tests/` testbar), `booking/fields.py`
+   (`EncryptedCharField` – ohne Schlüssel transparenter Klartext, mit Schlüssel
+   ver-/entschlüsselt; Rotation via MultiFernet), Setting + docker-compose-Durchreichung
+   `FIELD_ENCRYPTION_KEY` (leer = inaktiv) und `manage.py field_key`. **Bewusst an
+   keinem Modellfeld aktiv** und **keine Migration** – Aktivierung ist ein kleiner,
+   dokumentierter Schritt (docs/BETRIEB-SICHERHEIT.md § 4.3).
+
 ## Betrachtete Alternativen
 
 - **2FA über ein Drittpaket mit eigener Login-Maske (z. B. two-factor):** verworfen –
@@ -85,6 +94,12 @@ Umsetzung in Batches; gemeinsame Klammer dieser ADR.
   rechtfertigt den einmaligen Umbau auf delegierte Listener.
 - **CSP nur als Report-Only:** als Dauerlösung verworfen (kein echter Schutz); bleibt
   als optionaler Rollout-Schalter (`CSP_REPORT_ONLY`) erhalten.
+- **Feldverschlüsselung via Fremdpaket (`django-cryptography`):** nicht nötig – die
+  ~40 Zeilen Fernet-Naht sind übersichtlich, ohne Extra-Abhängigkeit und Django-frei
+  testbar. `cryptography` ist über Web-Push ohnehin im Stack.
+- **IBAN jetzt schon verschlüsseln:** bewusst NICHT (Auftrag: nur vorbereiten). Die
+  produktive Aktivierung will einen Schlüssel-Backup-Prozess und eine Daten-Migration,
+  die der Betreiber bewusst fahren soll.
 
 ## Konsequenzen
 

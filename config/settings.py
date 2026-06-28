@@ -172,6 +172,12 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
 
+# --- App-seitige Feld-Verschlüsselung (VORBEREITET, P2.5/ADR 0061) ---------
+# Schlüssel für booking.fields.EncryptedCharField (Fernet). Noch an KEINEM Feld
+# aktiv – ohne Schlüssel bleibt alles Klartext. Erzeugen mit `manage.py field_key`,
+# getrennt von der DB sichern. Rotation: `neuer,alter` (komma-separiert).
+FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+
 # --- Content-Security-Policy (django-csp, ADR 0061) ------------------------
 # Strikt & nonce-basiert: Skripte laufen NUR mit dem pro-Antwort erzeugten Nonce
 # (KEIN 'unsafe-inline' für Skripte → injizierte <script> / javascript:-URIs

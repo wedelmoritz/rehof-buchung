@@ -32,6 +32,8 @@ services:
     environment:
       DEBUG: "0"
       SECRET_KEY: ${SECRET_KEY}
+      # App-seitige Feld-Verschlüsselung (vorbereitet, noch inaktiv – ADR 0061).
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -99,6 +101,7 @@ services:
     environment:
       DEBUG: "0"
       SECRET_KEY: ${SECRET_KEY}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: ${REDIS_URL:-}

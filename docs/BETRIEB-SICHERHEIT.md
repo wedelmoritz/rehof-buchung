@@ -100,20 +100,28 @@ Zusätzlich Storage-Box-**ZFS-Snapshots** (selbst per SSH nicht änderbar).
 - Optional zusätzlich: Admin-Zugriff über Caddy auf bestimmte IPs/VPN
   beschränken (`@admin` matcher → `remote_ip`).
 
-### 4.3 IBAN-Feldverschlüsselung — *Aufwand: mittel, bewusst klein halten*
-- **TBD / temporäre Entscheidung (Profil-Audit Phase 3):** `Member.iban` wird
-  **vorerst weiter erhoben und gespeichert**, weil es heute im Rechnungs-Export
-  der Verwaltung auftaucht (`shop.services.invoice_export_rows`). Es ist aber das
-  sensibelste PII im System; ob es wirklich gebraucht wird (oder die Anschrift als
-  Rechnungsadresse genügt), ist **offen** und im Zuge der Datensparsamkeit (Phase 4
-  DSGVO) erneut zu prüfen. Bis dahin gilt: minimal halten, nicht weiter ausbauen.
-- **Nur** das sensibelste PII verschlüsseln: `Member.iban` (ggf. Anschrift).
-- App-seitig mit **Fernet** (z.B. `django-cryptography` oder eigenes
-  `EncryptedCharField`); Schlüssel in `.env` (`FIELD_ENCRYPTION_KEY`), **getrennt**
-  von der DB.
+### 4.3 IBAN-Feldverschlüsselung — *VORBEREITET (P2.5/ADR 0061), noch nicht scharf*
+- **Status:** Die app-seitige Feld-Verschlüsselung liegt **fertig vorbereitet**,
+  ist aber bewusst an **keinem** Modellfeld aktiv (kein Datenzugriff geändert):
+  - `booking/fieldcrypt.py` – Django-freie Fernet-Naht (Round-Trip, Rotation;
+    getestet in `tests/test_fieldcrypt.py`).
+  - `booking/fields.py` – `EncryptedCharField` (verschlüsselt beim Schreiben,
+    entschlüsselt beim Lesen; **ohne Schlüssel = Klartext** → gefahrloser Rollout;
+    getestet in `booking/tests_fieldcrypt.py`).
+  - `FIELD_ENCRYPTION_KEY` (Settings + docker-compose, leer = inaktiv);
+    Schlüssel erzeugen mit `manage.py field_key`.
+- **In Produktion scharf schalten (kleiner, gezielter Schritt):**
+  1. `python manage.py field_key` → Ausgabe als `FIELD_ENCRYPTION_KEY` in die `.env`
+     (GETRENNT von der DB sichern!).
+  2. Das sensibelste PII-Feld (`Member.iban`, ggf. Anschrift) von `CharField` auf
+     `EncryptedCharField` umstellen, `max_length` großzügig (Fernet-Token ≫ IBAN).
+  3. Daten-Migration: bestehende Klartext-Werte einmalig verschlüsseln.
+- **TBD (Datensparsamkeit, Profil-Audit Phase 3):** Ob `Member.iban` überhaupt
+  gebraucht wird (heute im Rechnungs-Export der Verwaltung), ist weiterhin offen.
+  Bis zur Klärung: minimal halten, nicht weiter ausbauen.
 - **Trade-offs/Merker:** Feld wird nicht such-/sortierbar; **Schlüsselverlust =
-  Datenverlust** → Schlüssel mitsichern (getrennt!). Migration: bestehende Werte
-  beim Deploy einmalig ver­schlüsseln (Daten-Migration).
+  Datenverlust** → Schlüssel mitsichern (getrennt!). **Rotation:**
+  `FIELD_ENCRYPTION_KEY=neu,alt` (erster verschlüsselt, alle entschlüsseln).
 - **64 % der DB-Breaches** kommen aus schlechtem **Key-Management**, nicht aus
   schwacher Krypto — deshalb Schlüsselablage/-rotation sauber dokumentieren.
 
