@@ -382,6 +382,11 @@ class BankTransactionAdmin(admin.ModelAdmin):
                        "counterparty_name", "counterparty_iban", "fingerprint",
                        "raw", "imported_at", "matched_at", "note")
 
+    def get_queryset(self, request):
+        # Rohzeile (groß) nicht in die Liste laden; Empfänger-Rechnung vorladen.
+        return (super().get_queryset(request).defer("raw")
+                .select_related("matched_invoice"))
+
     def has_add_permission(self, request):
         return False
 

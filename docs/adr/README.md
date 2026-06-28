@@ -81,6 +81,7 @@ die Regelwerte zu wiederholen.
 | [0057](0057-backend-ux-verfeinerungen.md) | Backend-UX-Verfeinerungen (Navigator einklappbar/Akkordeon, Listen, Leer-Hinweise) | Accepted |
 | [0058](0058-frontend-ux-verfeinerungen.md) | Frontend-UX-Verfeinerungen (Benutzerbereich + Verwaltungs-Dashboard) | Accepted |
 | [0059](0059-uebersicht-belegung-hybrid.md) | Übersicht aufgeräumt: Belegungs-Zeitstrahl Standard + Wochen-Agenda + Detail im Kontext | Accepted |
+| [0060](0060-performance-skalierung.md) | Performance & Skalierung für >100 gleichzeitige Nutzer (Sicherheit vor Tempo) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

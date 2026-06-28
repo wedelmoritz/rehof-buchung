@@ -737,6 +737,11 @@ class OutboxEmailAdmin(admin.ModelAdmin):
     readonly_fields = ("to_email", "subject", "body", "html_body", "member",
                        "created_at", "sent_at", "attempts", "last_error")
 
+    def get_queryset(self, request):
+        # Große Felder (Mailtext/HTML/Anhang-Blob) NICHT in die Liste laden – sie
+        # stehen nicht in list_display; im Detail werden sie bei Bedarf nachgeladen.
+        return super().get_queryset(request).defer("body", "html_body", "attachment")
+
     def has_add_permission(self, request):
         return False
 

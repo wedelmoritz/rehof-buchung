@@ -618,6 +618,20 @@ Caddy). **Observability (ADR 0046):** strukturierte Logs nach stdout
 für Container-Healthcheck **und** externes Uptime-Monitoring. **Optionales
 Redis** (Cache/Sessions/Axes-Lockout) ist über `REDIS_URL` + Profil `cache`
 zuschaltbar (`docker compose --profile cache up -d`); Standard bleibt DB-Sessions.
+**Performance & Skalierung (>100 gleichzeitige Nutzer, ADR 0060, Sicherheit vor
+Tempo):** Gunicorn läuft als **`gthread`** (gleichzeitige Requests ≈
+`GUNICORN_WORKERS`×`GUNICORN_THREADS`, Default 3×8; DB-Budget workers×threads ≤
+`max_connections`, sonst PgBouncer); `CONN_HEALTH_CHECKS=True` zu `conn_max_age`.
+Hot-Pfade ohne N+1 (gemessen: Startseite 23, Backend Mitglieds-Anteile 14,
+Rechnungen 18 Queries – via `select_related`/`prefetch`/Annotation/Indizes, u. a.
+`shop.LineItem(member,purchase,invoice)`). **Geteilter Belegungs-Cache**
+(`_occupied_days_by_quarter`) ist **nur mit Redis** aktiv (LocMem = pro Worker →
+stale) und wird per Signal nach jeder Buchungsänderung invalidiert (`on_commit`);
+gecacht werden nur ohnehin allgemein sichtbare Belegungsdaten – die Buchung prüft
+IMMER frisch unter Sperre. Die **Rechnungsnummer-Vergabe** ist gegen gleichzeitige
+Checkouts gesperrt (kein doppelter `HL-…`-Stand). Lasttests in `loadtest/`
+(`browse`/`booking_rush`/`shop_rush`), Tiefenverteidigungs-Constraint dokumentiert
+in `docs/BETRIEB-SICHERHEIT.md`.
 **Server-Umzug inkl. DB:** `ops/migrate-server.sh dump|restore` (pg_dump/psql über
 den `db`-Container); Voraussetzungen + Ablauf stehen im README. **Backup/Hardening
 (Backups, 2FA, IBAN-Feldverschlüsselung, LUKS) sind GEPLANT, nicht umgesetzt** –

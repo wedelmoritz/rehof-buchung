@@ -171,3 +171,32 @@ gecacht werden (nur allgemein sichtbare Daten, invalidiert bei Buchungsänderung
 
 **Lasttest:** `k6` (ADR 0051) gegen Startseite **und** Checkout mit ~100 VUs fahren;
 p95-Latenz und Postgres-Verbindungen beobachten (`pg_stat_activity`).
+
+### Optionale Tiefenverteidigung: DB-Constraint gegen Doppelbuchung
+
+Die Doppelbuchung ist bereits **korrekt** über die Zeilensperre verhindert
+(`book_spontaneous`: `select_for_update` auf der Quartier-Zeile + frische
+`quarter_is_free`-Prüfung; getestet in `booking/tests_concurrency.py`). Wer auf
+DB-Ebene zusätzlich absichern will (Belt-and-Suspenders), kann auf PostgreSQL einen
+**Exclusion-Constraint** setzen, der überlappende *bestätigte* Zuteilungen je
+Quartier hart unterbindet:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+ALTER TABLE booking_allocation
+  ADD CONSTRAINT alloc_no_overlap
+  EXCLUDE USING gist (quarter_id WITH =, daterange(start, "end") WITH &&)
+  WHERE (provisional = false);
+```
+
+Bewusst **nicht** als Migration eingespielt: Postgres-spezifisch (die SQLite-
+Testsuite kann ihn nicht ausführen), und er greift nur Allocation↔Allocation –
+Allocation↔ExternalBooking deckt weiterhin die Sperre ab. Vor dem Setzen sicher-
+stellen, dass keine bestehenden Überschneidungen vorliegen (sonst schlägt das
+`ALTER TABLE` fehl). Entfernen: `ALTER TABLE booking_allocation DROP CONSTRAINT alloc_no_overlap;`
+
+### Lasttest-Szenarien (`loadtest/`)
+- `browse.js` – Lese-Last (Übersicht/Buchen/Meine Buchungen).
+- `booking_rush.js` – gleichzeitige Buchungen desselben Slots (Sperre).
+- `shop_rush.js` – Hofladen: Katalog/Warenkorb/Checkout unter Last (Rechnungs-
+  nummer-Vergabe, Warenkorb-Schreibpfade).
