@@ -76,6 +76,7 @@ die Regelwerte zu wiederholen.
 | [0052](0052-konto-einladung-passwort-selbst-setzen.md) | Konto-Einladung: Passwort selbst setzen statt Admin-Vergabe | Accepted |
 | [0053](0053-hofladen-terminal-offline-kiosk.md) | Hofladen-Terminal vor Ort: offline-fähiger, token-authentifizierter Kiosk | Accepted |
 | [0054](0054-einheitliches-farbsystem.md) | Einheitliches Farbsystem (warmes Papier-Neutral + Terrakotta-Akzent) | Accepted |
+| [0055](0055-backend-persistenter-navigator-pjax.md) | Backend: persistenter Navigator (Suche + Bereiche) + pjax statt Layout-Wechsel | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

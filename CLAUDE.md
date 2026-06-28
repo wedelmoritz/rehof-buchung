@@ -64,13 +64,16 @@ booking/
     dashboard.py external_ops.py beds24_ops.py retention.py
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
-                        #  (Backend-Startseite mit Erklär-Panel: templates/admin/custom_index.html,
+                        #  (Backend-Startseite mit Erklär-Panel + „Neue Benutzer": custom_index.html,
                         #   gesetzt über admin.site.index_template). Buchungen: Allocation.clean
                         #   erzwingt die Domänenregeln auch im Backend (keine Doppelbuchung, ADR 0045).
   admin_site.py         # RehofAdminSite: gliedert das Backend fachlich in 5 Sektionen
-                        #   (get_app_list, ADR 0049) – Index UND Seitenleiste. Aktiviert über
-  admin_apps.py         #   booking.admin_apps.RehofAdminConfig (default_site; in INSTALLED_APPS
-                        #   statt django.contrib.admin). Warmes Theme: templates/admin/base_site.html.
+                        #   (get_app_list, ADR 0049). Persistenter Navigator (Suche + Bereiche) oben
+                        #   auf JEDER Seite + pjax (ADR 0055): die eingebaute Seitenleiste ist AUS
+  admin_apps.py         #   (enable_nav_sidebar=False). Aktiviert über booking.admin_apps.
+                        #   RehofAdminConfig (default_site; in INSTALLED_APPS statt django.contrib.
+                        #   admin). Warmes Theme + Navigator/pjax: templates/admin/base_site.html
+                        #   (+ _rehof_navigator.html).
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html
@@ -656,7 +659,17 @@ Abschnitt **„Neue Benutzer – noch ohne Mitglieds-Anteil"** mit allen noch ni
 zugeordneten Konten (`services.users_without_membership` = aktive Konten ohne
 `Share`, ohne Admin-/Staff-/Verwaltungs-Konten und ohne externe Gäste; gerendert
 über `RehofAdminSite.index`-Extra-Context in `custom_index.html`, Klick führt
-direkt aufs Benutzer-Formular). Cookies/Sessions
+direkt aufs Benutzer-Formular). **Backend-Aufbau einheitlich (ADR 0055):** Statt
+die Standard-Seitenleiste zu nutzen (aus, `enable_nav_sidebar=False`), steht oben
+auf **jeder** Admin-Seite derselbe **Navigator** (Suche + die 5 fachlichen Bereiche
+als kollabierbare `<details>`, aus `available_apps`) – eingehängt über
+`{% block pretitle %}` in `base_site.html` (`templates/admin/_rehof_navigator.html`).
+Der gewählte Bereich/die Liste wird **darunter** aufgebaut, beim Klick **ohne
+Neuladen** (kleiner **pjax**-Layer in `base_site.html`: tauscht nur `#content` unter
+dem Navigator, lädt fehlende Stylesheets nach, `pushState`/`popstate`, harter
+Fallback auf normale Navigation). **Bewusst voller Reload** bei Änderungs-/Anlage-
+Formularen und POSTs (jQuery/Widgets zuverlässig; Struktur bleibt durch den
+server-gerenderten Navigator dennoch gleich). Cookies/Sessions
 sind gehärtet (HttpOnly, SameSite=Lax, Secure in Prod). OIDC/Keycloak-Naht
 bleibt in `settings.py` markiert.
 

@@ -47,6 +47,12 @@ class RehofAdminSite(admin.AdminSite):
     """Admin-Site mit fachlicher Sektions-Gliederung (site_header/index_template
     werden weiterhin in booking/admin.py gesetzt)."""
 
+    # Statt der eingebauten linken Seitenleiste rendern wir EINEN persistenten
+    # Navigator (Suche + Bereiche) oben auf jeder Seite (templates/admin/
+    # _rehof_navigator.html via base_site.html). Die eingebaute Leiste würde nur
+    # doppeln, daher aus (ADR 0055).
+    enable_nav_sidebar = False
+
     def index(self, request, extra_context=None):
         """Backend-Startseite um den Abschnitt „Neue Benutzer“ ergänzen: Konten, die
         noch keinem Mitglieds-Anteil zugeordnet sind und freigeschaltet werden

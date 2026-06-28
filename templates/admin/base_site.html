@@ -75,5 +75,212 @@
   .button, input[type=submit], input[type=button], .submit-row input, a.button { border-radius: 9px; }
   .object-tools a { border-radius: 9px; }
   #content-main .module table tbody tr:hover { background: #fbe9e4; }
+
+  /* ---------- Persistenter Navigator (Suche + Bereiche), oben auf jeder Seite ---------- */
+  .rehof-navigator { margin: 0 0 18px; padding: 12px 14px 6px; background: var(--body-bg);
+    border: 1px solid #e4dfd8; border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(60,53,47,.035), 0 8px 22px rgba(60,53,47,.04); }
+  .rehof-nav-q { width: 100%; box-sizing: border-box; padding: 11px 14px; font-size: 15px;
+    border: 1px solid #e4dfd8; border-radius: 11px; background: #fff; color: var(--body-fg);
+    box-shadow: 0 1px 2px rgba(60,53,47,.04); }
+  .rehof-nav-q:focus { outline: 2px solid var(--selected-bg); border-color: var(--secondary); }
+  .rehof-nav-q.no-results { border-color: var(--secondary); }
+  .rehof-nav-empty { margin: 8px 2px 0; color: var(--body-quiet-color); }
+  .rehof-nav-secs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .rehof-nav-sec { flex: 1 1 100%; border: 1px solid #e4dfd8; border-radius: 10px;
+    overflow: hidden; background: #fff; }
+  .rehof-nav-sec > summary { cursor: pointer; list-style: none; padding: 9px 13px;
+    font-size: 12px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--body-loud-color); background: var(--darkened-bg);
+    display: flex; align-items: center; gap: 10px; }
+  .rehof-nav-sec > summary::-webkit-details-marker { display: none; }
+  .rehof-nav-sec > summary::before { content: "▸"; color: var(--body-quiet-color);
+    font-size: 11px; }
+  .rehof-nav-sec[open] > summary::before { content: "▾"; }
+  .rehof-nav-sec > summary:hover { background: #e6e0d8; }
+  .rehof-nav-count { margin-left: auto; min-width: 22px; text-align: center; padding: 1px 8px;
+    border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0;
+    background: var(--selected-bg); color: var(--secondary); }
+  .rehof-nav-sec ul { list-style: none; margin: 0; padding: 6px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px; }
+  .rehof-nav-item { display: flex; align-items: center; gap: 8px; }
+  .rehof-nav-item[hidden] { display: none !important; }
+  .rehof-nav-link { flex: 1 1 auto; padding: 7px 10px; border-radius: 8px; text-decoration: none;
+    color: var(--link-fg); font-weight: 600; }
+  a.rehof-nav-link:hover { background: #fbe9e4; }
+  a.rehof-nav-link.active { background: var(--selected-bg); color: var(--secondary);
+    box-shadow: inset 2px 0 0 var(--primary); }
+  .rehof-nav-add { flex: 0 0 auto; width: 26px; height: 26px; line-height: 24px; text-align: center;
+    border: 1px solid #e4dfd8; border-radius: 7px; color: var(--secondary); text-decoration: none;
+    font-weight: 800; }
+  .rehof-nav-add:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  /* Sanfter Lade-Hinweis beim pjax-Wechsel (kein Neuladen). */
+  #content { transition: opacity .12s ease; }
+  body.rehof-loading #content { opacity: .55; }
 </style>
+{% endblock %}
+
+{% comment %}Navigator oben in JEDE Seite einhängen (pretitle wird nur von base.html
+definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{% endcomment %}
+{% block pretitle %}{{ block.super }}{% include "admin/_rehof_navigator.html" %}{% endblock %}
+
+{% block extrahead %}{{ block.super }}
+<script>
+/* Re:hof-Backend: (1) Navigator-Suche + Sektions-Zustand + aktive Markierung,
+   (2) pjax – beim Klick auf einen Bereich/eine Liste wird NUR der Inhalt UNTER
+   dem Navigator ausgetauscht (kein Neuladen, gleiche Struktur). Änderungs-/
+   Anlege-Formulare und POSTs laden normal; jeder Fehler fällt auf normale
+   Navigation zurück. (ADR 0055) */
+(function () {
+  if (window.__rehofAdminNav) return; window.__rehofAdminNav = true;
+  var OPEN_KEY = "rehof.nav.open";
+
+  function nav() { return document.getElementById("rehof-nav"); }
+
+  function loadOpen() { try { return JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); } catch (e) { return {}; } }
+  function saveOpen(o) { try { localStorage.setItem(OPEN_KEY, JSON.stringify(o)); } catch (e) {} }
+
+  function markActive() {
+    var n = nav(); if (!n) return;
+    var path = location.pathname;
+    var best = null, bestLen = -1;
+    n.querySelectorAll("a.rehof-nav-link").forEach(function (a) {
+      a.classList.remove("active");
+      var href = a.getAttribute("href") || "";
+      try { var p = new URL(href, location.href).pathname; } catch (e) { return; }
+      if (path === p || path.indexOf(p) === 0) { if (p.length > bestLen) { best = a; bestLen = p.length; } }
+    });
+    if (best) {
+      best.classList.add("active");
+      var sec = best.closest(".rehof-nav-sec"); if (sec) sec.open = true;
+    }
+  }
+
+  function bindNavigator() {
+    var n = nav(); if (!n || n.__bound) return; n.__bound = true;
+    var q = n.querySelector("#rehof-nav-q");
+    var empty = n.querySelector(".rehof-nav-empty");
+    var secs = Array.prototype.slice.call(n.querySelectorAll(".rehof-nav-sec"));
+    var open = loadOpen();
+    secs.forEach(function (s) {
+      var key = s.querySelector("summary").textContent.trim();
+      if (open[key]) s.open = true;
+      s.addEventListener("toggle", function () {
+        if (q && q.value.trim().length >= 2) return; // während Suche nicht speichern
+        open[key] = s.open; saveOpen(open);
+      });
+    });
+    if (q) {
+      q.addEventListener("input", function () {
+        var term = q.value.trim().toLowerCase();
+        if (term.length < 2) {
+          secs.forEach(function (s) {
+            s.hidden = false;
+            s.querySelectorAll(".rehof-nav-item").forEach(function (l) { l.hidden = false; });
+            var key = s.querySelector("summary").textContent.trim(); s.open = !!open[key];
+          });
+          if (empty) empty.hidden = true; markActive(); return;
+        }
+        var any = false;
+        secs.forEach(function (s) {
+          var hits = 0;
+          s.querySelectorAll(".rehof-nav-item").forEach(function (l) {
+            var hit = l.getAttribute("data-label").indexOf(term) !== -1;
+            l.hidden = !hit; if (hit) hits++;
+          });
+          s.hidden = hits === 0; s.open = hits > 0; if (hits > 0) any = true;
+        });
+        if (empty) empty.hidden = any;
+      });
+      document.addEventListener("keydown", function (e) {
+        var t = (document.activeElement || {}).tagName || "";
+        if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(t)) { e.preventDefault(); q.focus(); }
+        if (e.key === "Escape" && document.activeElement === q) { q.value = ""; q.dispatchEvent(new Event("input")); q.blur(); }
+      });
+    }
+    markActive();
+  }
+
+  // ---------- pjax ----------
+  function ajaxable(a) {
+    if (a.target === "_blank" || a.hasAttribute("download")) return false;
+    if (a.classList.contains("rehof-nav-add")) return false;
+    var href = a.getAttribute("href"); if (!href || href[0] === "#") return false;
+    var u; try { u = new URL(href, location.href); } catch (e) { return false; }
+    if (u.origin !== location.origin || !u.pathname.startsWith("/admin/")) return false;
+    if (u.pathname === "/admin/logout/" || u.pathname.indexOf("/admin/autocomplete") === 0) return false;
+    if (/\/(add|delete|history)\/$/.test(u.pathname)) return false;       // Formulare normal laden
+    if (/\/change\/$/.test(u.pathname)) return false;                      // Änderungsformular normal laden
+    if (u.searchParams.get("_popup")) return false;
+    return true;
+  }
+
+  function ensureAssets(doc) {
+    // NUR fehlende Stylesheets nachladen (z.B. changelists.css) – KEINE Skripte
+    // einschleusen (Reihenfolge/jQuery-Abhängigkeiten würden brechen). Listen
+    // bleiben über Links bedienbar; reine JS-Extras (Select-all-across) entfallen
+    // auf pjax-Seiten bewusst. Änderungsformulare laden ohnehin normal.
+    var haveCss = {};
+    document.head.querySelectorAll("link[rel=stylesheet]").forEach(function (l) { haveCss[l.href] = 1; });
+    doc.querySelectorAll("link[rel=stylesheet]").forEach(function (l) {
+      if (l.href && !haveCss[l.href]) { var n = document.createElement("link"); n.rel = "stylesheet"; n.href = l.href; document.head.appendChild(n); }
+    });
+  }
+
+  function swap(doc) {
+    var cur = document.getElementById("content"), fresh = doc.getElementById("content");
+    if (!cur || !fresh) throw 0;
+    var keep = cur.querySelector("#rehof-nav");                 // lebenden Navigator behalten
+    var freshNav = fresh.querySelector("#rehof-nav"); if (freshNav) freshNav.remove();
+    Array.prototype.slice.call(cur.children).forEach(function (c) { if (c !== keep) cur.removeChild(c); });
+    while (fresh.firstChild) cur.appendChild(fresh.firstChild);
+    var bc = document.querySelector(".breadcrumbs"), nbc = doc.querySelector(".breadcrumbs");
+    if (bc && nbc) bc.innerHTML = nbc.innerHTML;
+    if (doc.body) document.body.className = doc.body.className;
+    document.title = doc.title;
+  }
+
+  function go(url, push) {
+    document.body.classList.add("rehof-loading");
+    fetch(url, { credentials: "same-origin", headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then(function (r) { if (!r.ok) throw 0; return r.text(); })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, "text/html");
+        if (!doc.getElementById("content") || /\blogin\b/.test(doc.body.className)) throw 0;
+        ensureAssets(doc);
+        if (push) history.pushState({ rehof: 1 }, "", url);  // erst URL, dann aktiven Eintrag markieren
+        swap(doc);
+        markActive();
+        window.scrollTo(0, 0);
+        document.body.classList.remove("rehof-loading");
+      })
+      .catch(function () { window.location.href = url; });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest ? e.target.closest("a") : null; if (!a) return;
+    if (!ajaxable(a)) return;
+    e.preventDefault(); go(a.href, true);
+  });
+
+  // Changelist-Suche (GET) ebenfalls ohne Neuladen.
+  document.addEventListener("submit", function (e) {
+    var f = e.target;
+    if (!f || f.id !== "changelist-search") return;
+    if (f.method && f.method.toLowerCase() !== "get") return;
+    var u = new URL(f.getAttribute("action") || location.href, location.href);
+    if (u.origin !== location.origin || !u.pathname.startsWith("/admin/")) return;
+    var params = new URLSearchParams();
+    new FormData(f).forEach(function (v, k) { if (v !== "") params.append(k, v); });
+    u.search = params.toString();
+    e.preventDefault(); go(u.toString(), true);
+  });
+
+  window.addEventListener("popstate", function () { go(location.href, false); });
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindNavigator);
+  else bindNavigator();
+})();
+</script>
 {% endblock %}
