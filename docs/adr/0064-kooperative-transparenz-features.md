@@ -43,6 +43,31 @@ eingereichten Wünsche im Fenster), Rest in Python; Vorschläge werden auf die
 Quartier-Saison gefiltert (`_in_season_range`). Bewusst gewählt (statt verbindlichem
 Tausch) für Schlankheit und Strategiesicherheit.
 
+### P2.5 – Solidaritäts-/Schenkungs-Pool für Tage (gedeckelt)
+
+Ein gemeinsamer Topf, in den Mitglieder **ungenutzte Tage spenden** und aus dem
+Mitglieder **bei Bedarf, gedeckelt** entnehmen können (Modell `DayPoolEntry`,
+Migration 0041; Service `booking/services/pool.py`). Topf-Stand eines Jahres =
+Σ Spenden − Σ Entnahmen.
+
+- **Integration ins Budget:** Spenden/Entnahmen fließen in `Member.
+  effective_annual_budget` (neue Helfer `pool_donated_in_year`/`pool_received_in_year`)
+  – damit respektiert die **gesamte** Buchungs-/Verfügbarkeitsprüfung den Pool
+  automatisch (ein Integrationspunkt, kein verstreuter Sonderfall).
+- **Fairness-Regeln (bewusst einfach, im Code dokumentiert/änderbar):**
+  - **Spenden:** nur, was man noch hat (`nights ≤ nights_remaining_in_year`).
+  - **Entnahme nur bei Bedarf:** das eigene Jahresbudget muss fast aufgebraucht sein
+    (`remaining ≤ POOL_ELIGIBLE_REMAINING`, Default 5) – schützt das Jahres-Prinzip;
+    wer aufgestockt hat, ist nicht mehr berechtigt.
+  - **Gedeckelt:** höchstens `POOL_WITHDRAW_CAP_PER_YEAR` (Default 10) Tage je
+    Mitglied und Jahr, und nie mehr als im Topf ist.
+- **Transparenz/Privatsphäre:** der Topf-Stand ist sichtbar; das Mitglied sieht seine
+  **eigenen** Spenden/Entnahmen. Fremde Entnahmen werden NICHT namentlich gezeigt
+  (eine Entnahme verriete finanzielle/zeitliche Knappheit – Datensparsamkeit). Die
+  Verwaltung sieht alle Einträge im Backend (`DayPoolEntryAdmin`).
+- **UI:** Karte „Solidaritäts-Pool" auf `/tage-uebertragen/` (Spenden mit Rückfrage;
+  Entnehmen nur wenn berechtigt, sonst erklärender Hinweis).
+
 ### P2.7 – Leichte Wertschätzung („Danke")
 
 Die empfangende Person kann sich für eine Tage-Übertragung **einmalig** bedanken

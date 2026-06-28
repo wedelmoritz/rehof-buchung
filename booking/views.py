@@ -845,6 +845,19 @@ def transfer(request):
         messages.success(request, "Dein Dank wurde übermittelt. 🌻") if ok \
             else messages.error(request, err or "Nicht möglich.")
         return redirect("transfer")
+    # P2.5: Solidaritäts-Pool – spenden / (bei Bedarf, gedeckelt) entnehmen.
+    if request.method == "POST" and request.POST.get("action") in ("pool_donate",
+                                                                    "pool_withdraw"):
+        nights = request.POST.get("nights")
+        if request.POST["action"] == "pool_donate":
+            _e, err = svc.pool_donate(member, nights, year)
+            ok_msg = "Danke! Deine Tage liegen jetzt im Solidaritäts-Pool. 🌻"
+        else:
+            _e, err = svc.pool_withdraw(member, nights, year)
+            ok_msg = "Tage aus dem Pool entnommen – sie stehen dir nun zur Verfügung."
+        messages.success(request, ok_msg) if _e \
+            else messages.error(request, err or "Nicht möglich.")
+        return redirect("transfer")
     form = TransferForm(exclude_member=member)
     if request.method == "POST":
         form = TransferForm(request.POST, exclude_member=member)
@@ -874,6 +887,8 @@ def transfer(request):
         "form": form, "member": member, "year": year,
         "remaining": member.nights_remaining_in_year(year),
         "outgoing": outgoing, "incoming": incoming, "pending": pending,
+        "pool": svc.pool_status(member, year),
+        "my_pool_entries": member.pool_entries.filter(year=year),
     })
 
 

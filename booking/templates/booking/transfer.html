@@ -144,6 +144,48 @@
 </script>
 {% endif %}
 
+<h2>Solidaritäts-Pool</h2>
+<div class="card">
+  <p class="muted" style="margin-top:0">Spende ungenutzte Tage in einen gemeinsamen Topf –
+    Mitglieder, deren Jahresbudget fast aufgebraucht ist, können daraus
+    <strong>gedeckelt</strong> ({{ pool.cap }} Tage/Jahr) entnehmen. So bleibt kein Tag
+    ungenutzt und niemand steht ganz ohne da.</p>
+  <div class="stat" style="max-width:220px"><div class="num">{{ pool.balance }}</div>
+    <div class="lbl">Tage gerade im Pool</div></div>
+
+  <div class="pool-actions" style="display:flex;flex-wrap:wrap;gap:1.4rem;margin-top:.8rem">
+    {% if pool.can_donate %}
+    <form method="post" class="pool-form" data-confirm="Tage in den Solidaritäts-Pool spenden? Sie werden von deinem Kontingent abgezogen.">{% csrf_token %}
+      <input type="hidden" name="action" value="pool_donate">
+      <label>Spenden<br><input type="number" name="nights" min="1" max="{{ pool.max_donate }}" value="1" style="width:5rem"> von {{ pool.max_donate }} Tagen</label>
+      <button class="btn small sage" type="submit" style="margin-left:.4rem">In den Pool spenden</button>
+    </form>
+    {% endif %}
+
+    {% if pool.eligible_to_withdraw and pool.max_withdraw > 0 %}
+    <form method="post" class="pool-form">{% csrf_token %}
+      <input type="hidden" name="action" value="pool_withdraw">
+      <label>Entnehmen<br><input type="number" name="nights" min="1" max="{{ pool.max_withdraw }}" value="1" style="width:5rem"> (max. {{ pool.max_withdraw }})</label>
+      <button class="btn small" type="submit" style="margin-left:.4rem">Aus dem Pool entnehmen</button>
+    </form>
+    {% elif not pool.eligible_to_withdraw %}
+    <p class="sm muted" style="align-self:center;margin:0">Entnahme ist erst möglich, wenn dein
+      Jahresbudget fast aufgebraucht ist (≤&nbsp;{{ pool.eligible_remaining_threshold }} Tage übrig).
+      Du hast aktuell {{ pool.remaining }}.</p>
+    {% endif %}
+  </div>
+
+  {% if my_pool_entries %}
+  <div class="table-wrap" style="margin-top:.8rem"><table>
+    <tr><th>Art</th><th>Tage</th><th>Datum</th></tr>
+    {% for e in my_pool_entries %}
+    <tr><td>{{ e.get_kind_display }}</td><td>{{ e.nights }}</td>
+        <td>{{ e.created_at|date:"d.m.Y" }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</div>
+
 <h2>Übertragungen {{ year }}</h2>
 <div class="card">
   {% if outgoing %}

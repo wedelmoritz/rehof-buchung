@@ -15,11 +15,12 @@ from .calendars import *  # noqa: F401,F403
 from .lottery_ops import *  # noqa: F401,F403
 from .wishes import *  # noqa: F401,F403
 from .booking_ops import *  # noqa: F401,F403
+from .pool import *  # noqa: F401,F403
 from .dashboard import *  # noqa: F401,F403
 from .external_ops import *  # noqa: F401,F403
 from .terminal_ops import *  # noqa: F401,F403
 
-from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, dashboard, external_ops, terminal_ops  # noqa: F401
+from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops  # noqa: F401
 
 # Parität zur alten `services.py`: dort waren die importierten Modelle und die
 # reinen Logik-Module als Modul-Attribute erreichbar (z.B. `svc.ExternalConfig`,
@@ -67,6 +68,8 @@ __all__ = [
     'concurrent_split', 'create_swap_request', 'respond_swap_request',
     'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
     'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
+    'POOL_ELIGIBLE_REMAINING', 'POOL_WITHDRAW_CAP_PER_YEAR',
+    'pool_balance', 'pool_status', 'pool_donate', 'pool_withdraw',
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
     '_month_occupancy', 'dashboard_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',

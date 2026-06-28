@@ -96,7 +96,8 @@ buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitte
 (mit `persons`), `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
-erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer`, `WaitlistEntry` (Spontanbuchungs-
+erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thanked_at` =
+„Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5), `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
@@ -192,7 +193,12 @@ sie weiter], dann Vorschau mit Empfänger – Anzeigename/Benutzername/Name – 
 Disclaimer, dass die Basis des Übertrags privatrechtlich zu regeln ist, dann
 „verbindlich übertragen“; **erhaltene** Übertragungen kann man mit **„Danke sagen“**
 einmalig quittieren – `services.thank_for_transfer`, idempotent über
-`NightTransfer.thanked_at`, private Benachrichtigung an die schenkende Person, ADR 0064).
+`NightTransfer.thanked_at`, private Benachrichtigung an die schenkende Person, ADR 0064.
+Auf derselben Seite der **Solidaritäts-Pool** [P2.5/ADR 0064]: Tage in einen
+gemeinsamen Topf **spenden** und **bei Bedarf, gedeckelt entnehmen** [`DayPoolEntry`,
+`services/pool.py`: `pool_donate`/`pool_withdraw`/`pool_status`; wirkt über
+`Member.effective_annual_budget`; Entnahme nur bei fast aufgebrauchtem Budget
+[`POOL_ELIGIBLE_REMAINING`], gedeckelt `POOL_WITHDRAW_CAP_PER_YEAR`]).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
 den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
@@ -575,7 +581,9 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   `free_booking` steht).
 - **Tage:** 50/Jahr je Mitglied, davon max. 25 über die Wunschliste. **Kein
   Übertrag ins Folgejahr** (Kontingent gilt je Kalenderjahr frisch). Tage sind
-  **an andere Mitglieder übertragbar** (`NightTransfer`).
+  **an andere Mitglieder übertragbar** (`NightTransfer`) **oder in den
+  Solidaritäts-Pool spendbar/daraus entnehmbar** (`DayPoolEntry`, gedeckelt, nur bei
+  Bedarf; P2.5/ADR 0064). Beides fließt in `Member.effective_annual_budget` ein.
 - **Saison-Regeln (`SeasonRule`):** **jährlich wiederkehrend** (Monat/Tag, ohne
   Jahr); je Zeitraum optional `min_nights`, `max_parallel_units` (gleichzeitige
   Wohneinheiten), `max_stay_nights` (Einheiten-Nächte-Deckel). Der Service

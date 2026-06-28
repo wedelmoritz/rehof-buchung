@@ -14,7 +14,7 @@ from .models import (
     Allocation, Beds24Import, Beds24ImportRow, BookingPeriod, BookingPolicy,
     EquivalenceClass, ExternalBooking,
     ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
-    NightTransfer,
+    NightTransfer, DayPoolEntry,
     Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterPrice,
     SchoolHoliday,
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
@@ -640,6 +640,13 @@ class NightTransferAdmin(admin.ModelAdmin):
     list_display = ("year", "from_member", "to_member", "nights", "created_at")
     list_filter = ("year",)
     search_fields = ("from_member__display_name", "to_member__display_name")
+
+
+@admin.register(DayPoolEntry)
+class DayPoolEntryAdmin(admin.ModelAdmin):
+    list_display = ("year", "kind", "member", "nights", "created_at")
+    list_filter = ("year", "kind")
+    search_fields = ("member__display_name",)
 
 
 @admin.register(WaitlistEntry)

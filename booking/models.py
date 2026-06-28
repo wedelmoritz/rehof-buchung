@@ -246,13 +246,25 @@ class Member(models.Model):
     def nights_given_in_year(self, year: int) -> int:
         return sum(t.nights for t in self.transfers_out.filter(year=year))
 
+    def pool_received_in_year(self, year: int) -> int:
+        """Aus dem Solidaritäts-Pool entnommene Tage (P2.5)."""
+        return sum(e.nights for e in self.pool_entries.filter(
+            year=year, kind="withdraw"))
+
+    def pool_donated_in_year(self, year: int) -> int:
+        """In den Solidaritäts-Pool gespendete Tage (P2.5)."""
+        return sum(e.nights for e in self.pool_entries.filter(
+            year=year, kind="donate"))
+
     def effective_annual_budget(self, year: int) -> int:
-        """Jahreskontingent inkl. erhaltener/abgegebener Tage (kein Übertrag
-        aus dem Vorjahr)."""
+        """Jahreskontingent inkl. erhaltener/abgegebener Tage und Pool-Spenden/
+        -Entnahmen (kein Übertrag aus dem Vorjahr)."""
         return (
             self.annual_night_budget
             + self.nights_received_in_year(year)
             - self.nights_given_in_year(year)
+            + self.pool_received_in_year(year)
+            - self.pool_donated_in_year(year)
         )
 
     def nights_remaining_in_year(self, year: int) -> int:
@@ -608,6 +620,36 @@ class NightTransfer(models.Model):
     def __str__(self) -> str:
         return (f"{self.nights} Tage: {self.from_member} → {self.to_member} "
                 f"({self.year})")
+
+
+class DayPoolEntry(models.Model):
+    """Solidaritäts-/Schenkungs-Pool für Tage (P2.5, ADR 0064): Mitglieder spenden
+    ungenutzte Tage in einen gemeinsamen Topf; wer (fast) kein Budget mehr hat, kann
+    daraus – gedeckelt – entnehmen. Eine Zeile je Spende/Entnahme (transparentes,
+    nachvollziehbares Protokoll). Der Topf-Stand eines Jahres = Σ Spenden − Σ Entnahmen.
+    Spenden/Entnahmen wirken über `Member.effective_annual_budget`."""
+    DONATE = "donate"
+    WITHDRAW = "withdraw"
+    KIND = [(DONATE, "Spende in den Pool"), (WITHDRAW, "Entnahme aus dem Pool")]
+
+    year = models.PositiveIntegerField("Jahr")
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="pool_entries",
+        verbose_name="Mitglied")
+    kind = models.CharField("Art", max_length=10, choices=KIND)
+    nights = models.PositiveIntegerField("Tage")
+    note = models.CharField("Notiz", max_length=200, blank=True)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Tage-Pool-Buchung"
+        verbose_name_plural = "Tage-Pool-Buchungen"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["year", "kind"])]
+
+    def __str__(self) -> str:
+        sign = "+" if self.kind == self.DONATE else "−"
+        return f"{sign}{self.nights} Tage: {self.member} ({self.year})"
 
 
 class WaitlistEntry(models.Model):
