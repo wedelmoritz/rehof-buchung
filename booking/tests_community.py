@@ -30,6 +30,8 @@ class KarmaDistributionTests(TestCase):
 
 class CommunityViewTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()   # gecachte community_stats nicht zwischen Tests verschleppen
         self.u = User.objects.create_user("a", password="pw12345")
         self.m = Member.objects.create(user=self.u, display_name="A", factor=1.1)
 

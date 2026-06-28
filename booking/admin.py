@@ -20,7 +20,8 @@ from .models import (
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
-from .services import confirm_lottery, rollback_lottery, run_period_lottery
+from .services import (confirm_lottery, ensure_seed_commit, rollback_lottery,
+                       run_period_lottery)
 
 
 class Beds24ImportRowInline(admin.TabularInline):
@@ -467,6 +468,15 @@ class BookingPeriodAdmin(admin.ModelAdmin):
             ),
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        """Sobald eine Periode (im Backend) in „Wünsche offen" oder weiter steht,
+        die Seed-Prüfsumme festlegen/veröffentlichen – damit der Seed VOR den
+        Einträgen feststeht, auch ohne Cron (Commit-Reveal, ADR 0062)."""
+        super().save_model(request, obj, form, change)
+        open_rank = BookingPeriod.LIFECYCLE.index(BookingPeriod.WISHES_OPEN)
+        if not obj.seed_commit and obj.status_rank >= open_rank:
+            ensure_seed_commit(obj)
 
     @admin.action(description="Losung für gewählte Periode(n) durchführen")
     def action_run_lottery(self, request, queryset):

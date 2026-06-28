@@ -50,5 +50,9 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(
                     f"✓ {p}: Seed-Prüfsumme passt, Ergebnis reproduzierbar "
                     f"({r['n_stored']} Zuteilungen, Seed {r['seed']})."))
+                if not r.get("commit_timely"):
+                    self.stdout.write(self.style.WARNING(
+                        "  ⚠ Hinweis: Die Prüfsumme wurde erst spät (nach Wunschschluss) "
+                        "veröffentlicht – die Vorab-Garantie ist dann schwächer."))
         if not all_ok:
             raise CommandError("Mindestens eine Losung ließ sich nicht verifizieren.")

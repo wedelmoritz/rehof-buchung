@@ -1000,6 +1000,29 @@ class LosungVerifizierbarkeitTests(UseCaseBase):
         call_command("verify_lottery", str(period.id), stdout=out)
         self.assertIn("reproduzierbar", out.getvalue())
 
+    def test_commit_rechtzeitigkeit_wird_gemeldet(self):
+        period = self._period()
+        svc.ensure_seed_commit(period)          # committet heute (= wishlist_close)
+        self._two_rivals(period)
+        svc.run_period_lottery(period, seed=7)
+        self.assertTrue(svc.verify_period_lottery(period)["commit_timely"])
+        # Künstlich „spät": Wunschschluss VOR dem Commit-Zeitpunkt.
+        period.wishlist_close = date.today() - timedelta(days=2)
+        period.save(update_fields=["wishlist_close"])
+        self.assertFalse(svc.verify_period_lottery(period)["commit_timely"])
+
+    def test_admin_save_committet_seed_bei_wuenschen_offen(self):
+        from django.contrib import admin as djadmin
+        from booking.admin import BookingPeriodAdmin
+        period = BookingPeriod(
+            name="P", target_year=NEXT_YEAR + 5,
+            start=date(NEXT_YEAR + 5, 1, 1), end=date(NEXT_YEAR + 6, 1, 1),
+            status=BookingPeriod.WISHES_OPEN)
+        BookingPeriodAdmin(BookingPeriod, djadmin.site).save_model(
+            None, period, None, False)
+        self.assertTrue(period.seed_commit)
+        self.assertIsNotNone(period.seed_committed_at)
+
 
 # --------------------------------------------------------------------------- #
 # Use-Case: Losergebnis-Erklärung (warum bekommen / nicht bekommen, P2.6)

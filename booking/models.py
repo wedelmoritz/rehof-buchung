@@ -256,6 +256,15 @@ class Member(models.Model):
         return sum(e.nights for e in self.pool_entries.filter(
             year=year, kind="donate"))
 
+    def pool_net_in_year(self, year: int) -> int:
+        """Netto-Wirkung des Pools aufs Budget (Entnahmen − Spenden) in EINER
+        Aggregat-Abfrage – für den heißen Budget-Pfad (ADR 0060/0064)."""
+        from django.db.models import Sum
+        rows = (self.pool_entries.filter(year=year)
+                .values("kind").annotate(s=Sum("nights")))
+        by = {r["kind"]: r["s"] or 0 for r in rows}
+        return by.get("withdraw", 0) - by.get("donate", 0)
+
     def effective_annual_budget(self, year: int) -> int:
         """Jahreskontingent inkl. erhaltener/abgegebener Tage und Pool-Spenden/
         -Entnahmen (kein Übertrag aus dem Vorjahr)."""
@@ -263,8 +272,7 @@ class Member(models.Model):
             self.annual_night_budget
             + self.nights_received_in_year(year)
             - self.nights_given_in_year(year)
-            + self.pool_received_in_year(year)
-            - self.pool_donated_in_year(year)
+            + self.pool_net_in_year(year)
         )
 
     def nights_remaining_in_year(self, year: int) -> int:

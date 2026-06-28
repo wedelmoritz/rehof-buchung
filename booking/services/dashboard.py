@@ -207,7 +207,16 @@ def community_stats() -> dict:
     """Aggregierte, mitglieder-sichtbare Transparenz-Kennzahlen (Gemeinschafts-
     Spiegel, ADR 0063): Auslastung (aktueller + kommender Monat), Ergebnis-Historie
     der letzten Verlosungen und die anonyme Karma-Verteilung. Bewusst nur Aggregate
-    (Datensparsamkeit), wenige Abfragen."""
+    (Datensparsamkeit), wenige Abfragen.
+
+    Kurz gecacht (10 Min): die Zahlen ändern sich langsam, der Spiegel kann aber von
+    vielen gleichzeitig abgerufen werden – so entlastet der Cache die DB (greift mit
+    Redis workerübergreifend, mit LocMem je Worker; beides unkritisch, da nur
+    ohnehin allgemein sichtbare Aggregate, ADR 0064/E2)."""
+    from django.core.cache import cache
+    cached = cache.get("community_stats")
+    if cached is not None:
+        return cached
     today = date.today()
     ny, nm = next_month(today)
     runs = list(LotteryRun.objects.filter(confirmed=True).select_related("period")
@@ -221,13 +230,15 @@ def community_stats() -> dict:
             "total": total,
             "pct": round(100 * r.n_allocations / total) if total else 0,
         })
-    return {
+    stats = {
         "occ_current": _month_occupancy(today.year, today.month),
         "occ_next": _month_occupancy(ny, nm),
         "lottery_history": history,
         "karma": karma_distribution(),
         "n_members": Member.objects.filter(is_external=False).count(),
     }
+    cache.set("community_stats", stats, 600)   # 10 Minuten
+    return stats
 
 
 def arrivals_in_range(d_from: date, d_to: date):

@@ -336,6 +336,12 @@ def verify_period_lottery(period: BookingPeriod) -> dict:
 
     commit_ok = (not period.seed_commit) or L.verify_commitment(
         period.seed, period.seed_commit)
+    # Rechtzeitig = die Prüfsumme stand spätestens beim Wunschschluss fest (also vor
+    # der Ziehung). Ein erst zur Ziehung erzeugter Commit ist schwächer (ADR 0062, S2).
+    commit_timely = bool(
+        period.seed_committed_at and (
+            period.wishlist_close is None
+            or period.seed_committed_at.date() <= period.wishlist_close))
 
     members = list(Member.objects.filter(is_external=False))
     quarters = list(Quarter.objects.filter(active=True))
@@ -379,6 +385,7 @@ def verify_period_lottery(period: BookingPeriod) -> dict:
     return {
         "ok": bool(commit_ok and replay_ok),
         "commit_ok": commit_ok,
+        "commit_timely": commit_timely,
         "replay_ok": replay_ok,
         "seed": period.seed,
         "seed_commit": period.seed_commit,

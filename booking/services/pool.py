@@ -33,6 +33,17 @@ def pool_balance(year: int) -> int:
     return by.get(DayPoolEntry.DONATE, 0) - by.get(DayPoolEntry.WITHDRAW, 0)
 
 
+def _lock_pool_year(year: int) -> None:
+    """Serialisiert gleichzeitige Pool-Vorgänge eines Jahres (Nebenläufigkeit,
+    S1/ADR 0064): sperrt die vorhandenen Jahres-Zeilen mit SELECT … FOR UPDATE.
+    Muss INNERHALB einer Transaktion laufen. Auf Postgres greift die Sperre; auf
+    SQLite (Tests/Dev) ist sie ein No-Op – dort gibt es ohnehin keine echte
+    Parallelität. Eine Entnahme setzt einen positiven Stand (also vorhandene
+    Spenden-Zeilen) voraus, daher werden konkurrierende Entnahmen zuverlässig
+    serialisiert."""
+    list(DayPoolEntry.objects.select_for_update().filter(year=year))
+
+
 def pool_status(member: Member, year: int) -> dict:
     """Topf-Stand + was DIESES Mitglied tun darf (für die UI; rein lesend)."""
     remaining = member.nights_remaining_in_year(year)
@@ -64,6 +75,7 @@ def pool_donate(member: Member, nights: int, year: int, note: str = "") -> tuple
         return None, "Bitte eine gültige Tagezahl angeben."
     if nights <= 0:
         return None, "Die Anzahl der Tage muss positiv sein."
+    _lock_pool_year(year)   # gegen gleichzeitige Pool-Vorgänge serialisieren
     remaining = member.nights_remaining_in_year(year)
     if nights > remaining:
         return None, f"Du hast nur noch {remaining} Tage – so viele kannst du nicht spenden."
@@ -82,6 +94,7 @@ def pool_withdraw(member: Member, nights: int, year: int, note: str = "") -> tup
         return None, "Bitte eine gültige Tagezahl angeben."
     if nights <= 0:
         return None, "Die Anzahl der Tage muss positiv sein."
+    _lock_pool_year(year)   # gegen gleichzeitige Entnahmen serialisieren (S1)
     remaining = member.nights_remaining_in_year(year)
     if remaining > POOL_ELIGIBLE_REMAINING:
         return None, (f"Eine Entnahme ist nur möglich, wenn dein Jahresbudget fast "
