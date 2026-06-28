@@ -223,14 +223,14 @@ jobs:
       - name: Problematischen Alt-Zustand erzeugen (zwei Perioden je Jahr + Wunsch)
         run: |
           python manage.py shell <<'PY'
-          from datetime import date
           from django.db import connection
-          from booking.models import Member, Quarter, Wish
-          # WICHTIG: nur Spalten lesen, die es im zurückgesetzten Stand (booking 0015)
-          # schon gibt. Die aktuellen Modelle haben später ergänzte Felder
-          # (Member.email_opt_in ab 0020, Quarter.external_bookable ab 0024); ein
-          # volles ORM-SELECT (Member.objects.first()) würde hier auf der Alt-DB
-          # scheitern. Über values_list("id") holen wir nur die ID.
+          from booking.models import Member, Quarter
+          # WICHTIG: nur Spalten lesen/schreiben, die es im zurückgesetzten Stand
+          # (booking 0015) schon gibt. Die aktuellen Modelle haben später ergänzte
+          # Felder (Member.email_opt_in ab 0020, Quarter.external_bookable ab 0024,
+          # Wish.membership ab 0042); ein volles ORM-SELECT/-INSERT würde hier auf
+          # der Alt-DB scheitern. Über values_list("id") holen wir nur die ID, der
+          # Wunsch wird roh mit ausschließlich Alt-Spalten eingefügt.
           member_id = Member.objects.values_list("id", flat=True).first()
           quarter_id = Quarter.objects.values_list("id", flat=True).first()
           with connection.cursor() as c:
@@ -243,13 +243,14 @@ jobs:
                         'VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
                         ["Pfarrhaeuser", 2099, "2099-05-01", "2099-10-01", "suspended", True])
               dup_id = c.fetchone()[0]
-          # Wunsch an der Dublette: dessen Cascade-Löschung erzeugt die
-          # "pending trigger events", an denen das ALTER TABLE scheiterte.
-          # (Wish hat seit 0004 keine neuen Spalten -> ORM-Insert ist hier sicher.)
-          Wish.objects.create(period_id=dup_id, member_id=member_id,
-                              quarter_id=quarter_id,
-                              start=date(2099, 5, 2), end=date(2099, 5, 5),
-                              priority=1, submitted=True)
+              # Wunsch an der Dublette: dessen Cascade-Löschung erzeugt die
+              # "pending trigger events", an denen das ALTER TABLE scheiterte. Roh
+              # einfügen (NICHT per ORM – das aktuelle Wish-Modell kennt membership_id,
+              # die Spalte gibt es im Stand 0015 noch nicht).
+              c.execute('INSERT INTO booking_wish '
+                        '(period_id,member_id,quarter_id,"start","end",priority,submitted) '
+                        'VALUES (%s,%s,%s,%s,%s,%s,%s)',
+                        [dup_id, member_id, quarter_id, "2099-05-02", "2099-05-05", 1, True])
           print("Alt-Zustand: 2 Perioden für 2099 + Wunsch auf der Dublette.")
           PY
 
