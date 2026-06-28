@@ -23,6 +23,17 @@ def env_bool(key: str, default: bool = False) -> bool:
 SECRET_KEY = os.environ.get("SECRET_KEY", "unsafe-dev-key-change-me")
 DEBUG = env_bool("DEBUG", False)
 
+# Fail-closed: in Produktion (DEBUG=0) NICHT mit dem Default-/einem schwachen
+# SECRET_KEY starten. Ein bekannter Schlüssel erlaubt Session-/Signatur-Fälschung –
+# lieber hart abbrechen als unsicher laufen. (install.sh erzeugt einen Zufallswert.)
+if not DEBUG:
+    from django.core.exceptions import ImproperlyConfigured
+    if SECRET_KEY in ("", "unsafe-dev-key-change-me") or len(SECRET_KEY) < 50:
+        raise ImproperlyConfigured(
+            "SECRET_KEY fehlt oder ist zu schwach (Default/<50 Zeichen). In "
+            "Produktion einen langen Zufallswert setzen (siehe install.sh / "
+            "docs/DEPLOYMENT.md).")
+
 ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if h.strip()
