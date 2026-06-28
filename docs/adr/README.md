@@ -88,6 +88,7 @@ die Regelwerte zu wiederholen.
 | [0064](0064-kooperative-transparenz-features.md) | Kooperative P2-Features: Losergebnis-Erklärung, „Danke", Wunsch-Koordination, Solidaritäts-Pool | Accepted |
 | [0065](0065-backend-theme-konsolidierung.md) | Backend-Theme-Konsolidierung (ein warmes Theme, kein Modus-Umschalter) + UX-Fixes (Recent-Actions, Navigator-Default, Onboarding zweistufig, Static-Devices entfernt) | Accepted |
 | [0066](0066-buchungsregeln-je-mitglieds-anteil.md) | Buchungsregeln (Parallel-Limit/Aufenthaltsdeckel) auf den vollen Mitglieds-Anteil – exakte Zurechnung Buchung/Wunsch→Anteil; Losung bleibt je Benutzer | Accepted |
+| [0067](0067-backend-layout-eine-spalte.md) | Backend-Layout: EINE gestapelte Spalte für alle Seiten (Desktop+Mobil), ersetzt den fragilen Float/Flex-Kniff aus ADR 0065 (c) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

@@ -162,23 +162,35 @@
   /* P3: freundlicher Leer-Hinweis in Listen. */
   .rehof-empty-hint { margin: 8px 0 14px; padding: 14px 16px; border-radius: 10px;
     background: var(--darkened-bg); color: var(--body-quiet-color); font-weight: 600; }
-  /* „Neueste Aktionen" zuverlässig OBEN rechts andocken (c): das Django-Float-
-     Layout lässt die Spalte je nach Quell-Reihenfolge nach unten rutschen. Wir
-     legen #content (Sidebar-Seiten = colMS, v.a. die Startseite) als Flexbox aus:
-     der Navigator nimmt die ganze erste Zeile, darunter Inhalt links + „Neueste
-     Aktionen" rechts, beide oben ausgerichtet. */
-  @media (min-width: 1024px) {
-    #content.colMS { display: flex; flex-wrap: wrap; align-items: flex-start;
-      column-gap: 22px; row-gap: 0; }
-    #content.colMS > #rehof-nav { flex: 1 1 100%; }
-    #content.colMS > #content-main { flex: 1 1 auto; min-width: 0; width: auto;
-      float: none; margin: 0; }
-    #content.colMS > #content-related { flex: 0 0 17em; width: auto; float: none;
-      margin: 0; position: sticky; top: 16px; }
-  }
-  /* „Neueste Aktionen" als ruhige helle Karte (statt grauem Block). */
-  #content-related .module { background: #fff; border: 1px solid #e4dfd8; }
-  #content-related .module h2 { background: var(--darkened-bg); }
+  /* ---------- EIN universelles Layout: eine Spalte, gestapelt, identisch auf
+     Desktop UND Mobil (ADR 0067). Ersetzt Djangos fragile Float-Spalten und das
+     frühere Flexbox-Experiment (das den Seitentitel als Flex-Element verstreute).
+     Reihenfolge überall gleich: Navigator → Titel → Inhalt → Seitenspalte
+     (Filter bzw. „Neueste Aktionen") – alles sauber untereinander, volle Breite,
+     ohne Überlappen. ---------- */
+  #content { display: block; }
+  #content-main, #content-related {
+    float: none !important; width: auto !important; max-width: none !important;
+    margin: 0 !important; box-sizing: border-box; }
+  #content-related { margin-top: 18px !important; }
+  /* Seitenspalte (Filter/„Neueste Aktionen") als ruhige, klar begrenzte Karte –
+     volle Breite unter dem Inhalt, statt schmal angeflanscht. */
+  #content-related .module {
+    background: #fff !important; border: 1px solid var(--hairline-color);
+    border-radius: 12px; overflow: hidden; margin-bottom: 1.1rem;
+    box-shadow: 0 1px 2px rgba(60,53,47,.035), 0 8px 22px rgba(60,53,47,.04); }
+  #content-related .module h2, #content-related .module caption {
+    background: var(--darkened-bg); }
+  /* Filter-Sidebar als Karte mit etwas Innenabstand (sie hat sonst keinen). */
+  #changelist-filter { padding-bottom: 8px; }
+  /* Startseite: Djangos Dashboard-CSS verengt #content fest auf 600px (Reste der
+     alten zweispaltigen App-Liste). Da wir die App-Liste durch den Navigator
+     ersetzt haben, volle Breite erzwingen – konsistent mit allen anderen Seiten. */
+  body.dashboard #content { width: auto !important; margin-right: 0 !important;
+    padding-top: 4px; }
+  /* Die redundante Überschrift „Verwaltung" weg – die Marke steht schon in der
+     Kopfzeile; der Navigator zeigt die Bereiche. */
+  body.dashboard #content > h1 { display: none; }
   /* P3: Kopfzeile am Handy kompakter (Benutzer-Links brechen sauber um). */
   @media (max-width: 768px) {
     #header { padding: 10px 14px; }

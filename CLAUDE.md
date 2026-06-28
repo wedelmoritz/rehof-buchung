@@ -75,7 +75,8 @@ booking/
                         #   ab; in INSTALLED_APPS statt django.contrib.admin). EIN warmes Theme
                         #   in ALLEN Django-Modi (Variablen mit !important, Modus-Umschalter aus;
                         #   ADR 0065) + Navigator/pjax: templates/admin/base_site.html
-                        #   (+ _rehof_navigator.html).
+                        #   (+ _rehof_navigator.html). EIN gestapeltes Ein-Spalten-Layout für
+                        #   ALLE Seiten (Desktop+Mobil; Float/Flex aufgehoben, ADR 0067).
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html
