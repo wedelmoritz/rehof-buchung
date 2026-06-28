@@ -100,14 +100,30 @@ def _materialized_seasons(span_start: date, span_end: date) -> list[R.Season]:
 
 
 def check_booking_rules(
-    member: Member, start: date, end: date,
+    member: Member, start: date, end: date, membership=None,
 ) -> str | None:
     """Prüft eine geplante Buchung gegen die globalen + saisonalen Regeln
-    (inkl. regelsetzender Schulferien). Gibt einen Fehlertext zurück oder None."""
+    (inkl. regelsetzender Schulferien). Gibt einen Fehlertext zurück oder None.
+
+    Parallel-Limit/Aufenthaltsdeckel gelten auf den VOLLEN Mitglieds-Anteil
+    (ADR 0066): die schon vorhandenen Belegungen werden über alle Tandem-Partner
+    DIESES Anteils gezählt, nicht nur die des einzelnen Nutzers. `membership` ist
+    der Ziel-Anteil (Default: der eindeutige bzw. größte Anteil des Nutzers);
+    ohne Anteil (externer Gast) fällt die Prüfung auf die eigenen Buchungen
+    zurück."""
+    from ..models import Allocation
     policy = BookingPolicy.get_solo()
-    existing = [
-        R.Stay(start=a.start, end=a.end) for a in member.allocations.all()
-    ]
+    ms = membership if membership is not None else member.membership_for()
+    if ms is not None:
+        existing = [
+            R.Stay(start=s, end=e)
+            for (s, e) in Allocation.objects.filter(membership=ms)
+            .values_list("start", "end")
+        ]
+    else:
+        existing = [
+            R.Stay(start=a.start, end=a.end) for a in member.allocations.all()
+        ]
     return R.validate_booking(
         _materialized_seasons(start, end), policy.default_min_nights,
         start, end, existing,

@@ -27,12 +27,17 @@ def _renumber_wishes(member: Member, period: BookingPeriod) -> None:
             w.save(update_fields=["priority"])
 
 
-def add_wish(member, period, quarter, start, end) -> tuple[Wish | None, str | None]:
+def add_wish(member, period, quarter, start, end,
+             membership_id=None) -> tuple[Wish | None, str | None]:
     """Fügt einen Wunsch als Entwurf ans Ende der Liste an.
 
     Prüft vorab, dass das Quartier im GANZEN Wunschzeitraum saisonal buchbar ist
     – sonst könnte ein Losgewinn eine Buchung außerhalb der Quartier-Saison
-    erzeugen (z.B. Anreise noch in Saison, Abreise schon außerhalb)."""
+    erzeugen (z.B. Anreise noch in Saison, Abreise schon außerhalb).
+
+    Der Wunsch wird einem Mitglieds-Anteil zugerechnet (Default: eindeutiger/
+    größter Anteil; bei Mehrfach-Tandem die Wahl), damit das Parallel-Limit/der
+    Aufenthaltsdeckel in der Losung auf den vollen Anteil wirkt (ADR 0066)."""
     if (end - start).days <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
     if not _in_season_range(quarter, start, end):
@@ -52,6 +57,7 @@ def add_wish(member, period, quarter, start, end) -> tuple[Wish | None, str | No
     wish = Wish.objects.create(
         member=member, period=period, quarter=quarter, start=start, end=end,
         priority=next_prio, submitted=False,
+        membership=member.membership_for(membership_id),
     )
     return wish, None
 

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -85,12 +86,18 @@ class Party:
 class Wish:
     """Ein Buchungswunsch: konkret gewünschtes Quartier + Zeitraum.
     `priority` 1 = höchste Priorität. `end` ist der Abreisetag (exklusiv),
-    d.h. die belegten Nächte sind start .. end-1."""
+    d.h. die belegten Nächte sind start .. end-1.
+
+    `rule_group` ist der Schlüssel, über den die Saison-Regeln über mehrere
+    Buchungen (Parallel-Limit/Aufenthaltsdeckel) zusammengefasst werden – in der
+    Praxis der Mitglieds-Anteil. Mehrere Parteien (Tandem-Partner) mit demselben
+    `rule_group` teilen sich diese Grenzen; None = je Partei (Standard)."""
     party_id: str
     priority: int
     quarter_id: str
     start: date
     end: date
+    rule_group: str | None = None
 
     @property
     def nights(self) -> int:
@@ -253,9 +260,15 @@ def run_lottery(
     nights_used: dict[str, int] = {p.id: 0 for p in parties}
     had_genuine_loss: dict[str, bool] = {p.id: False for p in parties}
     won_contested: dict[str, bool] = {p.id: False for p in parties}
-    # Bereits in DIESEM Lauf zugeteilte Zeiträume je Partei – Grundlage für die
-    # Saison-Regeln über mehrere Buchungen (Parallel-Limit/Aufenthaltsdeckel).
-    party_stays: dict[str, list[tuple[date, date]]] = {p.id: [] for p in parties}
+    # Bereits in DIESEM Lauf zugeteilte Zeiträume je RULE-GROUP – Grundlage für die
+    # Saison-Regeln über mehrere Buchungen (Parallel-Limit/Aufenthaltsdeckel). Die
+    # Gruppe ist i.d.R. der Mitglieds-Anteil: Tandem-Partner (verschiedene Parteien,
+    # gleiche Gruppe) teilen sich die Grenzen, ohne dass das Budget (je Partei)
+    # vermischt wird. Ohne `rule_group` fällt die Gruppe auf die Partei zurück.
+    def _group(w: Wish) -> str:
+        return w.rule_group if w.rule_group is not None else w.party_id
+
+    group_stays: dict[str, list[tuple[date, date]]] = defaultdict(list)
 
     allocations: list[Allocation] = []
     losses: list[Wish] = []
@@ -295,7 +308,7 @@ def run_lottery(
                 # (die Partei hat ihren Saison-Anteil bereits; wahrt die
                 # Strategiesicherheit – Über-Wünschen bringt kein Karma).
                 if rule_check is not None:
-                    blocked = rule_check(pid, w.start, w.end, party_stays[pid])
+                    blocked = rule_check(pid, w.start, w.end, group_stays[_group(w)])
                     if blocked:
                         log.append({
                             "event": "rule_skip", "round": round_no, "party": pid,
@@ -338,7 +351,7 @@ def run_lottery(
                 # (5) Zuteilen
                 _occupy(occ, target, w.start, w.end)
                 nights_used[pid] += n
-                party_stays[pid].append((w.start, w.end))
+                group_stays[_group(w)].append((w.start, w.end))
                 contested = is_contested(w, pid)
                 if contested:
                     won_contested[pid] = True

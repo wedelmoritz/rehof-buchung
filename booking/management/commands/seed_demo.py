@@ -292,6 +292,7 @@ class Command(BaseCommand):
                     period=period, member=m, priority=prio, quarter=q,
                     start=start, end=start + timedelta(days=length),
                     submitted=True,  # in der Demo bereits im Lostopf
+                    membership=m.membership_for(),
                 )
                 wish_count += 1
         self.stdout.write(self.style.SUCCESS(
@@ -498,7 +499,7 @@ class Command(BaseCommand):
                     period=period, member=test_member, priority=prio,
                     quarter=rng.choice(quarters), start=start,
                     end=start + timedelta(days=rng.choice([3, 4, 7])),
-                    submitted=True)
+                    submitted=True, membership=test_member.membership_for())
         self.stdout.write(self.style.SUCCESS(
             "Test-Konten: admin/admin12345 (Admin/Superuser, volles Backend), "
             "verwaltung/verwaltung12345 (Verwaltung-Gruppe, nur Dashboard), "
@@ -522,7 +523,7 @@ class Command(BaseCommand):
             Allocation.objects.create(
                 member=m, quarter=q, start=start, end=end,
                 persons=rng.randint(1, q.max_occupancy), source="spontaneous",
-                provisional=False)
+                provisional=False, membership=m.membership_for())
             n_alloc += 1
         self.stdout.write(self.style.SUCCESS(
             f"{n_alloc} wilde Buchungen im laufenden Jahr {this_year} angelegt."))

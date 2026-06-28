@@ -27,6 +27,7 @@ __all__ = [
 def book_spontaneous(
     member: Member, quarter: Quarter, start: date, end: date,
     persons: int = 1, source: str = "spontaneous", companions: str = "",
+    membership_id=None,
 ) -> tuple[Allocation | None, str | None]:
     """Bucht eine freie Lücke mit den verfügbaren Tagen. Gibt
     (Allocation, None) bei Erfolg zurück bzw. (None, Fehlermeldung) sonst.
@@ -60,13 +61,17 @@ def book_spontaneous(
         return None, ("Nicht genügend verfügbare Tage für diesen Zeitraum "
                       f"({member.nights_remaining_in_year(start.year)} übrig, "
                       f"{nights} benötigt).")
+    # Mitglieds-Anteil bestimmen (Default: eindeutiger/größter Anteil; bei
+    # Mehrfach-Tandem die getroffene Wahl) – die Buchungsregeln zählen über den
+    # vollen Anteil inkl. Tandem-Partner (ADR 0066).
+    membership = member.membership_for(membership_id)
     # Saison-Regeln: Mindestnächte, Parallel-Limit, Aufenthaltsdeckel
-    rule_error = check_booking_rules(member, start, end)
+    rule_error = check_booking_rules(member, start, end, membership)
     if rule_error:
         return None, rule_error
     alloc = Allocation.objects.create(
         member=member, quarter=quarter, start=start, end=end,
-        persons=persons, source=source,
+        persons=persons, source=source, membership=membership,
         companions=V.strip_controls(companions, max_len=255),
     )
     return alloc, None

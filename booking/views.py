@@ -238,10 +238,16 @@ def book_confirm(request):
         .order_by("sort_order", "name")
     ]
 
+    # Mitglieds-Anteile des Nutzers: nur bei Mehrfach-Tandem (>1) muss die Person
+    # wählen, welchem Anteil die Buchung zugerechnet wird (ADR 0066). Sonst
+    # automatisch (eindeutiger Anteil).
+    memberships = member.memberships if member else []
+
     if request.method == "POST" and request.POST.get("action") == "confirm":
         companions = request.POST.get("companions", "").strip()
         alloc, err = svc.book_spontaneous(
-            member, quarter, start, end, persons, companions=companions)
+            member, quarter, start, end, persons, companions=companions,
+            membership_id=request.POST.get("membership") or None)
         if not alloc:
             messages.error(request, err or "Buchung nicht möglich.")
         else:
@@ -269,6 +275,7 @@ def book_confirm(request):
         "enough_days": remaining_now >= nights,
         "min_nights": svc.min_nights_for_range(start, end),
         "offers": offers,
+        "memberships": memberships,
     })
 
 
@@ -536,7 +543,8 @@ def wishlist(request):
             if form.is_valid():
                 _wish, werr = svc.add_wish(
                     member, period, form.cleaned_data["quarter"],
-                    form.cleaned_data["start"], form.cleaned_data["end"])
+                    form.cleaned_data["start"], form.cleaned_data["end"],
+                    membership_id=request.POST.get("membership") or None)
                 if werr:
                     messages.error(request, werr)
                 else:
@@ -592,7 +600,7 @@ def wishlist(request):
     if member and period:
         wishes = list(
             Wish.objects.filter(member=member, period=period)
-            .select_related("quarter").order_by("priority", "id")
+            .select_related("quarter", "membership").order_by("priority", "id")
         )
         wishlist_submitted = any(w.submitted for w in wishes) and len(wishes) > 0
         wish_nights = sum(w.nights for w in wishes)
@@ -649,6 +657,7 @@ def wishlist(request):
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
         "candidates": candidates,
         "wish_form": WishForm(),
+        "memberships": member.memberships if member else [],
         "wishes": wishes,
         "wishlist_submitted": wishlist_submitted,
         "wish_nights": wish_nights,
