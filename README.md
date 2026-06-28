@@ -169,6 +169,7 @@ beschrieben; das Belastungs-Runbook liegt in
 | **Belastungstests (k6)** | [`loadtest/README.md`](loadtest/README.md) |
 | **Externe Gäste** (Konzept) | [`docs/EXTERNE-GAESTE.md`](docs/EXTERNE-GAESTE.md) |
 | **Sicherheit & Härtung** (umgesetzt + Blueprints) | [`docs/adr/0061-sicherheits-haertungspaket.md`](docs/adr/0061-sicherheits-haertungspaket.md) · [`docs/BETRIEB-SICHERHEIT.md`](docs/BETRIEB-SICHERHEIT.md) |
+| **Backend-2FA ein-/ausschalten** (inkl. Lockout-Hilfe) | [`docs/2FA-BACKEND.md`](docs/2FA-BACKEND.md) |
 | **Datenschutz-Vorlage** | [`docs/DATENSCHUTZ-VORLAGE.md`](docs/DATENSCHUTZ-VORLAGE.md) |
 | **Tester:innen einladen/Feedback** | [`docs/TESTER-EINLADUNG.md`](docs/TESTER-EINLADUNG.md) · [`docs/TESTER-FEEDBACK.md`](docs/TESTER-FEEDBACK.md) |
 | **Code-Orientierung für Mitwirkende** | [`CLAUDE.md`](CLAUDE.md) |

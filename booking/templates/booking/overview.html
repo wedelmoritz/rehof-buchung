@@ -33,8 +33,8 @@
     <li class="ag-row {% if d.is_today %}today{% endif %}">
       <span class="ag-date">{{ d.date|date:"D d.m." }}{% if d.is_today %} · heute{% endif %}</span>
       <span class="ag-events">
-        {% for a in d.arrivals %}<span class="ag-ev in {% if a.mine %}mine{% endif %}">▸&nbsp;{{ a.who }} → {{ a.quarter }}{% if not a.external %}&nbsp;({{ a.persons }}){% endif %}</span>{% endfor %}
-        {% for dp in d.departures %}<span class="ag-ev out {% if dp.mine %}mine{% endif %}">◂&nbsp;{{ dp.who }} ab&nbsp;{{ dp.quarter }}</span>{% endfor %}
+        {% for a in d.arrivals %}<span class="ag-ev {% if a.mine %}mine{% endif %}"><span class="ag-kind in">Anreise</span><span class="ag-what"><b>{{ a.who }}</b> in {{ a.quarter }}{% if not a.external %}<span class="muted"> · {{ a.persons }}&nbsp;Pers.</span>{% endif %}</span></span>{% endfor %}
+        {% for dp in d.departures %}<span class="ag-ev {% if dp.mine %}mine{% endif %}"><span class="ag-kind out">Abreise</span><span class="ag-what"><b>{{ dp.who }}</b> aus {{ dp.quarter }}</span></span>{% endfor %}
         {% if not d.arrivals and not d.departures %}<span class="muted">keine An-/Abreise</span>{% endif %}
       </span>
       <span class="ag-free muted">{{ d.free_count }} frei</span>
@@ -181,9 +181,18 @@
   .ag-row:last-child { border-bottom:0; }
   .ag-row.today { background:var(--accent-soft); border-radius:8px; padding:.45rem .55rem; }
   .ag-date { flex:0 0 7rem; font-weight:600; font-size:.9rem; }
-  .ag-events { flex:1 1 12rem; display:flex; flex-wrap:wrap; gap:.25rem .7rem; font-size:.9rem; }
-  .ag-ev.out { color:var(--muted); }
-  .ag-ev.mine { font-weight:700; color:var(--accent-deep); }
+  /* Ereignisse UNTEREINANDER (je Zeile eine An-/Abreise) – klar lesbar statt
+     gequetscht nebeneinander. */
+  .ag-events { flex:1 1 14rem; display:flex; flex-direction:column; gap:.3rem; font-size:.9rem; }
+  .ag-ev { display:flex; align-items:baseline; gap:.45rem; }
+  /* Farbcodierte Marke statt kryptischer Pfeile: grün = Anreise, grau = Abreise. */
+  .ag-kind { flex:0 0 auto; font-size:.66rem; font-weight:700; text-transform:uppercase;
+    letter-spacing:.04em; padding:.07rem .42rem; border-radius:6px; line-height:1.5;
+    min-width:4.4rem; text-align:center; }
+  .ag-kind.in { background:var(--good-soft); color:var(--good-deep); }
+  .ag-kind.out { background:var(--line); color:var(--muted); }
+  .ag-what { min-width:0; }
+  .ag-ev.mine .ag-what b { color:var(--accent-deep); }   /* eigene An-/Abreise hervorheben */
   .ag-free { flex:0 0 auto; font-size:.82rem; }
 
   /* Plan-Kopf: Umschalter + Monatsnavigation */
