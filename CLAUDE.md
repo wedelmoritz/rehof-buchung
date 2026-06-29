@@ -853,6 +853,10 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
   `data-pin-check`, `data-filename-target`, `data-reload`) bzw. im Backend
   `base_site.html` (`data-confirm`). Keine externen Skripte/CDNs (alles `'self'`).
   `booking/tests_csp.py` wacht über Header + nonce + handler-freie Seiten.
+- **Template-Kommentare nur EINZEILIG:** Djangos `{# … #}` wird über `tag_re` **ohne**
+  `re.DOTALL` erkannt – ein über mehrere Zeilen gehender `{# … #}`-Kommentar wird
+  **nicht** entfernt und erscheint als sichtbarer Text. Mehrzeilige Erklärungen daher
+  als `{% comment %}…{% endcomment %}` schreiben (oder mehrere einzeilige `{# … #}`).
 
 ## Offene Punkte / Roadmap (Kandidaten für Change-Requests)
 
