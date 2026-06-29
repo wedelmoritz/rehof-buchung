@@ -45,8 +45,8 @@ auch beim pjax-Laden ohne erneutes Skript funktioniert (ADR 0055).{% endcomment 
       <div class="rehof-ob-budgets">
         <label class="rehof-ob-f">Tage/Jahr
           <input type="number" name="night_budget" value="{{ default_budget }}" min="0" step="1"></label>
-        <label class="rehof-ob-f">davon Wunsch
-          <input type="number" name="wish_night_budget" value="{{ default_wish }}" min="0" step="1"></label>
+        <span class="rehof-ob-f" style="align-self:end;color:#6b6259;font-size:.85rem">
+          Wunsch-Tage = die Hälfte davon (automatisch, abgerundet)</span>
       </div>
       <p class="rehof-ob-hint"><strong>Voll-Mitglied:</strong> neuen Anteil wählen und
         die vollen Tage (z. B. 50) lassen. <strong>Tandem:</strong> einen

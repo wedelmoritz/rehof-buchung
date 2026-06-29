@@ -95,10 +95,11 @@ tests/                  # reine pytest-Suite (ohne Django/DB)
 Modelle in `models.py`: `EquivalenceClass`, `Quarter` (+ `QuarterPrice` =
 saisonale Übernachtungspreise für Externe), `Membership`
 („Mitglied"/Anteil = eine Vielleben-eG-Nummer + `kind` Voll/Teil +
-Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; Tage-/Wunsch-Budget =
-**Summe** der `Share`-Anteile), `Share` (Through-Modell Nutzer↔Anteil mit festem
+Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; **Tage**-Budget =
+**Summe** der `Share`-`night_budget`; **Wunsch**-Budget = **Hälfte der Tage,
+abgerundet**, ADR 0073), `Share` (Through-Modell Nutzer↔Anteil mit festem
 `night_budget`; ein Nutzer kann mehreren Anteilen angehören → Budgets summieren
-sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
+sich, ganze Tage; `wish_night_budget` ist obsolet/abgeleitet), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`
 + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066), `Allocation`
 (mit `persons` + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066),
@@ -617,8 +618,11 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   (`Quarter.season_*`). **Die Losung ist bewusst NICHT durch den Zeitraum
   begrenzt** (sie vergibt das Folgejahr im Voraus, bevor dessen Zeitraum auf
   `free_booking` steht).
-- **Tage:** 50/Jahr je Mitglied, davon max. 25 über die Wunschliste. **Kein
-  Übertrag ins Folgejahr** (Kontingent gilt je Kalenderjahr frisch). Tage sind
+- **Tage:** bis 50/Jahr je Mitglied (voller Anteil). Das **Wunsch-Budget** für die
+  Losung ist **immer genau die Hälfte der Tage, abgerundet** (50→25, 25→12;
+  `Member.wish_night_budget = annual_night_budget // 2`, abgeleitet – nicht je Anteil
+  gespeichert, ADR 0073). **Kein Übertrag ins Folgejahr** (Kontingent gilt je
+  Kalenderjahr frisch). Tage sind
   **an andere Mitglieder übertragbar** (`NightTransfer`) **oder in den
   Solidaritäts-Pool spendbar/daraus entnehmbar** (`DayPoolEntry`, gedeckelt, nur bei
   Bedarf; P2.5/ADR 0064). Beides fließt in `Member.effective_annual_budget` ein.
