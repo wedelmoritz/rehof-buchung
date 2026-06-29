@@ -77,6 +77,10 @@ booking/
                         #   ADR 0065) + Navigator/pjax: templates/admin/base_site.html
                         #   (+ _rehof_navigator.html). EIN gestapeltes Ein-Spalten-Layout für
                         #   ALLE Seiten (Desktop+Mobil; Float/Flex aufgehoben, ADR 0067).
+                        #   Mobil: breite Listen-/Inline-Tabellen scrollen horizontal
+                        #   (nowrap + Scroll-Container + sichtbarer Balken; ADR 0071).
+                        #   „GESCHICHTE"/Versionen stehen auf der EINZEL-Bearbeiten-Seite
+                        #   (Benutzer/Mitglied/Anteil), nicht in den Listen.
   views.py / urls.py / forms.py
   templates/booking/    # base, overview, book, wishlist, result, transfer
   templates/registration/login.html

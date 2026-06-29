@@ -196,6 +196,28 @@
     #header { padding: 10px 14px; }
     #user-tools { font-size: 11px; line-height: 1.5; margin-top: 4px; }
   }
+  /* ---- Mobile: breite Datentabellen sauber horizontal scrollen (ADR 0071) ----
+     Vorher brachen Listen-/Inline-Tabellen mitten im Wort um bzw. wurden vom
+     Karten-`overflow:hidden` der Module abgeschnitten – „rechts nichts sichtbar".
+     Jetzt: Zellen NICHT umbrechen (eine Zeile je Datensatz) + der jeweilige
+     Container scrollt horizontal mit sichtbarem Balken als klare Wisch-Affordanz. */
+  @media (max-width: 768px) {
+    /* Änderungslisten (z.B. Benutzer, Nutzer-Konten, Mitglieds-Anteile) */
+    #changelist .results { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #result_list th, #result_list td { white-space: nowrap; }
+    /* Tabular-Inlines (z.B. Mitglieds-Anteile am Mitglied/Anteil) – das Modul
+       (Karten-Look) klippte die Tabelle; hier scrollen lassen. */
+    .inline-related.tabular > fieldset.module { overflow: auto;
+      -webkit-overflow-scrolling: touch; }
+    .inline-related.tabular table th, .inline-related.tabular table td {
+      white-space: nowrap; }
+    /* Sichtbarer dünner Scrollbalken als Wisch-Hinweis */
+    #changelist .results::-webkit-scrollbar,
+    .inline-related.tabular > fieldset.module::-webkit-scrollbar { height: 9px; }
+    #changelist .results::-webkit-scrollbar-thumb,
+    .inline-related.tabular > fieldset.module::-webkit-scrollbar-thumb {
+      background: #b9b0a4; border-radius: 5px; }
+  }
 </style>
 {% endblock %}
 
