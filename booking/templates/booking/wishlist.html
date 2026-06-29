@@ -160,12 +160,22 @@
             <button class="btn small ghost danger" type="submit" aria-label="Wunsch entfernen" title="Wunsch entfernen">&#10005;</button>
           </form>
         </span>
-        {% if w.hint %}
-        <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist gerade umkämpft</strong>
-          ({{ w.hint.base }}&nbsp;Wünsche im Zeitraum). Wenn du diese Unterkunft wirklich
-          willst, würde aktuell auch
-          <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.hint.best.start|date:'Y-m-d' }}&end={{ w.hint.best.end|date:'Y-m-d' }}">{{ w.hint.best.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.hint.best.end|date:'d.m.' }}</a>
-          passen &ndash; dann nur {{ w.hint.best.count }}&nbsp;Wünsche. Ganz freiwillig.</div>
+        {% if w.alt %}
+        <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist im gewählten Zeitraum umkämpft</strong>
+          ({{ w.alt.base }}&times; von anderen Mitgliedern gewünscht). So entstehen weniger Konflikte:
+          <ul class="wish-alt">
+            {% if w.alt.time %}
+            <li>gleiche Unterkunft, etwas anderer Zeitraum:
+              <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.alt.time.start|date:'Y-m-d' }}&end={{ w.alt.time.end|date:'Y-m-d' }}">{{ w.alt.time.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.alt.time.end|date:'d.m.' }}</a>
+              &ndash; dann {% if w.alt.time.count %}nur {{ w.alt.time.count }}{% else %}<strong>keine</strong>{% endif %} Konflikte mit Wünschen anderer Mitglieder.</li>
+            {% endif %}
+            {% if w.alt.quarter %}
+            <li>gleichwertige Unterkunft zur gleichen Zeit:
+              <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.start|date:'Y-m-d' }}&end={{ w.end|date:'Y-m-d' }}">{{ w.alt.quarter.name }}</a>
+              &ndash; {% if w.alt.quarter.count %}nur {{ w.alt.quarter.count }}{% else %}<strong>keine</strong>{% endif %} Konflikte mit Wünschen anderer Mitglieder.</li>
+            {% endif %}
+          </ul>
+          <span class="muted">Ganz freiwillig &ndash; die Auslosung bleibt davon unberührt.</span></div>
         {% endif %}
       </li>
       {% endfor %}
@@ -222,9 +232,11 @@
   ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
   li.wish { display:flex; flex-wrap:wrap; align-items:center; gap:.7rem; background:var(--card);
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem; }
-  .wish-hint { flex:1 1 100%; font-size:.86rem; line-height:1.4; background:var(--accent-soft);
+  .wish-hint { flex:1 1 100%; font-size:.86rem; line-height:1.45; background:var(--accent-soft);
     border-left:3px solid var(--accent); border-radius:8px; padding:.5rem .65rem; margin-top:.15rem; }
-  .wish-hint a { color:var(--accent-deep); font-weight:700; white-space:nowrap; }
+  .wish-hint a { color:var(--accent-deep); font-weight:700; }
+  .wish-alt { margin:.35rem 0 .3rem; padding-left:1.1rem; }
+  .wish-alt li { margin:.15rem 0; }
   li.wish.dragover { border-color:var(--accent); background:var(--accent-soft); }
   li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; touch-action:none; }
   .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;

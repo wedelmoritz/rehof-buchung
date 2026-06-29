@@ -604,17 +604,15 @@ def wishlist(request):
         )
         wishlist_submitted = any(w.submitted for w in wishes) and len(wishes) > 0
         wish_nights = sum(w.nights for w in wishes)
-        # Entzerrungs-Tipp JE WUNSCH (verständlicher als unter den Kandidaten,
-        # P2.4-Folgeänderung): nur solange der Wunsch noch änderbar ist (nicht
-        # eingereicht) und nur, wenn der Zeitraum wirklich umkämpft ist und eine nahe,
-        # entspanntere Verschiebung existiert. Wenige Wünsche → wenige Abfragen.
+        # Entzerrungs-Hinweis JE WUNSCH (P2.4-Erweiterung): für jeden umkämpften
+        # Wunsch zeigt ein markanter Hinweis, wie sich Konflikte mit Wünschen
+        # ANDERER Mitglieder vermeiden lassen – ein leicht anderer Zeitraum für
+        # dieselbe Unterkunft UND/ODER ein gleichwertiges Quartier zur gleichen Zeit.
+        # Nur solange änderbar (nicht eingereicht). Effizient: 2 Abfragen gesamt.
         if not wishlist_submitted:
+            alts = svc.wish_alternatives(period, member, wishes)
             for w in wishes:
-                hint = svc.wish_deconfliction(period, w.start, w.end).get(str(w.quarter_id))
-                if hint and not svc._in_season_range(
-                        w.quarter, hint["best"]["start"], hint["best"]["end"]):
-                    hint = None
-                w.hint = hint
+                w.alt = alts.get(w.id)
 
     # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
     sel_start = _parse_date(request.GET.get("start"))

@@ -1137,6 +1137,42 @@ class WunschKoordinationTests(UseCaseBase):
         s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=3)
         self.assertEqual(svc.wish_deconfliction(period, s, e), {})
 
+    def test_wish_alternatives_zeitraum_und_gleichwertiges_quartier(self):
+        """Je Wunsch: ist die Unterkunft im Zeitraum umkämpft, zeigt der Hinweis
+        BEIDE Auswege – ein anderer Zeitraum für dieselbe Unterkunft UND ein
+        gleichwertiges Quartier zur gleichen Zeit. Eigene Wünsche zählen nicht."""
+        period = self._period()
+        s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=1)   # 1 Nacht
+        # Konkurrenz ANDERER Mitglieder auf k1 im selben Zeitraum
+        for m in (self.bob, self.carla):
+            Wish.objects.create(member=m, period=period, quarter=self.k1,
+                                start=s, end=e, priority=1, submitted=True)
+        # Alice' eigener (noch änderbarer) Wunsch auf k1
+        aw = Wish.objects.create(member=self.alice, period=period, quarter=self.k1,
+                                 start=s, end=e, priority=1, submitted=False)
+        alts = svc.wish_alternatives(period, self.alice, [aw])
+        self.assertIn(aw.id, alts)
+        a = alts[aw.id]
+        self.assertEqual(a["base"], 2)                       # zwei fremde Wünsche
+        # gleichwertiges Quartier (k2/k3, gleiche Klasse) frei zur gleichen Zeit
+        self.assertIsNotNone(a["quarter"])
+        self.assertEqual(a["quarter"]["count"], 0)
+        self.assertIn(a["quarter"]["quarter_id"], [self.k2.id, self.k3.id])
+        # anderer Zeitraum derselben Unterkunft mit weniger Konflikten
+        self.assertIsNotNone(a["time"])
+        self.assertLess(a["time"]["count"], 2)
+
+    def test_wish_alternatives_eigene_wuensche_zaehlen_nicht(self):
+        """Nur fremde Wünsche sind „Konflikte"; ohne fremde Konkurrenz kein Hinweis."""
+        period = self._period()
+        s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=2)
+        aw = Wish.objects.create(member=self.alice, period=period, quarter=self.qa,
+                                 start=s, end=e, priority=1, submitted=False)
+        # zweiter eigener Wunsch auf dasselbe Quartier/Zeit (eingereicht) – zählt NICHT
+        Wish.objects.create(member=self.alice, period=period, quarter=self.qa,
+                            start=s, end=e, priority=2, submitted=True)
+        self.assertEqual(svc.wish_alternatives(period, self.alice, [aw]), {})
+
 
 # --------------------------------------------------------------------------- #
 # Use-Case: Danke für eine Tage-Übertragung (Wertschätzung, P2.7)
