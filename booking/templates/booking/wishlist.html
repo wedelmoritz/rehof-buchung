@@ -11,12 +11,13 @@
     {% if member.factor > 1.0 %}<span class="tag" style="background:var(--good-soft);color:var(--good)">erhöht</span>{% endif %}
   </p>
   <p class="muted" style="margin:0">Hier zählt dein Ausgleichsfaktor: Er sorgt dafür, dass die
-    Auslosung über die Jahre fair bleibt. <strong>1,0</strong> ist der Normalstand. Wer einen
-    Wunsch diesmal nicht bekam, steigt um&nbsp;0,1 (max&nbsp;1,5) und hat bei der nächsten
-    Auslosung bessere Chancen auf einen vorderen Platz; nach dem Gewinn eines sehr beliebten
-    Wunsches geht der Faktor wieder auf&nbsp;1,0. Wie das nachweislich fair ist, zeigt der
-    <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis</a> – die Verteilung über alle
-    Mitglieder im <a href="{% url 'community' %}">Gemeinschafts-Spiegel</a>.</p>
+    Auslosung über die Jahre fair bleibt. <strong>1,0</strong> ist der Normalstand. Geht dir in
+    einer Auslosung ein sehr beliebter Wunsch nicht auf, steigt dein Faktor fürs nächste Jahr
+    um&nbsp;0,1 (je Auslosung, höchstens&nbsp;1,5) – mit höherem Faktor rückst du dann mit
+    größerer Wahrscheinlichkeit nach vorn. Nach dem Gewinn eines sehr beliebten Wunsches geht er
+    wieder auf&nbsp;1,0. So gleicht die Losung Glück über die Jahre aus. Wie das nachweislich
+    fair ist, zeigt der <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis</a> – die
+    Verteilung über alle Mitglieder im <a href="{% url 'community' %}">Gemeinschafts-Spiegel</a>.</p>
 </div>
 {% endif %}
 
@@ -260,6 +261,10 @@
   .wish-main { flex:1 1 auto; } .wish-actions { display:flex; gap:.25rem; align-items:center; }
   .hint-entzerren { font-size:.9rem; color:#5b5347; background:#f7f1e3;
     border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; margin:.2rem 0 .7rem; }
+  /* „So funktioniert die Auslosung (kurz)" leicht abheben (besser lesbar). */
+  details.explain { background:var(--sage-soft); border:1px solid var(--line);
+    border-radius:10px; padding:.3rem .8rem; }
+  details.explain > summary { padding:.4rem 0; }
 </style>
 
 <script nonce="{{ request.csp_nonce }}">

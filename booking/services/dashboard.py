@@ -14,8 +14,8 @@ from .notify import absolute_url, queue_email_many
 
 __all__ = [
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
-    '_month_occupancy', 'dashboard_stats', 'karma_distribution',
-    'community_stats', 'arrivals_in_range',
+    '_month_occupancy', 'quarter_occupancy_curve', 'dashboard_stats',
+    'karma_distribution', 'community_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
@@ -187,6 +187,39 @@ def _month_occupancy(year: int, month: int) -> dict:
             "booked": booked, "possible": possible, "pct": pct}
 
 
+def quarter_occupancy_curve(year: int) -> dict:
+    """Auslastung des Kalenderjahres `year` **quartalsweise** als fertige Daten für
+    eine kleine Inline-SVG-Kurve (Gemeinschafts-Spiegel, ADR 0074). Aggregiert je
+    Quartal die gebuchten gegen die möglichen Unterkunfts-Nächte (Mitglieder +
+    bestätigte externe Gäste) und rechnet die Prozentwerte gleich in SVG-Koordinaten
+    um, damit das Template ohne Mathematik (und ohne JS, CSP-konform) zeichnen kann.
+
+    Geometrie passend zu `viewBox 0 0 320 120`: linke Achse bei x=34, Nulllinie
+    (0&nbsp;%) bei y=96, 100&nbsp;% bei y=12."""
+    PAD_L, BASE_Y, TOP_Y = 34.0, 96.0, 12.0
+    STEP = (320.0 - PAD_L - 12.0) / 3.0        # 4 Quartals-Punkte, 3 Abstände
+    SPAN_Y = BASE_Y - TOP_Y                     # Höhe für 100 %
+    points = []
+    for q in range(4):
+        booked = possible = 0
+        for i in range(3):
+            mo = _month_occupancy(year, q * 3 + i + 1)
+            booked += mo["booked"]
+            possible += mo["possible"]
+        pct = round(100 * booked / possible) if possible else 0
+        x = round(PAD_L + q * STEP, 1)
+        y = round(BASE_Y - SPAN_Y * pct / 100.0, 1)
+        # Wert-Label über dem Punkt, sonst (bei sehr hoher Auslastung) darunter.
+        vy = round(y - 7 if y - 7 >= TOP_Y + 3 else y + 14, 1)
+        points.append({"label": f"Q{q + 1}", "pct": pct, "booked": booked,
+                       "possible": possible, "x": x, "y": y, "vy": vy})
+    line = " ".join(f"{p['x']},{p['y']}" for p in points)
+    area = (f"{points[0]['x']},{BASE_Y} " + line +
+            f" {points[-1]['x']},{BASE_Y}")
+    return {"year": year, "points": points, "line": line, "area": area,
+            "base_y": BASE_Y}
+
+
 def dashboard_stats() -> dict:
     """Kennzahlen für die Verwaltung: Nutzer/Mitglieder, Auslastung (aktueller +
     kommender Monat) und das Ergebnis der letzten (bestätigten) Verlosung."""
@@ -261,6 +294,7 @@ def community_stats() -> dict:
     stats = {
         "occ_current": _month_occupancy(today.year, today.month),
         "occ_next": _month_occupancy(ny, nm),
+        "occ_quarters": quarter_occupancy_curve(today.year),
         "lottery_history": history,
         "karma": karma_distribution(),
         "n_members": Member.objects.filter(is_external=False).count(),

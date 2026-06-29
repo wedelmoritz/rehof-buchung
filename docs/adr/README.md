@@ -95,6 +95,7 @@ die Regelwerte zu wiederholen.
 | [0071](0071-backend-tabellen-mobil-scrollbar.md) | Backend-Tabellen am Handy: Listen/Inline-Tabellen horizontal scrollbar (nowrap + Scroll-Container + sichtbarer Balken), Inline-Klippen durch Karten-`overflow:hidden` behoben | Accepted |
 | [0072](0072-positive-wortwahl-frontend.md) | Positive Wortwahl im Frontend: „(sehr) beliebt" statt „umkämpft/Konflikt/Konkurrenz" (App, Hilfe, Benachrichtigungen) | Accepted |
 | [0073](0073-losung-ux-wunschbudget-karma-wortwahl.md) | Losung-UX: Wunsch-Budget = halbe Tage (abgerundet, abgeleitet), Karma nur auf der Wunschliste, sanftere Wortwahl („diesmal nicht" statt „Verlust/Pech") | Accepted |
+| [0074](0074-hilfe-gemeinschaft-ux.md) | UX-Feinschliff: Karma-Erklärung präzisiert (+0,1 je Auslosung, nicht je Wunsch), Hilfe nach Tätigkeiten gegliedert (Losung-Inhalte raus aus „Gemeinschaft"), „unbegrenzte Wünsche"-Erklärung mit Beispiel, Gemeinschafts-Spiegel mit Quartals-Auslastungskurve, Hofladen-PIN unter „Anmeldedaten" | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

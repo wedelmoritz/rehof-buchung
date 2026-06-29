@@ -259,10 +259,12 @@ Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
 (Admin-Knopf „Simulation jetzt berechnen", Ergebnis als JSON gespeichert);
 Service `services.run_fairness_simulation`. **Gemeinschafts-Spiegel** (`community`,
 `/gemeinschaft/`, login-pflichtig, ADR 0063): aggregierte, anonyme Transparenz –
-Auslastung, Los-Ergebnis-Historie, **Karma-Verteilung** (`services.community_stats`/
-`karma_distribution`) als schlanke **CSS-Balken** (kein JS); in der Sekundär-Nav
-(„Gemeinschaft"). Den **eigenen** Ausgleichsfaktor zeigt eine Karte im `profile`
-(Karma-Transparenz). Das **Test-Szenario**
+Auslastung (**quartalsweise als Inline-SVG-Kurve** `services.quarter_occupancy_curve`
++ aktueller/kommender Monat im eingeklappten Detail, ADR 0074), Los-Ergebnis-
+Historie, **Karma-Verteilung** (`services.community_stats`/`karma_distribution`) als
+schlanke **CSS-Balken**/SVG (kein JS); in der Sekundär-Nav („Gemeinschaft"). Den
+**eigenen** Ausgleichsfaktor zeigt eine Karte auf der **Wunschliste** (Karma-
+Transparenz, ADR 0073). Das **Test-Szenario**
 `seed_demo --testdata` (kompletter Wipe inkl. Superuser → Test-Konten
 admin [Superuser] / verwaltung [Gruppe „Verwaltung“, **kein** Staff] / test
 + 50 Mitglieder, wilde Buchungen im laufenden Jahr, offene
