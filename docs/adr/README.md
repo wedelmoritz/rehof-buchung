@@ -93,6 +93,8 @@ die Regelwerte zu wiederholen.
 | [0069](0069-identitaet-benutzer-mitglied-anteil.md) | Identitäts-Modell Benutzer·Mitglied·Anteil bestätigt; Mehrfach-Login je Mitglied vorerst zurückgestellt (Roadmap), kein Tage-Deckel, UX/Anzeige „frei/vergeben" geschärft | Accepted |
 | [0070](0070-benutzer-admin-reversibel.md) | Benutzer-/Mitglieder-Verwaltung: Mitglied↔Anteil beidseitig editierbar, starke Aktionen doppelt bestätigt + via django-reversion wiederherstellbar (GESCHICHTE→Revert/Recover) | Accepted |
 | [0071](0071-backend-tabellen-mobil-scrollbar.md) | Backend-Tabellen am Handy: Listen/Inline-Tabellen horizontal scrollbar (nowrap + Scroll-Container + sichtbarer Balken), Inline-Klippen durch Karten-`overflow:hidden` behoben | Accepted |
+| [0072](0072-positive-wortwahl-frontend.md) | Positive Wortwahl im Frontend: „(sehr) beliebt" statt „umkämpft/Konflikt/Konkurrenz" (App, Hilfe, Benachrichtigungen) | Accepted |
+| [0073](0073-losung-ux-wunschbudget-karma-wortwahl.md) | Losung-UX: Wunsch-Budget = halbe Tage (abgerundet, abgeleitet), Karma nur auf der Wunschliste, sanftere Wortwahl („diesmal nicht" statt „Verlust/Pech") | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

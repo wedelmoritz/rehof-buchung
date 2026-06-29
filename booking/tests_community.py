@@ -46,8 +46,12 @@ class CommunityViewTests(TestCase):
         r = self.client.get(reverse("community"))
         self.assertEqual(r.status_code, 302)  # Login-Redirect
 
-    def test_profil_zeigt_eigenen_faktor(self):
+    def test_wunschliste_zeigt_eigenen_faktor(self):
+        # Der Ausgleichsfaktor steht jetzt auf der Wunschliste (ADR 0073),
+        # nicht mehr im Profil/unter Buchungen.
         self.client.force_login(self.u)
-        r = self.client.get(reverse("profile"))
+        r = self.client.get(reverse("wishlist"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Ausgleichsfaktor")
+        # nicht mehr im Profil
+        self.assertNotContains(self.client.get(reverse("profile")), "Ausgleichsfaktor")

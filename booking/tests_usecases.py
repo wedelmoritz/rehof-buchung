@@ -283,7 +283,7 @@ class LosungTransparenzTests(UseCaseBase):
         notes = list(Notification.objects.filter(url=url))
         self.assertEqual(len(notes), 2)
 
-        losers = [n for n in notes if "nicht erfüllbar" in n.detail]
+        losers = [n for n in notes if "diesmal nicht geklappt" in n.detail]
         winners = [n for n in notes if "Du hast bekommen" in n.detail]
         self.assertEqual(len(losers), 1)
         self.assertEqual(len(winners), 1)
@@ -817,6 +817,13 @@ class AutoAnteilTests(UseCaseBase):
         self.assertIsNone(svc.ensure_personal_membership(mg))
         self.assertFalse(mg.shares.exists())
 
+    def test_wunsch_budget_ist_immer_haelfte_der_tage(self):
+        """Wunsch-Budget = genau die Hälfte der Tage, abgerundet (ADR 0073)."""
+        for nights, expect in [(50, 25), (25, 12), (35, 17), (1, 0)]:
+            m = make_member(f"m{nights}", nights=nights)
+            self.assertEqual(m.annual_night_budget, nights)
+            self.assertEqual(m.wish_night_budget, expect)
+
 
 class BuchungBestaetigungTests(UseCaseBase):
     """Buchen ist zweistufig: erst Bestätigungsseite, erst „confirm“ bucht –
@@ -933,7 +940,8 @@ class WunschSaisonTests(UseCaseBase):
         Share.objects.create(membership=a2, member=self.carla,
                              night_budget=15, wish_night_budget=5)
         self.assertEqual(self.carla.annual_night_budget, 35)
-        self.assertEqual(self.carla.wish_night_budget, 15)
+        # Wunsch-Budget = Hälfte der Tage, abgerundet (35 // 2 = 17), ADR 0073
+        self.assertEqual(self.carla.wish_night_budget, 17)
         self.assertEqual(len(self.carla.memberships), 2)
 
 
@@ -1131,8 +1139,8 @@ class LosErgebnisErklaerungTests(UseCaseBase):
         svc.confirm_lottery(run)
         url = reverse("period_result", args=[period.id])
         texts = " ".join(n.detail for n in Notification.objects.filter(url=url))
-        # Gewinner: Konkurrenz-/Los-Hinweis; Verlierer: Gruppe-komplett-belegt.
-        self.assertIn("Konkurrenz", texts)
+        # Gewinner: „sehr beliebt"-/Los-Hinweis; Verlierer: Gruppe-komplett-belegt.
+        self.assertIn("sehr beliebt", texts)
         self.assertIn("gleichwertige Quartiersgruppe belegt", texts)
 
 

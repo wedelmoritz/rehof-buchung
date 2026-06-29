@@ -95,10 +95,11 @@ tests/                  # reine pytest-Suite (ohne Django/DB)
 Modelle in `models.py`: `EquivalenceClass`, `Quarter` (+ `QuarterPrice` =
 saisonale Übernachtungspreise für Externe), `Membership`
 („Mitglied"/Anteil = eine Vielleben-eG-Nummer + `kind` Voll/Teil +
-Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; Tage-/Wunsch-Budget =
-**Summe** der `Share`-Anteile), `Share` (Through-Modell Nutzer↔Anteil mit festem
+Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; **Tage**-Budget =
+**Summe** der `Share`-`night_budget`; **Wunsch**-Budget = **Hälfte der Tage,
+abgerundet**, ADR 0073), `Share` (Through-Modell Nutzer↔Anteil mit festem
 `night_budget`; ein Nutzer kann mehreren Anteilen angehören → Budgets summieren
-sich, ganze Tage), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
+sich, ganze Tage; `wish_night_budget` ist obsolet/abgeleitet), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`
 + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066), `Allocation`
 (mit `persons` + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066),
@@ -177,13 +178,15 @@ angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
 bleiben bewusst änderbar; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
-[`quarter_wish_counts`]; **je eingetragenem, umkämpftem Wunsch** steht in „Meine
+[`quarter_wish_counts`]; **je eingetragenem, sehr beliebtem Wunsch** steht in „Meine
 Wünsche“ ein markanter **Entzerrungs-Hinweis** [`services.wish_alternatives`,
-P2.4/ADR 0064], wie sich **Konflikte mit Wünschen anderer Mitglieder** vermeiden
-lassen: ein **leicht anderer Zeitraum** für dieselbe Unterkunft UND/ODER ein
-**gleichwertiges Quartier** (gleiche Äquivalenzklasse) zur gleichen Zeit mit
-weniger/keiner Konkurrenz – beides anklickbar, saison-gefiltert, eigene Wünsche
-zählen nicht, kein Eingriff ins Losverfahren. (`services.wish_deconfliction`
+P2.4/ADR 0064] auf **weniger beliebte Alternativen mit besseren Chancen**: ein
+**leicht anderer Zeitraum** für dieselbe Unterkunft UND/ODER ein
+**gleichwertiges Quartier** (gleiche Äquivalenzklasse) zur gleichen Zeit, das
+**weniger gefragt** ist (dort „noch keine/erst N weitere Wünsche“) – beides
+anklickbar, saison-gefiltert, eigene Wünsche zählen nicht, kein Eingriff ins
+Losverfahren. (Frontend-Wortwahl bewusst **positiv**: „beliebt“ statt „umkämpft/
+Konflikt“, ADR 0072.) (`services.wish_deconfliction`
 liefert weiter die reine Zeitraum-Verschiebung je Quartier.)),
 `my_bookings` (eigene Buchungen + Storno **mit
 Rückfrage**; je Buchung „wer ist gleichzeitig da“ – aufgeteilt in **exakt gleiche
@@ -566,7 +569,7 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 - **Losverfahren:** gewichtete Zufallsreihenfolge im Runden-Prinzip
   (strategiesicher, über Seed reproduzierbar). Ausweichen auf gleichwertige
   Quartiere derselben `EquivalenceClass`. Karma: +0,1 pro echtem Verlust,
-  Deckel 1,5, Reset auf 1,0 bei Gewinn eines umkämpften Slots. **Nur
+  Deckel 1,5, Reset auf 1,0 bei Gewinn eines sehr beliebten Slots. **Nur
   eingereichte Wünsche (`submitted=True`) nehmen teil.** Die Strategiesicherheit
   ist deterministisch getestet (`test_strategieproof_ueber_alle_reihenfolgen`) —
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
@@ -587,7 +590,7 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   `period_result`/`my_bookings`/Übersicht/`day_detail` filtern `provisional=False`),
   und es werden **keine** Benachrichtigungen zugestellt (nur am `LotteryRun`
   vorbereitet: `notices` – die **je Wunsch erklären**, *warum* bekommen/nicht:
-  Ausweichgrund, Konkurrenz/Los, „ganze gleichwertige Gruppe belegt", übersprungen
+  Ausweichgrund, „sehr beliebt"/Los, „ganze gleichwertige Gruppe belegt", übersprungen
   wegen Budget/Saison-Regel; P2.6/ADR 0064, gespeist aus `result.log`). Erst
   `services.confirm_lottery` veröffentlicht
   (Zuteilungen sichtbar, Benachrichtigungen + Mails raus, Status `lottery_done`) –
@@ -615,8 +618,11 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   (`Quarter.season_*`). **Die Losung ist bewusst NICHT durch den Zeitraum
   begrenzt** (sie vergibt das Folgejahr im Voraus, bevor dessen Zeitraum auf
   `free_booking` steht).
-- **Tage:** 50/Jahr je Mitglied, davon max. 25 über die Wunschliste. **Kein
-  Übertrag ins Folgejahr** (Kontingent gilt je Kalenderjahr frisch). Tage sind
+- **Tage:** bis 50/Jahr je Mitglied (voller Anteil). Das **Wunsch-Budget** für die
+  Losung ist **immer genau die Hälfte der Tage, abgerundet** (50→25, 25→12;
+  `Member.wish_night_budget = annual_night_budget // 2`, abgeleitet – nicht je Anteil
+  gespeichert, ADR 0073). **Kein Übertrag ins Folgejahr** (Kontingent gilt je
+  Kalenderjahr frisch). Tage sind
   **an andere Mitglieder übertragbar** (`NightTransfer`) **oder in den
   Solidaritäts-Pool spendbar/daraus entnehmbar** (`DayPoolEntry`, gedeckelt, nur bei
   Bedarf; P2.5/ADR 0064). Beides fließt in `Member.effective_annual_budget` ein.

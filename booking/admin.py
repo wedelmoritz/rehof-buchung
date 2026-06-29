@@ -420,7 +420,8 @@ class ShareMemberInline(admin.TabularInline):
     fk_name = "member"
     extra = 0
     autocomplete_fields = ("membership",)
-    fields = ("membership", "night_budget", "wish_night_budget")
+    # Wunsch-Tage = immer die Hälfte der Tage des Mitglieds (abgerundet, ADR 0073).
+    fields = ("membership", "night_budget")
     verbose_name = "Mitglieds-Anteil dieses Mitglieds"
     verbose_name_plural = ("Mitglieds-Anteile dieses Mitglieds  —  „Löschen?“ "
                            "entfernt NUR die Zuordnung zu DIESEM Anteil (Anteil & "
@@ -479,7 +480,9 @@ class ShareInline(admin.TabularInline):
     model = Share
     extra = 1
     autocomplete_fields = ("member",)
-    fields = ("member", "night_budget", "wish_night_budget")
+    # Wunsch-Tage werden NICHT mehr je Anteil gepflegt – sie sind immer die Hälfte
+    # der Tage des Mitglieds (abgerundet, ADR 0073).
+    fields = ("member", "night_budget")
     verbose_name = "Mitglied mit Tage-Anteil"
     verbose_name_plural = ("Mitglieder & Tage-Anteil  —  EIN Mitglied mit 50 = "
                            "Voll-Mitglied; MEHRERE, deren Tage zusammen 50 ergeben "

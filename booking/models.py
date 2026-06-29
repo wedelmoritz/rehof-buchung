@@ -232,7 +232,10 @@ class Member(models.Model):
 
     @property
     def wish_night_budget(self) -> int:
-        return sum(s.wish_night_budget for s in self.shares.all())
+        """Wunsch-Budget für die Losung = **genau die Hälfte** der Jahres-Tage des
+        Mitglieds, **abgerundet** (50→25, 25→12, …). Wird IMMER aus dem Tage-Budget
+        abgeleitet – nicht je Anteil gespeichert (ADR 0073)."""
+        return self.annual_night_budget // 2
 
     def nights_used_in_year(self, year: int) -> int:
         total = 0

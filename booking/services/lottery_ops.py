@@ -285,7 +285,7 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
         new_f = result.new_factors.get(pid, old_f)
 
         msg = (f"Auslosung {year}: {len(wins)} Wunsch/Wünsche bekommen, "
-               f"{len(losses)} leider nicht.")
+               f"{len(losses)} diesmal nicht.")
         lines: list[str] = []
         if wins:
             lines.append("Du hast bekommen:")
@@ -297,12 +297,12 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
                     why.append(f"gleichwertiges Ausweichquartier – dein Wunsch „{orig}“ "
                                f"war im Zeitraum schon belegt")
                 if a.contested:
-                    why.append("um diesen Zeitraum gab es Konkurrenz – das Los hat für "
+                    why.append("dieser Zeitraum war sehr beliebt – das Los hat für "
                                "dich entschieden")
                 suffix = f" ({'; '.join(why)})" if why else ""
                 lines.append(f"  ✓ {qn} {a.start:%d.%m.%Y}–{a.end:%d.%m.%Y}{suffix}")
         if losses:
-            lines.append("Es tut uns leid – diese Wünsche waren nicht erfüllbar:")
+            lines.append("Diese Wünsche haben diesmal nicht geklappt:")
             for w in losses:
                 qn = quarter_names.get(w.quarter_id, w.quarter_id)
                 lines.append(f"  ✗ {qn} {w.start:%d.%m.%Y}–{w.end:%d.%m.%Y} – im gewünschten "
@@ -315,7 +315,7 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
             if rule_skips_by.get(pid):
                 reasons.append("Saison-Regel (z. B. Höchstaufenthalt)")
             lines.append(f"Hinweis: {skipped} weitere Wunsch/Wünsche wurden übersprungen "
-                         f"({', '.join(reasons)}) – das zählt NICHT als Verlust und bringt "
+                         f"({', '.join(reasons)}) – das zählt nicht negativ und bringt "
                          f"daher kein Karma.")
         if new_f > old_f:
             lines.append(
@@ -324,7 +324,7 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
                 f"bei der nächsten Auslosung bessere Chancen auf einen vorderen Platz.")
         elif new_f < old_f:
             lines.append(
-                f"Dein Ausgleichsfaktor wurde nach dem Gewinn eines umkämpften "
+                f"Dein Ausgleichsfaktor wurde nach dem Gewinn eines sehr beliebten "
                 f"Wunsches auf {round(new_f, 1)} zurückgesetzt.")
         notices.append({
             "member_id": m.id, "message": msg, "detail": "\n".join(lines),
