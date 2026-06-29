@@ -92,6 +92,7 @@ die Regelwerte zu wiederholen.
 | [0068](0068-mitglied-automatisch-mit-anteil.md) | Mitglied ↔ Mitglieds-Anteil: getrennt (Tandem-n:m), aber automatisch verknüpft (Auto-Voll-Anteil) + beidseitig sichtbar im Backend | Accepted |
 | [0069](0069-identitaet-benutzer-mitglied-anteil.md) | Identitäts-Modell Benutzer·Mitglied·Anteil bestätigt; Mehrfach-Login je Mitglied vorerst zurückgestellt (Roadmap), kein Tage-Deckel, UX/Anzeige „frei/vergeben" geschärft | Accepted |
 | [0070](0070-benutzer-admin-reversibel.md) | Benutzer-/Mitglieder-Verwaltung: Mitglied↔Anteil beidseitig editierbar, starke Aktionen doppelt bestätigt + via django-reversion wiederherstellbar (GESCHICHTE→Revert/Recover) | Accepted |
+| [0071](0071-backend-tabellen-mobil-scrollbar.md) | Backend-Tabellen am Handy: Listen/Inline-Tabellen horizontal scrollbar (nowrap + Scroll-Container + sichtbarer Balken), Inline-Klippen durch Karten-`overflow:hidden` behoben | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 
