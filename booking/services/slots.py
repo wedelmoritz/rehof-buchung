@@ -21,6 +21,8 @@ __all__ = [
     'external_min_nights', 'wish_rule_error', '_active_windows',
     '_in_season_range', 'range_is_released', 'find_bookable_gaps',
     'split_quarters_for_range', '_occupied_days_by_quarter',
+    'is_gap_fill', 'gap_fill_allowed', 'is_group_booking', 'lead_time_blocker',
+    'high_demand_periods', 'winter_usage',
 ]
 
 def _quarters_payload() -> list[L.Quarter]:
@@ -101,6 +103,7 @@ def _materialized_seasons(span_start: date, span_end: date) -> list[R.Season]:
 
 def check_booking_rules(
     member: Member, start: date, end: date, membership=None,
+    skip_min_nights: bool = False,
 ) -> str | None:
     """Prüft eine geplante Buchung gegen die globalen + saisonalen Regeln
     (inkl. regelsetzender Schulferien). Gibt einen Fehlertext zurück oder None.
@@ -110,7 +113,8 @@ def check_booking_rules(
     DIESES Anteils gezählt, nicht nur die des einzelnen Nutzers. `membership` ist
     der Ziel-Anteil (Default: der eindeutige bzw. größte Anteil des Nutzers);
     ohne Anteil (externer Gast) fällt die Prüfung auf die eigenen Buchungen
-    zurück."""
+    zurück. `skip_min_nights` hebt nur die Mindestnächte-Prüfung auf (Lücken-
+    füllung, ADR 0075)."""
     from ..models import Allocation
     policy = BookingPolicy.get_solo()
     ms = membership if membership is not None else member.membership_for()
@@ -126,23 +130,80 @@ def check_booking_rules(
         ]
     return R.validate_booking(
         _materialized_seasons(start, end), policy.default_min_nights,
-        start, end, existing,
+        start, end, existing, skip_min_nights=skip_min_nights,
     )
+
+
+def is_gap_fill(quarter: Quarter, start: date, end: date) -> bool:
+    """Füllt die Buchung [start, end) eine freie Lücke des Quartiers EXAKT aus?
+
+    Wahr, wenn der Zeitraum beidseitig „geschlossen" ist – die Nacht direkt davor
+    (start-1→start) und direkt danach (end→end+1) ist NICHT frei buchbar (belegt
+    oder außerhalb des freigeschalteten/saisonalen Zeitraums). Dann lässt sich der
+    Zeitraum nicht verlängern, er füllt die Lücke also in ihrer ganzen Länge
+    (ADR 0075). Bewusst nur wenige, gezielte DB-Abfragen (je Randnacht eine
+    Frei-/Freigabe-Prüfung); der Innenraum gilt als frei (wird vor dem Buchen
+    ohnehin separat geprüft)."""
+    day = timedelta(days=1)
+    left_closed = (not range_is_released(quarter, start - day, start)
+                   or not quarter_is_free(quarter, start - day, start))
+    right_closed = (not range_is_released(quarter, end, end + day)
+                    or not quarter_is_free(quarter, end, end + day))
+    return left_closed and right_closed
+
+
+def is_group_booking(persons: int) -> bool:
+    """Gilt eine Buchung mit `persons` Personen als „Gruppe" (ab
+    `BookingPolicy.group_min_persons`)? Dann werden Gruppen-Wohneinheiten (z. B.
+    Stallgebäude) zuerst angeboten (ADR 0075)."""
+    return int(persons or 0) >= (BookingPolicy.get_solo().group_min_persons or 0)
+
+
+def gap_fill_allowed(quarter: Quarter, start: date, end: date) -> bool:
+    """Ist [start, end) eine erlaubte Lückenfüllung? (Schalter `allow_gap_fill`
+    aktiv UND der Zeitraum füllt eine Lücke exakt aus.) Bündelt Policy + Geometrie
+    für Views, ohne dass diese das Policy-Modell kennen müssen (ADR 0075)."""
+    return bool(BookingPolicy.get_solo().allow_gap_fill) and is_gap_fill(
+        quarter, start, end)
+
+
+def lead_time_blocker(start: date, today: date | None = None) -> str | None:
+    """Verstößt der Anreisetag gegen die Spontan-Vorausfrist (`BookingPolicy.
+    min_lead_days`)? Gibt einen Fehlertext zurück oder None. Lückenfüllende
+    Buchungen prüft der Aufrufer separat und übergeht diese Prüfung (ADR 0075)."""
+    lead = BookingPolicy.get_solo().min_lead_days or 0
+    if lead <= 0:
+        return None
+    today = today or date.today()
+    earliest = today + timedelta(days=lead)
+    if start < earliest:
+        return (f"Spontanbuchungen brauchen mindestens {lead} Tage Vorlauf "
+                f"(frühester Anreisetag: {earliest:%d.%m.%Y}). Eine bestehende "
+                f"Lücke darfst du auch kurzfristig füllen.")
+    return None
 
 
 def schedule_blocker(
     member: Member, start: date, end: date,
+    skip_min_nights: bool = False, skip_lead: bool = False,
 ) -> str | None:
     """Grund, warum der Zeitraum (Termin/Regeln/Budget) NICHT buchbar ist –
     ohne Personenzahl- und Belegungsprüfung. Quartiers-unabhängig, daher pro
-    Auswahl nur EINMAL berechnen (nicht je Kandidat). Für die Vorab-Anzeige."""
+    Auswahl nur EINMAL berechnen (nicht je Kandidat). Für die Vorab-Anzeige.
+
+    `skip_min_nights`/`skip_lead` heben Mindestnächte bzw. Spontan-Vorausfrist auf
+    – für lückenfüllende Buchungen, die ja beides ausnehmen (ADR 0075)."""
     nights = (end - start).days
     if nights <= 0:
         return "Ungültiger Zeitraum."
     remaining = member.nights_remaining_in_year(start.year)
     if remaining < nights:
         return f"Nicht genügend Tage ({remaining} übrig, {nights} benötigt)."
-    return check_booking_rules(member, start, end)
+    if not skip_lead:
+        lead = lead_time_blocker(start)
+        if lead:
+            return lead
+    return check_booking_rules(member, start, end, skip_min_nights=skip_min_nights)
 
 
 def season_min_nights(start: date, end: date) -> int:
@@ -193,6 +254,62 @@ def wish_rule_error(start: date, end: date) -> str | None:
         _materialized_seasons(start, end), policy.default_min_nights,
         start, end, [],
     )
+
+
+def high_demand_periods(start: date, end: date) -> list[str]:
+    """Namen der „begehrten Zeiten", die [start, end) berühren – für den sanften
+    Rücksichts-Hinweis (ADR 0075): alle aktiven Schulferien sowie Saison-Regeln
+    mit Parallel-Limit (= Feiertage/Brückentage wie Pfingsten, Weihnachten …).
+    Reine Anzeige, blockiert nichts. Wenige Abfragen (zwei Tabellen, jährlich
+    materialisiert)."""
+    if end <= start:
+        return []
+    years = range(start.year - 1, end.year + 1)
+    names: list[str] = []
+    seen: set[str] = set()
+
+    def add(name, sm, sd, em, ed):
+        for y in years:
+            s, e = A.recurring_range(sm, sd, em, ed, y)
+            if s < end and e > start and name not in seen:
+                seen.add(name)
+                names.append(name)
+                return
+
+    for h in SchoolHoliday.objects.filter(active=True):
+        add(h.name, h.start_month, h.start_day, h.end_month, h.end_day)
+    for r in SeasonRule.objects.filter(active=True,
+                                       max_parallel_units__isnull=False):
+        add(r.name, r.start_month, r.start_day, r.end_month, r.end_day)
+    return names
+
+
+def winter_usage(member: Member, ref_date: date | None = None) -> dict:
+    """Richtwert-Orientierung (kein Limit, ADR 0075): wie viele Tage hat das
+    Mitglied im aktuellen/kommenden Winterhalbjahr (1.10.–31.3.) gebucht, gemessen
+    am Richtwert `BookingPolicy.winter_guideline_nights`. Eine Abfrage über die
+    überlappenden Buchungen."""
+    today = ref_date or date.today()
+    # Das relevante Winterhalbjahr: beginnt am 1.10. des Jahres, dessen Winter
+    # heute läuft oder als nächstes ansteht. Jan–Sep → Winter ab Okt des Vorjahres
+    # (Jan–Mär: laufend) bzw. des laufenden Jahres (Apr–Sep: kommend).
+    if today.month <= 3:
+        win_start = date(today.year - 1, 10, 1)
+    else:
+        win_start = date(today.year, 10, 1)
+    win_end = date(win_start.year + 1, 4, 1)        # exklusiv (bis 31.3.)
+    booked = 0
+    for s, e in (Allocation.objects.filter(
+            member=member, provisional=False,
+            start__lt=win_end, end__gt=win_start)
+            .values_list("start", "end")):
+        booked += (min(e, win_end) - max(s, win_start)).days
+    target = BookingPolicy.get_solo().winter_guideline_nights or 0
+    return {
+        "booked": booked, "target": target,
+        "win_start": win_start, "win_end": win_end - timedelta(days=1),
+        "label": f"Okt {win_start.year} – Mär {win_end.year}",
+    }
 
 
 def _active_windows() -> list[A.Window]:

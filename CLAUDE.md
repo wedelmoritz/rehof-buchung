@@ -113,7 +113,9 @@ Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
 `SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
-(Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines), `SeasonRule`,
+(Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines; zusätzlich
+`min_lead_days`/`allow_gap_fill`/`group_min_persons`/`winter_guideline_nights`,
+ADR 0075), `SeasonRule`,
 `SchoolHoliday`, `FairnessSimConfig` (Singleton: Parameter + letztes Ergebnis
 des Fairness-Nachweises). (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 **Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login, mit
@@ -664,7 +666,24 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 - **Quartiere (`Quarter`):** Merkmal `accessible` (barrierearm/-frei) und ein
   optionaler **jährlicher Buchbarkeitszeitraum** (`season_*_month/day`, leer =
   ganzjährig). Außerhalb der Quartier-Saison ist nicht buchbar (geprüft in
-  `services.range_is_released`).
+  `services.range_is_released`). Felder `building`/`prefer_for_groups` (ADR 0075):
+  Gruppen (ab `BookingPolicy.group_min_persons`) bekommen `prefer_for_groups`-
+  Wohneinheiten (z. B. Stallgebäude) **zuerst** angezeigt – sanfte Reihung, keine
+  Sperre.
+- **Globale Buchungsrichtlinien (`BookingPolicy`, ADR 0075):** im Backend
+  einstellbar, greifen bei der **Spontanbuchung** (nicht in der Losung).
+  **Spontan-Vorausfrist** (`min_lead_days`, Default 7) – Anreise frühestens in N
+  Tagen (`services.lead_time_blocker`). **Lückenfüllung** (`allow_gap_fill`, an):
+  füllt eine Buchung eine freie Lücke **exakt** aus (beidseitig geschlossen –
+  `services.is_gap_fill`), entfallen **Mindestnächte UND Vorausfrist** (Parallel/
+  Deckel bleiben; `rules.validate_booking(skip_min_nights=…)`); greift in
+  `book_spontaneous` + `adjust_allocation`. **Weiche Richtwerte (nur Anzeige):**
+  Winter-Richtwert `winter_guideline_nights` (Tage Okt–März, `services.winter_usage`,
+  auf Übersicht/Buchen) und der **Rücksichts-Hinweis** in begehrten Zeiten
+  (`services.high_demand_periods` → Partial `_high_demand_note.html`, beim Buchen
+  **und** Wünschen). „Eigene Nutzung/keine Weitergabe an Externe ohne Mitglied vor
+  Ort" und „8–9 Wochenenden" bleiben **Richtschnur** auf der Hilfeseite
+  (nicht erzwingbar).
 
 ---
 
@@ -674,7 +693,7 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 # 1) Reine Logik (schnell, ohne DB) — erwartet: 77 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 301 passed (4 skips)
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 319 passed (4 skips)
 python manage.py test booking shop
 
 # 3) E2E-Smoke-Tests (Playwright, gegen einen LAUFENDEN Stack) — optional lokal

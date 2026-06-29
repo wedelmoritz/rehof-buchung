@@ -1,0 +1,23 @@
+{# Sanfter, NICHT blockierender Rücksichts-Hinweis für begehrte Zeiten
+   (Schulferien/Brücken-/Feiertage) – ADR 0075. Erwartet: high_demand = Liste von
+   Namen. Reine Orientierung, ändert nichts an der Buchbarkeit. #}
+{% if high_demand %}
+<div class="hd-note">
+  <strong>🌿 Begehrte Zeit:</strong>
+  {% for n in high_demand %}{{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}.
+  Hier buchen wir mit Rücksicht auf die ganze Gemeinschaft – kurz innehalten:
+  <ul>
+    <li>Bin ich wirklich auf genau diese Zeit angewiesen?</li>
+    <li>War ich im Vorjahr schon an diesem Brücken-/Feiertag auf dem Hof? Dann lasse ich ggf. anderen den Vortritt.</li>
+    <li>Brauche ich wirklich zwei Wohneinheiten?</li>
+  </ul>
+  <span class="muted">Nur ein Hinweis – die Buchung bleibt dir überlassen.</span>
+</div>
+<style>
+  .hd-note { background:var(--sage-soft); border:1px solid var(--line);
+    border-left:3px solid var(--sage); border-radius:10px; padding:.6rem .8rem;
+    margin:.2rem 0 .7rem; font-size:.92rem; line-height:1.5; }
+  .hd-note ul { margin:.35rem 0 .35rem; padding-left:1.2rem; }
+  .hd-note li { margin:.1rem 0; }
+</style>
+{% endif %}

@@ -189,11 +189,15 @@ class Command(BaseCommand):
                 )
         quarters = []
         for name, sqm, mn, mx, cls_name in QUARTERS:
+            # Stallgebäude: Gruppen zuerst anbieten (Richtlinie, ADR 0075).
+            is_stall = "Stallgebäude" in name
             q, _ = Quarter.objects.get_or_create(
                 name=name,
                 defaults=dict(
                     size_sqm=sqm, min_occupancy=mn, max_occupancy=mx,
                     eq_class=classes[cls_name],
+                    building="Stallgebäude" if is_stall else "",
+                    prefer_for_groups=is_stall,
                 ),
             )
             quarters.append(q)
@@ -369,9 +373,15 @@ class Command(BaseCommand):
                 "2 Beispiel-Tage-Übertragungen angelegt."
             ))
 
-        # Globale Buchungsregel: Standard-Mindestbuchung 3 Nächte.
+        # Globale Buchungsregel: Standard-Mindestbuchung 3 Nächte, Spontan-
+        # Vorausfrist 1 Woche (Lücken ausgenommen), Lückenfüllung an; Richtwerte
+        # Gruppe ab 3 Personen / 20 Tage Okt–März (ADR 0075).
         policy = BookingPolicy.get_solo()
         policy.default_min_nights = 3
+        policy.min_lead_days = 7
+        policy.allow_gap_fill = True
+        policy.group_min_persons = 3
+        policy.winter_guideline_nights = 20
         policy.save()
 
         # Saison-Regeln – jährlich wiederkehrend (ohne Jahr), Monat/Tag.

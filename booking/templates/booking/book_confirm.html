@@ -20,16 +20,20 @@
       <tr><td class="muted">Nächte</td><td><strong>{{ nights }}</strong></td></tr>
     </table>
 
-    {% if nights < min_nights %}
-    <div class="msg warning">Mindestaufenthalt in diesem Zeitraum: {{ min_nights }} Nächte (gewählt {{ nights }}).</div>
+    {% if gap_fill and nights < min_nights %}
+    <div class="msg info">Diese Buchung füllt eine bestehende Lücke vollständig –
+      der Mindestaufenthalt ({{ min_nights }} Nächte) entfällt hier, ebenso die
+      Spontan-Vorausfrist.</div>
+    {% elif block_reason %}
+    <div class="msg warning">{{ block_reason }}</div>
     {% endif %}
     {% if enough_days %}
     <p style="margin:.6rem 0 0">Nach dieser Buchung hast du noch
       <strong>{{ remaining_after }}</strong> von {{ remaining_now }} Tagen übrig.</p>
-    {% else %}
-    <div class="msg error">Nicht genügend Tage übrig: du hast {{ remaining_now }}, der Zeitraum braucht {{ nights }}.</div>
     {% endif %}
   </div>
+
+  {% include "booking/_high_demand_note.html" %}
 
   <div class="card">
     <h2 style="margin-top:0">Wer kommt?</h2>
@@ -83,11 +87,11 @@
 
   <div class="confirm-actions">
     <a class="btn ghost" href="{% url 'book' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">Abbrechen</a>
-    {% if nights < min_nights or not enough_days %}
-    <button class="btn" type="submit" disabled
-            title="Bitte zuerst die Hinweise oben beheben (Mindestaufenthalt bzw. verfügbare Tage).">Verbindlich buchen</button>
-    {% else %}
+    {% if can_book %}
     <button class="btn" type="submit">Verbindlich buchen</button>
+    {% else %}
+    <button class="btn" type="submit" disabled
+            title="Bitte zuerst die Hinweise oben beheben.">Verbindlich buchen</button>
     {% endif %}
   </div>
 </form>

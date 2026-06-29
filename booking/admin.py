@@ -107,9 +107,13 @@ class QuarterAdmin(admin.ModelAdmin):
                 "auf ein freies Quartier ausweichen. „Aktiv“ aus = nicht buchbar."),
         }),
         ("Belegung & Merkmale", {
-            "fields": ("size_sqm", "min_occupancy", "max_occupancy", "accessible"),
+            "fields": ("size_sqm", "min_occupancy", "max_occupancy", "accessible",
+                       "building", "prefer_for_groups"),
             "description": "Min./Max.-Personen steuern, welche Quartiere beim "
-                           "Buchen je nach Personenzahl als passend angezeigt werden.",
+                           "Buchen je nach Personenzahl als passend angezeigt werden. "
+                           "„Gebäude“ gruppiert organisatorisch; „für Gruppen zuerst "
+                           "anbieten“ (z. B. Stallgebäude) reiht die Wohneinheit bei "
+                           "großen Gruppen nach oben (nur Reihenfolge, keine Sperre).",
         }),
         ("Buchbarkeitszeitraum (jährlich, ohne Jahr – leer = ganzjährig)", {
             "fields": ("season_start_month", "season_start_day",
@@ -957,7 +961,23 @@ class BookingPolicyAdmin(admin.ModelAdmin):
     Mindestnächte, beliebig viele Saison-Regeln und die Schulferien."""
     inlines = [SeasonRuleInline, SchoolHolidayInline]
     fieldsets = (
-        ("Globale Regeln", {"fields": ("default_min_nights",)}),
+        ("Globale Regeln", {
+            "fields": ("default_min_nights", "min_lead_days", "allow_gap_fill"),
+            "description": (
+                "<b>Mindestnächte</b> gelten, wenn keine Saison-Regel strenger ist. "
+                "<b>Spontan-Vorausfrist</b>: so viele Tage muss eine Spontanbuchung "
+                "vor der Anreise liegen (lückenfüllende Buchungen sind ausgenommen). "
+                "<b>Lücken füllen</b>: füllt eine Buchung eine freie Lücke exakt aus, "
+                "entfallen Mindestnächte und Vorausfrist."),
+        }),
+        ("Orientierung & Gruppen (nur Hinweise, keine Sperren)", {
+            "fields": ("group_min_persons", "winter_guideline_nights"),
+            "description": (
+                "<b>Gruppe ab Personen</b>: ab dieser Personenzahl werden Gruppen-"
+                "Wohneinheiten (Quartier-Feld „für Gruppen zuerst anbieten“) oben "
+                "angezeigt. <b>Richtwert Okt–März</b>: empfohlene Tage im "
+                "Winterhalbjahr (nur Anzeige beim Buchen)."),
+        }),
     )
 
     def has_add_permission(self, request):

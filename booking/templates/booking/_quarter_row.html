@@ -7,6 +7,8 @@
   <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
   <span class="qname">{{ info.q.name }}</span>
   <span class="muted qmeta">{{ info.q.size_sqm }} m² · {{ info.q.min_occupancy }}–{{ info.q.max_occupancy }} Pers.{% if info.q.accessible %} · barrierearm/-frei{% endif %}</span>
+  {% if info.group_pref %}<span class="tag" style="background:var(--sage-soft);color:var(--sage-deep)">Stallgebäude · für Gruppen</span>{% endif %}
+  {% if info.gap_fill %}<span class="tag" style="background:var(--good-soft);color:var(--good)">füllt Lücke</span>{% endif %}
   {% if not info.fits_persons %}<span class="reason">für {{ persons }} Pers. nicht geeignet</span>{% endif %}
   {% if not info.fits_access %}<span class="reason">nicht barrierearm/-frei</span>{% endif %}
   {% if info.reason %}<span class="reason">{{ info.reason }}</span>{% endif %}
@@ -23,6 +25,8 @@
   <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
   <span class="qname">{{ info.q.name }}</span>
   <span class="muted qmeta">{{ info.q.size_sqm }} m² · {{ info.q.min_occupancy }}–{{ info.q.max_occupancy }} Pers.{% if info.q.accessible %} · barrierearm/-frei{% endif %}</span>
+  {% if info.group_pref %}<span class="tag" style="background:var(--sage-soft);color:var(--sage-deep)">Stallgebäude · für Gruppen</span>{% endif %}
+  {% if info.gap_fill %}<span class="tag" style="background:var(--good-soft);color:var(--good)">füllt Lücke</span>{% endif %}
   {% if not info.fits_persons %}<span class="reason">für {{ persons }} Pers. nicht geeignet</span>{% endif %}
   {% if not info.fits_access %}<span class="reason">nicht barrierearm/-frei</span>{% endif %}
   {% if info.reason %}<span class="reason">{{ info.reason }}</span>{% endif %}

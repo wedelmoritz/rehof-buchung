@@ -38,6 +38,15 @@ class Quarter(models.Model):
         "Barrierearm/-frei", default=False,
         help_text="Quartier ist barrierearm bzw. barrierefrei erreichbar.",
     )
+    # Organisatorische Gruppierung + sanfte Gruppen-Empfehlung (ADR 0075).
+    building = models.CharField(
+        "Gebäude", max_length=80, blank=True, default="",
+        help_text="Organisatorische Gruppierung, z. B. „Stallgebäude“ (nur Anzeige).")
+    prefer_for_groups = models.BooleanField(
+        "Für Gruppen zuerst anbieten", default=False,
+        help_text="Diese Wohneinheit wird Gruppen (große Personenzahl) zuerst "
+                  "empfohlen – z. B. die Wohnungen des Stallgebäudes. Keine harte "
+                  "Sperre, nur Reihenfolge/Hinweis.")
     # Externe Gäste (siehe docs/EXTERNE-GAESTE.md)
     external_bookable = models.BooleanField(
         "Für externe Gäste buchbar", default=False,
@@ -947,6 +956,30 @@ class BookingPolicy(models.Model):
     default_min_nights = models.PositiveIntegerField(
         "Mindestnächte (Standard)", default=3,
         help_text="Gilt, wenn keine Saison-Regel etwas Strengeres vorgibt.",
+    )
+    min_lead_days = models.PositiveIntegerField(
+        "Spontan-Vorausfrist (Tage)", default=7,
+        help_text="Spontanbuchungen müssen mindestens so viele Tage vor der "
+                  "Anreise erfolgen. Lückenfüllende Buchungen sind ausgenommen. "
+                  "0 = keine Frist.",
+    )
+    allow_gap_fill = models.BooleanField(
+        "Lücken unter Mindestnächte füllen", default=True,
+        help_text="Füllt eine Buchung eine freie Lücke vollständig aus (schließt "
+                  "beidseitig an Belegungen/Zeitraum-Grenzen an), entfällt die "
+                  "Mindestnächte-Regel und die Vorausfrist.",
+    )
+    group_min_persons = models.PositiveIntegerField(
+        "Gruppe ab Personen", default=3,
+        help_text="Ab dieser Personenzahl gilt eine Buchung als Gruppe – dann "
+                  "werden Gruppen-Wohneinheiten (z. B. Stallgebäude) zuerst "
+                  "angezeigt. Nur Reihenfolge/Hinweis, keine Sperre.",
+    )
+    winter_guideline_nights = models.PositiveIntegerField(
+        "Richtwert Tage Oktober–März", default=20,
+        help_text="Orientierung (kein Limit): empfohlene Anzahl Tage im "
+                  "Winterhalbjahr Oktober–März, damit sich die Buchungen übers "
+                  "Jahr verteilen.",
     )
 
     class Meta:
