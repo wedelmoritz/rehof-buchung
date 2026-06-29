@@ -37,8 +37,8 @@ auch beim pjax-Laden ohne erneutes Skript funktioniert (ADR 0055).{% endcomment 
         <input type="text" name="display_name" value="{{ u.suggested_name }}" required></label>
       <label class="rehof-ob-f">Mitglieds-Anteil
         <select name="membership">
-          {% for ms in memberships %}<option value="{{ ms.pk }}">{{ ms }} ({{ ms.allocated_budget }}/{{ ms.annual_night_budget }} vergeben)</option>{% endfor %}
-          <option value="new">➕ Neuen Anteil anlegen …</option>
+          <option value="new">➕ Neuen Anteil anlegen (Voll-Mitglied, 50 Tage)</option>
+          {% for ms in memberships %}<option value="{{ ms.pk }}">{{ ms }} – {{ ms.allocated_budget }}/{{ ms.annual_night_budget }} vergeben{% if ms.free_nights > 0 %}, noch {{ ms.free_nights }} frei (Tandem){% else %}, voll{% endif %}</option>{% endfor %}
         </select></label>
       <label class="rehof-ob-f rehof-ob-newlabel">Bezeichnung des neuen Anteils
         <input type="text" name="new_label" placeholder="z. B. {{ u.suggested_name }}"></label>
@@ -48,6 +48,10 @@ auch beim pjax-Laden ohne erneutes Skript funktioniert (ADR 0055).{% endcomment 
         <label class="rehof-ob-f">davon Wunsch
           <input type="number" name="wish_night_budget" value="{{ default_wish }}" min="0" step="1"></label>
       </div>
+      <p class="rehof-ob-hint"><strong>Voll-Mitglied:</strong> neuen Anteil wählen und
+        die vollen Tage (z. B. 50) lassen. <strong>Tandem:</strong> einen
+        bestehenden Anteil mit „noch frei“ wählen und nur den freien Teil eintragen
+        (z. B. 25). Mehrere Tandem-Anteile sind möglich – die Tage summieren sich.</p>
       <button type="submit" class="rehof-ob-btn primary">Als Mitglied zuordnen</button>
     </form>
 

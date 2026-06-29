@@ -269,7 +269,16 @@ Formular (Member als Inline am `User`-Admin); `Member` ist aus dem Index
 ausgeblendet (nur Autocomplete). **Anlegen ohne Passwort:** das Add-Formular
 (`AdminUserInviteForm`) verlangt nur Benutzername + **E-Mail (Pflicht)**; beim
 Speichern geht automatisch die „Passwort setzen“-Einladung raus (ADR 0052), plus
-Admin-Aktion „Einladung erneut senden“. Tage-Anteile werden am `Membership` zugeordnet.
+Admin-Aktion „Einladung erneut senden“. **Mitglied ↔ Mitglieds-Anteil (ADR 0068):**
+`Member` (Person/Login) und `Membership` (eG-Anteil, 50 Tage) bleiben **getrennt**,
+weil ein Anteil geteilt (Tandem, n:m über `Share`) und eine Person mehrere Anteile
+halten kann – aber sie sind **automatisch verknüpft**: speichert man im Benutzer-
+Formular ein buchendes Profil **ohne** Anteil, legt `UserAdmin.save_related` über
+`services.ensure_personal_membership` automatisch einen **vollen Anteil (50/25)** an
+(idempotent; übersprungen bei vorhandenem Anteil/`is_external`; eG-Nummer nachtragen).
+Das Profil zeigt eine **„Mitglieds-Anteil(e)"-Übersicht** (Anteil+Tage+Link), der
+Anteil seine Nutzer (`ShareInline`) – beidseitig sichtbar. Ein **Tandem** entsteht
+durch Aufteilen am Anteil (oder Wahl eines bestehenden Anteils im Onboarding).
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
 **Marke/Logo/Farben (EIN Farbsystem, App + Backend gleich, ADR 0054):** Das
@@ -827,6 +836,13 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
 - Verwaltungs-Mails/Putzliste später optional als **Datei-Anhang** (xlsx/CSV)
   statt nur inline (OutboxEmail um Anhang erweitern).
 - Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
+- **Mehrere Benutzer pro Mitglied** (Mehrfach-Login, ADR 0069): Benutzer↔Mitglied ist
+  heute **1:1**. Geplant: Entkopplung auf **n:1** (mehrere Logins teilen ein Mitglied
+  = gleiche Wünsche/Buchungen/Budget, je Login eigene Anmeldedaten, Benachrichtigungen
+  an alle Adressen) über ein Verknüpfungs-Modell + Migration der bestehenden
+  1:1-Zuordnungen. Bewusst zurückgestellt (Auth-Umbau). **Kein Tage-Deckel** je
+  Mitglied – Tandem-Anteile summieren sich frei (Verwaltung steuert über „frei/
+  vergeben").
 
 ---
 

@@ -9,6 +9,8 @@ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.models import User
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.html import format_html, format_html_join
+from django.utils.safestring import mark_safe
 
 from .models import (
     Allocation, Beds24Import, Beds24ImportRow, BookingPeriod, BookingPolicy,
@@ -119,14 +121,17 @@ class MemberProfileInline(admin.StackedInline):
     max_num = 1
     verbose_name = "Mitglieds-Profil"
     verbose_name_plural = "Mitglieds-Profil (zum Buchen nötig)"
+    readonly_fields = ("anteile_uebersicht",)
     fieldsets = (
         ("Buchungs-Profil", {
-            "fields": ("display_name", "factor", "is_external"),
+            "fields": ("display_name", "factor", "is_external", "anteile_uebersicht"),
             "description": (
-                "<b>Mitglied = Buchungs-Profil dieses Benutzers (1:1).</b> Ohne "
-                "Profil kann die Person nicht buchen. Die <b>Tage</b> kommen NICHT "
-                "von hier, sondern vom <b>Mitglieds-Anteil</b> – dort die Person mit "
-                "ihrem Tage-Anteil zuordnen. Der Ausgleichsfaktor (Karma) wird von "
+                "<b>Mitglied = Buchungs-Profil dieses Benutzers (1:1).</b> Beim "
+                "Speichern wird – wenn noch keiner besteht – <b>automatisch ein "
+                "voller Mitglieds-Anteil (50 Tage) angelegt</b> und der Person "
+                "zugeordnet; sie kann dann sofort buchen. Ein <b>Tandem</b> (geteilter "
+                "Anteil) entsteht, indem man unter „Mitglieds-Anteile“ am selben "
+                "Anteil weitere Nutzer ergänzt. Der Ausgleichsfaktor (Karma) wird von "
                 "der Losung automatisch gepflegt – im Normalfall nicht ändern."),
         }),
         ("Rechnungsdaten (Hofladen)", {
@@ -141,6 +146,33 @@ class MemberProfileInline(admin.StackedInline):
                 "auch selbst im Profil ausschalten."),
         }),
     )
+
+    @admin.display(description="Mitglieds-Anteil(e)")
+    def anteile_uebersicht(self, obj):
+        """Zeigt direkt im Benutzer-Formular, welche(n) Mitglieds-Anteil(e) die
+        Person hält (mit Tage-Anteil + Link) – so stehen Mitglied und Anteil
+        zueinander. Bei einem neuen/anteillosen Mitglied der Hinweis aufs
+        automatische Anlegen."""
+        if obj is None or obj.pk is None:
+            return mark_safe("<i>— wird beim Speichern automatisch als voller "
+                             "Anteil (50 Tage) angelegt.</i>")
+        if obj.is_external:
+            return mark_safe("<i>Hofladen-Gast – kein Buchungs-Anteil.</i>")
+        shares = list(obj.shares.select_related("membership"))
+        if not shares:
+            return mark_safe("<i>— noch keiner; wird beim Speichern automatisch "
+                             "angelegt.</i>")
+        rows = format_html_join(
+            mark_safe("<br>"),
+            '<a href="{}">{}</a> – {} Tage (davon {} über die Wunschliste){}',
+            ((reverse("admin:booking_membership_change", args=[s.membership_id]),
+              str(s.membership), s.night_budget, s.wish_night_budget,
+              " · Tandem" if s.membership.is_tandem else "")
+             for s in shares))
+        return format_html(
+            "{}<br><span style=\"color:#6b6259\">Gesamt-Tagebudget: "
+            "{} Tage/Jahr. Aufteilen für ein Tandem unter „Mitglieds-Anteile“.</span>",
+            rows, obj.annual_night_budget)
 
 
 admin.site.unregister(User)
@@ -195,6 +227,23 @@ class UserAdmin(DjangoUserAdmin):
             "fields": ("username", "email"),
         }),
     )
+
+    def save_related(self, request, form, formsets, change):
+        """Nachdem das Mitglieds-Profil (Inline) gespeichert ist: hat ein
+        buchendes Mitglied noch keinen Mitglieds-Anteil, automatisch einen vollen
+        anlegen – so ist „Mitglied" immer mit einem „Mitglieds-Anteil" verknüpft
+        (Tandems entstehen durch Aufteilen, ADR 0068)."""
+        super().save_related(request, form, formsets, change)
+        from .services import ensure_personal_membership
+        member = Member.objects.filter(user=form.instance).first()
+        share = ensure_personal_membership(member)
+        if share:
+            self.message_user(
+                request,
+                f"Voller Mitglieds-Anteil ({share.night_budget} Tage) automatisch "
+                f"angelegt und {member.display_name} zugeordnet – die Person kann "
+                f"jetzt buchen. Für ein Tandem den Anteil unter „Mitglieds-Anteile“ "
+                f"aufteilen; die eG-Nummer dort nachtragen.", level=messages.SUCCESS)
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -279,12 +328,17 @@ class PendingUserAdmin(admin.ModelAdmin):
         pending = list(svc.users_without_membership().select_related("member"))
         for u in pending:
             u.suggested_name = (u.get_full_name() or u.username).strip()
+        # Anteile mit „noch frei" anreichern (für die Tandem-Wahl nachvollziehbar).
+        memberships = list(Membership.objects.order_by("label", "eg_number")
+                           .prefetch_related("shares"))
+        for ms in memberships:
+            ms.free_nights = ms.annual_night_budget - ms.allocated_budget
         ctx = {
             **self.admin_site.each_context(request),
             "title": "Neue Benutzer zuordnen",
             "opts": self.model._meta,
             "pending": pending,
-            "memberships": Membership.objects.order_by("label", "eg_number"),
+            "memberships": memberships,
             "default_budget": (db := Membership.suggest_budget()),
             "default_wish": min(25, db),
         }
@@ -354,8 +408,10 @@ class ShareInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ("member",)
     fields = ("member", "night_budget", "wish_night_budget")
-    verbose_name = "Zugeordneter Nutzer (Tage-Anteil)"
-    verbose_name_plural = "Zugeordnete Nutzer (je fester Tage-Anteil)"
+    verbose_name = "Mitglied mit Tage-Anteil"
+    verbose_name_plural = ("Mitglieder & Tage-Anteil  —  EIN Mitglied mit 50 = "
+                           "Voll-Mitglied; MEHRERE, deren Tage zusammen 50 ergeben "
+                           "(z. B. 25 + 25) = Tandem")
 
 
 @admin.register(Membership)
@@ -371,14 +427,20 @@ class MembershipAdmin(admin.ModelAdmin):
                        "wish_night_budget", "created_on"),
             "description": (
                 "Ein <b>Mitglieds-Anteil</b> = eine Vielleben-eG-Nummer mit einem "
-                "Jahres-Tagebudget (Standard 50). <b>Voll-Mitglied</b> = ein Nutzer "
-                "hält den ganzen Anteil; <b>Teil-Mitglied (Tandem)</b> = mehrere "
-                "Nutzer teilen sich den Anteil. Unten ordnest du die <b>Nutzer</b> "
-                "(= Benutzer mit Mitglieds-Profil) mit ihrem festen Tage-Anteil zu. "
-                "Ein Nutzer kann mehreren Anteilen angehören – sein Budget ist die "
-                "Summe. Bei Anlage mitten im Jahr ist das Budget bereits anteilig "
-                "vorgeschlagen; leer gelassene Tage-Anteile (0) werden beim "
-                "Speichern gleichmäßig abgerundet aufgeteilt."),
+                "Jahres-Tagebudget (Standard <b>50 Tage</b>). Unten ordnest du die "
+                "<b>Mitglieder</b> (Personen mit Buchungs-Profil) mit ihrem festen "
+                "Tage-Anteil zu:<br>"
+                "&nbsp;&bull; <b>Voll-Mitglied</b> = <b>ein</b> Mitglied bekommt die "
+                "<b>vollen 50 Tage</b>.<br>"
+                "&nbsp;&bull; <b>Tandem (Teil-Anteil)</b> = <b>mehrere</b> Mitglieder "
+                "teilen den Anteil, ihre Tage-Anteile ergeben zusammen 50 "
+                "(z. B. 25&nbsp;+&nbsp;25). Die Spalte „vergeben / frei“ zeigt, wie "
+                "viele Tage noch frei sind.<br>"
+                "Ein Mitglied kann auch <b>mehreren</b> Anteilen angehören (mehrere "
+                "Tandems) – sein Budget ist dann die <b>Summe</b> der Tage-Anteile. "
+                "Bei Anlage mitten im Jahr ist das Budget anteilig vorgeschlagen; "
+                "leer gelassene Tage-Anteile (0) werden beim Speichern gleichmäßig "
+                "abgerundet aufgeteilt."),
         }),
     )
 
@@ -389,9 +451,15 @@ class MembershipAdmin(admin.ModelAdmin):
         return (super().get_queryset(request)
                 .prefetch_related("shares").annotate(_n_shares=Count("shares")))
 
-    @admin.display(description="vergeben")
+    @admin.display(description="vergeben / frei")
     def allocated_display(self, obj):
-        return f"{sum(s.night_budget for s in obj.shares.all())}/{obj.annual_night_budget}"
+        used = sum(s.night_budget for s in obj.shares.all())
+        free = obj.annual_night_budget - used
+        if free > 0:
+            return f"{used}/{obj.annual_night_budget} · {free} frei (für Tandem-Partner)"
+        if free < 0:
+            return f"{used}/{obj.annual_night_budget} · {-free} zu viel (überbelegt!)"
+        return f"{used}/{obj.annual_night_budget} · voll vergeben"
 
     @admin.display(boolean=True, description="Tandem")
     def is_tandem_display(self, obj):

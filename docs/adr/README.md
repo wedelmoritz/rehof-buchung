@@ -89,6 +89,8 @@ die Regelwerte zu wiederholen.
 | [0065](0065-backend-theme-konsolidierung.md) | Backend-Theme-Konsolidierung (ein warmes Theme, kein Modus-Umschalter) + UX-Fixes (Recent-Actions, Navigator-Default, Onboarding zweistufig, Static-Devices entfernt) | Accepted |
 | [0066](0066-buchungsregeln-je-mitglieds-anteil.md) | Buchungsregeln (Parallel-Limit/Aufenthaltsdeckel) auf den vollen Mitglieds-Anteil – exakte Zurechnung Buchung/Wunsch→Anteil; Losung bleibt je Benutzer | Accepted |
 | [0067](0067-backend-layout-eine-spalte.md) | Backend-Layout: EINE gestapelte Spalte für alle Seiten (Desktop+Mobil), ersetzt den fragilen Float/Flex-Kniff aus ADR 0065 (c) | Accepted |
+| [0068](0068-mitglied-automatisch-mit-anteil.md) | Mitglied ↔ Mitglieds-Anteil: getrennt (Tandem-n:m), aber automatisch verknüpft (Auto-Voll-Anteil) + beidseitig sichtbar im Backend | Accepted |
+| [0069](0069-identitaet-benutzer-mitglied-anteil.md) | Identitäts-Modell Benutzer·Mitglied·Anteil bestätigt; Mehrfach-Login je Mitglied vorerst zurückgestellt (Roadmap), kein Tage-Deckel, UX/Anzeige „frei/vergeben" geschärft | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 
