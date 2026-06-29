@@ -9,11 +9,14 @@ from django.db import transaction
 from django.utils import timezone
 from .. import validation as V
 from ..models import (
-    Allocation, Member, NightTransfer, Notification, Quarter, SwapRequest,
-    WaitlistEntry,
+    Allocation, BookingPolicy, Member, NightTransfer, Notification, Quarter,
+    SwapRequest, WaitlistEntry,
 )
 from .notify import absolute_url, email_member
-from .slots import check_booking_rules, min_nights_for_range, quarter_is_free, range_is_released
+from .slots import (
+    check_booking_rules, is_gap_fill, lead_time_blocker, min_nights_for_range,
+    quarter_is_free, range_is_released,
+)
 
 __all__ = [
     'book_spontaneous', 'add_waitlist_entry', 'waiters_for_allocation',
@@ -65,8 +68,19 @@ def book_spontaneous(
     # Mehrfach-Tandem die getroffene Wahl) – die Buchungsregeln zählen über den
     # vollen Anteil inkl. Tandem-Partner (ADR 0066).
     membership = member.membership_for(membership_id)
-    # Saison-Regeln: Mindestnächte, Parallel-Limit, Aufenthaltsdeckel
-    rule_error = check_booking_rules(member, start, end, membership)
+    # Lückenfüllung (ADR 0075): füllt die Buchung eine freie Lücke exakt aus,
+    # entfallen Mindestnächte UND Spontan-Vorausfrist.
+    policy = BookingPolicy.get_solo()
+    gap_fill = policy.allow_gap_fill and is_gap_fill(quarter, start, end)
+    # Spontan-Vorausfrist (außer bei Lückenfüllung).
+    if not gap_fill:
+        lead_error = lead_time_blocker(start)
+        if lead_error:
+            return None, lead_error
+    # Saison-Regeln: Mindestnächte (bei Lückenfüllung übersprungen),
+    # Parallel-Limit, Aufenthaltsdeckel.
+    rule_error = check_booking_rules(member, start, end, membership,
+                                     skip_min_nights=gap_fill)
     if rule_error:
         return None, rule_error
     alloc = Allocation.objects.create(
@@ -368,9 +382,13 @@ def adjust_allocation(member: Member, allocation_id, new_start: date,
             return False, (f"Nicht genügend Tage ({remaining} übrig, "
                            f"{extra} zusätzlich nötig).")
 
-    # Mindestaufenthalt der NEUEN Dauer.
+    # Mindestaufenthalt der NEUEN Dauer – entfällt bei exakter Lückenfüllung
+    # (ADR 0075). Die Spontan-Vorausfrist gilt nur für neue Buchungen, nicht beim
+    # Anpassen einer bestehenden (Verkürzen hat seine eigene 7-Tage-Frist unten).
+    gap_fill = BookingPolicy.get_solo().allow_gap_fill \
+        and is_gap_fill(new_q, new_start, new_end)
     min_n = min_nights_for_range(new_start, new_end)
-    if new_nights < min_n:
+    if new_nights < min_n and not gap_fill:
         return False, f"Mindestaufenthalt {min_n} Nächte (neu wären es {new_nights})."
 
     # Frei werdende Bereiche bestimmen + 7-Tage-Frist (nur bei Verkürzung im

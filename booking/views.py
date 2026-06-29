@@ -170,6 +170,7 @@ def overview(request):
         "show_today": True,
         "agenda": svc.week_agenda(member, today, 7),
         **_cal_nav(cal),
+        "winter": svc.winter_usage(member) if member else None,
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0
         ),
@@ -267,6 +268,10 @@ def book_confirm(request):
             messages.success(request, msg)
             return redirect("my_bookings")
 
+    # Lückenfüllung hebt Mindestnächte + Spontan-Vorausfrist auf (ADR 0075).
+    gap_fill = svc.gap_fill_allowed(quarter, start, end)
+    block_reason = svc.schedule_blocker(
+        member, start, end, skip_min_nights=gap_fill, skip_lead=gap_fill)
     return render(request, "booking/book_confirm.html", {
         "member": member, "quarter": quarter, "start": start, "end": end,
         "nights": nights, "persons": persons,
@@ -274,6 +279,10 @@ def book_confirm(request):
         "remaining_after": remaining_now - nights,
         "enough_days": remaining_now >= nights,
         "min_nights": svc.min_nights_for_range(start, end),
+        "gap_fill": gap_fill,
+        "block_reason": block_reason,
+        "can_book": block_reason is None,
+        "high_demand": svc.high_demand_periods(start, end),
         "offers": offers,
         "memberships": memberships,
     })
@@ -354,6 +363,8 @@ def book(request):
     too_short = False
     not_enough_days = False
     days_remaining_year = 0
+    high_demand = []
+    is_group = False
     if member and sel_start:
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
@@ -362,21 +373,36 @@ def book(request):
         too_short = nights < range_min_nights
         days_remaining_year = member.nights_remaining_in_year(eff_start.year)
         not_enough_days = nights > days_remaining_year
+        high_demand = svc.high_demand_periods(eff_start, eff_end)
+        is_group = svc.is_group_booking(persons)
         free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
-        # Termin-/Regel-/Budget-Grund ist quartiers-unabhängig → einmal berechnen.
+        # Termin-/Regel-/Budget-Grund ist quartiers-unabhängig → einmal berechnen,
+        # plus die Variante ohne Mindestnächte/Vorausfrist für Lückenfüller (ADR 0075).
         reason = svc.schedule_blocker(member, eff_start, eff_end)
+        waived = svc.schedule_blocker(member, eff_start, eff_end,
+                                      skip_min_nights=True, skip_lead=True)
+        # Lückenfüllung kann nur helfen, wenn der allgemeine Grund eben gerade
+        # Mindestnächte/Vorausfrist ist (sonst bleibt der Grund bestehen).
+        gap_relevant = reason is not None and waived is None
         for q in free_quarters:
             fits_persons = q.min_occupancy <= persons <= q.max_occupancy
             fits_access = (not need_accessible) or q.accessible
+            gap_fill = gap_relevant and svc.gap_fill_allowed(q, eff_start, eff_end)
+            q_reason = waived if gap_fill else reason
             info = {
-                "q": q, "reason": reason,
+                "q": q, "reason": q_reason, "gap_fill": gap_fill,
+                "group_pref": is_group and q.prefer_for_groups,
                 "fits_persons": fits_persons, "fits_access": fits_access,
-                "bookable": reason is None and fits_persons,
+                "bookable": q_reason is None and fits_persons,
             }
-            if fits_persons and fits_access and reason is None:
+            if fits_persons and fits_access and q_reason is None:
                 suitable.append(info)
             else:
                 maybe_unsuitable.append(info)
+        # Gruppen: Wohnungen des Stallgebäudes zuerst anbieten (sanft, ADR 0075).
+        if is_group:
+            suitable.sort(key=lambda i: (not i["group_pref"], i["q"].name))
+    has_group_pref = is_group and any(i["group_pref"] for i in suitable)
 
     return render(request, "booking/book.html", {
         "member": member,
@@ -400,6 +426,10 @@ def book(request):
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,
         "occ_quarters": occ_quarters,
+        "high_demand": high_demand,
+        "is_group": is_group,
+        "has_group_pref": has_group_pref,
+        "winter": svc.winter_usage(member) if member else None,
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,
         "notifications": svc.unread_notifications(member),
         "released_windows": BookingPeriod.objects.filter(
@@ -629,9 +659,11 @@ def wishlist(request):
 
     eff_start = eff_end = None
     candidates = []
+    high_demand = []
     if member and period and sel_start:
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+        high_demand = svc.high_demand_periods(eff_start, eff_end)
         counts = svc.quarter_wish_counts(period, eff_start, eff_end)
         # Der Entzerrungs-Tipp (P2.4) steht jetzt JE WUNSCH in „Meine Wünsche" –
         # erst wenn ein Wunsch wirklich aufgenommen wurde (verständlicher als unter
@@ -654,6 +686,7 @@ def wishlist(request):
         "eff_end": eff_end,
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
         "candidates": candidates,
+        "high_demand": high_demand,
         "wish_form": WishForm(),
         "memberships": member.memberships if member else [],
         "wishes": wishes,

@@ -66,21 +66,27 @@ def validate_booking(
     start: date,
     end: date,
     existing: list[Stay],
+    skip_min_nights: bool = False,
 ) -> str | None:
     """Prüft eine geplante Buchung gegen alle Regeln.
 
     `existing` sind die bereits bestehenden Buchungen DESSELBEN Mitglieds
     (die neue ist noch nicht enthalten). Rückgabe: Fehlertext oder None (ok).
+
+    `skip_min_nights` hebt NUR die Mindestnächte-Prüfung auf (Parallel-Limit und
+    Aufenthaltsdeckel bleiben) – genutzt für lückenfüllende Buchungen (ADR 0075),
+    bei denen eine Buchung eine freie Lücke exakt ausfüllt.
     """
     nights = (end - start).days
     if nights <= 0:
         return "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
 
     # (1) Mindestnächte
-    req = required_min_nights(seasons, default_min_nights, start, end)
-    if nights < req:
-        return (f"Mindestbuchung in diesem Zeitraum: {req} Nächte "
-                f"(gewählt: {nights}).")
+    if not skip_min_nights:
+        req = required_min_nights(seasons, default_min_nights, start, end)
+        if nights < req:
+            return (f"Mindestbuchung in diesem Zeitraum: {req} Nächte "
+                    f"(gewählt: {nights}).")
 
     # (2) Höchstzahl gleichzeitiger Wohneinheiten je Mitglied
     for s in seasons:

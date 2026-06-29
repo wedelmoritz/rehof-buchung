@@ -114,6 +114,32 @@ optional:
   normalen Buchung **und in der Losung** (ein gedeckelter Wunsch wird dort
   **übersprungen** – kein Verlust, kein Karma; siehe § 5).
 
+**Globale Buchungsrichtlinien** (Singleton `BookingPolicy`, ADR 0075) –
+konfigurierbar im Backend, greifen bei der **Spontanbuchung**:
+
+- **Standard-Mindestnächte** (`default_min_nights`, Default 3; Saison verschärft,
+  z. B. Juli/August 7).
+- **Spontan-Vorausfrist** (`min_lead_days`, Default 7): eine Spontanbuchung muss
+  mindestens so viele Tage vor der Anreise liegen. Greift **nur** bei der normalen
+  Buchung (nicht in der Losung – die vergibt das Folgejahr ohnehin im Voraus).
+- **Lückenfüllung** (`allow_gap_fill`, Default an): füllt eine Buchung eine freie
+  Lücke **exakt** aus (sie schließt beidseitig an bestehende Belegungen oder die
+  Zeitraum-/Saison-Grenze an), entfallen **Mindestnächte UND Vorausfrist** – kurze
+  Lücken lassen sich so immer in ihrer Länge füllen, auch kurzfristig. Reine Logik
+  `services.is_gap_fill`; Parallel-Limit/Deckel bleiben.
+- **Richtwerte (nur Hinweise, keine Sperren):** Gruppe ab `group_min_persons`
+  Personen → Wohneinheiten mit `Quarter.prefer_for_groups` (z. B. Stallgebäude)
+  werden zuerst angeboten (`services.is_group_booking`); Winter-Richtwert
+  `winter_guideline_nights` (Tage Okt–März) → Anzeige „X von N Tagen gebucht"
+  (`services.winter_usage`) auf Übersicht/Buchen.
+
+**Begehrte Zeiten (Schulferien + Brücken-/Feiertage):** sind über `max_parallel_units`
+(= 2 Wohneinheiten je Partei) geregelt; zusätzlich erscheint beim Buchen/Wünschen
+ein **sanfter Rücksichts-Hinweis** (`services.high_demand_periods`, reine Anzeige).
+Die Vorgabe „nur zur eigenen Nutzung / keine Weitergabe an Externe ohne Mitglied
+vor Ort" ist eine **Selbstverpflichtung** (technisch nicht prüfbar, daher nur als
+Richtschnur auf der Hilfeseite).
+
 **Schulferien** (jährlich wiederkehrend): werden im Kalender angezeigt **und**
 setzen – wenn mit Regelfeldern versehen – im Zeitraum dieselben Regeln durch wie
 eine Saison-Regel. Leere Regelfelder = nur Anzeige.

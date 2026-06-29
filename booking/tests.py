@@ -58,6 +58,11 @@ class BaseData(TestCase):
             name="Q3", eq_class=self.cls, min_occupancy=1, max_occupancy=4)
         self.alice = make_member("alice")
         self.bob = make_member("bob")
+        # Spontan-Vorausfrist in den Alt-Tests aus (sie buchen bewusst nah/
+        # vergangen); die Frist hat eine eigene Testklasse. ADR 0075.
+        p = BookingPolicy.get_solo()
+        p.min_lead_days = 0
+        p.save(update_fields=["min_lead_days"])
 
 
 class BookingWindowTests(BaseData):

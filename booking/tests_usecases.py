@@ -64,6 +64,12 @@ class UseCaseBase(TestCase):
         self.alice = make_member("alice")
         self.bob = make_member("bob")
         self.carla = make_member("carla")
+        # Spontan-Vorausfrist hier aus (Use-Cases buchen mit festen Daten, teils
+        # nah an „heute"); eigene Tests prüfen Frist + Lückenfüllung. ADR 0075.
+        from .models import BookingPolicy
+        p = BookingPolicy.get_solo()
+        p.min_lead_days = 0
+        p.save(update_fields=["min_lead_days"])
 
     def open_full_year_window(self, year):
         """Globale Freigabe fürs ganze Jahr (Periode im Status „Freie

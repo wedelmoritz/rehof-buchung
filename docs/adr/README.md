@@ -96,6 +96,7 @@ die Regelwerte zu wiederholen.
 | [0072](0072-positive-wortwahl-frontend.md) | Positive Wortwahl im Frontend: „(sehr) beliebt" statt „umkämpft/Konflikt/Konkurrenz" (App, Hilfe, Benachrichtigungen) | Accepted |
 | [0073](0073-losung-ux-wunschbudget-karma-wortwahl.md) | Losung-UX: Wunsch-Budget = halbe Tage (abgerundet, abgeleitet), Karma nur auf der Wunschliste, sanftere Wortwahl („diesmal nicht" statt „Verlust/Pech") | Accepted |
 | [0074](0074-hilfe-gemeinschaft-ux.md) | UX-Feinschliff: Karma-Erklärung präzisiert (+0,1 je Auslosung, nicht je Wunsch), Hilfe nach Tätigkeiten gegliedert (Losung-Inhalte raus aus „Gemeinschaft"), „unbegrenzte Wünsche"-Erklärung mit Beispiel, Gemeinschafts-Spiegel mit Quartals-Auslastungskurve, Hofladen-PIN unter „Anmeldedaten" | Accepted |
+| [0075](0075-buchungsrichtlinien-vorlauf-luecken-gruppen-richtwerte.md) | Buchungsrichtlinien: Spontan-Vorausfrist (Default 7 T, konfigurierbar), Lückenfüllung hebt Mindestnächte+Vorlauf auf, Gruppen→Stallgebäude zuerst (sanft), weiche Richtwerte (Winter Okt–März, Rücksichts-Hinweis in begehrten Zeiten) – Rest als Richtschnur auf der Hilfe | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

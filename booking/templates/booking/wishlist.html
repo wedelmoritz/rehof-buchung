@@ -109,6 +109,7 @@
     <a class="muted" data-ajax style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}">Auswahl zurücksetzen</a>
   </div>
   <p class="muted" style="margin-top:.2rem">Die Zahl zeigt, wie oft das Quartier in dem Zeitraum schon gewünscht ist.</p>
+  {% include "booking/_high_demand_note.html" %}
   {% for c in candidates %}
   <form class="qrow" method="post">{% csrf_token %}
     <input type="hidden" name="action" value="add_wish">
