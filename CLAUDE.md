@@ -836,6 +836,13 @@ im Backend der Gruppe „Verwaltung“ hinzufügen.
 - Verwaltungs-Mails/Putzliste später optional als **Datei-Anhang** (xlsx/CSV)
   statt nur inline (OutboxEmail um Anhang erweitern).
 - Drag-and-Drop der Wunschliste auf Touch-Geräten (Pfeiltasten sind Fallback).
+- **Mehrere Benutzer pro Mitglied** (Mehrfach-Login, ADR 0069): Benutzer↔Mitglied ist
+  heute **1:1**. Geplant: Entkopplung auf **n:1** (mehrere Logins teilen ein Mitglied
+  = gleiche Wünsche/Buchungen/Budget, je Login eigene Anmeldedaten, Benachrichtigungen
+  an alle Adressen) über ein Verknüpfungs-Modell + Migration der bestehenden
+  1:1-Zuordnungen. Bewusst zurückgestellt (Auth-Umbau). **Kein Tage-Deckel** je
+  Mitglied – Tandem-Anteile summieren sich frei (Verwaltung steuert über „frei/
+  vergeben").
 
 ---
 

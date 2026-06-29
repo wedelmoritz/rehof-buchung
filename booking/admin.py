@@ -328,12 +328,17 @@ class PendingUserAdmin(admin.ModelAdmin):
         pending = list(svc.users_without_membership().select_related("member"))
         for u in pending:
             u.suggested_name = (u.get_full_name() or u.username).strip()
+        # Anteile mit „noch frei" anreichern (für die Tandem-Wahl nachvollziehbar).
+        memberships = list(Membership.objects.order_by("label", "eg_number")
+                           .prefetch_related("shares"))
+        for ms in memberships:
+            ms.free_nights = ms.annual_night_budget - ms.allocated_budget
         ctx = {
             **self.admin_site.each_context(request),
             "title": "Neue Benutzer zuordnen",
             "opts": self.model._meta,
             "pending": pending,
-            "memberships": Membership.objects.order_by("label", "eg_number"),
+            "memberships": memberships,
             "default_budget": (db := Membership.suggest_budget()),
             "default_wish": min(25, db),
         }
@@ -403,8 +408,10 @@ class ShareInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ("member",)
     fields = ("member", "night_budget", "wish_night_budget")
-    verbose_name = "Zugeordneter Nutzer (Tage-Anteil)"
-    verbose_name_plural = "Zugeordnete Nutzer (je fester Tage-Anteil)"
+    verbose_name = "Mitglied mit Tage-Anteil"
+    verbose_name_plural = ("Mitglieder & Tage-Anteil  —  EIN Mitglied mit 50 = "
+                           "Voll-Mitglied; MEHRERE, deren Tage zusammen 50 ergeben "
+                           "(z. B. 25 + 25) = Tandem")
 
 
 @admin.register(Membership)
@@ -420,14 +427,20 @@ class MembershipAdmin(admin.ModelAdmin):
                        "wish_night_budget", "created_on"),
             "description": (
                 "Ein <b>Mitglieds-Anteil</b> = eine Vielleben-eG-Nummer mit einem "
-                "Jahres-Tagebudget (Standard 50). <b>Voll-Mitglied</b> = ein Nutzer "
-                "hält den ganzen Anteil; <b>Teil-Mitglied (Tandem)</b> = mehrere "
-                "Nutzer teilen sich den Anteil. Unten ordnest du die <b>Nutzer</b> "
-                "(= Benutzer mit Mitglieds-Profil) mit ihrem festen Tage-Anteil zu. "
-                "Ein Nutzer kann mehreren Anteilen angehören – sein Budget ist die "
-                "Summe. Bei Anlage mitten im Jahr ist das Budget bereits anteilig "
-                "vorgeschlagen; leer gelassene Tage-Anteile (0) werden beim "
-                "Speichern gleichmäßig abgerundet aufgeteilt."),
+                "Jahres-Tagebudget (Standard <b>50 Tage</b>). Unten ordnest du die "
+                "<b>Mitglieder</b> (Personen mit Buchungs-Profil) mit ihrem festen "
+                "Tage-Anteil zu:<br>"
+                "&nbsp;&bull; <b>Voll-Mitglied</b> = <b>ein</b> Mitglied bekommt die "
+                "<b>vollen 50 Tage</b>.<br>"
+                "&nbsp;&bull; <b>Tandem (Teil-Anteil)</b> = <b>mehrere</b> Mitglieder "
+                "teilen den Anteil, ihre Tage-Anteile ergeben zusammen 50 "
+                "(z. B. 25&nbsp;+&nbsp;25). Die Spalte „vergeben / frei“ zeigt, wie "
+                "viele Tage noch frei sind.<br>"
+                "Ein Mitglied kann auch <b>mehreren</b> Anteilen angehören (mehrere "
+                "Tandems) – sein Budget ist dann die <b>Summe</b> der Tage-Anteile. "
+                "Bei Anlage mitten im Jahr ist das Budget anteilig vorgeschlagen; "
+                "leer gelassene Tage-Anteile (0) werden beim Speichern gleichmäßig "
+                "abgerundet aufgeteilt."),
         }),
     )
 
@@ -438,9 +451,15 @@ class MembershipAdmin(admin.ModelAdmin):
         return (super().get_queryset(request)
                 .prefetch_related("shares").annotate(_n_shares=Count("shares")))
 
-    @admin.display(description="vergeben")
+    @admin.display(description="vergeben / frei")
     def allocated_display(self, obj):
-        return f"{sum(s.night_budget for s in obj.shares.all())}/{obj.annual_night_budget}"
+        used = sum(s.night_budget for s in obj.shares.all())
+        free = obj.annual_night_budget - used
+        if free > 0:
+            return f"{used}/{obj.annual_night_budget} · {free} frei (für Tandem-Partner)"
+        if free < 0:
+            return f"{used}/{obj.annual_night_budget} · {-free} zu viel (überbelegt!)"
+        return f"{used}/{obj.annual_night_budget} · voll vergeben"
 
     @admin.display(boolean=True, description="Tandem")
     def is_tandem_display(self, obj):
