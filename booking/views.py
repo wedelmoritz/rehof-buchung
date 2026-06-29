@@ -604,11 +604,11 @@ def wishlist(request):
         )
         wishlist_submitted = any(w.submitted for w in wishes) and len(wishes) > 0
         wish_nights = sum(w.nights for w in wishes)
-        # Entzerrungs-Hinweis JE WUNSCH (P2.4-Erweiterung): für jeden umkämpften
-        # Wunsch zeigt ein markanter Hinweis, wie sich Konflikte mit Wünschen
-        # ANDERER Mitglieder vermeiden lassen – ein leicht anderer Zeitraum für
-        # dieselbe Unterkunft UND/ODER ein gleichwertiges Quartier zur gleichen Zeit.
-        # Nur solange änderbar (nicht eingereicht). Effizient: 2 Abfragen gesamt.
+        # Entzerrungs-Hinweis JE WUNSCH (P2.4-Erweiterung): für jeden sehr beliebten
+        # Wunsch zeigt ein markanter Hinweis weniger beliebte Alternativen mit
+        # besseren Chancen – ein leicht anderer Zeitraum für dieselbe Unterkunft
+        # UND/ODER ein gleichwertiges Quartier zur gleichen Zeit (Frontend-Wortwahl
+        # positiv, ADR 0072). Nur solange änderbar. Effizient: 2 Abfragen gesamt.
         if not wishlist_submitted:
             alts = svc.wish_alternatives(period, member, wishes)
             for w in wishes:

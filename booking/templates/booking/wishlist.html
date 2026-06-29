@@ -12,8 +12,8 @@
 
 <div class="card">
   <p class="muted" style="margin-top:0">
-    Periode <strong>{{ period }}</strong>. Die Ampel zeigt, wie umkämpft ein Zeitraum
-    ist (rot = mehr Wünsche als Quartiere) – eintragen kannst du trotzdem überall.
+    Periode <strong>{{ period }}</strong>. Die Ampel zeigt, wie beliebt ein Zeitraum
+    ist (rot = besonders gefragt) – eintragen kannst du trotzdem überall.
     Eingereicht &#9679;, Entwurf &#9675;.
   </p>
   <details class="explain">
@@ -66,7 +66,7 @@
     <span><i class="sw lvl-free"></i> keine Wünsche</span>
     <span><i class="sw lvl-many"></i> wenig</span>
     <span><i class="sw lvl-few"></i> mittel</span>
-    <span><i class="sw lvl-full"></i> umkämpft</span>
+    <span><i class="sw lvl-full"></i> sehr beliebt</span>
     <span>&#9679; dein Wunsch · &#9675; dein Entwurf</span>
   </div>
 </div>
@@ -161,18 +161,18 @@
           </form>
         </span>
         {% if w.alt %}
-        <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist im gewählten Zeitraum umkämpft</strong>
-          ({{ w.alt.base }}&times; von anderen Mitgliedern gewünscht). So entstehen weniger Konflikte:
+        <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist im gewählten Zeitraum sehr beliebt</strong>
+          ({{ w.alt.base }}&times; von anderen gewünscht). Weniger beliebte Alternativen &ndash; dort hast du bessere Chancen:
           <ul class="wish-alt">
             {% if w.alt.time %}
             <li>gleiche Unterkunft, etwas anderer Zeitraum:
               <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.alt.time.start|date:'Y-m-d' }}&end={{ w.alt.time.end|date:'Y-m-d' }}">{{ w.alt.time.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.alt.time.end|date:'d.m.' }}</a>
-              &ndash; dann {% if w.alt.time.count %}nur {{ w.alt.time.count }}{% else %}<strong>keine</strong>{% endif %} Konflikte mit Wünschen anderer Mitglieder.</li>
+              &ndash; dort {% if w.alt.time.count %}erst {{ w.alt.time.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
             {% endif %}
             {% if w.alt.quarter %}
             <li>gleichwertige Unterkunft zur gleichen Zeit:
               <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.start|date:'Y-m-d' }}&end={{ w.end|date:'Y-m-d' }}">{{ w.alt.quarter.name }}</a>
-              &ndash; {% if w.alt.quarter.count %}nur {{ w.alt.quarter.count }}{% else %}<strong>keine</strong>{% endif %} Konflikte mit Wünschen anderer Mitglieder.</li>
+              &ndash; dort {% if w.alt.quarter.count %}erst {{ w.alt.quarter.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
             {% endif %}
           </ul>
           <span class="muted">Ganz freiwillig &ndash; die Auslosung bleibt davon unberührt.</span></div>
@@ -184,7 +184,7 @@
       <input type="hidden" name="action" value="reorder"><input type="hidden" name="order" id="reorder-order">
     </form>
     <p class="muted" style="margin:.6rem 0">Summe: {{ wish_nights }} Nächte gewünscht (Losung-Budget bis {{ wish_budget }} Nächte).</p>
-    <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei umkämpften
+    <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei sehr beliebten
       Zeiträumen (rot im Kalender) lohnt ein Blick, ob du einen Wunsch <strong>entzerren</strong>
       kannst – z.&nbsp;B. die Anreise einen Tag verschieben. Das erhöht für alle die Chance.</p>
     <form method="post" data-confirm="Wunschliste verbindlich in den Lostopf geben?">{% csrf_token %}

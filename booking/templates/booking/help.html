@@ -86,7 +86,7 @@
     sondern <strong>fair per Los</strong> vergeben. Das Wichtigste:</p>
   <ul class="tight">
     <li><strong>Wünsche eintragen &amp; einreichen</strong> (in deiner Prioritäts-Reihenfolge). Nur eingereichte Wünsche nehmen teil; bis zum Stichtag änderbar.</li>
-    <li><strong>Vor dem Einreichen kurz entzerren:</strong> Schon beim Eintragen siehst du im Kalender, <strong>wie umkämpft</strong> ein Zeitraum ist (die Nachfrage der anderen). Prüfe vor dem Bestätigen, ob du deine Wünsche so anpassen kannst, dass es <strong>keine oder wenige Konflikte</strong> gibt – z.&nbsp;B. die <strong>Anreise um einen Tag verschieben</strong> oder ein gleichwertiges, weniger gefragtes Quartier wählen. Das ist freiwillig, hilft aber allen, einen Wunsch zu bekommen.</li>
+    <li><strong>Vor dem Einreichen kurz entzerren:</strong> Schon beim Eintragen siehst du im Kalender, <strong>wie beliebt</strong> ein Zeitraum ist (die Nachfrage der anderen). Prüfe vor dem Bestätigen, ob du deine Wünsche auf <strong>weniger beliebte</strong> Zeiten legen kannst – z.&nbsp;B. die <strong>Anreise um einen Tag verschieben</strong> oder ein gleichwertiges, weniger gefragtes Quartier wählen. Das ist freiwillig, erhöht aber für alle die Chance auf einen Wunsch.</li>
     <li>Es gelten dieselben <strong>Mindestnächte</strong> wie beim Buchen (z.&nbsp;B. 7 Nächte im Sommer): Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen/einreichen – so kann ein Losgewinn nie an den Mindestnächten scheitern.</li>
     <li>Die <strong>Reihenfolge wird genau einmal</strong> gewichtet gezogen. <strong>Karma</strong> (Pech aus Vorjahren) verbessert deine Chance auf einen vorderen Platz – ersetzt aber nie den Zufall.</li>
     <li>Reihum bekommt jede:r den <strong>höchsten noch freien</strong> Wunsch; ist dein Quartier belegt, wird auf ein <strong>gleichwertiges</strong> ausgewichen.</li>
@@ -114,7 +114,7 @@
     <p class="formula">P(i ist vorn) = g<sub>i</sub> / (g<sub>1</sub> + … + g<sub>n</sub>)</p>
     <p>Beispiel: Karma 1,5 gegen vier mit 1,0 → 1,5/5,5 ≈ <strong>27 %</strong> auf Platz 1 (statt 18 %).
       Karma steigt um +0,1 je Jahr mit echtem Verlust (Deckel <strong>1,5</strong>) und wird nach dem
-      Gewinn eines umkämpften Slots auf 1,0 zurückgesetzt. (Fachlich: Efraimidis-Spirakis-Verfahren.)</p>
+      Gewinn eines sehr beliebten Slots auf 1,0 zurückgesetzt. (Fachlich: Efraimidis-Spirakis-Verfahren.)</p>
   </details>
 
   <details class="deep">
@@ -182,7 +182,7 @@
         <text x="300" y="450" class="sm">nein</text>
         <text x="120" y="120" class="sm">ja · nächste Runde</text>
         <text x="300" y="475">④ Karma neu berechnen (fürs nächste Jahr):</text>
-        <text x="300" y="491" class="sm">Verlust → +0,1 (max 1,5) · umkämpfter Gewinn → 1,0</text>
+        <text x="300" y="491" class="sm">Verlust → +0,1 (max 1,5) · beliebter Gewinn → 1,0</text>
         <text x="300" y="546">⑤ Ergebnis veröffentlicht → Benachrichtigung</text>
       </g>
     </svg>
@@ -206,8 +206,8 @@
     <p>Gezogene Reihenfolge (Dora vorn dank Karma): <strong>Dora ▸ Anna ▸ Ben ▸ Cem ▸ Eva</strong>.</p>
     <p><strong>Runde 1:</strong></p>
     <ul class="trace tight">
-      <li><strong>Dora</strong> → Pfarrhaus · Pfingsten ✓ <span class="sm">(nicht umkämpft)</span></li>
-      <li><strong>Anna</strong> → Salix · Pfingsten ✓ <span class="sm">(umkämpft)</span></li>
+      <li><strong>Dora</strong> → Pfarrhaus · Pfingsten ✓ <span class="sm">(wenig gefragt)</span></li>
+      <li><strong>Anna</strong> → Salix · Pfingsten ✓ <span class="sm">(sehr beliebt)</span></li>
       <li><strong>Ben</strong> → Lupulus · Pfingsten ✓</li>
       <li><strong>Cem</strong> → Salix/Lupulus belegt → Verlust; Zweitwunsch Pfarrhaus · Sommer ✓</li>
       <li><strong>Eva</strong> → beide Wünsche belegt → diese Runde keine Buchung</li>
@@ -222,7 +222,7 @@
       <thead><tr><th>Mitglied</th><th>Bekommen</th><th>Karma neu</th></tr></thead>
       <tbody>
         <tr><td>Anna</td><td>Salix · Pfingsten</td><td>1,0 → <strong>1,1</strong></td></tr>
-        <tr><td>Ben</td><td>Lupulus · Pfingsten + Sommer</td><td>1,0 (umkämpft gewonnen)</td></tr>
+        <tr><td>Ben</td><td>Lupulus · Pfingsten + Sommer</td><td>1,0 (beliebten Slot gewonnen)</td></tr>
         <tr><td>Cem</td><td>Pfarrhaus · Sommer</td><td>1,0 → <strong>1,1</strong></td></tr>
         <tr><td>Dora</td><td>Pfarrhaus · Pfingsten + Salix · Sommer</td><td>1,2 → <strong>1,0</strong> (Reset)</td></tr>
         <tr><td>Eva</td><td>— leer</td><td>1,0 → <strong>1,1</strong></td></tr>
@@ -255,11 +255,11 @@
     <li><strong>Dein Ausgleichsfaktor (Karma)</strong> steht in deinem <a href="{% url 'profile' %}">Profil</a>:
       1,0 ist normal; nach einem nicht erfüllten Wunsch steigt er (max&nbsp;1,5) und
       verbessert deine Chancen im nächsten Jahr.</li>
-    <li><strong>Weniger Konflikte finden:</strong> Hast du einen Wunsch aufgenommen und ist
-      seine Unterkunft im Zeitraum umkämpft, erscheint direkt bei „Meine Wünsche“ ein – ganz
+    <li><strong>Weniger beliebte Zeiten finden:</strong> Hast du einen Wunsch aufgenommen und ist
+      seine Unterkunft im Zeitraum sehr beliebt, erscheint direkt bei „Meine Wünsche“ ein – ganz
       freiwilliger – Hinweis: ein <strong>leicht anderer Zeitraum</strong> für dieselbe
-      Unterkunft und/oder ein <strong>gleichwertiges Quartier</strong> zur gleichen Zeit, bei
-      dem es weniger oder keine Konflikte mit Wünschen anderer Mitglieder gäbe (anklickbar).</li>
+      Unterkunft und/oder ein <strong>gleichwertiges Quartier</strong> zur gleichen Zeit, das
+      <strong>weniger gefragt</strong> ist – dort hast du bessere Chancen (anklickbar).</li>
     <li><strong>Solidaritäts-Pool</strong> (unter „Tage übertragen"): Spende ungenutzte
       Tage in einen gemeinsamen Topf. Wer fast kein Budget mehr hat, kann daraus –
       gedeckelt – entnehmen.</li>

@@ -297,7 +297,7 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
                     why.append(f"gleichwertiges Ausweichquartier – dein Wunsch „{orig}“ "
                                f"war im Zeitraum schon belegt")
                 if a.contested:
-                    why.append("um diesen Zeitraum gab es Konkurrenz – das Los hat für "
+                    why.append("dieser Zeitraum war sehr beliebt – das Los hat für "
                                "dich entschieden")
                 suffix = f" ({'; '.join(why)})" if why else ""
                 lines.append(f"  ✓ {qn} {a.start:%d.%m.%Y}–{a.end:%d.%m.%Y}{suffix}")
@@ -324,7 +324,7 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
                 f"bei der nächsten Auslosung bessere Chancen auf einen vorderen Platz.")
         elif new_f < old_f:
             lines.append(
-                f"Dein Ausgleichsfaktor wurde nach dem Gewinn eines umkämpften "
+                f"Dein Ausgleichsfaktor wurde nach dem Gewinn eines sehr beliebten "
                 f"Wunsches auf {round(new_f, 1)} zurückgesetzt.")
         notices.append({
             "member_id": m.id, "message": msg, "detail": "\n".join(lines),

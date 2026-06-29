@@ -1131,8 +1131,8 @@ class LosErgebnisErklaerungTests(UseCaseBase):
         svc.confirm_lottery(run)
         url = reverse("period_result", args=[period.id])
         texts = " ".join(n.detail for n in Notification.objects.filter(url=url))
-        # Gewinner: Konkurrenz-/Los-Hinweis; Verlierer: Gruppe-komplett-belegt.
-        self.assertIn("Konkurrenz", texts)
+        # Gewinner: „sehr beliebt"-/Los-Hinweis; Verlierer: Gruppe-komplett-belegt.
+        self.assertIn("sehr beliebt", texts)
         self.assertIn("gleichwertige Quartiersgruppe belegt", texts)
 
 
