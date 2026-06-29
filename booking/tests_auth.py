@@ -188,6 +188,60 @@ class OnboardingAdminTests(TestCase):
         self.assertFalse(User.objects.filter(pk=u2.pk).exists())
 
 
+class AdminMitgliedAnteilTests(TestCase):
+    """Mitglied↔Anteil beidseitig editierbar + reversibel (ADR 0070)."""
+
+    def setUp(self):
+        self.su = User.objects.create_superuser("root", "root@e.de", PW)
+        self.client.force_login(self.su)
+
+    def _member(self):
+        ms = Membership.objects.create(label="Anteil", eg_number="VL-1",
+                                       annual_night_budget=50, wish_night_budget=25)
+        u = User.objects.create_user("anna", "anna@e.de", PW)
+        m = Member.objects.create(user=u, display_name="Anna")
+        sh = Share.objects.create(membership=ms, member=m,
+                                  night_budget=50, wish_night_budget=25)
+        return m, ms, sh
+
+    def test_member_seite_sichtbar_mit_anteil_inline(self):
+        m, ms, sh = self._member()
+        r = self.client.get(reverse("admin:booking_member_change", args=[m.pk]))
+        self.assertEqual(r.status_code, 200)
+        # member-seitige Anteil-Inline (Anteil dieses Mitglieds bearbeiten)
+        self.assertContains(r, "shares-0-membership")
+        # GESCHICHTE-Link (Versionen) vorhanden
+        self.assertContains(r, reverse("admin:booking_member_history", args=[m.pk]))
+
+    def test_mitglied_kein_anlegen_kein_hartes_loeschen(self):
+        m, ms, sh = self._member()
+        self.assertEqual(
+            self.client.get(reverse("admin:booking_member_add")).status_code, 403)
+        self.assertEqual(self.client.get(
+            reverse("admin:booking_member_delete", args=[m.pk])).status_code, 403)
+
+    def test_revert_stellt_namen_und_tage_anteil_wieder_her(self):
+        import reversion
+        from reversion.models import Version
+        m, ms, sh = self._member()
+        with reversion.create_revision():
+            m.save()                         # Version 1: Anna / 50 Tage (follow shares)
+        with reversion.create_revision():
+            m.display_name = "Anna NEU"; m.save()
+            sh.night_budget = 25; sh.save()  # Version 2: Anna NEU / 25 Tage
+        v1 = (Version.objects.get_for_object(m)
+              .order_by("revision__date_created").first())
+        v1.revision.revert()                 # zurückspringen auf Version 1
+        m.refresh_from_db(); sh.refresh_from_db()
+        self.assertEqual(m.display_name, "Anna")
+        self.assertEqual(sh.night_budget, 50)   # Tage-Anteil mit wiederhergestellt
+
+    def test_geloeschten_anteil_wiederherstellen_moeglich(self):
+        # Mitgliedsanteil erlaubt Löschen -> „Gelöschtes wiederherstellen"-Liste da
+        self.assertEqual(
+            self.client.get("/admin/booking/membership/recover/").status_code, 200)
+
+
 class LoginTests(TestCase):
     def test_login_per_email_und_benutzername(self):
         user = User.objects.create_user("hans", "hans@example.org", PW)

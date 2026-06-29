@@ -26,6 +26,12 @@ PY
 echo "[entrypoint] Führe Migrationen aus …"
 python manage.py migrate --noinput
 
+# Versionierte Historie (ADR 0070): Bestand einen Ausgangs-Stand geben, damit
+# „GESCHICHTE → wiederherstellen" auch für vorhandene Daten greift. Idempotent
+# (legt nur für Objekte OHNE Version eine an); betrifft nur die registrierten
+# Identitäts-Modelle (Benutzer/Mitglied/Anteil/Tage-Anteil).
+python manage.py createinitialrevisions --comment "Ausgangs-Stand (Deploy)" || true
+
 # --- Test-/Demo-Daten (für Docker, da kein Python auf dem Host) ---------------
 # Genau EINE Option setzen, Container neu starten – DANACH wieder auf 0 setzen,
 # sonst läuft die Aktion bei JEDEM Neustart erneut!

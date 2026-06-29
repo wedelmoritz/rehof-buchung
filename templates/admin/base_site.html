@@ -402,7 +402,34 @@ definiert – keine Admin-Seite überschreibt es, also erscheint er überall).{%
 
   window.addEventListener("popstate", function () { go(location.href, false); });
 
-  function init() { bindNavigator(); enhanceContent(); }
+  // ---------- Doppelte Bestätigung für starke Aktionen (ADR 0070) ----------
+  // Löschen/Entfernen hat starke Auswirkungen; es ist über „GESCHICHTE“ →
+  // Wiederherstellen rückgängig zu machen (django-reversion). Wir fragen vorab
+  // zusätzlich nach – CSP-konform per delegierter Handler (kein Inline-onclick).
+  function bindDestructiveConfirms() {
+    document.querySelectorAll("a.deletelink").forEach(function (a) {
+      if (a.__rehofDel) return; a.__rehofDel = true;
+      a.addEventListener("click", function (e) {
+        if (!window.confirm("Wirklich endgültig löschen? Das hat starke "
+            + "Auswirkungen. Rückgängig danach über „GESCHICHTE“ → Wiederherstellen.")) {
+          e.preventDefault(); e.stopPropagation();
+        }
+      });
+    });
+    document.querySelectorAll("form").forEach(function (f) {
+      if (f.__rehofDelGuard) return; f.__rehofDelGuard = true;
+      f.addEventListener("submit", function (e) {
+        if (e.defaultPrevented) return;
+        var n = f.querySelectorAll("input[name$='-DELETE']:checked").length;
+        if (n > 0 && !window.confirm(n + " markierte Zuordnung(en)/Eintrag/Einträge "
+            + "werden entfernt. Fortfahren? (rückgängig über „GESCHICHTE“)")) {
+          e.preventDefault();
+        }
+      });
+    });
+  }
+
+  function init() { bindNavigator(); enhanceContent(); bindDestructiveConfirms(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();
