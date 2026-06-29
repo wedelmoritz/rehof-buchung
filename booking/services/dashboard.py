@@ -20,6 +20,7 @@ __all__ = [
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
     'onboard_as_member', 'onboard_as_terminal', 'deactivate_account',
+    'ensure_personal_membership',
 ]
 
 
@@ -57,6 +58,33 @@ def onboard_as_member(user, *, display_name, night_budget, wish_night_budget,
             share.night_budget, share.wish_night_budget = nb, wb
             share.save(update_fields=["night_budget", "wish_night_budget"])
         return share
+
+
+def ensure_personal_membership(member, *, night_budget=None, wish_night_budget=None):
+    """Stellt sicher, dass ein **buchendes** Mitglied immer EINEN Mitglieds-Anteil
+    hat. Hat ein (nicht-externes) Mitglied noch keinen Tage-Anteil (`Share`), wird
+    automatisch ein **eigener Voll-Anteil** angelegt (eG-Nummer später nachtragbar,
+    Standard-Budget) und der Person voll zugeordnet – so sind „Mitglied" und
+    „Mitglieds-Anteil" nach dem Anlegen IMMER verknüpft, ohne Extra-Schritt.
+
+    Ein **Tandem** (mehrere Nutzer teilen einen Anteil) entsteht bewusst dadurch,
+    dass am Anteil weitere Nutzer mit ihrem Tage-Anteil ergänzt werden – nicht hier.
+    **Idempotent:** hat die Person schon irgendeinen Anteil (auch als Tandem-
+    Partner) oder ist sie ein Hofladen-Gast (`is_external`), passiert nichts."""
+    from ..models import Membership, Share
+    if member is None or member.is_external or member.shares.exists():
+        return None
+    # Voller Anteil = das nominale Jahresbudget (50/25). Bewusst NICHT anteilig fürs
+    # Anlagejahr (anders als die editierbare Vorgabe im geführten Onboarding) – „voller
+    # Anteil = 50 Tage" ist als automatische Vorgabe am verständlichsten; bei
+    # unterjährigem Eintritt kann die Verwaltung den Tage-Anteil am Anteil anpassen.
+    ms = Membership.objects.create(
+        label=(member.display_name or member.user.get_username()),
+        kind=Membership.VOLL, annual_night_budget=50, wish_night_budget=25)
+    nb = ms.annual_night_budget if night_budget is None else int(night_budget)
+    wb = ms.wish_night_budget if wish_night_budget is None else int(wish_night_budget)
+    return Share.objects.create(
+        membership=ms, member=member, night_budget=nb, wish_night_budget=wb)
 
 
 def onboard_as_terminal(user, *, display_name):

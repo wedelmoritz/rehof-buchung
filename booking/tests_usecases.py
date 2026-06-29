@@ -787,6 +787,37 @@ class TandemTests(UseCaseBase):
         self.assertEqual(allocs.first().membership_id, self.share.id)
 
 
+class AutoAnteilTests(UseCaseBase):
+    """Ein buchendes Mitglied ist nach dem Anlegen IMMER mit einem Mitglieds-Anteil
+    verknüpft – fehlt einer, wird automatisch ein voller Anteil angelegt (ADR 0068).
+    Tandems bleiben möglich (bewusstes Aufteilen am Anteil)."""
+
+    def test_legt_vollen_anteil_an_und_macht_buchbar(self):
+        u = User.objects.create_user("neu", "neu@e.org", "x" * 12)
+        m = Member.objects.create(user=u, display_name="Neu")
+        self.assertFalse(m.shares.exists())
+        share = svc.ensure_personal_membership(m)
+        self.assertIsNotNone(share)
+        self.assertEqual(m.shares.count(), 1)
+        self.assertEqual(share.membership.kind, Membership.VOLL)
+        self.assertEqual(share.membership.annual_night_budget, 50)
+        self.assertEqual(share.night_budget, 50)         # voller Anteil = 50 Tage
+        self.assertEqual(share.wish_night_budget, 25)
+        # „Mitglied" und „Mitglieds-Anteil" sind jetzt verknüpft -> buchbar
+        self.assertEqual(m.nights_remaining_in_year(NEXT_YEAR), 50)
+        self.assertEqual([ms.id for ms in m.memberships], [share.membership_id])
+
+    def test_idempotent_und_ueberspringt_tandem_und_extern(self):
+        # alice hat schon einen Anteil (UseCaseBase) -> kein zweiter
+        self.assertIsNone(svc.ensure_personal_membership(self.alice))
+        self.assertEqual(self.alice.shares.count(), 1)
+        # Hofladen-Gast (extern) bekommt KEINEN Buchungs-Anteil
+        ug = User.objects.create_user("gast", "g@e.org", "x" * 12)
+        mg = Member.objects.create(user=ug, display_name="Gast", is_external=True)
+        self.assertIsNone(svc.ensure_personal_membership(mg))
+        self.assertFalse(mg.shares.exists())
+
+
 class BuchungBestaetigungTests(UseCaseBase):
     """Buchen ist zweistufig: erst Bestätigungsseite, erst „confirm“ bucht –
     inklusive Begleitung und optionaler Endreinigung."""
