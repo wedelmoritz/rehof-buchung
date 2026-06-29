@@ -24,6 +24,7 @@ dependencies = [
     "django-csp>=4.0",
     "cryptography>=42",
     "django-ratelimit>=4.1",
+    "django-reversion>=5.0",
     "redis>=5.0",
     "weasyprint>=61",
     "pywebpush>=2.0",

@@ -279,6 +279,19 @@ Formular ein buchendes Profil **ohne** Anteil, legt `UserAdmin.save_related` üb
 Das Profil zeigt eine **„Mitglieds-Anteil(e)"-Übersicht** (Anteil+Tage+Link), der
 Anteil seine Nutzer (`ShareInline`) – beidseitig sichtbar. Ein **Tandem** entsteht
 durch Aufteilen am Anteil (oder Wahl eines bestehenden Anteils im Onboarding).
+**Beidseitig editierbar + reversibel (ADR 0070):** `MemberAdmin` ist **sichtbar** und
+trägt eine **member-seitige `Share`-Inline** (Anteil wählen/wechseln, Tage-Anteil
+ändern, ein Mitglied aus EINEM Anteil entfernen – nur die Zuordnung, nicht den
+Anteil); das Benutzer-Formular verlinkt dorthin. `MemberAdmin` erlaubt **kein
+Anlegen/hartes Löschen** (Mitglieder entstehen am Benutzer/Onboarding, Löschen via
+„anonymisieren"). **`django-reversion`** versioniert Benutzer/Mitglied/Anteil/
+Tage-Anteil (explizit registriert, `VersionAdmin`, follow-Graph Benutzer→Mitglied→
+Tage-Anteil bzw. Anteil→Tage-Anteil): „GESCHICHTE → diese Version wiederherstellen"
+(Revert, stellt auch die Tage-Anteile mit her) und „Gelöschtes wiederherstellen"
+(Recover, wo Löschen erlaubt ist). **Starke Aktionen doppelt bestätigt**
+(CSP-konform delegiert in `base_site.html`: großer „LÖSCHEN"-Knopf + gesetzte
+„Löschen?"-Häkchen). **Betrieb:** nach dem Deploy **einmalig**
+`manage.py createinitialrevisions`, damit der Bestand einen Ausgangs-Stand hat.
 Alle Admin-Bereiche tragen erklärende `description`-Texte.
 
 **Marke/Logo/Farben (EIN Farbsystem, App + Backend gleich, ADR 0054):** Das

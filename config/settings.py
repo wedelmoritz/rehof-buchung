@@ -64,6 +64,9 @@ INSTALLED_APPS = [
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_otp.plugins.otp_static",
+    # Versionierte Historie + Wiederherstellen für die Identitäts-Daten
+    # (Benutzer/Mitglied/Anteil/Tage-Anteil) im Backend (ADR 0070).
+    "reversion",
 ]
 
 MIDDLEWARE = [

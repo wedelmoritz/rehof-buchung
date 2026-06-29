@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover
 SECTIONS: list[tuple[str, list[str]]] = [
     ("Benutzer & Mitglieder", [
         "booking.PendingUser",                       # Onboarding-Seite zuerst (ADR 0056)
-        "auth.User", "auth.Group",
+        "auth.User", "booking.Member", "auth.Group",
         "booking.Membership", "booking.NightTransfer", "booking.DayPoolEntry",
     ]),
     ("Quartiere & Buchungssystem", [

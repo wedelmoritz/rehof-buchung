@@ -25,6 +25,26 @@ from .models import (
 from .services import (confirm_lottery, ensure_seed_commit, rollback_lottery,
                        run_period_lottery)
 
+# --- Versionierte Historie + Wiederherstellen (ADR 0070) -------------------- #
+# Die Identitäts-Daten Benutzer/Mitglied/Anteil/Tage-Anteil werden versioniert,
+# damit starke Backend-Aktionen (Löschen, Tage ändern, Anteil wechseln) im Backend
+# rückgängig gemacht werden können. EXPLIZIT registriert (genau EINMAL je Modell),
+# damit der follow-Graph stimmt: ein Benutzer-Stand snapshottet auch sein Mitglied
+# und dessen Tage-Anteile, ein Anteil-Stand seine Tage-Anteile. Reihenfolge egal,
+# weil VersionAdmin bereits registrierte Modelle respektiert (is_registered).
+import reversion as _reversion
+
+for _model, _follow in (
+    (Share, ()),
+    (Member, ("shares",)),       # Mitglied-Stand umfasst seine Tage-Anteile
+    (Membership, ("shares",)),   # Anteil-Stand umfasst seine Tage-Anteile
+    (User, ("member",)),         # Benutzer-Stand umfasst sein Mitglieds-Profil
+):
+    if not _reversion.is_registered(_model):
+        _reversion.register(_model, follow=_follow)
+
+from reversion.admin import VersionAdmin
+
 
 class Beds24ImportRowInline(admin.TabularInline):
     model = Beds24ImportRow
@@ -169,10 +189,12 @@ class MemberProfileInline(admin.StackedInline):
               str(s.membership), s.night_budget, s.wish_night_budget,
               " · Tandem" if s.membership.is_tandem else "")
              for s in shares))
+        edit_url = reverse("admin:booking_member_change", args=[obj.pk])
         return format_html(
             "{}<br><span style=\"color:#6b6259\">Gesamt-Tagebudget: "
-            "{} Tage/Jahr. Aufteilen für ein Tandem unter „Mitglieds-Anteile“.</span>",
-            rows, obj.annual_night_budget)
+            "{} Tage/Jahr.</span> &nbsp;<a href=\"{}\"><b>Anteile bearbeiten / "
+            "Tandem aufteilen →</b></a>",
+            rows, obj.annual_night_budget, edit_url)
 
 
 admin.site.unregister(User)
@@ -208,7 +230,7 @@ class AdminUserInviteForm(forms.ModelForm):
 
 
 @admin.register(User)
-class UserAdmin(DjangoUserAdmin):
+class UserAdmin(VersionAdmin, DjangoUserAdmin):
     """Ein Benutzer = eine Person mit Login UND Buchungs-/Rechnungsprofil.
     Tage-Anteile (welche eG-Anteile die Person hält) werden beim jeweiligen
     „Mitglieds-Anteil“ zugeordnet. **Anlegen ohne Passwort:** beim Speichern geht
@@ -389,14 +411,64 @@ class PendingUserAdmin(admin.ModelAdmin):
         return redirect(request.path)
 
 
-@admin.register(Member)
-class MemberAdmin(admin.ModelAdmin):
-    """Wird nicht eigenständig angezeigt (Profil steckt im Benutzer). Bleibt nur
-    für die Such-/Auswahl-Funktion bei der Anteils-Zuordnung registriert."""
-    search_fields = ("display_name", "user__username", "user__email")
+class ShareMemberInline(admin.TabularInline):
+    """Die Mitglieds-Anteile DIESES Mitglieds – hier lässt sich der Anteil eines
+    Mitglieds direkt bearbeiten: Anteil wählen/wechseln, Tage-Anteil ändern oder das
+    Mitglied über „Löschen?“ aus EINEM Anteil entfernen (entfernt nur die Zuordnung,
+    NICHT den Anteil oder das Mitglied)."""
+    model = Share
+    fk_name = "member"
+    extra = 0
+    autocomplete_fields = ("membership",)
+    fields = ("membership", "night_budget", "wish_night_budget")
+    verbose_name = "Mitglieds-Anteil dieses Mitglieds"
+    verbose_name_plural = ("Mitglieds-Anteile dieses Mitglieds  —  „Löschen?“ "
+                           "entfernt NUR die Zuordnung zu DIESEM Anteil (Anteil & "
+                           "Mitglied bleiben)")
 
-    def get_model_perms(self, request):
-        return {}  # aus der Verwaltungs-Übersicht ausblenden
+
+@admin.register(Member)
+class MemberAdmin(VersionAdmin):
+    """Das Mitglied (Buchungs-Profil eines Benutzers) MIT seinen Mitglieds-Anteilen.
+    Hier ordnest du dem Mitglied einen vollen oder Tandem-Teil-Anteil zu, änderst den
+    Tage-Anteil oder entfernst eine Zuordnung. Profil/Login bearbeitest du am
+    Benutzer; Anlegen läuft übers geführte Onboarding. Versionen siehe „GESCHICHTE“."""
+    list_display = ("display_name", "user_link", "anteile_kurz", "budget_kurz",
+                    "is_external")
+    list_filter = ("is_external",)
+    search_fields = ("display_name", "user__username", "user__email")
+    readonly_fields = ("user_link", "factor")
+    fields = ("user_link", "display_name", "is_external", "factor")
+    inlines = [ShareMemberInline]
+    list_select_related = ("user",)
+
+    def has_add_permission(self, request):
+        return False  # Mitglieder entstehen am Benutzer / im geführten Onboarding
+
+    def has_delete_permission(self, request, obj=None):
+        # Kein hartes Löschen (würde Buchungen mitlöschen) – zum „Recht auf Löschung“
+        # die Aktion „Mitglied anonymisieren“ am Benutzer nutzen.
+        return False
+
+    @admin.display(description="Benutzer (Login)")
+    def user_link(self, obj):
+        if not obj or not obj.user_id:
+            return "—"
+        url = reverse("admin:auth_user_change", args=[obj.user_id])
+        return format_html('<a href="{}">{}</a>', url, obj.user.get_username())
+
+    @admin.display(description="Anteile")
+    def anteile_kurz(self, obj):
+        shares = list(obj.shares.select_related("membership"))
+        if not shares:
+            return "—"
+        return ", ".join(f"{s.membership} ({s.night_budget} T"
+                         f"{', Tandem' if s.membership.is_tandem else ''})"
+                         for s in shares)
+
+    @admin.display(description="Tage gesamt")
+    def budget_kurz(self, obj):
+        return f"{obj.annual_night_budget} (davon {obj.wish_night_budget} Wunsch)"
 
 
 class ShareInline(admin.TabularInline):
@@ -415,7 +487,7 @@ class ShareInline(admin.TabularInline):
 
 
 @admin.register(Membership)
-class MembershipAdmin(admin.ModelAdmin):
+class MembershipAdmin(VersionAdmin):
     list_display = ("__str__", "eg_number", "kind", "annual_night_budget",
                     "allocated_display", "is_tandem_display", "created_on")
     list_filter = ("kind",)
