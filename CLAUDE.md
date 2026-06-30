@@ -680,11 +680,12 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   Deckel bleiben; `rules.validate_booking(skip_min_nights=…)`); greift in
   `book_spontaneous` + `adjust_allocation`. **Personenzahl außerhalb des Rahmens**
   (`allow_undersized_units`, Default an, ADR 0076): erlaubt Buchung für **mehr ODER
-  weniger** Personen als ausgelegt (z. B. wenn nichts Passendes mehr frei ist) –
-  durchgesetzt in `book_spontaneous`/`adjust_allocation`/`free_quarters_for`/
-  `Allocation.clean`, im UI als „kleiner als eure Gruppe" bzw. „größer als nötig"
-  markiert (Badge + Bestätigungs-Hinweis). **Gruppe** ab `group_min_persons`
-  (Default 6).
+  weniger** Personen als ausgelegt, **hart gekoppelt** an „alles Passende belegt"
+  (`services.has_fitting_free_quarter` – nur wenn keine passende freie Unterkunft mehr
+  existiert; sonst gesperrt + Verweis) – durchgesetzt in `book_spontaneous`/
+  `book_confirm`/`free_quarters_for` (`Allocation.clean` prüft nur den Schalter), im UI
+  als „kleiner als eure Gruppe" bzw. „größer als nötig" markiert (Badge + Hinweis).
+  **Gruppe** ab `group_min_persons` (Default 6).
   **Weiche Richtwerte (nur Anzeige, ADR 0076):** **Winter**
   (`winter_guideline_nights`, `services.winter_usage`) ist ein **Mindestwert pro
   vollem Anteil** (Tage Okt–März, bei Tandems anteilig; KEIN Maximum); **Wochenenden**

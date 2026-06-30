@@ -45,10 +45,13 @@ werden – **mehr ODER weniger** (z. B. wenn nichts Passendes mehr frei ist).
 Durchgesetzt in `book_spontaneous`, `adjust_allocation`, `free_quarters_for` und
 `Allocation.clean` (Backend). Im UI **deutlich markiert**: Badge „kleiner als eure
 Gruppe · Platz für N" (zu viele) bzw. „größer als nötig · für M–N Pers." (zu wenige)
-in der Buchen-Liste, passender Warnhinweis im Bestätigungsschritt. Die Idee „nur
-falls nichts anderes frei" ergibt sich aus der Reihung (passende Unterkünfte stehen
-unter „Passend & buchbar", abweichende unter „ggf. nicht geeignet" – aber buchbar).
-**Gruppen-Schwelle** `group_min_persons` von 3 auf **6** angehoben (Anschluss-Wunsch).
+in der Buchen-Liste, passender Warnhinweis im Bestätigungsschritt. **Harte Kopplung
+„alles andere belegt" (Anschluss-Wunsch):** Eine Unterkunft außerhalb des Rahmens ist
+**nur dann** buchbar, wenn **keine passende** (für die Personenzahl ausgelegte) freie
+Unterkunft mehr existiert (`services.has_fitting_free_quarter`); solange eine passende
+frei ist, wird die Buchung **gesperrt** und darauf verwiesen. (`Allocation.clean` im
+Backend prüft nur den Schalter – Admins können bewusst zuordnen.) **Gruppen-Schwelle**
+`group_min_persons` von 3 auf **6** angehoben (Anschluss-Wunsch).
 
 **c) Hilfe-Werte aus der Konfiguration.** Service
 `services.booking_policy_summary()` bündelt die Backend-Werte (Mindestnächte,

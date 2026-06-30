@@ -27,6 +27,9 @@
     {% elif block_reason %}
     <div class="msg warning">{{ block_reason }}</div>
     {% endif %}
+    {% if person_block %}
+    <div class="msg warning">{{ person_block }}</div>
+    {% endif %}
     {% if undersized %}
     <div class="msg warning">{% if persons > quarter.max_occupancy %}Diese Unterkunft ist
       <strong>kleiner als eure Gruppe</strong>: ausgelegt für bis zu {{ quarter.max_occupancy }}

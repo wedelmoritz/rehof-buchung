@@ -166,13 +166,199 @@ echte Mitgliederdaten ungefragt (DSGVO). Für realistische Tests `seed_demo
 - [ ] **15. Härtung:** HSTS-Stufen erhöhen, sobald dauerhaft HTTPS; optional
       Platten-Verschlüsselung (LUKS) und append-only-Backups (Borg) – Blueprints in
       BETRIEB-SICHERHEIT.md.
-- [ ] **16. Abnahme:** E2E-Smoke (`tests_e2e/`) gegen die Instanz, optional Lasttest
-      (`loadtest/`), kritische Abläufe (Buchen, Losung, Rechnung, Bezahlen) manuell
-      durchspielen.
+- [ ] **16. Abnahme:** alle Punkte aus **Abschnitt 4** durchspielen – insbesondere
+      den **Beds24-Probeimport** auf der Test-Instanz (Abschnitt 5).
 
 ---
 
-## 4. Datensicherung & Notfall
+## 4. Was vorab getestet werden muss (Abnahme)
+
+Diese Abläufe **vor dem Go-Live** auf der **Test-Instanz** (Abschnitt 2)
+durchspielen – am besten mit `seed_demo --testdata` und einem echten Probe-Export
+aus Beds24. Erst wenn alles grün ist, produktiv gehen.
+
+**Automatisierte Tests (laufen in der CI, vor jedem Deploy prüfen)**
+- [ ] Reine Logik: `PYTHONPATH=. python -m pytest tests/ -q` (inkl.
+      `tests/test_beds24.py` – CSV-Parsen + Namensabgleich).
+- [ ] Integration: `python manage.py test booking shop`.
+- [ ] **E2E** (`tests_e2e/`, Playwright gegen den prod-nahen Docker-Stack) und
+      **Migrations-Resilienz** (befüllte Alt-DB vorwärts migrieren) – beides Teil der
+      CI; das grüne Häkchen ist die Freigabe.
+
+**Manuelle Abnahme (auf der Test-Instanz)**
+- [ ] **Beds24-Import** mit einem **echten Export** der Genossenschaft proben
+      (Abschnitt 5) – der wichtigste Test überhaupt: ohne funktionierenden Import ist
+      keine Migration von Beds24 möglich. Spaltenerkennung, Mitglieds-/Quartier-
+      Abgleich, Verfügbarkeits-/Regel-Ampeln, „Mitglied anlegen“, Übernahme und
+      **Idempotenz** (zweiter Lauf legt nichts doppelt an) prüfen.
+- [ ] **Buchen**: Spontanbuchung inkl. Mindestnächte, Vorlauf, Lückenfüllung,
+      Personenzahl außerhalb des Rahmens, begehrte Zeiten (Hinweis).
+- [ ] **Losung**: Wünsche eintragen/einreichen, Ziehung (`run_period_lottery`),
+      **Review → Bestätigen/Zurücknehmen**, Benachrichtigungen.
+- [ ] **Hofladen & Rechnung**: Einkauf → Rechnung (PDF!) → Bezahlen (Überweisung
+      „gemeldet“ **und** Online via Mollie-Sandbox) → Kontoabgleich.
+- [ ] **Externe Gäste**: Buchung über `/extern/`, Bezahlung, Stornierung.
+- [ ] **E-Mail-Versand** echt testen (eine Einladung, eine Rechnungs-Mail mit
+      PDF-Anhang ankommen sehen) – nicht nur Konsole.
+- [ ] **Online-Zahlung** mit **echtem** Mollie-Test-/Live-Key (eine Cent-Zahlung)
+      bis „bestätigt“ durchspielen.
+- [ ] **Web-Push** auf einem echten Handy (iOS „Zum Home-Bildschirm“ + Erlauben).
+- [ ] **PWA/Offline**: App installieren, offline Katalog/Übersicht, Offline-Warenkorb.
+- [ ] **Rollen/Zugriff**: Mitglied vs. Verwaltung vs. Admin (Dashboard/Backend),
+      **Backend-2FA** beim Admin-Login, Aktivierungs-Sperre für neue Konten.
+- [ ] **Backup**: `ops/backup.sh backup` erzeugt ein verschlüsseltes File **und**
+      `restore` spielt es auf der Test-Instanz korrekt wieder ein (Abschnitt 6).
+- [ ] **Healthcheck/Monitoring**: `/healthz/` liefert 200; Container ist „healthy“.
+- [ ] Optional **Lasttest** (`loadtest/`) bei erwartet vielen gleichzeitigen Nutzern.
+
+---
+
+## 5. Migration von Beds24 (Umzug der Bestandsbuchungen)
+
+**Worum es geht:** Beds24 ist das bisherige System (Kanalmanager/PMS für
+Ferienunterkünfte). Beim Umzug müssen die **bestehenden, künftigen Buchungen**
+übernommen werden, damit nach dem Wechsel niemand „durchs Raster fällt“ und es
+**keine Doppelbuchungen** gibt. Dafür gibt es im Backend einen **Migrations-
+Assistenten** (nur Admin). Dieses Kapitel beschreibt **Vorgehen, Best Practices und
+Details** möglichst vollständig.
+
+### 5.1 Best Practices für Plattform-Migrationen (allgemein)
+
+Aus der Praxis von PMS-/Ferienvermietungs-Migrationen (Quellen unten):
+
+- **Daten zuerst auditieren & säubern** (1–2 Wochen Vorlauf): Tippfehler in Namen,
+  Dubletten, offensichtlich falsche Zeiträume im Altsystem bereinigen.
+- **Was migriert werden muss klar benennen:** Reservierungen, Kalender, Gäste,
+  (separat) Rechnungen/Finanzdaten. **Nicht** automatisch übertragbar sind
+  **Zahlungs-Tokens** (Karten/Mandate) zwischen verschiedenen Zahlungsanbietern –
+  bewusst neu erfassen, nicht „mitnehmen“.
+- **Typische Stolperfallen:** Gastdaten werden beim Export **abgeschnitten**
+  (Umlaute/Sonderzeichen/CSV-Trennzeichen prüfen), Zahlungs-Tokens fehlen, Personal
+  ist vor dem Stichtag nicht eingewiesen.
+- **Parallelbetrieb & Stichtag (Cutover) in einer ruhigen Zeit** (geringe Belegung):
+  Alt- und Neusystem kurz **parallel** halten, dann umschalten. **Kein** „Kaltschnitt“
+  ohne Rückfallebene – eine Reservierung, die im Neusystem fehlt, steht sonst als Gast
+  vor der Tür.
+- **End-to-End testen vor dem Stichtag:** Import, Anlegen/Stornieren, Preise/Regeln,
+  Gastprofile – sauber auf der Test-Instanz durchspielen.
+- **Doppelbuchungen vermeiden:** Während des Umzugs **keine neuen Buchungen** parallel
+  in beiden Systemen entstehen lassen. Praktisch heißt das: bei Beds24 die
+  **Kanal-Verbindungen** (Booking.com, Airbnb …) sauber trennen bzw. die
+  Verfügbarkeit schließen, **bevor** das Neusystem öffentlich Buchungen annimmt.
+
+### 5.2 Daten aus Beds24 exportieren
+
+Im Beds24-Backend:
+
+1. **Buchungen exportieren:** **BOOKINGS → EXPORT** erzeugt eine **CSV-Datei**.
+   Über den Datumsfilter **„Showing bookings from“** den Zeitraum so wählen, dass
+   **alle künftigen (und ggf. jüngst vergangenen) Buchungen** enthalten sind – im
+   Zweifel großzügig (lieber zu viele Zeilen; der Assistent lässt „überspringen“ zu).
+2. **Rechnungen/Belege sichern:** **SETTINGS → ACCOUNT → BILLING** herunterladen
+   (gehört nicht in den Import, aber zur Aufbewahrung).
+3. **Format prüfen:** Die CSV mit einem Texteditor/Excel öffnen und kontrollieren,
+   dass **Gastname, Anreise (check-in), Abreise (check-out), Unterkunft/Room,
+   Personenzahl, E-Mail, Buchungs-ID** und – wenn vorhanden – **Status/Preis**
+   enthalten sind. **E-Mail ist der wichtigste Anker** (s. u.) – möglichst mit
+   exportieren. Auf korrekte **Umlaute (UTF-8)** und das **Trennzeichen** achten.
+
+> Beds24 bietet zusätzlich eine **API** zum Export/Import – für eine **einmalige**
+> Migration ist der **CSV-Weg bewusst die einfachere, ausreichende Wahl** (keine
+> dauerhafte Kopplung an das System, das gerade abgelöst wird; ADR 0030).
+
+### 5.3 Der Import-Assistent in dieser App (Funktionsweise)
+
+Aufruf: **Verwaltung → Beds24-Import** bzw. `/verwaltung/beds24-import/` – **nur für
+Admins** sichtbar/erreichbar, da er **echte Buchungen** anlegt. Aktivierbar/
+abschaltbar über **`OpsConfig.beds24_import_enabled`** (Betriebs-Einstellungen).
+Reine Logik in `booking/beds24.py`, Service in `booking/services/beds24_ops.py`
+(ADR 0030).
+
+**Ablauf in drei Schritten:**
+
+1. **Hochladen & Staging** (`beds24_stage`): CSV hochladen (max. **10 MB**, sonst
+   wird sie abgewiesen). Der Parser erkennt **Spalten flexibel über Stichwörter**
+   (deutsch/englisch), u. a.: *first/last/name/guest*, *arrival/check-in/anreise*,
+   *departure/check-out/abreise*, *unit/room/zimmer/unterkunft*, *adult/persons/pax*,
+   *email*, *bookid/ref/id*, *status*, *price*. Mehrere **Datumsformate** werden
+   verstanden (z. B. `YYYY-MM-DD`, `DD.MM.YYYY`). Je Zeile werden **Vorschläge**
+   für Mitglied und Quartier berechnet.
+2. **Abgleich/Review** (Seite mit Dropdowns je Zeile):
+   - **E-Mail = einziger sicherer Anker.** Ein **eindeutiger E-Mail-Treffer** ist
+     🟢 (vorausgewählt, „übernehmen“ vorbelegt). Ohne E-Mail bleibt nur der
+     **unscharfe Namensabgleich** – nie grün, sondern 🟡 **„prüfen“**: ein einzelner
+     Treffer wird vorgeschlagen; treffen **mehrere** den Namen, wird **nichts**
+     vorausgewählt (die Verwaltung muss bewusst wählen). So landet eine Buchung nie
+     versehentlich auf der falschen Person.
+   - Zwei **Zusatz-Ampeln** (nur Anzeige, **blockieren nicht**): **Verfügbarkeit**
+     des Quartiers im Zeitraum (🟢 frei / 🔴 belegt) und eine **Regel-Warnung**
+     (Mindestaufenthalt). Historische Buchungen dürfen Regeln verletzen.
+   - **„+ Mitglied“** (`beds24_create_member`): für unbekannte Gäste ein Login-Konto
+     **ohne Passwort** + vollen Anteil (50 Tage) anlegen; mit **E-Mail** geht
+     automatisch die „Passwort setzen“-Einladung raus (ADR 0052).
+   - Je Zeile: **übernehmen · überspringen · offen**.
+3. **Übernahme** (`beds24_apply`): legt die abgeglichenen Zeilen als **`Allocation`**
+   an (Quelle **„import“**), **ohne Rechnung** – diese Buchungen gelten als **bereits
+   bezahlt**. **Idempotent/dedupliziert:** identische Buchungen (gleiches Mitglied,
+   Quartier, An-/Abreise) werden **nicht doppelt** angelegt – der Import lässt sich
+   gefahrlos wiederholen.
+
+**Wichtige Annahme (vorab klären!):** Importierte Buchungen tragen **bewusst keine
+Rechnung** („bereits bezahlt“). Stimmt das für eure Bestandsbuchungen nicht, müssen
+offene Beträge separat behandelt werden.
+
+### 5.4 Migrations-Runbook (Schritt für Schritt)
+
+1. **Vorbereiten (Tage vorher):** Beds24-Daten auditieren/säubern; Stammdaten im
+   Neusystem anlegen (**Quartiere mit exakt den Namen/Schreibweisen** wie im Export
+   erleichtern den Quartier-Abgleich; Mitglieder soweit möglich vorab anlegen –
+   **E-Mail-Adressen pflegen**, das macht den Abgleich sicher).
+2. **Probeimport auf der Test-Instanz** (Abschnitt 2/4): echten Export hochladen,
+   Abgleich üben, übernehmen, **Ergebnis stichprobenartig gegen Beds24 prüfen**,
+   Idempotenz testen (zweiter Lauf). Erst wenn das sauber läuft → produktiv.
+3. **Stichtag wählen** (ruhige, belegungsarme Zeit) und **Doppelbuchungen sperren:**
+   In Beds24 die **Kanäle trennen/Verfügbarkeit schließen**, sodass dort **keine
+   neuen** Buchungen mehr entstehen. Das Neusystem noch **nicht** öffentlich für
+   Buchungen freigeben.
+4. **Final exportieren** (frischer CSV, damit auch die letzten Beds24-Buchungen drin
+   sind) und **produktiv importieren** (Assistent, Abgleich, Übernahme).
+5. **Verifizieren** (Abschnitt 5.5).
+6. **Neusystem freigeben** (Buchungsfenster/Perioden öffnen, Mitglieder einladen).
+7. **Assistent abschalten:** `OpsConfig.beds24_import_enabled = aus` – der Import
+   wird nur einmalig gebraucht; abgeschaltet ist er gesperrt (kleinere Fehl-/
+   Angriffsfläche).
+8. **Beds24 kündigen**, nachdem Daten/Rechnungen gesichert und verifiziert sind.
+
+### 5.5 Verifikation nach dem Import
+
+- [ ] **Anzahl** importierter Buchungen ≈ Anzahl relevanter Beds24-Zeilen
+      (Differenz = bewusst übersprungene erklären).
+- [ ] **Stichproben**: einige Buchungen 1:1 mit Beds24 vergleichen (Gast, Quartier,
+      An-/Abreise, Personen).
+- [ ] **Kalender/Belegung** in der Übersicht stimmt mit dem Beds24-Kalender überein;
+      **keine** Doppelbelegungen (🔴-Ampeln im Abgleich waren bewusst entschieden).
+- [ ] **Idempotenz**: ein versehentlicher zweiter Import legt nichts doppelt an.
+- [ ] **Neu angelegte Mitglieder** haben (bei vorhandener E-Mail) ihre Einladung
+      bekommen.
+
+### 5.6 Rückfall (Rollback)
+
+Solange Beds24 noch nicht gekündigt und die Kanäle noch nicht endgültig umgehängt
+sind, ist der sichere Rückfall: **Neusystem-Buchungsfenster wieder schließen**, bei
+Bedarf die importierten `Allocation`s (Quelle „import“) entfernen und Beds24
+weiterlaufen lassen. Voraussetzung ist das **DB-Backup von vor dem Import**
+(Abschnitt 6) – vor dem produktiven Import **ein frisches Backup ziehen**.
+
+**Quellen (Beds24 & Migrations-Praxis):**
+[Beds24 Wiki – Export Bookings](https://wiki.beds24.com/index.php/Export_Bookings) ·
+[Beds24 Wiki – Switch from another channel manager](https://wiki.beds24.com/index.php/Switch_from_another_channel_manager) ·
+[Hotel PMS Migration Guide (Hotel Tech Insight)](https://hoteltechinsight.com/2026/04/17/how-to-switch-hotel-pms-without-losing-booking-data/) ·
+[8 Steps to a New Vacation Rental PMS (Mr. Alfred)](https://mralfred.com/blog/migration-to-new-vacation-rental-pms/) ·
+[PMS Migration at Scale (Shiji Insights)](https://insights.shijigroup.com/the-hard-part-of-a-100-hotel-pms-migration-isnt-the-software/)
+
+---
+
+## 6. Datensicherung & Notfall
 
 **Das Wichtigste zuerst: das Backup der Datenbank.** Hier liegen alle Buchungen,
 Mitglieder, Rechnungen. Ohne funktionierendes, **wiederherstellbares** Backup darf
@@ -206,7 +392,7 @@ nicht produktiv gegangen werden.
 
 ---
 
-## 5. Kosten (Schätzung, monatlich)
+## 7. Kosten (Schätzung, monatlich)
 
 | Posten | Anbieter-Beispiel | Kosten/Monat | Anmerkung |
 |--------|-------------------|--------------|-----------|
@@ -234,12 +420,12 @@ Online-Zahlung genutzt wird).
 
 ---
 
-## 6. Offene Punkte & Empfehlungen
+## 8. Offene Punkte & Empfehlungen
 
 - **Vor Go-Live verbindlich klären:** USt-Status (Steuerberatung), Rechtstexte
   (Impressum/Datenschutz/AGB), AV-Verträge, Aufbewahrungsfristen.
 - **Dringend empfohlen umzusetzen:** verschlüsseltes, off-site, **getestetes**
-  DB-Backup (Abschnitt 4); Backend-2FA; Firewall/SSH-Härtung.
+  DB-Backup (Abschnitt 6); Backend-2FA; Firewall/SSH-Härtung.
 - **Empfohlen, mittelfristig:** Borg-Append-only-Backups, LUKS,
   IBAN-Feldverschlüsselung (Blueprints vorhanden).
 

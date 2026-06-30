@@ -23,7 +23,7 @@ __all__ = [
     'split_quarters_for_range', '_occupied_days_by_quarter',
     'is_gap_fill', 'gap_fill_allowed', 'is_group_booking', 'lead_time_blocker',
     'high_demand_periods', 'winter_usage', 'weekend_usage', 'wish_weekend_usage',
-    'undersized_allowed', 'booking_policy_summary',
+    'undersized_allowed', 'has_fitting_free_quarter', 'booking_policy_summary',
 ]
 
 def _quarters_payload() -> list[L.Quarter]:
@@ -151,6 +151,20 @@ def is_gap_fill(quarter: Quarter, start: date, end: date) -> bool:
     right_closed = (not range_is_released(quarter, end, end + day)
                     or not quarter_is_free(quarter, end, end + day))
     return left_closed and right_closed
+
+
+def has_fitting_free_quarter(start: date, end: date, persons: int) -> bool:
+    """Gibt es im Zeitraum [start, end) eine **passende** (für `persons` ausgelegte),
+    freigeschaltete und freie Unterkunft? Grundlage für die harte Kopplung „eine
+    Unterkunft außerhalb des Personen-Rahmens ist nur buchbar, wenn alles Passende
+    belegt ist" (ADR 0076). Filtert zuerst auf der DB nach passender Auslegung
+    (min ≤ persons ≤ max) – nur diese wenigen werden auf Freigabe/Belegung geprüft."""
+    persons = int(persons or 0)
+    for q in Quarter.objects.filter(
+            active=True, min_occupancy__lte=persons, max_occupancy__gte=persons):
+        if range_is_released(q, start, end) and quarter_is_free(q, start, end):
+            return True
+    return False
 
 
 def is_group_booking(persons: int) -> bool:
