@@ -570,6 +570,7 @@ ggf. neu setzen lassen. (Hintergrund/Bedrohungsmodell: ADR 0053 und
 
 ## Weiterführend
 
+- **Inbetriebnahme, Voraussetzungen & Kosten** (Überblick/Checkliste) → [`GO-LIVE.md`](GO-LIVE.md)
 - **Fachliche Regeln** (Losverfahren, Buchungsregeln, Perioden) → [`FACHKONZEPT.md`](FACHKONZEPT.md)
 - **Hofladen-Terminal (Konzept/Sicherheit)** → [`HOFLADEN-KIOSK-KONZEPT.md`](HOFLADEN-KIOSK-KONZEPT.md)
 - **Architektur-Entscheidungen** → [`adr/README.md`](adr/README.md)

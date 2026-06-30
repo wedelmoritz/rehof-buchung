@@ -146,17 +146,19 @@ class PolicyViewRenderTests(PolicyBase):
         super().setUp()
         self.q.prefer_for_groups = True
         self.q.building = "Stallgebäude"
-        self.q.save(update_fields=["prefer_for_groups", "building"])
+        self.q.max_occupancy = 8        # passt zur Gruppe (kein „undersized")
+        self.q.save(update_fields=["prefer_for_groups", "building", "max_occupancy"])
         SeasonRule.objects.create(
             name="Pfingsten", start_month=5, start_day=22, end_month=5,
             end_day=27, max_parallel_units=2, active=True)
         self.client.force_login(self.alice.user)
 
     def test_book_zeigt_hinweis_und_gruppen_reihung(self):
+        # Gruppe = ab 6 Personen (ADR 0076).
         s = date(TODAY.year, 5, 23)
         r = self.client.get(
             f"/buchen/?start={s.isoformat()}&end={(s + timedelta(days=3)).isoformat()}"
-            f"&persons=4&year={s.year}&month={s.month}")
+            f"&persons=6&year={s.year}&month={s.month}")
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Begehrte Zeit")
         self.assertContains(r, "Stallgebäude")
@@ -218,14 +220,49 @@ class WeekendUsageTests(PolicyBase):
 
 
 class UndersizedTests(PolicyBase):
-    def test_erlaubt_wenn_konfiguriert(self):
+    def test_erlaubt_wenn_nichts_passendes_frei(self):
+        # q ist für max 4 ausgelegt; für 6 Personen passt KEINE freie Unterkunft
+        # → außerhalb des Rahmens buchbar (ADR 0076).
         self.policy.allow_undersized_units = True
         self.policy.save(update_fields=["allow_undersized_units"])
         s = TODAY + timedelta(days=10)
         a, err = svc.book_spontaneous(self.alice, self.q, s, s + timedelta(days=4),
-                                      persons=6)   # q ist für max 4 ausgelegt
+                                      persons=6)
         self.assertIsNotNone(a, err)
         self.assertEqual(a.persons, 6)
+
+    def test_gesperrt_wenn_passende_unterkunft_frei(self):
+        # Harte Kopplung: passt eine andere freie Unterkunft zur Personenzahl,
+        # ist die zu kleine NICHT buchbar.
+        self.policy.allow_undersized_units = True
+        self.policy.save(update_fields=["allow_undersized_units"])
+        small = Quarter.objects.create(name="Klein", eq_class=self.cls,
+                                       min_occupancy=1, max_occupancy=2)
+        s = TODAY + timedelta(days=10)
+        # 4 Personen: small (max 2) ist zu klein, q (max 4) passt und ist frei.
+        a, err = svc.book_spontaneous(self.alice, small, s, s + timedelta(days=4),
+                                      persons=4)
+        self.assertIsNone(a)
+        self.assertIn("passende Unterkunft", err)
+        # In die passende q geht es:
+        a2, err2 = svc.book_spontaneous(self.alice, self.q, s, s + timedelta(days=4),
+                                        persons=4)
+        self.assertIsNotNone(a2, err2)
+
+    def test_zu_wenige_personen_erlaubt_wenn_alles_belegt(self):
+        # Unterkunft mit Mindestbelegung 3; 1 Person ist erlaubt, sobald die
+        # passende q belegt ist (alles andere belegt, ADR 0076).
+        self.policy.allow_undersized_units = True
+        self.policy.save(update_fields=["allow_undersized_units"])
+        big = Quarter.objects.create(name="Gross", eq_class=self.cls,
+                                     min_occupancy=3, max_occupancy=8)
+        s = TODAY + timedelta(days=10)
+        # q (passt zu 1 Person) zuerst belegen:
+        svc.book_spontaneous(self.alice, self.q, s, s + timedelta(days=4), persons=2)
+        a, err = svc.book_spontaneous(self.alice, big, s, s + timedelta(days=4),
+                                      persons=1)
+        self.assertIsNotNone(a, err)
+        self.assertEqual(a.persons, 1)
 
     def test_gesperrt_wenn_aus(self):
         self.policy.allow_undersized_units = False

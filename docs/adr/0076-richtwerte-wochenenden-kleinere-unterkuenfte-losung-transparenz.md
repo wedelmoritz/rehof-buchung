@@ -38,15 +38,20 @@ pro vollem Anteil** dargestellt und in `services.winter_usage` mit dem Tage-Budg
 skaliert (`guideline · budget / 50`, Default 20) – Framing „mindestens", kein
 Maximum.
 
-**b) Kleinere Unterkünfte (konfigurierbar, angezeigt).** Neues Feld
+**b) Personenzahl außerhalb des Rahmens (konfigurierbar, angezeigt).** Feld
 `BookingPolicy.allow_undersized_units` (Default **an**). Ist es aktiv, darf eine
-Unterkunft für **mehr** Personen gebucht werden, als sie ausgelegt ist (zu **wenige**
-Personen bleiben gesperrt). Durchgesetzt in `book_spontaneous`, `adjust_allocation`,
-`free_quarters_for` und `Allocation.clean` (Backend). Im UI **deutlich markiert**:
-Badge „kleiner als eure Gruppe · Platz für N" in der Buchen-Liste, Warnhinweis im
-Bestätigungsschritt. Die Idee „nur falls nichts anderes frei" ergibt sich aus der
-Reihung (passende Unterkünfte stehen unter „Passend & buchbar", kleinere unter
-„ggf. nicht geeignet" – aber buchbar).
+Unterkunft für eine Personenzahl **außerhalb** ihres ausgelegten Rahmens gebucht
+werden – **mehr ODER weniger** (z. B. wenn nichts Passendes mehr frei ist).
+Durchgesetzt in `book_spontaneous`, `adjust_allocation`, `free_quarters_for` und
+`Allocation.clean` (Backend). Im UI **deutlich markiert**: Badge „kleiner als eure
+Gruppe · Platz für N" (zu viele) bzw. „größer als nötig · für M–N Pers." (zu wenige)
+in der Buchen-Liste, passender Warnhinweis im Bestätigungsschritt. **Harte Kopplung
+„alles andere belegt" (Anschluss-Wunsch):** Eine Unterkunft außerhalb des Rahmens ist
+**nur dann** buchbar, wenn **keine passende** (für die Personenzahl ausgelegte) freie
+Unterkunft mehr existiert (`services.has_fitting_free_quarter`); solange eine passende
+frei ist, wird die Buchung **gesperrt** und darauf verwiesen. (`Allocation.clean` im
+Backend prüft nur den Schalter – Admins können bewusst zuordnen.) **Gruppen-Schwelle**
+`group_min_persons` von 3 auf **6** angehoben (Anschluss-Wunsch).
 
 **c) Hilfe-Werte aus der Konfiguration.** Service
 `services.booking_policy_summary()` bündelt die Backend-Werte (Mindestnächte,
@@ -66,6 +71,12 @@ Aufenthaltsdeckel). Die Hilfeseite rendert diese Werte (`{{ p.* }}`), der Satz
 Auf der **Wunschliste** steht dazu ein kurzer Hinweis und – sobald Wünsche
 eingetragen sind – die Zahl der **gewünschten Wochenenden**
 (`services.wish_weekend_usage`) mit der Klarstellung, dass Über-Wünschen erlaubt ist.
+
+**+ Gemeinschafts-Spiegel.** Der Quartals-Auslastungsgraph wurde **lesbarer**
+gemacht (größere `viewBox 0 0 360 160`, deutliche Q1–Q4-Beschriftung, Randwerte
+links/rechts ausgerichtet statt über der Achse) und der aufklappbare Detail-Block
+zeigt nun **alle Monate des Kalenderjahres** (`services._year_months_occupancy`)
+statt nur aktueller + kommender Monat.
 
 ## Konsequenzen
 

@@ -92,8 +92,11 @@
       eine Woche {{ p.stay_cap_weeks }} Wohneinheiten{% endif %}, nicht zwingend am Stück.</li>
     {% endif %}
     <li><strong>Passende Größe:</strong> Eine Wohneinheit buchst du für die zu ihr passende
-      <strong>Personenzahl</strong>.{% if p.allow_undersized %} Ist nichts Passendes mehr frei, lässt sich auch eine
-      <strong>kleinere</strong> Unterkunft buchen (sie wird dann deutlich als „kleiner als eure Gruppe" markiert).{% endif %}</li>
+      <strong>Personenzahl</strong>.{% if p.allow_undersized %} <strong>Nur wenn nichts Passendes mehr
+      frei ist</strong>, lässt sich eine Unterkunft auch <strong>außerhalb</strong> ihrer ausgelegten
+      Personenzahl buchen – für mehr oder weniger Personen (deutlich markiert als „kleiner als eure
+      Gruppe“ bzw. „größer als nötig“). Solange eine passende Unterkunft frei ist, wird auf diese
+      verwiesen.{% endif %}</li>
   </ul>
   <h3 style="margin-bottom:.2rem">Richtschnüre (Rücksicht, kein Zwang)</h3>
   <ul class="tight">

@@ -164,6 +164,7 @@ beschrieben; das Belastungs-Runbook liegt in
 |---|---|
 | **Fachliche Regeln** (Losverfahren, Tage, Saison, Perioden, USt, Aufbewahrung) | [`docs/FACHKONZEPT.md`](docs/FACHKONZEPT.md) |
 | **Architektur-Entscheidungen** (technisch, mit Abwägungen) | [`docs/adr/`](docs/adr/README.md) |
+| **Inbetriebnahme, Voraussetzungen & Kosten** (Hardware/Server, Go-Live-Checkliste, Backup, Kosten) | [`docs/GO-LIVE.md`](docs/GO-LIVE.md) |
 | **Deployment & Betrieb** (VPS/Caddy/Docker, Env, Push, Monitoring) | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) |
 | **Tests & Testumgebungen** | [`docs/TESTEN.md`](docs/TESTEN.md) |
 | **Belastungstests (k6)** | [`loadtest/README.md`](loadtest/README.md) |

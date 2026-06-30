@@ -227,13 +227,23 @@ def book_confirm(request):
         messages.error(request, f"{quarter.name} ist in diesem Zeitraum bereits belegt.")
         return redirect("book")
 
-    if persons < quarter.min_occupancy:
-        persons = quarter.min_occupancy
     allow_under = svc.undersized_allowed()
-    if persons > quarter.max_occupancy and not allow_under:
-        persons = quarter.max_occupancy
-    # „Kleiner als eure Gruppe" – nur möglich, wenn die Richtlinie es zulässt.
-    undersized = persons > quarter.max_occupancy
+    # Ohne Richtlinie auf den ausgelegten Rahmen klemmen; mit Richtlinie bleibt die
+    # gewählte Personenzahl erhalten (außerhalb des Rahmens, deutlich markiert).
+    if not allow_under:
+        persons = max(quarter.min_occupancy, min(persons, quarter.max_occupancy))
+    persons = max(1, persons)
+    outside = not (quarter.min_occupancy <= persons <= quarter.max_occupancy)
+    # Harte Kopplung (ADR 0076): außerhalb des Rahmens nur, wenn nichts Passendes
+    # mehr frei ist – sonst Buchung sperren und auf die passende Unterkunft verweisen.
+    person_block = None
+    undersized = False
+    if outside:
+        if svc.has_fitting_free_quarter(start, end, persons):
+            person_block = ("Für diese Personenzahl ist noch eine passende "
+                            "Unterkunft frei – bitte diese buchen.")
+        else:
+            undersized = True
 
     remaining_now = member.nights_remaining_in_year(start.year)
     # Mitbuchbare Dienstleistungen (z.B. Endreinigung) – Verfügbarkeit am Abreisetag.
@@ -285,7 +295,8 @@ def book_confirm(request):
         "min_nights": svc.min_nights_for_range(start, end),
         "gap_fill": gap_fill,
         "block_reason": block_reason,
-        "can_book": block_reason is None,
+        "person_block": person_block,
+        "can_book": block_reason is None and person_block is None,
         "high_demand": svc.high_demand_periods(start, end),
         "undersized": undersized,
         "allow_under": allow_under,
@@ -391,11 +402,16 @@ def book(request):
         # Mindestnächte/Vorausfrist ist (sonst bleibt der Grund bestehen).
         gap_relevant = reason is not None and waived is None
         allow_under = svc.undersized_allowed()
+        # Außerhalb des Rahmens nur, wenn KEINE passende Unterkunft frei ist (harte
+        # Kopplung „alles andere belegt", ADR 0076). free_quarters ist bereits die
+        # freigeschaltete+freie Menge → kein zusätzlicher DB-Zugriff.
+        has_fitting = any(q.min_occupancy <= persons <= q.max_occupancy
+                          for q in free_quarters)
         for q in free_quarters:
-            too_small_group = persons < q.min_occupancy   # Unterkunft zu groß
-            too_big_group = persons > q.max_occupancy     # Unterkunft zu klein
-            fits_persons = not too_small_group and not too_big_group
-            undersized = too_big_group and allow_under
+            fits_persons = q.min_occupancy <= persons <= q.max_occupancy
+            # Außerhalb des Rahmens (zu viele ODER zu wenige) buchbar, wenn erlaubt
+            # UND nichts Passendes mehr frei ist.
+            undersized = (not fits_persons) and allow_under and not has_fitting
             fits_access = (not need_accessible) or q.accessible
             gap_fill = gap_relevant and svc.gap_fill_allowed(q, eff_start, eff_end)
             q_reason = waived if gap_fill else reason

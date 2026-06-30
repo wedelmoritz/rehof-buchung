@@ -14,8 +14,8 @@ from ..models import (
 )
 from .notify import absolute_url, email_member
 from .slots import (
-    check_booking_rules, is_gap_fill, lead_time_blocker, min_nights_for_range,
-    quarter_is_free, range_is_released, undersized_allowed,
+    check_booking_rules, has_fitting_free_quarter, is_gap_fill, lead_time_blocker,
+    min_nights_for_range, quarter_is_free, range_is_released, undersized_allowed,
 )
 
 __all__ = [
@@ -46,14 +46,20 @@ def book_spontaneous(
     if nights <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
     persons = int(persons or 0)
-    # Zu große Gruppe für eine kleine Unterkunft ist erlaubt, wenn die Richtlinie
-    # das zulässt (ADR 0076) – die Buchung wird im UI als „kleiner als eure Gruppe"
-    # gekennzeichnet. Zu wenige Personen (Unterkunft zu groß) bleibt gesperrt.
-    too_many = persons > quarter.max_occupancy and not undersized_allowed()
-    if persons < quarter.min_occupancy or too_many:
-        return None, (f"{quarter.name} ist für {quarter.min_occupancy}–"
-                      f"{quarter.max_occupancy} Personen ausgelegt "
-                      f"(angegeben: {persons}).")
+    if persons < 1:
+        return None, "Bitte mindestens 1 Person angeben."
+    # Personenzahl außerhalb des ausgelegten Rahmens (zu viele ODER zu wenige) ist
+    # nur erlaubt, wenn die Richtlinie es zulässt UND **alles Passende belegt** ist
+    # (harte Kopplung, ADR 0076); im UI deutlich gekennzeichnet.
+    outside = not (quarter.min_occupancy <= persons <= quarter.max_occupancy)
+    if outside:
+        if not undersized_allowed():
+            return None, (f"{quarter.name} ist für {quarter.min_occupancy}–"
+                          f"{quarter.max_occupancy} Personen ausgelegt "
+                          f"(angegeben: {persons}).")
+        if has_fitting_free_quarter(start, end, persons):
+            return None, ("Für diese Personenzahl ist noch eine passende Unterkunft "
+                          "frei – bitte diese buchen.")
     if not range_is_released(quarter, start, end):
         return None, ("Dieser Zeitraum ist (noch) nicht zur Buchung "
                       "freigeschaltet.")
@@ -172,18 +178,20 @@ def concurrent_allocations(allocation: Allocation):
 def free_quarters_for(start: date, end: date, persons: int, exclude_id=None):
     """Quartiere, die im Zeitraum [start, end) komplett frei + freigeschaltet sind
     und zur Personenzahl passen (für den Unterkunfts-Wechsel beim Anpassen)."""
-    out = []
     allow_under = undersized_allowed()
+    fitting, oversized = [], []
     for q in Quarter.objects.order_by("name"):
         if exclude_id and q.id == exclude_id:
             continue
-        # Zu große Gruppe nur, wenn die Richtlinie kleinere Unterkünfte zulässt.
-        if persons < q.min_occupancy or (
-                persons > q.max_occupancy and not allow_under):
+        if not (range_is_released(q, start, end) and quarter_is_free(q, start, end)):
             continue
-        if range_is_released(q, start, end) and quarter_is_free(q, start, end):
-            out.append(q)
-    return out
+        if q.min_occupancy <= persons <= q.max_occupancy:
+            fitting.append(q)
+        elif allow_under:
+            oversized.append(q)
+    # „Außerhalb des Rahmens" nur anbieten, wenn nichts Passendes frei ist (harte
+    # Kopplung „alles andere belegt", ADR 0076).
+    return fitting if fitting else oversized
 
 
 def concurrent_split(allocation: Allocation) -> dict:
@@ -361,10 +369,10 @@ def adjust_allocation(member: Member, allocation_id, new_start: date,
             and persons == a.persons:
         return False, "Keine Änderung."
 
-    # Personenzahl muss zur (ggf. neuen) Unterkunft passen – zu große Gruppe nur,
-    # wenn die Richtlinie kleinere Unterkünfte zulässt (ADR 0076).
-    too_many = persons > new_q.max_occupancy and not undersized_allowed()
-    if persons < new_q.min_occupancy or too_many:
+    # Personenzahl muss zur (ggf. neuen) Unterkunft passen – außerhalb des Rahmens
+    # (mehr ODER weniger) nur, wenn die Richtlinie es zulässt (ADR 0076).
+    outside = not (new_q.min_occupancy <= persons <= new_q.max_occupancy)
+    if persons < 1 or (outside and not undersized_allowed()):
         return False, (f"{new_q.name}: {new_q.min_occupancy}–{new_q.max_occupancy} "
                        f"Personen (gewählt {persons}).")
 

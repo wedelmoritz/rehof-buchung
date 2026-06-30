@@ -127,10 +127,14 @@ konfigurierbar im Backend, greifen bei der **Spontanbuchung**:
   Zeitraum-/Saison-Grenze an), entfallen **Mindestnächte UND Vorausfrist** – kurze
   Lücken lassen sich so immer in ihrer Länge füllen, auch kurzfristig. Reine Logik
   `services.is_gap_fill`; Parallel-Limit/Deckel bleiben.
-- **Kleinere Unterkünfte** (`allow_undersized_units`, Default an, ADR 0076): erlaubt,
-  eine Unterkunft auch für **mehr** Personen zu buchen, als sie ausgelegt ist (zu
-  **wenige** bleiben gesperrt) – greift in Buchung/Anpassen/Backend; im UI deutlich
-  als „kleiner als eure Gruppe" markiert.
+- **Personenzahl außerhalb des Rahmens** (`allow_undersized_units`, Default an,
+  ADR 0076): erlaubt, eine Unterkunft auch für eine Personenzahl **außerhalb** ihres
+  ausgelegten Rahmens zu buchen – **mehr ODER weniger** –, aber **hart gekoppelt** an
+  „alles Passende belegt": nur wenn **keine** passende freie Unterkunft mehr existiert
+  (`services.has_fitting_free_quarter`), sonst wird darauf verwiesen. Greift in
+  Buchung/`book_confirm`/`free_quarters_for`; im UI deutlich als „kleiner als eure
+  Gruppe" bzw. „größer als nötig" markiert. (`Allocation.clean` im Backend prüft nur
+  den Schalter.)
 - **Richtwerte (nur Hinweise, keine Sperren):** Gruppe ab `group_min_persons`
   Personen → Wohneinheiten mit `Quarter.prefer_for_groups` (z. B. Stallgebäude)
   werden zuerst angeboten (`services.is_group_booking`).
