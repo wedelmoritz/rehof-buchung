@@ -172,14 +172,85 @@ class PolicyViewRenderTests(PolicyBase):
 
 
 class WinterUsageTests(PolicyBase):
-    def test_zaehlt_oktober_maerz(self):
-        # Eine Buchung im Winterhalbjahr (Nov) – 4 Nächte.
+    def test_zaehlt_oktober_maerz_mindestwert(self):
+        # 20 Tage gelten auf den vollen Anteil (50) → Ziel 20.
         win = svc.winter_usage(self.alice, ref_date=date(TODAY.year, 11, 1))
         self.assertEqual(win["booked"], 0)
         self.assertEqual(win["target"], 20)
+        self.assertFalse(win["reached"])
         Allocation.objects.create(
             member=self.alice, quarter=self.q,
             start=date(TODAY.year, 11, 10), end=date(TODAY.year, 11, 14),
             persons=2, source="spontaneous", membership=self.alice.membership_for())
         win = svc.winter_usage(self.alice, ref_date=date(TODAY.year, 11, 20))
         self.assertEqual(win["booked"], 4)
+
+    def test_tandem_anteilig(self):
+        # Halber Anteil (25 Tage) → Winter-Ziel anteilig 10.
+        bob = mk_member("bobtandem", nights=25)
+        self.assertEqual(svc.winter_usage(bob)["target"], 10)
+
+
+class WeekendUsageTests(PolicyBase):
+    def _friday(self, month):
+        d = date(TODAY.year, month, 1)
+        while d.weekday() != 4:                      # nächster Freitag
+            d += timedelta(days=1)
+        return d
+
+    def test_zaehlt_distinkte_wochenenden(self):
+        f1 = self._friday(7)
+        self._alloc(f1, f1 + timedelta(days=2))                 # Fr+Sa → 1 WE
+        self._alloc(f1 + timedelta(days=14), f1 + timedelta(days=16))  # 2 Wo später
+        we = svc.weekend_usage(self.alice, ref_date=date(TODAY.year, 7, 1))
+        self.assertEqual(we["booked"], 2)
+        self.assertEqual(we["target"], 9)
+        self.assertFalse(we["near"])
+
+    def test_near_und_over(self):
+        self.policy.max_weekends_per_year = 2
+        self.policy.save(update_fields=["max_weekends_per_year"])
+        f1 = self._friday(8)
+        self._alloc(f1, f1 + timedelta(days=2))
+        we = svc.weekend_usage(self.alice, ref_date=date(TODAY.year, 8, 1))
+        self.assertTrue(we["near"])     # 1 von 2 → nah dran (>= target-1)
+        self.assertFalse(we["over"])
+
+
+class UndersizedTests(PolicyBase):
+    def test_erlaubt_wenn_konfiguriert(self):
+        self.policy.allow_undersized_units = True
+        self.policy.save(update_fields=["allow_undersized_units"])
+        s = TODAY + timedelta(days=10)
+        a, err = svc.book_spontaneous(self.alice, self.q, s, s + timedelta(days=4),
+                                      persons=6)   # q ist für max 4 ausgelegt
+        self.assertIsNotNone(a, err)
+        self.assertEqual(a.persons, 6)
+
+    def test_gesperrt_wenn_aus(self):
+        self.policy.allow_undersized_units = False
+        self.policy.save(update_fields=["allow_undersized_units"])
+        s = TODAY + timedelta(days=10)
+        a, err = svc.book_spontaneous(self.alice, self.q, s, s + timedelta(days=4),
+                                      persons=6)
+        self.assertIsNone(a)
+        self.assertIn("Personen", err)
+
+
+class PolicySummaryTests(PolicyBase):
+    def test_liest_konfiguration(self):
+        SeasonRule.objects.create(
+            name="Hochsaison", start_month=7, start_day=1, end_month=9, end_day=1,
+            min_nights=7, active=True)
+        SeasonRule.objects.create(
+            name="Sommerferien", start_month=7, start_day=9, end_month=8, end_day=23,
+            max_parallel_units=2, max_stay_nights=14, active=True)
+        s = svc.booking_policy_summary()
+        self.assertEqual(s["default_min_nights"], 3)
+        self.assertEqual(s["min_lead_days"], 7)
+        self.assertEqual(s["season_min_nights"], 7)
+        self.assertIn("Hochsaison", s["season_min_names"])
+        self.assertEqual(s["parallel_limit"], 2)
+        self.assertEqual(s["stay_cap_nights"], 14)
+        self.assertEqual(s["stay_cap_weeks"], 2)
+        self.assertTrue(s["allow_undersized"])

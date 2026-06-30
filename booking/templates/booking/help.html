@@ -66,41 +66,60 @@
   <h2>Buchungsregeln &amp; faire Nutzung</h2>
   <p style="margin-top:0">Damit alle gut miteinander auskommen, gelten ein paar Regeln
     (die das System prüft) und einige <em>Richtschnüre</em> (an die wir uns aus Rücksicht
-    halten). Die genauen Werte stellt die Verwaltung im Backend ein.</p>
+    halten). Die hier genannten Werte sind die <strong>aktuell eingestellten</strong>.</p>
   <h3 style="margin-bottom:.2rem">Feste Regeln</h3>
   <ul class="tight">
-    <li><strong>Mindestaufenthalt:</strong> in der Regel <strong>3 Nächte</strong>, in der
-      <strong>Hochsaison Juli &amp; August 7 Nächte</strong>.</li>
+    <li><strong>Mindestaufenthalt:</strong> in der Regel <strong>{{ p.default_min_nights }} Nächte</strong>{% if p.season_min_nights %},
+      in besonderen Zeiten ({{ p.season_min_names|join:", " }}) <strong>{{ p.season_min_nights }} Nächte</strong>{% endif %}.</li>
+    {% if p.allow_gap_fill %}
     <li><strong>Lücken füllen:</strong> Eine kürzere Buchung ist trotzdem möglich, wenn sie
       eine <strong>bestehende Lücke genau ausfüllt</strong> (sie schließt direkt an Nachbar-
       Buchungen oder an den Anfang/das Ende des buchbaren Zeitraums an). Dann entfallen
       Mindestnächte <em>und</em> Vorlauf – damit keine ungenutzten Rest-Nächte liegen bleiben.</li>
-    <li><strong>Vorlauf bei Spontanbuchungen:</strong> mindestens <strong>1 Woche</strong> vor
-      Anreise. <span class="muted">Eine bestehende Lücke darfst du auch kurzfristig füllen.</span></li>
+    {% endif %}
+    {% if p.min_lead_days %}
+    <li><strong>Vorlauf bei Spontanbuchungen:</strong> mindestens <strong>{{ p.min_lead_days }} Tage</strong> vor
+      Anreise.{% if p.allow_gap_fill %} <span class="muted">Eine bestehende Lücke darfst du auch kurzfristig füllen.</span>{% endif %}</li>
+    {% endif %}
+    {% if p.parallel_limit %}
     <li><strong>Begehrte Zeiten</strong> (Berlin/Brandenburg-Schulferien sowie Brücken-/Feiertage
       wie Weihnachten, Silvester, Ostern, Himmelfahrt, Pfingsten): höchstens
-      <strong>2 Wohneinheiten gleichzeitig je Partei</strong> (Mitglieds-Anteil inkl. Tandem).</li>
-    <li><strong>Sommerferien Berlin/Brandenburg:</strong> höchstens <strong>2 Wochen je Partei</strong>
-      (voller Anteil). Aufteilbar: zwei Wochen eine Wohneinheit <em>oder</em> eine Woche zwei
-      Wohneinheiten – nicht zwingend am Stück.</li>
-    <li><strong>Passende Größe:</strong> Eine Wohneinheit lässt sich nur für die zu ihr passende
-      <strong>Personenzahl</strong> buchen.</li>
+      <strong>{{ p.parallel_limit }} Wohneinheiten gleichzeitig je Partei</strong> (Mitglieds-Anteil inkl. Tandem).</li>
+    {% endif %}
+    {% if p.stay_cap_nights %}
+    <li><strong>Sommerferien Berlin/Brandenburg:</strong> höchstens <strong>{{ p.stay_cap_nights }} Nächte je Partei</strong>
+      (voller Anteil){% if p.stay_cap_weeks %} – also z.&nbsp;B. {{ p.stay_cap_weeks }} Wochen eine Wohneinheit <em>oder</em>
+      eine Woche {{ p.stay_cap_weeks }} Wohneinheiten{% endif %}, nicht zwingend am Stück.</li>
+    {% endif %}
+    <li><strong>Passende Größe:</strong> Eine Wohneinheit buchst du für die zu ihr passende
+      <strong>Personenzahl</strong>.{% if p.allow_undersized %} Ist nichts Passendes mehr frei, lässt sich auch eine
+      <strong>kleinere</strong> Unterkunft buchen (sie wird dann deutlich als „kleiner als eure Gruppe" markiert).{% endif %}</li>
   </ul>
   <h3 style="margin-bottom:.2rem">Richtschnüre (Rücksicht, kein Zwang)</h3>
   <ul class="tight">
     <li><strong>In begehrten Zeiten zur eigenen Nutzung</strong> buchen – also nicht Nächte an
       Freunde/Familie weitergeben, ohne dass ein Mitglied mit vor Ort ist. Außerhalb dieser
       Zeiten ist eine Weitergabe in Ordnung.</li>
-    <li><strong>Übers Jahr verteilen:</strong> Richtwert <strong>20 von 50 Tagen zwischen Oktober
-      und März</strong>. Beim Buchen siehst du, wie viele Wintertage du schon gebucht hast.</li>
+    {% if p.winter_guideline %}
+    <li><strong>Übers Jahr verteilen (Mindestwert):</strong> Richtwert <strong>mindestens {{ p.winter_guideline }} von 50 Tagen
+      zwischen Oktober und März</strong> – pro vollem Anteil; bei Teil-/Tandem-Anteilen anteilig weniger.
+      Das ist <em>kein Maximum</em>, sondern ein Ziel, damit sich die Nutzung übers Jahr verteilt. Beim Buchen
+      siehst du deinen Stand.</li>
+    {% endif %}
+    {% if p.max_weekends %}
+    <li><strong>Wochenenden (Höchstwert):</strong> Richtwert <strong>höchstens {{ p.max_weekends }} Wochenenden</strong> je
+      Mitglied und Jahr (bei voller Gemeinschaft fair). Beim Buchen erscheint ein Hinweis, wenn du dich
+      diesem Wert näherst.</li>
+    {% endif %}
     <li><strong>Vor der Buchung in begehrten Zeiten kurz innehalten:</strong> Bin ich wirklich auf
       genau diese Zeit angewiesen? War ich im Vorjahr schon an diesem Brücken-/Feiertag da
       (dann lasse ich ggf. anderen den Vortritt)? Brauche ich wirklich zwei Wohneinheiten? –
       Diese Fragen erscheinen als Hinweis, wenn du eine begehrte Zeit wählst.</li>
-    <li><strong>Zur Orientierung:</strong> Bei voller Gemeinschaft (Annahme 60 Mitglieder) stehen
-      jedem rechnerisch etwa <strong>8–9 Wochenenden</strong> im Jahr zu.</li>
-    <li><strong>Gruppen</strong> buchen möglichst <strong>zuerst die Wohnungen des Stallgebäudes</strong> –
-      bei größeren Gruppen werden sie beim Buchen oben angezeigt.</li>
+    {% if p.group_min_persons %}
+    <li><strong>Gruppen</strong> (ab {{ p.group_min_persons }} Personen) buchen möglichst
+      <strong>zuerst die Wohnungen des Stallgebäudes</strong> – bei größeren Gruppen werden sie
+      beim Buchen oben angezeigt.</li>
+    {% endif %}
   </ul>
 </div>
 
@@ -138,6 +157,32 @@
   </ul>
   <p class="muted">Das Ergebnis erscheint nach dem (von der Verwaltung terminierten) Losungstermin unter
     <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</p>
+
+  <details class="deep" id="regeln-losung">
+    <summary>Welche Buchungsregeln gelten für Wünsche &amp; Auslosung?</summary>
+    <p style="margin-top:0">Nicht jede Regel greift an derselben Stelle – das ist Absicht:</p>
+    <ul class="tight">
+      <li><strong>Schon beim Eintragen/Einreichen</strong> eines Wunsches prüft das System die
+        <strong>Mindestnächte</strong> (Standard + Saison{% if p.season_min_nights %}, z.&nbsp;B. {{ p.season_min_nights }} Nächte{% endif %})
+        und den <strong>Aufenthaltsdeckel einer einzelnen Buchung</strong>{% if p.stay_cap_nights %} (z.&nbsp;B. {{ p.stay_cap_nights }} Nächte){% endif %}.
+        Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen – so kann ein Losgewinn nie an den
+        Mindestnächten scheitern.</li>
+      <li><strong>Erst in der Auslosung</strong> wirken das <strong>Parallel-Limit</strong>
+        {% if p.parallel_limit %}(höchstens {{ p.parallel_limit }} gleichzeitige Wohneinheiten){% endif %}
+        und der <strong>Aufenthaltsdeckel über mehrere Buchungen</strong> – sie betreffen das
+        Zusammenspiel mehrerer Buchungen und lassen sich am einzelnen Wunsch nicht prüfen. Würde ein
+        Wunsch die Grenze deines Anteils überschreiten, wird er <strong>übersprungen</strong>: kein
+        Verlust, kein Karma, und dein Zug geht sofort zum nächsten Wunsch.</li>
+      <li><strong>Nur für die Spontanbuchung</strong> (nicht für Wünsche/Losung) gelten:
+        <strong>Vorlauf</strong>, <strong>Lückenfüllung</strong>, die <strong>Winter-/Wochenend-Richtwerte</strong>
+        und die „kleiner&nbsp;buchen"-Regel. Die Losung vergibt das Folgejahr weit im Voraus – ein
+        Vorlauf ergäbe dort keinen Sinn.</li>
+      <li><strong>Du darfst mehr wünschen, als erfüllt wird</strong> – auch mehr Wochenenden als der
+        Richtwert. Die Anzeige „X Wochenenden" auf der Wunschliste ist nur Orientierung. Über die
+        Losung gehen höchstens deine <strong>halben Tage</strong> (Wunsch-Budget); der Rest ist
+        Rückfall und blockiert niemanden (das Verfahren ist strategiesicher).</li>
+    </ul>
+  </details>
 
   <details class="deep">
     <summary>Budgets &amp; Wünsche – wie viele darf ich eintragen?</summary>

@@ -114,8 +114,8 @@ Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
 `SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines; zusätzlich
-`min_lead_days`/`allow_gap_fill`/`group_min_persons`/`winter_guideline_nights`,
-ADR 0075), `SeasonRule`,
+`min_lead_days`/`allow_gap_fill`/`group_min_persons`/`winter_guideline_nights`/
+`max_weekends_per_year`/`allow_undersized_units`, ADR 0075/0076), `SeasonRule`,
 `SchoolHoliday`, `FairnessSimConfig` (Singleton: Parameter + letztes Ergebnis
 des Fairness-Nachweises). (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 **Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login, mit
@@ -677,23 +677,34 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   füllt eine Buchung eine freie Lücke **exakt** aus (beidseitig geschlossen –
   `services.is_gap_fill`), entfallen **Mindestnächte UND Vorausfrist** (Parallel/
   Deckel bleiben; `rules.validate_booking(skip_min_nights=…)`); greift in
-  `book_spontaneous` + `adjust_allocation`. **Weiche Richtwerte (nur Anzeige):**
-  Winter-Richtwert `winter_guideline_nights` (Tage Okt–März, `services.winter_usage`,
-  auf Übersicht/Buchen) und der **Rücksichts-Hinweis** in begehrten Zeiten
+  `book_spontaneous` + `adjust_allocation`. **Kleinere Unterkünfte**
+  (`allow_undersized_units`, Default an, ADR 0076): erlaubt Buchung für **mehr**
+  Personen als ausgelegt (zu wenige bleiben gesperrt) – durchgesetzt in
+  `book_spontaneous`/`adjust_allocation`/`free_quarters_for`/`Allocation.clean`,
+  im UI als „kleiner als eure Gruppe" markiert (Badge + Bestätigungs-Hinweis).
+  **Weiche Richtwerte (nur Anzeige, ADR 0076):** **Winter**
+  (`winter_guideline_nights`, `services.winter_usage`) ist ein **Mindestwert pro
+  vollem Anteil** (Tage Okt–März, bei Tandems anteilig; KEIN Maximum); **Wochenenden**
+  (`max_weekends_per_year`, `services.weekend_usage`, reine Zählung
+  `availability.weekend_keys`) ist umgekehrt ein **Höchstwert** (warnt beim
+  Annähern) – beide auf Übersicht/Buchen. **Rücksichts-Hinweis** in begehrten Zeiten
   (`services.high_demand_periods` → Partial `_high_demand_note.html`, beim Buchen
-  **und** Wünschen). „Eigene Nutzung/keine Weitergabe an Externe ohne Mitglied vor
-  Ort" und „8–9 Wochenenden" bleiben **Richtschnur** auf der Hilfeseite
-  (nicht erzwingbar).
+  **und** Wünschen). Die **Hilfeseite** zeigt die echten Backend-Werte
+  (`services.booking_policy_summary`) und erklärt (Anker `#regeln-losung`), welche
+  Regeln **beim Wunsch-Eintragen** vs. **erst in der Losung** greifen und dass
+  Über-Wünschen (auch mehr Wochenenden, `services.wish_weekend_usage`) **legitim**
+  ist. „Eigene Nutzung/keine Weitergabe an Externe ohne Mitglied vor Ort" bleibt
+  **Richtschnur** (nicht erzwingbar).
 
 ---
 
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 77 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 80 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 319 passed (4 skips)
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 328 passed (4 skips)
 python manage.py test booking shop
 
 # 3) E2E-Smoke-Tests (Playwright, gegen einen LAUFENDEN Stack) — optional lokal

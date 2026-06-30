@@ -9,6 +9,7 @@ from datetime import date
 
 from booking.availability import (
     Window, is_released, range_released, released_gaps, remaining_nights,
+    weekend_keys,
 )
 
 
@@ -129,3 +130,24 @@ def test_abgegebene_tage_reduzieren_verfuegbarkeit():
     nehmer = remaining_nights(50, used=0, received=20)
     assert geber == 30
     assert nehmer == 70
+
+
+# --------------------------------------------------------------------------- #
+# Wochenend-Zählung (Fr-/Sa-Nächte, je Wochenende einmal)
+# --------------------------------------------------------------------------- #
+
+def test_weekend_keys_zaehlt_freitag_samstag():
+    # 2026-07-03 ist ein Freitag. Fr+Sa-Nacht = 1 Wochenende.
+    assert len(weekend_keys(date(2026, 7, 3), date(2026, 7, 5))) == 1
+
+
+def test_weekend_keys_wochentags_keine():
+    # Mo–Do (kein Fr/Sa) → 0 Wochenenden.
+    assert weekend_keys(date(2026, 7, 6), date(2026, 7, 9)) == set()
+
+
+def test_weekend_keys_distinkt_je_woche():
+    # Zwei Aufenthalte in verschiedenen Wochen → 2 distinkte Wochenenden.
+    keys = weekend_keys(date(2026, 7, 3), date(2026, 7, 4))      # WE 1
+    keys |= weekend_keys(date(2026, 7, 10), date(2026, 7, 11))   # WE 2
+    assert len(keys) == 2

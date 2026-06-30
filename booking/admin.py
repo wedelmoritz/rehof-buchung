@@ -970,13 +970,24 @@ class BookingPolicyAdmin(admin.ModelAdmin):
                 "<b>Lücken füllen</b>: füllt eine Buchung eine freie Lücke exakt aus, "
                 "entfallen Mindestnächte und Vorausfrist."),
         }),
+        ("Personenzahl", {
+            "fields": ("allow_undersized_units",),
+            "description": (
+                "<b>Kleinere Unterkünfte zulassen</b>: erlaubt, eine Unterkunft auch "
+                "für mehr Personen zu buchen, als sie ausgelegt ist (z. B. wenn nichts "
+                "Passendes mehr frei ist). Die Buchung wird klar als „kleiner als eure "
+                "Gruppe“ gekennzeichnet."),
+        }),
         ("Orientierung & Gruppen (nur Hinweise, keine Sperren)", {
-            "fields": ("group_min_persons", "winter_guideline_nights"),
+            "fields": ("group_min_persons", "winter_guideline_nights",
+                       "max_weekends_per_year"),
             "description": (
                 "<b>Gruppe ab Personen</b>: ab dieser Personenzahl werden Gruppen-"
                 "Wohneinheiten (Quartier-Feld „für Gruppen zuerst anbieten“) oben "
-                "angezeigt. <b>Richtwert Okt–März</b>: empfohlene Tage im "
-                "Winterhalbjahr (nur Anzeige beim Buchen)."),
+                "angezeigt. <b>Mindest-Tage Okt–März</b>: Winter-Richtwert pro vollem "
+                "Anteil (ein <i>Mindestwert</i>, bei Tandems anteilig). <b>Höchst-"
+                "Wochenenden/Jahr</b>: Wochenend-Richtwert (ein <i>Höchstwert</i>) – "
+                "beide nur Anzeige beim Buchen, keine Sperre."),
         }),
     )
 

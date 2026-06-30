@@ -171,6 +171,7 @@ def overview(request):
         "agenda": svc.week_agenda(member, today, 7),
         **_cal_nav(cal),
         "winter": svc.winter_usage(member) if member else None,
+        "weekend": svc.weekend_usage(member) if member else None,
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0
         ),
@@ -228,8 +229,11 @@ def book_confirm(request):
 
     if persons < quarter.min_occupancy:
         persons = quarter.min_occupancy
-    if persons > quarter.max_occupancy:
+    allow_under = svc.undersized_allowed()
+    if persons > quarter.max_occupancy and not allow_under:
         persons = quarter.max_occupancy
+    # „Kleiner als eure Gruppe" – nur möglich, wenn die Richtlinie es zulässt.
+    undersized = persons > quarter.max_occupancy
 
     remaining_now = member.nights_remaining_in_year(start.year)
     # Mitbuchbare Dienstleistungen (z.B. Endreinigung) – Verfügbarkeit am Abreisetag.
@@ -283,6 +287,8 @@ def book_confirm(request):
         "block_reason": block_reason,
         "can_book": block_reason is None,
         "high_demand": svc.high_demand_periods(start, end),
+        "undersized": undersized,
+        "allow_under": allow_under,
         "offers": offers,
         "memberships": memberships,
     })
@@ -384,8 +390,12 @@ def book(request):
         # Lückenfüllung kann nur helfen, wenn der allgemeine Grund eben gerade
         # Mindestnächte/Vorausfrist ist (sonst bleibt der Grund bestehen).
         gap_relevant = reason is not None and waived is None
+        allow_under = svc.undersized_allowed()
         for q in free_quarters:
-            fits_persons = q.min_occupancy <= persons <= q.max_occupancy
+            too_small_group = persons < q.min_occupancy   # Unterkunft zu groß
+            too_big_group = persons > q.max_occupancy     # Unterkunft zu klein
+            fits_persons = not too_small_group and not too_big_group
+            undersized = too_big_group and allow_under
             fits_access = (not need_accessible) or q.accessible
             gap_fill = gap_relevant and svc.gap_fill_allowed(q, eff_start, eff_end)
             q_reason = waived if gap_fill else reason
@@ -393,7 +403,10 @@ def book(request):
                 "q": q, "reason": q_reason, "gap_fill": gap_fill,
                 "group_pref": is_group and q.prefer_for_groups,
                 "fits_persons": fits_persons, "fits_access": fits_access,
-                "bookable": q_reason is None and fits_persons,
+                "undersized": undersized,
+                # Buchbar trotz zu kleiner Unterkunft (mit Hinweis); zu große
+                # Unterkunft (zu wenige Personen) bleibt gesperrt.
+                "bookable": q_reason is None and (fits_persons or undersized),
             }
             if fits_persons and fits_access and q_reason is None:
                 suitable.append(info)
@@ -430,6 +443,7 @@ def book(request):
         "is_group": is_group,
         "has_group_pref": has_group_pref,
         "winter": svc.winter_usage(member) if member else None,
+        "weekend": svc.weekend_usage(member) if member else None,
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,
         "notifications": svc.unread_notifications(member),
         "released_windows": BookingPeriod.objects.filter(
@@ -660,6 +674,7 @@ def wishlist(request):
     eff_start = eff_end = None
     candidates = []
     high_demand = []
+    wish_weekends = svc.wish_weekend_usage(member, period) if member and period else None
     if member and period and sel_start:
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
@@ -687,6 +702,7 @@ def wishlist(request):
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
         "candidates": candidates,
         "high_demand": high_demand,
+        "wish_weekends": wish_weekends,
         "wish_form": WishForm(),
         "memberships": member.memberships if member else [],
         "wishes": wishes,
@@ -759,9 +775,11 @@ def terms(request):
 
 @login_required
 def help_page(request):
-    """Erklärseite: Abläufe, Auslosung im Detail, Tage & Anteile, Hofladen."""
+    """Erklärseite: Abläufe, Auslosung im Detail, Tage & Anteile, Hofladen.
+    Die Buchungsregel-Werte kommen aus der Backend-Konfiguration (ADR 0076)."""
     return render(request, "booking/help.html", {
         "member": _current_member(request),
+        "p": svc.booking_policy_summary(),
     })
 
 

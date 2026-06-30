@@ -22,7 +22,8 @@ __all__ = [
     '_in_season_range', 'range_is_released', 'find_bookable_gaps',
     'split_quarters_for_range', '_occupied_days_by_quarter',
     'is_gap_fill', 'gap_fill_allowed', 'is_group_booking', 'lead_time_blocker',
-    'high_demand_periods', 'winter_usage',
+    'high_demand_periods', 'winter_usage', 'weekend_usage', 'wish_weekend_usage',
+    'undersized_allowed', 'booking_policy_summary',
 ]
 
 def _quarters_payload() -> list[L.Quarter]:
@@ -284,11 +285,16 @@ def high_demand_periods(start: date, end: date) -> list[str]:
     return names
 
 
+FULL_SHARE_NIGHTS = 50          # nominales Tage-Budget eines vollen Anteils
+
+
 def winter_usage(member: Member, ref_date: date | None = None) -> dict:
-    """Richtwert-Orientierung (kein Limit, ADR 0075): wie viele Tage hat das
-    Mitglied im aktuellen/kommenden Winterhalbjahr (1.10.–31.3.) gebucht, gemessen
-    am Richtwert `BookingPolicy.winter_guideline_nights`. Eine Abfrage über die
-    überlappenden Buchungen."""
+    """Winter-Richtwert (ADR 0075/0076): wie viele Tage hat das Mitglied im
+    aktuellen/kommenden Winterhalbjahr (1.10.–31.3.) gebucht – gemessen an einem
+    **Mindest**-Richtwert. `BookingPolicy.winter_guideline_nights` gilt pro vollem
+    Anteil (50 Tage); bei Teil-/Tandem-Anteilen **anteilig** weniger (skaliert mit
+    dem Tage-Budget). Es ist bewusst KEIN Maximum – es geht ums Verteilen übers
+    Jahr. Eine Abfrage über die überlappenden Buchungen."""
     today = ref_date or date.today()
     # Das relevante Winterhalbjahr: beginnt am 1.10. des Jahres, dessen Winter
     # heute läuft oder als nächstes ansteht. Jan–Sep → Winter ab Okt des Vorjahres
@@ -304,11 +310,103 @@ def winter_usage(member: Member, ref_date: date | None = None) -> dict:
             start__lt=win_end, end__gt=win_start)
             .values_list("start", "end")):
         booked += (min(e, win_end) - max(s, win_start)).days
-    target = BookingPolicy.get_solo().winter_guideline_nights or 0
+    guideline = BookingPolicy.get_solo().winter_guideline_nights or 0
+    budget = member.annual_night_budget or 0
+    target = round(guideline * budget / FULL_SHARE_NIGHTS) if guideline else 0
     return {
         "booked": booked, "target": target,
         "win_start": win_start, "win_end": win_end - timedelta(days=1),
         "label": f"Okt {win_start.year} – Mär {win_end.year}",
+        "reached": bool(target) and booked >= target,
+    }
+
+
+def weekend_usage(member: Member, ref_date: date | None = None) -> dict:
+    """Wochenend-Richtwert (ADR 0076): wie viele **Wochenenden** hat das Mitglied
+    im laufenden Kalenderjahr schon belegt – gemessen am **Höchst**-Richtwert
+    `BookingPolicy.max_weekends_per_year`. Anders als der Winterwert ist dies eine
+    Obergrenze; ein Hinweis erscheint, wenn man sich ihr nähert (`near`) bzw. sie
+    erreicht/überschreitet (`over`). Gezählt werden Fr-/Sa-Nächte (reine Logik
+    `availability.weekend_keys`), je Wochenende einmal. Eine DB-Abfrage."""
+    today = ref_date or date.today()
+    y0, y1 = date(today.year, 1, 1), date(today.year + 1, 1, 1)
+    keys: set = set()
+    for s, e in (Allocation.objects.filter(
+            member=member, provisional=False, start__lt=y1, end__gt=y0)
+            .values_list("start", "end")):
+        keys |= A.weekend_keys(max(s, y0), min(e, y1))
+    target = BookingPolicy.get_solo().max_weekends_per_year or 0
+    booked = len(keys)
+    return {
+        "booked": booked, "target": target, "year": today.year,
+        "near": bool(target) and booked >= target - 1,
+        "over": bool(target) and booked >= target,
+    }
+
+
+def wish_weekend_usage(member: Member, period) -> dict:
+    """Wie viele **Wochenenden** umfassen die Wünsche des Mitglieds für `period`?
+    Reine Anzeige auf der Wunschliste (ADR 0076): Es ist ausdrücklich **legitim**,
+    mehr Wochenenden zu wünschen als am Ende erfüllt werden (man darf mehr wünschen,
+    als die Losung vergibt). Daher nur Hinweis, keine Sperre."""
+    from ..models import Wish
+    keys: set = set()
+    for s, e in (Wish.objects.filter(member=member, period=period)
+                 .values_list("start", "end")):
+        keys |= A.weekend_keys(s, e)
+    target = BookingPolicy.get_solo().max_weekends_per_year or 0
+    booked = len(keys)
+    return {"booked": booked, "target": target,
+            "over": bool(target) and booked > target}
+
+
+def undersized_allowed() -> bool:
+    """Dürfen Unterkünfte für MEHR Personen gebucht werden, als sie ausgelegt sind
+    (Richtlinie `allow_undersized_units`, ADR 0076)?"""
+    return bool(BookingPolicy.get_solo().allow_undersized_units)
+
+
+def booking_policy_summary() -> dict:
+    """Bündelt die im Backend eingestellten Buchungsregel-Werte für die Hilfeseite
+    (ADR 0076) – damit dort die ECHTEN Werte stehen statt fest verdrahteter Zahlen.
+    Leitet die saisonalen Eckwerte (strengste Mindestnächte, Parallel-Limit,
+    Aufenthaltsdeckel) aus den aktiven Saison-Regeln/Schulferien ab. Wenige
+    Abfragen (Singleton + zwei kleine Tabellen)."""
+    p = BookingPolicy.get_solo()
+    season_min = None
+    season_min_names: list[str] = []
+    parallel = None
+    stay_cap = None
+    stay_cap_name = None
+    rules = list(SeasonRule.objects.filter(active=True)) + \
+        list(SchoolHoliday.objects.filter(active=True))
+    for r in rules:
+        mn = getattr(r, "min_nights", None)
+        if mn:
+            if season_min is None or mn > season_min:
+                season_min, season_min_names = mn, [r.name]
+            elif mn == season_min and r.name not in season_min_names:
+                season_min_names.append(r.name)
+        mp = r.max_parallel_units
+        if mp is not None:
+            parallel = mp if parallel is None else min(parallel, mp)
+        ms = r.max_stay_nights
+        if ms is not None and (stay_cap is None or ms < stay_cap):
+            stay_cap, stay_cap_name = ms, r.name
+    return {
+        "default_min_nights": p.default_min_nights,
+        "min_lead_days": p.min_lead_days,
+        "allow_gap_fill": p.allow_gap_fill,
+        "allow_undersized": p.allow_undersized_units,
+        "group_min_persons": p.group_min_persons,
+        "winter_guideline": p.winter_guideline_nights,
+        "max_weekends": p.max_weekends_per_year,
+        "season_min_nights": season_min,
+        "season_min_names": season_min_names,
+        "parallel_limit": parallel,
+        "stay_cap_nights": stay_cap,
+        "stay_cap_weeks": (stay_cap // 7) if stay_cap else None,
+        "stay_cap_name": stay_cap_name,
     }
 
 
