@@ -47,6 +47,12 @@ Faustregeln:
   (Default 100). Bei mehreren Web-Containern PgBouncer davor (siehe
   BETRIEB-SICHERHEIT.md).
 
+**Architektur/Tarif:** Das Docker-Image läuft auf **ARM (arm64)** wie auf x86 – die
+**Hetzner-CAX-Linie (ARM)** ist deutlich günstiger und für diese App ideal. Konkret:
+**CAX11** (2 vCPU/4 GB, aktuell im Einsatz) trägt den Betrieb bei wenig Last; als
+Reserve für 60–100 aktive Mitglieder ist **CAX21** (4 vCPU/8 GB) der naheliegende
+Schritt (Preise s. Abschnitt 7).
+
 **Betriebssystem:** aktuelles **Ubuntu LTS** oder **Debian stable** (64-bit).
 
 ### 1.2 Netz & Anbindung
@@ -107,17 +113,111 @@ der Produktivumgebung. So lässt sich alles gefahrlos „vortasten".
   befüllten Alt-DB und **E2E** im prod-nahen Docker-Stack. Das grüne Häkchen ist die
   Freigabe vor dem Pull auf die Server.
 
-**Test-Instanz technisch** (zwei gängige Wege):
-1. **Eigener kleiner VPS / Subdomain** (`test.buchung.…`) mit eigener `.env`,
-   eigenem `pgdata`-Volume und `SEED_DEMO=1`/`seed_demo --testdata` (Test-Konten
-   `admin`/`verwaltung`/`test`). Sauberste Trennung.
-2. **Zweiter Compose-Stack auf demselben Server** (eigenes Projektverzeichnis,
-   eigener Compose-Projektname, eigene Ports/Subdomain, **eigenes** DB-Volume).
-   Günstiger, aber teilt Ressourcen – Produktivdaten nie mischen.
+**Zwei Wege:**
+1. **Eigener kleiner VPS** (z. B. ein zweites CAX11, ~6–9 €/Monat brutto) – die
+   **sauberste, sicherste** Trennung (eigener Kernel/Host, kein Risiko für Prod).
+2. **Zweiter Compose-Stack auf DEMSELBEN Server** – **0 € extra**, aber es gibt ein
+   paar Fallstricke (s. 2.1). Mit den Vorkehrungen aus 2.2/2.3 gut beherrschbar.
 
-**Wichtig:** Die Test-Instanz bekommt **eigene** Secrets, **eigene** DB und **nie**
-echte Mitgliederdaten ungefragt (DSGVO). Für realistische Tests `seed_demo
---testdata` nutzen.
+### 2.1 Kann eine Test-Instanz auf demselben Server die Produktion stören?
+
+Die **Ressourcenfrage ist der kleinste Punkt** – Tests abends/lastarm fahren und
+optional Limits setzen (2.3) genügt. Die **realen** Risiken sind andere und alle
+durch saubere Trennung vermeidbar:
+
+| Risiko | Worum es geht | Vermeidung |
+|--------|---------------|------------|
+| **Container-/Projekt-Kollision** | Gleicher `docker-compose.yml` ⇒ gleicher Compose-**Projektname** ⇒ Compose würde die **Prod-Container neu erstellen/überschreiben**. | **Eigener** `COMPOSE_PROJECT_NAME` + eigenes Verzeichnis (2.2). |
+| **Volume-/DB-Kollision** | Gleicher Projektname ⇒ **geteiltes `pgdata`-Volume** ⇒ Test schreibt in die **Prod-Datenbank**. Katastrophal. | Eigener Projektname ⇒ eigenes Volume; `DATABASE_URL` zeigt auf die **Test-DB**, nie auf Prod. |
+| **Netz-/IP-Kollision** | Prod-`web` hat im Caddy-Netz die **feste IP `10.42.42.20`**. Ein zweiter Stack mit derselben IP kollidiert. | Test-`web` auf **andere feste IP** (z. B. `.21`) per Override (2.2). |
+| **Echte Nebenwirkungen** | Ein Testlauf könnte **echte E-Mails/Pushes** an echte Mitglieder schicken oder **echte Mollie-Zahlungen** auslösen (auch der Test-`cron` mit `send_outbox`!). | Test-`.env`: **E-Mail leer = Konsole**, **Mollie Sandbox** (kein Live-Key), **keine echten VAPID-Keys**, **synthetische** Daten (`seed_demo --testdata`). |
+| **DSGVO** | Echte Mitgliederdaten auf der Testinstanz ohne Grundlage. | Nur **synthetische** Seed-Daten verwenden. |
+| **Sicherheits-Pivot** | Eine verwundbare, öffentlich erreichbare Testinstanz auf demselben Host ist eine zusätzliche Angriffsfläche (im schlimmsten Fall Sprungbrett zur Prod). | Zugriff **einschränken** (Basic-Auth/IP-Allowlist/VPN), `noindex`, gleiche Härtung; **eigene** Secrets (Test-Leck gefährdet Prod nicht). |
+| **Platte voll** | Test-DB/Images/Backups füllen die Disk ⇒ **Prod-DB-Schreibfehler**. | Disk überwachen, regelmäßig `docker image prune`, ggf. Größe begrenzen. |
+| **Ressourcen-Ausreißer** | Last-/Endlostest erstickt kurzzeitig Prod. | Abends testen **und** optional CPU-/RAM-Limits am Test-Stack (2.3). |
+
+> Fazit: Auf demselben Server ist gut machbar – die Knackpunkte sind **Isolation**
+> (Projekt/Volume/DB/Netz) und **keine echten Nebenwirkungen** (Mail/Zahlung/Push),
+> nicht die Rechenleistung. Wer ganz sichergehen will, nimmt einen zweiten kleinen VPS.
+
+### 2.2 Anleitung: zweiter Stack auf demselben Server (Schritt für Schritt)
+
+```bash
+# 1) Zweites, getrenntes Verzeichnis + Test-Branch
+git clone <repo-url> /opt/rehof-test
+cd /opt/rehof-test
+git checkout staging
+
+# 2) Eigene .env (Kopie der Prod-.env, dann ANPASSEN – siehe unten)
+cp /opt/rehof/.env .env
+```
+
+In der **Test-`.env`** zwingend ändern:
+
+```dotenv
+COMPOSE_PROJECT_NAME=rehof-test          # eigener Projektname ⇒ eigene Container/Volumes
+SECRET_KEY=<NEU, eigener>                # NICHT den Prod-Key
+POSTGRES_DB=rehof_test                   # eigene DB
+POSTGRES_USER=rehof_test
+POSTGRES_PASSWORD=<NEU, eigener>
+ALLOWED_HOSTS=test.buchung.example.org
+CSRF_TRUSTED_ORIGINS=https://test.buchung.example.org
+PUBLIC_BASE_URL=https://test.buchung.example.org
+SEED_DEMO=1                              # Test-Daten beim ersten Start (danach auf 0!)
+# KEINE echten Nebenwirkungen:
+EMAIL_HOST=                              # leer ⇒ E-Mail nur auf die Konsole/Log
+# Mollie: KEIN Live-Key (Sandbox läuft ohne Key, im Backend ShopConfig)
+VAPID_PUBLIC_KEY=                        # kein echter Push
+VAPID_PRIVATE_KEY=
+```
+
+Eine **`docker-compose.override.yml`** im Test-Verzeichnis vergibt eine **andere
+feste IP** im Caddy-Netz (sonst Kollision mit Prod `.20`):
+
+```yaml
+services:
+  web:
+    networks:
+      caddy:
+        ipv4_address: 10.42.42.21   # Prod ist .20
+```
+
+Starten (eigener Projektname ⇒ keine Berührung mit Prod):
+
+```bash
+docker compose up -d --build         # nutzt COMPOSE_PROJECT_NAME aus der .env
+docker compose ps                    # healthy?  → SEED_DEMO danach wieder auf 0 setzen
+```
+
+**Caddy** um einen zweiten, **geschützten** Site-Block ergänzen:
+
+```caddy
+test.buchung.example.org {
+    @allowed remote_ip 203.0.113.0/24    # nur eigenes Netz/VPN
+    handle @allowed { reverse_proxy 10.42.42.21:8000 }
+    handle { respond "403" 403 }         # oder basicauth statt IP-Allowlist
+    header X-Robots-Tag "noindex, nofollow"
+}
+```
+
+### 2.3 Best Practices für die Test-Instanz
+
+- **Isolation zuerst:** eigener `COMPOSE_PROJECT_NAME`, eigenes Verzeichnis, eigene
+  DB + Volume, eigene feste IP. **Niemals** `DATABASE_URL` auf die Prod-DB zeigen.
+- **Keine echten Nebenwirkungen:** E-Mail = Konsole, Mollie = Sandbox, Push aus,
+  **synthetische** Daten (`seed_demo --testdata`) – so erreicht kein Testlauf echte
+  Mitglieder.
+- **Eigene Secrets** (Test-Leck gefährdet Prod nicht).
+- **Zugriff einschränken** (Basic-Auth/IP-Allowlist/VPN) + `noindex`.
+- **Abends/lastarm testen**; optional CPU-/RAM-Limits am Test-`web`/`db`
+  (`mem_limit`, `cpus`), damit ein Ausreißer Prod nicht erstickt.
+- **Disk im Blick:** `df -h`, regelmäßig `docker image prune`; Test-Volumes nach
+  größeren Versuchen aufräumen.
+- **Vor riskanten Tests:** ein **frisches Prod-Backup** ziehen (Abschnitt 6).
+- **Aufräumen:** Test-Stack nach Gebrauch stoppen (`docker compose down`), nicht
+  dauerhaft öffentlich laufen lassen.
+- **Gleiche Härtung** wie Prod (2FA, Updates) – die Testinstanz ist sonst das
+  schwächste Glied auf dem Host.
 
 ---
 
@@ -394,29 +494,60 @@ nicht produktiv gegangen werden.
 
 ## 7. Kosten (Schätzung, monatlich)
 
-| Posten | Anbieter-Beispiel | Kosten/Monat | Anmerkung |
-|--------|-------------------|--------------|-----------|
-| **VPS** | Hetzner CX22/CPX21 (2–3 vCPU, 4 GB) | **ca. 5–15 €** | empfohlene Größe; mehr bei Komfort/Reserve |
-| **Domain** | beliebiger Registrar | **ca. 1 €** | ~10–15 €/Jahr |
-| **Off-site-Backup** | Backblaze B2 / Hetzner Storage Box | **ca. 1–4 €** | DB ist klein; Storage Box BX11 ~3–4 € |
-| **E-Mail-Versand** | Brevo/Mailjet (Free/Starter) o. eigener SMTP | **0–10 €** | Free-Tier reicht für eine Genossenschaft oft aus |
-| **Online-Bezahlung** | Mollie | **0 € Grundgebühr** | **pro Transaktion** (SEPA ~0,25 €; Karte ~0,25 € + kleiner %); fällt nur bei Nutzung an |
-| **Fehler-Tracking** | Sentry (Free) | **0 €** | optional, Free-Tier genügt meist |
-| **TLS-Zertifikate** | Let's Encrypt via Caddy | **0 €** | automatisch |
-| **Redis** | im selben VPS-Container | **0 €** | optional, ab vielen Nutzern |
+> **Achtung Preisänderung:** Hetzner hat die Cloud-Preise 2026 mehrfach erhöht,
+> zuletzt zum **15. Juni 2026**. Am stärksten betroffen waren die **CPX**- und
+> **CCX**-Linien (bis ~+170–200 %); die **ARM-Linie CAX** stieg moderater (~+30 %).
+> Für diese App ist **ARM (CAX) weiterhin sehr günstig** – und das Docker-Image läuft
+> auf ARM (die Instanz läuft bereits auf CAX11).
 
-**Laufend gesamt: grob 8–25 €/Monat** (zzgl. Mollie-Transaktionsgebühren, falls
-Online-Zahlung genutzt wird).
+**Hetzner Cloud – aktuelle Richtpreise (Stand nach 15.06.2026, netto, ohne IPv4/USt):**
+
+| Server | vCPU / RAM / SSD | Preis/Monat (netto) | Eignung |
+|--------|------------------|---------------------|---------|
+| **CAX11** (ARM) | 2 / 4 GB / 40 GB | **~6 €** | aktuell genutzt; reicht bei wenig Last |
+| **CAX21** (ARM) | 4 / 8 GB / 80 GB | **~10–11 €** | **empfohlen** als Reserve für 60–100 aktive Nutzer |
+| **CAX31** (ARM) | 8 / 16 GB / 160 GB | **~21 €** | viel Reserve/Komfort |
+| CX22 (x86) | 2 / 4 GB / 40 GB | ~5 € | x86-Alternative |
+| CX32 (x86) | 4 / 8 GB / 80 GB | ~8–9 € | x86-Alternative |
+
+Hinzu kommen: **IPv4 ~0,50 €/Monat**, **19 % USt** und optional **Backups +20 %** des
+Serverpreises. 20 TB Traffic sind inklusive. Brutto-Beispiel CAX11 mit IPv4:
+~6,5 € × 1,19 ≈ **~7,7 €**; mit Backups ~**9,2 €**. CAX21 brutto ohne Backups
+≈ **~13 €**.
+
+**Gesamtkosten (monatlich, Richtwerte):**
+
+| Posten | Beispiel | Kosten/Monat |
+|--------|----------|--------------|
+| **VPS** | Hetzner **CAX11→CAX21** (ARM) | **~8–14 € brutto** (je nach Größe + Backups) |
+| **Domain** | beliebiger Registrar | ~1 € |
+| **Off-site-Backup** | Backblaze B2 / Hetzner Storage Box BX11 | ~1–4 € |
+| **E-Mail-Versand** | Brevo/Mailjet Free o. eigener SMTP | 0–10 € |
+| **Online-Bezahlung** | Mollie | 0 € Grund + **pro Transaktion** (SEPA/Karte ~0,25 € + ggf. kleiner %) |
+| **Fehler-Tracking** | Sentry (Free) | 0 € |
+| **TLS** | Let's Encrypt via Caddy | 0 € |
+| **Redis** | im selben VPS-Container | 0 € |
+
+**Laufend gesamt: grob 10–28 €/Monat** (zzgl. Mollie-Transaktionsgebühren bei
+Online-Zahlung).
+
+**Zur aktuellen Rechnung (12 €/Monat für CAX11):** Das liegt **über** dem aktuellen
+CAX11-Listenpreis (~6 € netto / ~7,7 € brutto mit IPv4). Wahrscheinliche Ursachen:
+**Backups-Add-on** (+20 %), eine **zusätzliche IPv4/Volume**, **Traffic-Übernutzung**
+oder ein **älterer/größerer Tarif**. Lohnt sich zu prüfen: **Hetzner-Konsole →
+Server → Rechnung/„Pricing"** zeigt die Einzelposten. Für mehr Reserve ohne großen
+Aufpreis ist **CAX21** (4 vCPU/8 GB) der naheliegende Schritt (~13 € brutto).
 
 **Einmalig / gelegentlich:**
 - **Einrichtung/Deployment:** in Eigenleistung 0 € (Zeitaufwand), extern je nach
   Dienstleister.
-- **Optional Sicherheits-Review/Pentest** vor Go-Live (empfehlenswert, aber kein Muss).
-- **Test-Instanz:** ein zweiter kleiner VPS schlägt mit weiteren ~5 €/Monat zu Buche
-  (oder 0 €, wenn als zweiter Stack auf demselben Server – dann aber Ressourcen teilen).
+- **Optional Sicherheits-Review/Pentest** vor Go-Live (empfehlenswert, kein Muss).
+- **Test-Instanz:** **0 €** als zweiter Stack auf demselben Server (Abschnitt 2.2)
+  oder ein eigener zweiter **CAX11** für volle Isolation (~8–9 €/Monat brutto).
 
-> Alle Beträge sind grobe Richtwerte (Stand 2026) und hängen von Anbieter, Tarif und
-> Nutzung ab. Vor Vertragsabschluss aktuelle Preise prüfen.
+> Alle Beträge sind grobe Richtwerte (Stand Juni 2026) und hängen von Anbieter,
+> Tarif, Region und Nutzung ab. **Vor Vertragsabschluss aktuelle Preise prüfen** –
+> Hetzner hat 2026 mehrfach angepasst.
 
 ---
 
