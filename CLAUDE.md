@@ -262,7 +262,8 @@ Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
 Service `services.run_fairness_simulation`. **Gemeinschafts-Spiegel** (`community`,
 `/gemeinschaft/`, login-pflichtig, ADR 0063): aggregierte, anonyme Transparenz –
 Auslastung (**quartalsweise als Inline-SVG-Kurve** `services.quarter_occupancy_curve`
-+ aktueller/kommender Monat im eingeklappten Detail, ADR 0074), Los-Ergebnis-
++ **alle Monate** des Kalenderjahrs im eingeklappten Detail
+`services._year_months_occupancy`, ADR 0074/0076), Los-Ergebnis-
 Historie, **Karma-Verteilung** (`services.community_stats`/`karma_distribution`) als
 schlanke **CSS-Balken**/SVG (kein JS); in der Sekundär-Nav („Gemeinschaft"). Den
 **eigenen** Ausgleichsfaktor zeigt eine Karte auf der **Wunschliste** (Karma-
@@ -677,11 +678,13 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   füllt eine Buchung eine freie Lücke **exakt** aus (beidseitig geschlossen –
   `services.is_gap_fill`), entfallen **Mindestnächte UND Vorausfrist** (Parallel/
   Deckel bleiben; `rules.validate_booking(skip_min_nights=…)`); greift in
-  `book_spontaneous` + `adjust_allocation`. **Kleinere Unterkünfte**
-  (`allow_undersized_units`, Default an, ADR 0076): erlaubt Buchung für **mehr**
-  Personen als ausgelegt (zu wenige bleiben gesperrt) – durchgesetzt in
-  `book_spontaneous`/`adjust_allocation`/`free_quarters_for`/`Allocation.clean`,
-  im UI als „kleiner als eure Gruppe" markiert (Badge + Bestätigungs-Hinweis).
+  `book_spontaneous` + `adjust_allocation`. **Personenzahl außerhalb des Rahmens**
+  (`allow_undersized_units`, Default an, ADR 0076): erlaubt Buchung für **mehr ODER
+  weniger** Personen als ausgelegt (z. B. wenn nichts Passendes mehr frei ist) –
+  durchgesetzt in `book_spontaneous`/`adjust_allocation`/`free_quarters_for`/
+  `Allocation.clean`, im UI als „kleiner als eure Gruppe" bzw. „größer als nötig"
+  markiert (Badge + Bestätigungs-Hinweis). **Gruppe** ab `group_min_persons`
+  (Default 6).
   **Weiche Richtwerte (nur Anzeige, ADR 0076):** **Winter**
   (`winter_guideline_nights`, `services.winter_usage`) ist ein **Mindestwert pro
   vollem Anteil** (Tage Okt–März, bei Tandems anteilig; KEIN Maximum); **Wochenenden**

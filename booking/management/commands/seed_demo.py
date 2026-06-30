@@ -380,7 +380,7 @@ class Command(BaseCommand):
         policy.default_min_nights = 3
         policy.min_lead_days = 7
         policy.allow_gap_fill = True
-        policy.group_min_persons = 3
+        policy.group_min_persons = 6             # Gruppe ab 6 Personen
         policy.winter_guideline_nights = 20      # Mindestwert pro vollem Anteil
         policy.max_weekends_per_year = 9         # Höchstwert je Mitglied/Jahr
         policy.allow_undersized_units = True     # kleinere Unterkünfte zulassen

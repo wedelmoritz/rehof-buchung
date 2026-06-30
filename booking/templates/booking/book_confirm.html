@@ -28,10 +28,12 @@
     <div class="msg warning">{{ block_reason }}</div>
     {% endif %}
     {% if undersized %}
-    <div class="msg warning">Diese Unterkunft ist <strong>kleiner als eure Gruppe</strong>:
-      ausgelegt für bis zu {{ quarter.max_occupancy }} Personen, ihr seid {{ persons }}.
-      Buchung ist möglich (nichts Passendes mehr frei) – bitte achtet selbst auf eine
-      vertretbare Belegung.</div>
+    <div class="msg warning">{% if persons > quarter.max_occupancy %}Diese Unterkunft ist
+      <strong>kleiner als eure Gruppe</strong>: ausgelegt für bis zu {{ quarter.max_occupancy }}
+      Personen, ihr seid {{ persons }}.{% else %}Diese Unterkunft ist <strong>größer als nötig</strong>:
+      ausgelegt für {{ quarter.min_occupancy }}–{{ quarter.max_occupancy }} Personen, ihr seid
+      {{ persons }}.{% endif %} Buchung ist möglich (nichts Passendes mehr frei) – bitte achtet
+      selbst auf eine vertretbare Belegung.</div>
     {% endif %}
     {% if enough_days %}
     <p style="margin:.6rem 0 0">Nach dieser Buchung hast du noch
@@ -47,7 +49,8 @@
       <div class="field" style="flex:0 0 9rem">
         <label for="id_persons">Personen</label>
         <input type="number" id="id_persons" name="persons" value="{{ persons }}"
-               min="{{ quarter.min_occupancy }}" max="{% if allow_under %}20{% else %}{{ quarter.max_occupancy }}{% endif %}">
+               min="{% if allow_under %}1{% else %}{{ quarter.min_occupancy }}{% endif %}"
+               max="{% if allow_under %}20{% else %}{{ quarter.max_occupancy }}{% endif %}">
       </div>
       <div class="field" style="flex:1 1 16rem">
         <label for="id_companions">Begleitung (mit wem reist du an?)</label>

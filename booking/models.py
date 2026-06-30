@@ -561,12 +561,12 @@ class Allocation(models.Model):
             errors["end"] = "Die Abreise muss nach der Anreise liegen."
         if self.quarter_id and self.start and self.end and self.end > self.start:
             if self.persons:
-                too_few = self.persons < self.quarter.min_occupancy
-                # Zu große Gruppe ist erlaubt, wenn die Richtlinie kleinere
-                # Unterkünfte zulässt (ADR 0076) – sonst Fehler.
-                too_many = (self.persons > self.quarter.max_occupancy
-                            and not BookingPolicy.get_solo().allow_undersized_units)
-                if too_few or too_many:
+                # Personenzahl außerhalb des ausgelegten Rahmens (zu viele ODER zu
+                # wenige) ist erlaubt, wenn die Richtlinie es zulässt (ADR 0076,
+                # z. B. wenn nichts Passendes mehr frei ist) – sonst Fehler.
+                outside = not (self.quarter.min_occupancy <= self.persons
+                               <= self.quarter.max_occupancy)
+                if outside and not BookingPolicy.get_solo().allow_undersized_units:
                     errors["persons"] = (
                         f"{self.quarter.name} ist für {self.quarter.min_occupancy}–"
                         f"{self.quarter.max_occupancy} Personen ausgelegt.")
@@ -974,7 +974,7 @@ class BookingPolicy(models.Model):
                   "Mindestnächte-Regel und die Vorausfrist.",
     )
     group_min_persons = models.PositiveIntegerField(
-        "Gruppe ab Personen", default=3,
+        "Gruppe ab Personen", default=6,
         help_text="Ab dieser Personenzahl gilt eine Buchung als Gruppe – dann "
                   "werden Gruppen-Wohneinheiten (z. B. Stallgebäude) zuerst "
                   "angezeigt. Nur Reihenfolge/Hinweis, keine Sperre.",
@@ -993,11 +993,11 @@ class BookingPolicy(models.Model):
                   "Hinweis angezeigt, wenn man sich diesem Höchstwert nähert.",
     )
     allow_undersized_units = models.BooleanField(
-        "Kleinere Unterkünfte zulassen", default=True,
-        help_text="Erlaubt, eine Unterkunft auch für MEHR Personen zu buchen, als "
-                  "sie ausgelegt ist (z. B. wenn nichts Passendes mehr frei ist). "
-                  "Die Buchung wird dann deutlich als „kleiner als eure Gruppe“ "
-                  "gekennzeichnet.",
+        "Personenzahl außerhalb des Rahmens zulassen", default=True,
+        help_text="Erlaubt, eine Unterkunft auch für MEHR oder WENIGER Personen zu "
+                  "buchen, als sie ausgelegt ist (z. B. wenn nichts Passendes mehr "
+                  "frei ist). Die Buchung wird dann deutlich gekennzeichnet "
+                  "(„kleiner als eure Gruppe“ bzw. „größer als nötig“).",
     )
 
     class Meta:

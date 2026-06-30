@@ -146,17 +146,19 @@ class PolicyViewRenderTests(PolicyBase):
         super().setUp()
         self.q.prefer_for_groups = True
         self.q.building = "Stallgebäude"
-        self.q.save(update_fields=["prefer_for_groups", "building"])
+        self.q.max_occupancy = 8        # passt zur Gruppe (kein „undersized")
+        self.q.save(update_fields=["prefer_for_groups", "building", "max_occupancy"])
         SeasonRule.objects.create(
             name="Pfingsten", start_month=5, start_day=22, end_month=5,
             end_day=27, max_parallel_units=2, active=True)
         self.client.force_login(self.alice.user)
 
     def test_book_zeigt_hinweis_und_gruppen_reihung(self):
+        # Gruppe = ab 6 Personen (ADR 0076).
         s = date(TODAY.year, 5, 23)
         r = self.client.get(
             f"/buchen/?start={s.isoformat()}&end={(s + timedelta(days=3)).isoformat()}"
-            f"&persons=4&year={s.year}&month={s.month}")
+            f"&persons=6&year={s.year}&month={s.month}")
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Begehrte Zeit")
         self.assertContains(r, "Stallgebäude")
@@ -226,6 +228,19 @@ class UndersizedTests(PolicyBase):
                                       persons=6)   # q ist für max 4 ausgelegt
         self.assertIsNotNone(a, err)
         self.assertEqual(a.persons, 6)
+
+    def test_zu_wenige_personen_erlaubt(self):
+        # Unterkunft mit Mindestbelegung 3; Anreise mit nur 1 Person ist erlaubt,
+        # wenn die Richtlinie es zulässt (alles andere belegt, ADR 0076).
+        self.policy.allow_undersized_units = True
+        self.policy.save(update_fields=["allow_undersized_units"])
+        big = Quarter.objects.create(name="Gross", eq_class=self.cls,
+                                     min_occupancy=3, max_occupancy=8)
+        s = TODAY + timedelta(days=10)
+        a, err = svc.book_spontaneous(self.alice, big, s, s + timedelta(days=4),
+                                      persons=1)
+        self.assertIsNotNone(a, err)
+        self.assertEqual(a.persons, 1)
 
     def test_gesperrt_wenn_aus(self):
         self.policy.allow_undersized_units = False

@@ -46,11 +46,13 @@ def book_spontaneous(
     if nights <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
     persons = int(persons or 0)
-    # Zu große Gruppe für eine kleine Unterkunft ist erlaubt, wenn die Richtlinie
-    # das zulässt (ADR 0076) – die Buchung wird im UI als „kleiner als eure Gruppe"
-    # gekennzeichnet. Zu wenige Personen (Unterkunft zu groß) bleibt gesperrt.
-    too_many = persons > quarter.max_occupancy and not undersized_allowed()
-    if persons < quarter.min_occupancy or too_many:
+    if persons < 1:
+        return None, "Bitte mindestens 1 Person angeben."
+    # Personenzahl außerhalb des ausgelegten Rahmens (zu viele ODER zu wenige) ist
+    # erlaubt, wenn die Richtlinie es zulässt (ADR 0076, z. B. wenn nichts Passendes
+    # mehr frei ist); im UI deutlich gekennzeichnet.
+    outside = not (quarter.min_occupancy <= persons <= quarter.max_occupancy)
+    if outside and not undersized_allowed():
         return None, (f"{quarter.name} ist für {quarter.min_occupancy}–"
                       f"{quarter.max_occupancy} Personen ausgelegt "
                       f"(angegeben: {persons}).")
@@ -177,9 +179,9 @@ def free_quarters_for(start: date, end: date, persons: int, exclude_id=None):
     for q in Quarter.objects.order_by("name"):
         if exclude_id and q.id == exclude_id:
             continue
-        # Zu große Gruppe nur, wenn die Richtlinie kleinere Unterkünfte zulässt.
-        if persons < q.min_occupancy or (
-                persons > q.max_occupancy and not allow_under):
+        # Personenzahl außerhalb des Rahmens nur, wenn die Richtlinie es zulässt.
+        outside = not (q.min_occupancy <= persons <= q.max_occupancy)
+        if outside and not allow_under:
             continue
         if range_is_released(q, start, end) and quarter_is_free(q, start, end):
             out.append(q)
@@ -361,10 +363,10 @@ def adjust_allocation(member: Member, allocation_id, new_start: date,
             and persons == a.persons:
         return False, "Keine Änderung."
 
-    # Personenzahl muss zur (ggf. neuen) Unterkunft passen – zu große Gruppe nur,
-    # wenn die Richtlinie kleinere Unterkünfte zulässt (ADR 0076).
-    too_many = persons > new_q.max_occupancy and not undersized_allowed()
-    if persons < new_q.min_occupancy or too_many:
+    # Personenzahl muss zur (ggf. neuen) Unterkunft passen – außerhalb des Rahmens
+    # (mehr ODER weniger) nur, wenn die Richtlinie es zulässt (ADR 0076).
+    outside = not (new_q.min_occupancy <= persons <= new_q.max_occupancy)
+    if persons < 1 or (outside and not undersized_allowed()):
         return False, (f"{new_q.name}: {new_q.min_occupancy}–{new_q.max_occupancy} "
                        f"Personen (gewählt {persons}).")
 

@@ -14,8 +14,8 @@ from .notify import absolute_url, queue_email_many
 
 __all__ = [
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
-    '_month_occupancy', 'quarter_occupancy_curve', 'dashboard_stats',
-    'karma_distribution', 'community_stats', 'arrivals_in_range',
+    '_month_occupancy', 'quarter_occupancy_curve', '_year_months_occupancy',
+    'dashboard_stats', 'karma_distribution', 'community_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
@@ -194,10 +194,10 @@ def quarter_occupancy_curve(year: int) -> dict:
     bestätigte externe Gäste) und rechnet die Prozentwerte gleich in SVG-Koordinaten
     um, damit das Template ohne Mathematik (und ohne JS, CSP-konform) zeichnen kann.
 
-    Geometrie passend zu `viewBox 0 0 320 120`: linke Achse bei x=34, Nulllinie
-    (0&nbsp;%) bei y=96, 100&nbsp;% bei y=12."""
-    PAD_L, BASE_Y, TOP_Y = 34.0, 96.0, 12.0
-    STEP = (320.0 - PAD_L - 12.0) / 3.0        # 4 Quartals-Punkte, 3 Abstände
+    Geometrie passend zu `viewBox 0 0 360 160`: linke Achse bei x=40, Nulllinie
+    (0&nbsp;%) bei y=126, 100&nbsp;% bei y=18, Quartals-Beschriftung bei y=148."""
+    PAD_L, BASE_Y, TOP_Y = 40.0, 126.0, 18.0
+    STEP = (360.0 - PAD_L - 16.0) / 3.0        # 4 Quartals-Punkte, 3 Abstände
     SPAN_Y = BASE_Y - TOP_Y                     # Höhe für 100 %
     points = []
     for q in range(4):
@@ -210,14 +210,32 @@ def quarter_occupancy_curve(year: int) -> dict:
         x = round(PAD_L + q * STEP, 1)
         y = round(BASE_Y - SPAN_Y * pct / 100.0, 1)
         # Wert-Label über dem Punkt, sonst (bei sehr hoher Auslastung) darunter.
-        vy = round(y - 7 if y - 7 >= TOP_Y + 3 else y + 14, 1)
+        vy = round(y - 9 if y - 9 >= TOP_Y + 2 else y + 17, 1)
+        # Randpunkte links/rechts ausrichten, damit der Wert nicht die Achsen-
+        # Beschriftung (links) bzw. den Rand (rechts) überlappt.
+        anchor = "start" if q == 0 else ("end" if q == 3 else "middle")
         points.append({"label": f"Q{q + 1}", "pct": pct, "booked": booked,
-                       "possible": possible, "x": x, "y": y, "vy": vy})
+                       "possible": possible, "x": x, "y": y, "vy": vy,
+                       "anchor": anchor})
     line = " ".join(f"{p['x']},{p['y']}" for p in points)
     area = (f"{points[0]['x']},{BASE_Y} " + line +
             f" {points[-1]['x']},{BASE_Y}")
     return {"year": year, "points": points, "line": line, "area": area,
             "base_y": BASE_Y}
+
+
+_MONTHS_DE_ABBR = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug",
+                   "Sep", "Okt", "Nov", "Dez"]
+
+
+def _year_months_occupancy(year: int) -> list[dict]:
+    """Auslastung **je Monat** des Kalenderjahres (für den aufklappbaren Detail-
+    Block im Gemeinschafts-Spiegel, ADR 0076). Kurze Monatslabel + Prozent."""
+    out = []
+    for m in range(1, 13):
+        mo = _month_occupancy(year, m)
+        out.append({"label": _MONTHS_DE_ABBR[m], "month": m, "pct": mo["pct"]})
+    return out
 
 
 def dashboard_stats() -> dict:
@@ -295,6 +313,7 @@ def community_stats() -> dict:
         "occ_current": _month_occupancy(today.year, today.month),
         "occ_next": _month_occupancy(ny, nm),
         "occ_quarters": quarter_occupancy_curve(today.year),
+        "occ_months": _year_months_occupancy(today.year),
         "lottery_history": history,
         "karma": karma_distribution(),
         "n_members": Member.objects.filter(is_external=False).count(),

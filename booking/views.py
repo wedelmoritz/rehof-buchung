@@ -227,13 +227,13 @@ def book_confirm(request):
         messages.error(request, f"{quarter.name} ist in diesem Zeitraum bereits belegt.")
         return redirect("book")
 
-    if persons < quarter.min_occupancy:
-        persons = quarter.min_occupancy
     allow_under = svc.undersized_allowed()
-    if persons > quarter.max_occupancy and not allow_under:
-        persons = quarter.max_occupancy
-    # „Kleiner als eure Gruppe" – nur möglich, wenn die Richtlinie es zulässt.
-    undersized = persons > quarter.max_occupancy
+    # Ohne Richtlinie auf den ausgelegten Rahmen klemmen; mit Richtlinie bleibt die
+    # gewählte Personenzahl erhalten (außerhalb des Rahmens, deutlich markiert).
+    if not allow_under:
+        persons = max(quarter.min_occupancy, min(persons, quarter.max_occupancy))
+    persons = max(1, persons)
+    undersized = not (quarter.min_occupancy <= persons <= quarter.max_occupancy)
 
     remaining_now = member.nights_remaining_in_year(start.year)
     # Mitbuchbare Dienstleistungen (z.B. Endreinigung) – Verfügbarkeit am Abreisetag.
@@ -392,10 +392,9 @@ def book(request):
         gap_relevant = reason is not None and waived is None
         allow_under = svc.undersized_allowed()
         for q in free_quarters:
-            too_small_group = persons < q.min_occupancy   # Unterkunft zu groß
-            too_big_group = persons > q.max_occupancy     # Unterkunft zu klein
-            fits_persons = not too_small_group and not too_big_group
-            undersized = too_big_group and allow_under
+            fits_persons = q.min_occupancy <= persons <= q.max_occupancy
+            # Außerhalb des Rahmens (zu viele ODER zu wenige) buchbar, wenn erlaubt.
+            undersized = (not fits_persons) and allow_under
             fits_access = (not need_accessible) or q.accessible
             gap_fill = gap_relevant and svc.gap_fill_allowed(q, eff_start, eff_end)
             q_reason = waived if gap_fill else reason

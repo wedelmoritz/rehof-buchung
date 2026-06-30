@@ -13,35 +13,36 @@
   <p class="sm muted" style="margin:0 0 .3rem">Jahr {{ occ.year }}, quartalsweise –
     gebuchte gegen mögliche Unterkunfts-Nächte (Mitglieder + bestätigte externe Gäste).</p>
   <figure class="occ-fig">
-    <svg class="occ-chart" viewBox="0 0 320 120" role="img"
+    <svg class="occ-chart" viewBox="0 0 360 160" role="img"
          aria-label="Auslastung je Quartal {{ occ.year }}: {% for p in occ.points %}{{ p.label }} {{ p.pct }} Prozent{% if not forloop.last %}, {% endif %}{% endfor %}.">
-      <line class="occ-grid" x1="34" y1="12" x2="308" y2="12"/>
-      <line class="occ-grid dash" x1="34" y1="54" x2="308" y2="54"/>
-      <line class="occ-axis" x1="34" y1="96" x2="308" y2="96"/>
+      <line class="occ-grid" x1="40" y1="18" x2="344" y2="18"/>
+      <line class="occ-grid dash" x1="40" y1="72" x2="344" y2="72"/>
+      <line class="occ-axis" x1="40" y1="126" x2="344" y2="126"/>
       <polygon class="occ-area" points="{{ occ.area }}"/>
       <polyline class="occ-line" points="{{ occ.line }}"/>
       {% for p in occ.points %}
-      <circle class="occ-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="3.2"/>
-      <text class="occ-val" x="{{ p.x }}" y="{{ p.vy }}">{{ p.pct }}&#8201;%</text>
-      <text class="occ-q" x="{{ p.x }}" y="112">{{ p.label }}</text>
+      <line class="occ-grid v" x1="{{ p.x }}" y1="18" x2="{{ p.x }}" y2="126"/>
+      <circle class="occ-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="3.6"/>
+      <text class="occ-val {{ p.anchor }}" x="{{ p.x }}" y="{{ p.vy }}">{{ p.pct }}&#8201;%</text>
+      <text class="occ-q" x="{{ p.x }}" y="148">{{ p.label }}</text>
       {% endfor %}
-      <text class="occ-ax" x="30" y="15">100</text>
-      <text class="occ-ax" x="30" y="57">50</text>
-      <text class="occ-ax" x="30" y="99">0</text>
+      <text class="occ-ax" x="36" y="22">100&#8201;%</text>
+      <text class="occ-ax" x="36" y="76">50&#8201;%</text>
+      <text class="occ-ax" x="36" y="130">0&#8201;%</text>
     </svg>
   </figure>
   {% endwith %}
-  {% with cur=stats.occ_current nxt=stats.occ_next %}
+  {% if stats.occ_months %}
   <details class="occ-detail">
-    <summary>Aktueller &amp; kommender Monat im Detail</summary>
-    <div class="mbar" style="margin-top:.5rem"><span class="mbar-lbl">{{ cur.label }}</span>
-      <span class="mbar-track"><span class="mbar-fill" style="width:{{ cur.pct }}%"></span></span>
-      <span class="mbar-val">{{ cur.pct }}&nbsp;%</span></div>
-    <div class="mbar"><span class="mbar-lbl">{{ nxt.label }}</span>
-      <span class="mbar-track"><span class="mbar-fill" style="width:{{ nxt.pct }}%"></span></span>
-      <span class="mbar-val">{{ nxt.pct }}&nbsp;%</span></div>
+    <summary>Alle Monate im Detail</summary>
+    {% for m in stats.occ_months %}
+    <div class="mbar" {% if forloop.first %}style="margin-top:.5rem"{% endif %}>
+      <span class="mbar-lbl">{{ m.label }}</span>
+      <span class="mbar-track"><span class="mbar-fill" style="width:{{ m.pct }}%"></span></span>
+      <span class="mbar-val">{{ m.pct }}&nbsp;%</span></div>
+    {% endfor %}
   </details>
-  {% endwith %}
+  {% endif %}
 </div>
 
 {% if stats.lottery_history %}
@@ -85,17 +86,20 @@
   .mbar-val { flex:0 0 3.4rem; text-align:right; font-variant-numeric:tabular-nums;
     font-size:.9rem; }
   .occ-fig { margin:.2rem 0; }
-  .occ-chart { display:block; width:100%; max-width:440px; height:auto; }
+  .occ-chart { display:block; width:100%; max-width:480px; height:auto; }
   .occ-grid { stroke:var(--line); stroke-width:1; }
   .occ-grid.dash { stroke-dasharray:3 3; }
+  .occ-grid.v { stroke:var(--line); stroke-width:1; opacity:.6; }
   .occ-axis { stroke:var(--muted); stroke-width:1; }
   .occ-area { fill:var(--accent-soft); stroke:none; }
-  .occ-line { fill:none; stroke:var(--accent); stroke-width:2;
+  .occ-line { fill:none; stroke:var(--accent); stroke-width:2.4;
     stroke-linejoin:round; stroke-linecap:round; }
   .occ-dot { fill:var(--accent); }
-  .occ-val { font:700 9px system-ui,sans-serif; fill:var(--accent-deep); text-anchor:middle; }
-  .occ-q { font:600 10px system-ui,sans-serif; fill:var(--ink); text-anchor:middle; }
-  .occ-ax { font:500 8px system-ui,sans-serif; fill:var(--muted); text-anchor:end; }
+  .occ-val { font:700 11px system-ui,sans-serif; fill:var(--accent-deep); text-anchor:middle; }
+  .occ-val.start { text-anchor:start; }
+  .occ-val.end { text-anchor:end; }
+  .occ-q { font:700 13px system-ui,sans-serif; fill:var(--ink); text-anchor:middle; }
+  .occ-ax { font:500 9px system-ui,sans-serif; fill:var(--muted); text-anchor:end; }
   .occ-detail { margin-top:.6rem; }
   .occ-detail > summary { cursor:pointer; color:var(--accent-deep); font-weight:600;
     font-size:.9rem; }
