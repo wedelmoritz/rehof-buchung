@@ -40,6 +40,10 @@
       (erst alle Erstwünsche, dann Zweitwünsche …); die Reihenfolge ist fair gewichtet
       (wer früher verloren hat, hat mehr Gewicht). Taktieren bringt nichts –
       <a href="{% url 'help' %}#losung">ausführliche Erklärung →</a></p>
+    <p class="muted" style="margin:.3rem 0 0">Mindestnächte und Saison-Grenzen gelten wie
+      beim Buchen; das <strong>Parallel-Limit</strong> in begehrten Zeiten wirkt erst in der
+      Auslosung. Wie die Regeln auf Wünsche &amp; Losung wirken, steht
+      <a href="{% url 'help' %}#regeln-losung">in der Hilfe</a>.</p>
     {% if period.seed_commit %}
     <div class="muted" style="margin-top:.4rem"><strong>Verifizierbar:</strong> Der Zufalls-Seed
       der Ziehung steht bereits fest – seine Prüfsumme (SHA-256):
@@ -139,6 +143,14 @@
 
 <div class="card" id="wunschliste">
   <h2>Meine Wünsche</h2>
+  {% if wish_weekends and wish_weekends.booked %}
+  <p class="muted" style="margin:.1rem 0 .5rem;font-size:.9rem">📅 Deine Wünsche umfassen
+    <strong>{{ wish_weekends.booked }}</strong> Wochenende{{ wish_weekends.booked|pluralize:"n" }}{% if wish_weekends.target %}
+    (Richtwert höchstens {{ wish_weekends.target }}){% endif %}.{% if wish_weekends.over %}
+    <strong>Das ist völlig in Ordnung</strong> – du darfst ruhig mehr wünschen, als am Ende
+    erfüllt wird: Über die Losung gehen höchstens <strong>{{ wish_budget }} Nächte</strong>,
+    der Rest ist Rückfall.{% endif %}</p>
+  {% endif %}
   {% if wishlist_submitted %}
     <div class="msg success">Deine Wünsche sind im Lostopf eingereicht. Zum Bearbeiten erst zurückziehen.</div>
     <div class="table-wrap"><table>

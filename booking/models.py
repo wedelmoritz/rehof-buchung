@@ -560,12 +560,16 @@ class Allocation(models.Model):
         if self.start and self.end and self.end <= self.start:
             errors["end"] = "Die Abreise muss nach der Anreise liegen."
         if self.quarter_id and self.start and self.end and self.end > self.start:
-            if self.persons and not (
-                    self.quarter.min_occupancy <= self.persons
-                    <= self.quarter.max_occupancy):
-                errors["persons"] = (
-                    f"{self.quarter.name} ist für {self.quarter.min_occupancy}–"
-                    f"{self.quarter.max_occupancy} Personen ausgelegt.")
+            if self.persons:
+                too_few = self.persons < self.quarter.min_occupancy
+                # Zu große Gruppe ist erlaubt, wenn die Richtlinie kleinere
+                # Unterkünfte zulässt (ADR 0076) – sonst Fehler.
+                too_many = (self.persons > self.quarter.max_occupancy
+                            and not BookingPolicy.get_solo().allow_undersized_units)
+                if too_few or too_many:
+                    errors["persons"] = (
+                        f"{self.quarter.name} ist für {self.quarter.min_occupancy}–"
+                        f"{self.quarter.max_occupancy} Personen ausgelegt.")
             clash = Allocation.objects.filter(
                 quarter_id=self.quarter_id, start__lt=self.end, end__gt=self.start)
             if self.pk:
@@ -976,10 +980,24 @@ class BookingPolicy(models.Model):
                   "angezeigt. Nur Reihenfolge/Hinweis, keine Sperre.",
     )
     winter_guideline_nights = models.PositiveIntegerField(
-        "Richtwert Tage Oktober–März", default=20,
-        help_text="Orientierung (kein Limit): empfohlene Anzahl Tage im "
-                  "Winterhalbjahr Oktober–März, damit sich die Buchungen übers "
-                  "Jahr verteilen.",
+        "Richtwert MINDEST-Tage Okt–März (pro vollem Anteil)", default=20,
+        help_text="Orientierung (kein Limit): so viele Tage sollten MINDESTENS ins "
+                  "Winterhalbjahr Okt–März fallen, damit sich die Buchungen übers "
+                  "Jahr verteilen. Gilt pro vollem Anteil (50 Tage); bei Teil-/"
+                  "Tandem-Anteilen anteilig weniger. Kein Maximum.",
+    )
+    max_weekends_per_year = models.PositiveIntegerField(
+        "Richtwert HÖCHST-Wochenenden/Jahr", default=9,
+        help_text="Orientierung (kein Limit): so viele Wochenenden je Mitglied und "
+                  "Jahr sind fair (bei voller Gemeinschaft). Beim Buchen wird ein "
+                  "Hinweis angezeigt, wenn man sich diesem Höchstwert nähert.",
+    )
+    allow_undersized_units = models.BooleanField(
+        "Kleinere Unterkünfte zulassen", default=True,
+        help_text="Erlaubt, eine Unterkunft auch für MEHR Personen zu buchen, als "
+                  "sie ausgelegt ist (z. B. wenn nichts Passendes mehr frei ist). "
+                  "Die Buchung wird dann deutlich als „kleiner als eure Gruppe“ "
+                  "gekennzeichnet.",
     )
 
     class Meta:

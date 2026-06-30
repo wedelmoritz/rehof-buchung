@@ -11,9 +11,17 @@
   <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage verfügbar.
     Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
   {% if winter and winter.target %}
-  <p class="muted" style="margin:.2rem 0 0;font-size:.88rem">🌙 Richtwert Winterhalbjahr
-    ({{ winter.label }}): <strong>{{ winter.booked }}</strong> von {{ winter.target }} Tagen gebucht.
-    <span class="muted">Verteile deine Tage übers Jahr – das entlastet die begehrte Sommerzeit.</span></p>
+  <p class="muted" style="margin:.2rem 0 0;font-size:.88rem">🌙 Winter ({{ winter.label }}):
+    <strong>{{ winter.booked }}</strong>/{{ winter.target }} Tage{% if winter.reached %} ✓{% endif %}.
+    <span class="muted">Richtwert: <strong>mindestens</strong> so viele Tage ins Winterhalbjahr
+    legen – das verteilt die Nutzung übers Jahr (kein Maximum).</span></p>
+  {% endif %}
+  {% if weekend and weekend.target %}
+  <p style="margin:.2rem 0 0;font-size:.88rem;color:{% if weekend.near %}var(--warn){% else %}var(--muted){% endif %}">
+    📅 Wochenenden {{ weekend.year }}: <strong>{{ weekend.booked }}</strong>/{{ weekend.target }}.
+    {% if weekend.over %}<strong>Richtwert erreicht</strong> – bitte den anderen die begehrten Wochenenden lassen.
+    {% elif weekend.near %}Du näherst dich dem Richtwert (<strong>Höchstwert</strong>).
+    {% else %}<span class="muted">Richtwert: <strong>höchstens</strong> so viele Wochenenden im Jahr.</span>{% endif %}</p>
   {% endif %}
   <form method="get" class="filters">
     <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">

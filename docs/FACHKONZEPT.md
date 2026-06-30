@@ -127,11 +127,20 @@ konfigurierbar im Backend, greifen bei der **Spontanbuchung**:
   Zeitraum-/Saison-Grenze an), entfallen **Mindestnächte UND Vorausfrist** – kurze
   Lücken lassen sich so immer in ihrer Länge füllen, auch kurzfristig. Reine Logik
   `services.is_gap_fill`; Parallel-Limit/Deckel bleiben.
+- **Kleinere Unterkünfte** (`allow_undersized_units`, Default an, ADR 0076): erlaubt,
+  eine Unterkunft auch für **mehr** Personen zu buchen, als sie ausgelegt ist (zu
+  **wenige** bleiben gesperrt) – greift in Buchung/Anpassen/Backend; im UI deutlich
+  als „kleiner als eure Gruppe" markiert.
 - **Richtwerte (nur Hinweise, keine Sperren):** Gruppe ab `group_min_persons`
   Personen → Wohneinheiten mit `Quarter.prefer_for_groups` (z. B. Stallgebäude)
-  werden zuerst angeboten (`services.is_group_booking`); Winter-Richtwert
-  `winter_guideline_nights` (Tage Okt–März) → Anzeige „X von N Tagen gebucht"
-  (`services.winter_usage`) auf Übersicht/Buchen.
+  werden zuerst angeboten (`services.is_group_booking`).
+  **Winter** (`winter_guideline_nights`, ADR 0076) ist ein **Mindestwert pro vollem
+  Anteil** (Tage Okt–März; bei Tandems anteilig skaliert mit dem Tage-Budget;
+  „mindestens", KEIN Maximum) – `services.winter_usage`.
+  **Wochenenden** (`max_weekends_per_year`) ist umgekehrt ein **Höchstwert** je
+  Mitglied/Jahr – `services.weekend_usage` (zählt Fr-/Sa-Nächte je Wochenende
+  einmal, reine Logik `availability.weekend_keys`) warnt beim Annähern. Beide auf
+  Übersicht/Buchen.
 
 **Begehrte Zeiten (Schulferien + Brücken-/Feiertage):** sind über `max_parallel_units`
 (= 2 Wohneinheiten je Partei) geregelt; zusätzlich erscheint beim Buchen/Wünschen

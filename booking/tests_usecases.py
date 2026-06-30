@@ -397,6 +397,10 @@ class BuchungsFlowTests(UseCaseBase):
         self.open_full_year_window(NEXT_YEAR)
 
     def test_personenzahl_wird_geprueft_und_gespeichert(self):
+        # Strikter Modus: kleinere Unterkünfte NICHT zulassen (ADR 0076).
+        p = BookingPolicy.get_solo()
+        p.allow_undersized_units = False
+        p.save(update_fields=["allow_undersized_units"])
         s = date(NEXT_YEAR, 4, 1)
         e = s + timedelta(days=3)
         # k1 ist für 1–4 Personen ausgelegt -> 10 Personen werden abgelehnt
@@ -1345,6 +1349,10 @@ class BuchungAnpassenTests(UseCaseBase):
         self.assertEqual(a.persons, 3)
 
     def test_personenzahl_ueber_max_blockiert(self):
+        # Strikter Modus: kleinere Unterkünfte NICHT zulassen (ADR 0076).
+        p = BookingPolicy.get_solo()
+        p.allow_undersized_units = False
+        p.save(update_fields=["allow_undersized_units"])
         s = date(NEXT_YEAR, 6, 10)
         a, _ = svc.book_spontaneous(self.alice, self.k1, s, s + timedelta(days=4),
                                     persons=2)
@@ -1751,6 +1759,10 @@ class AdminBuchungsregelnTests(UseCaseBase):
 
     def test_personenzahl_ausserhalb_quartiersrahmen_abgelehnt(self):
         from django.core.exceptions import ValidationError
+        # Strikter Modus: kleinere Unterkünfte NICHT zulassen (ADR 0076).
+        p = BookingPolicy.get_solo()
+        p.allow_undersized_units = False
+        p.save(update_fields=["allow_undersized_units"])
         a = Allocation(
             member=self.alice, quarter=self.k1, persons=99, source="spontaneous",
             start=date(2026, 7, 1), end=date(2026, 7, 8))

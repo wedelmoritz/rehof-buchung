@@ -6,7 +6,8 @@
 {# --- Status-Zeile: schlanke Chips statt Banner/Karten (ADR 0059) --- #}
 <div class="ov-status">
   {% if member %}<a class="ov-chip" href="{% url 'book' %}"><strong>{{ nights_remaining }}</strong> Tage frei · buchen →</a>{% endif %}
-  {% if winter and winter.target %}<span class="ov-chip" title="Richtwert: verteile deine Tage übers Jahr ({{ winter.label }})">🌙 Winter <strong>{{ winter.booked }}</strong>/{{ winter.target }}</span>{% endif %}
+  {% if winter and winter.target %}<span class="ov-chip" title="Richtwert (Mindestwert): mindestens so viele Tage ins Winterhalbjahr legen ({{ winter.label }})">🌙 Winter <strong>{{ winter.booked }}</strong>/{{ winter.target }}{% if winter.reached %} ✓{% endif %}</span>{% endif %}
+  {% if weekend and weekend.target %}<span class="ov-chip{% if weekend.near %} warn{% endif %}" title="Richtwert (Höchstwert): so viele Wochenenden pro Jahr sind fair">📅 WE <strong>{{ weekend.booked }}</strong>/{{ weekend.target }}</span>{% endif %}
   {% if open_period %}<a class="ov-chip accent" href="{% url 'wishlist' %}">Losung {{ open_period }} offen → Wünsche eintragen</a>{% endif %}
 </div>
 
@@ -164,6 +165,8 @@
   .ov-chip:hover { border-color:var(--accent); }
   .ov-chip strong { color:var(--accent-deep); font-size:1.05em; }
   .ov-chip.accent { background:var(--accent-soft); color:var(--accent-deep); border-color:transparent; }
+  .ov-chip.warn { background:var(--warn-soft); color:var(--warn); border-color:transparent; }
+  .ov-chip.warn strong { color:var(--warn); }
 
   /* Benachrichtigungen schlank, eingeklappt */
   .ov-notif { margin-bottom:1rem; }

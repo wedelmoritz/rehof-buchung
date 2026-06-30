@@ -122,6 +122,21 @@ def recurring_range(
     return start, end
 
 
+def weekend_keys(start: date, end: date) -> set[tuple[int, int]]:
+    """ISO-(Jahr, Woche) jeder Wochenend-Nacht in [start, end) – gewertet werden
+    die Nächte von **Freitag und Samstag** (man schläft Fr→Sa bzw. Sa→So). So
+    zählt ein Aufenthalt, der ein Wochenende berührt, genau einmal je Wochenende
+    (reine Logik, ohne Django; für den Wochenend-Richtwert, ADR 0076)."""
+    keys: set[tuple[int, int]] = set()
+    d = start
+    while d < end:
+        if d.weekday() in (4, 5):          # Freitag, Samstag
+            iso = d.isocalendar()
+            keys.add((iso[0], iso[1]))
+        d += timedelta(days=1)
+    return keys
+
+
 def remaining_nights(
     annual_budget: int, used: int, received: int = 0, given: int = 0
 ) -> int:
