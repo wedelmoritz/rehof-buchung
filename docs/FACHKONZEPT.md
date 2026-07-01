@@ -254,6 +254,12 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
 - **Optionale Obergrenze:** Die Verwaltung kann im Backend eine **Höchstzahl an
   Wünschen je Periode** festlegen (`BookingPolicy.max_wishes_per_period`); Standard ist
   **0 = unbegrenzt** (bewusst, damit Rückfall-Wünsche möglich bleiben, § 1/ADR 0078).
+- **Frist sichtbar & Erinnerung (ADR 0080):** Der **Einreiche-Schluss**
+  (`submission_deadline` = „Wünsche bis" bzw. der Tag des Losdatums) steht konkret auf
+  der **Übersicht** (Chip; wer noch nichts eingereicht hat, sieht einen Warn-Chip) und
+  auf der **Wunschliste** (Banner). Zusätzlich erinnert das System **zweistufig**
+  (Default 7 und 2 Tage vorher, konfigurierbar) automatisch **nur** die Mitglieder,
+  die **noch keinen Wunsch eingereicht** haben (In-App + Push + E-Mail).
 - **Mindestnächte** werden bereits beim Eintragen/Einreichen geprüft (§ 4).
 - **Nachfrage sichtbar & Entzerren vor dem Einreichen:** Schon beim Eintragen zeigt
   der Kalender, **wie umkämpft** ein Zeitraum ist (Nachfrage der anderen Mitglieder).

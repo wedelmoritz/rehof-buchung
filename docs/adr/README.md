@@ -101,6 +101,7 @@ die Regelwerte zu wiederholen.
 | [0077](0077-unterkunfts-tausch-exakter-zeitraum-automatisch.md) | Unterkunfts-Tausch nur bei exakt gleichem Zeitraum und bei Zustimmung sofort ausgeführt (Quartiere getauscht, konfliktfrei); Belegungsanzeige (nur Mitglieder) von der Tausch-Aktion getrennt; Fallback-Tipp auf „Buchung ändern" (freie/leicht verschobene Unterkünfte) | Accepted |
 | [0078](0078-tester-feedback-konfigurierbare-grenzen-ux.md) | Tester-Feedback: Wunsch-Obergrenze je Periode konfigurierbar (Default aus, #5); überlappende Wünsche fürs selbe Quartier erlaubt + Hinweis (#2b); Tausch-Anfragen je Mitglied abschaltbar (Default an, #8); kurze freie Lücken beim Buchen anklickbar (#16b); „passende freie Unterkunft"-Sperre barrierefrei (#17); Desktop-Nav links (#24); Selbst-Meldung „überwiesen" abschaltbar (Default an, #26) | Accepted |
 | [0079](0079-gemeinschaft-monatliche-auslastungskurve.md) | Gemeinschafts-Spiegel: monatliche Auslastungskurve (12 Punkte, Wert je Monat als Hover-Titel, immer über dem Punkt → keine Kollision mit der Monatsleiste) ersetzt die Quartals-Kurve + separate Monatsliste; effizient (2 Abfragen statt 24) | Accepted |
+| [0080](0080-wunsch-frist-anzeige-und-erinnerung.md) | Einreiche-Frist konkret anzeigen (Übersicht-Chip/Warn-Chip + Wunschlisten-Banner, `submission_deadline`) und zweistufig automatisiert erinnern (`send_wish_reminders`, nur nicht Eingereichte, In-App+Push+E-Mail, idempotent je Stufe; Vorlauf konfigurierbar `wish_reminder_lead1/2`, Default 7/2 Tage) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 

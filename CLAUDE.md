@@ -161,8 +161,10 @@ gezeigt. Die **Online-Bezahlung (Mollie)** ist aktiv (s. „Hofladen“ →
 Online-Bezahlung) und gilt für Gäste wie Mitglieder gleichermaßen.
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Übersicht, aufgeräumt
-nach ADR 0059): oben schlanke **Status-Chips** (Tage frei / offene Losung) +
-eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
+nach ADR 0059): oben schlanke **Status-Chips** (Tage frei / offene Losung **mit
+Einreiche-Frist** `BookingPeriod.submission_deadline`; wer noch **nichts eingereicht**
+hat, sieht stattdessen einen **Warn-Chip** „Noch keine Wünsche eingereicht · bis …",
+ADR 0080) + eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
 **„Diese Woche"-Agenda** (`services.week_agenda`: je Tag An-/Abreisen + freie
 Quartiere, mobil der Schnell-Überblick). **Held ist der Belegungs-Zeitstrahl**
 (`services.build_occupancy_timeline`, Standard-Ansicht: pro Unterkunft EINE Zeile
@@ -495,7 +497,12 @@ Kontoabgleich) + Benachrichtigung. Konfiguriert am `ShopConfig` (`payments_activ
 **Cron:** `generate_monthly_invoices`
 (monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
 (Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
-`OpsConfig.notify_day`), `cleanup_data` (täglich, **DSGVO-Aufräumen**).
+`OpsConfig.notify_day`), `send_wish_reminders` (täglich, **zweistufige Wunsch-
+Erinnerung** vor der Losung an Mitglieder ohne eingereichten Wunsch;
+`services.send_wish_reminders`, idempotent je Stufe über
+`BookingPeriod.wish_reminder1_at/2_at`; Vorlauf konfigurierbar
+`BookingPolicy.wish_reminder_lead1/2`, Default 7/2 Tage, ADR 0080),
+`cleanup_data` (täglich, **DSGVO-Aufräumen**).
 **DSGVO/Datensparsamkeit (ADR 0043):** `cleanup_data` (Service
 `services.run_data_retention`, idempotent, im `run_scheduler` täglich) löscht/
 pseudonymisiert abgelaufene Daten anhand der `RETENTION_*`-Settings (per Env

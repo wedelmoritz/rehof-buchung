@@ -6,6 +6,8 @@ Läuft als eigener Dienst im selben Image und führt regelmäßig aus:
   * `send_outbox` – verschickt wartende E-Mails (jedes Intervall),
   * `run_monthly_invoices` – erstellt am Monatsanfang die Hofladen-Rechnungen
     (einmal pro Tag; idempotent, rechnet den Vormonat ab),
+  * `send_wish_reminders` – zweistufige Erinnerung an noch nicht eingereichte
+    Wünsche vor der Auslosung (einmal pro Tag; idempotent, je Stufe einmal),
   * `cleanup_data` – DSGVO-Aufräumen: löscht/pseudonymisiert abgelaufene Daten
     anhand der RETENTION_*-Fristen (einmal pro Tag; idempotent).
 
@@ -43,6 +45,7 @@ class Command(BaseCommand):
             self._safe("run_due_lotteries")
             self._safe("run_monthly_invoices")
             self._safe("notify_admins_upcoming")
+            self._safe("send_wish_reminders")
             self._safe("cleanup_data")
             self._safe("send_outbox")
             return
@@ -56,6 +59,7 @@ class Command(BaseCommand):
             if today != last_daily:
                 self._safe("run_monthly_invoices")
                 self._safe("notify_admins_upcoming")  # idempotent (eigener Tag)
+                self._safe("send_wish_reminders")     # Wunsch-Erinnerung (zweistufig)
                 self._safe("cleanup_data")            # DSGVO-Aufräumen (täglich)
                 last_daily = today
             self._safe("send_outbox")           # wartende E-Mails verschicken

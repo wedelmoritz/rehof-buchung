@@ -156,6 +156,8 @@ def overview(request):
                                 else color_map.get(bar["member_id"], "#d8cfc0"))
     sel_day = _parse_date(request.GET.get("day"))
     detail = svc.day_detail(member, sel_day) if sel_day else None
+    open_period = BookingPeriod.objects.filter(
+        status=BookingPeriod.WISHES_OPEN).first()
     return render(request, "booking/overview.html", {
         "member": member,
         "cal": cal,
@@ -176,8 +178,11 @@ def overview(request):
             member.nights_remaining_in_year(today.year) if member else 0
         ),
         "notifications": svc.unread_notifications(member),
-        "open_period": BookingPeriod.objects.filter(
-            status=BookingPeriod.WISHES_OPEN).first(),
+        "open_period": open_period,
+        # Hat DIESES Mitglied schon Wünsche eingereicht? Wenn nicht, weist die
+        # Übersicht bis zum Losdatum darauf hin (ADR 0080).
+        "wish_submitted": bool(member and open_period and Wish.objects.filter(
+            member=member, period=open_period, submitted=True).exists()),
         "released_windows": BookingPeriod.objects.filter(
             status=BookingPeriod.FREE_BOOKING, end__gte=today).order_by("start"),
     })
