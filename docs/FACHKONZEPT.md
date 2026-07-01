@@ -288,9 +288,14 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
 Wechsel), bekommt die **Warteliste** für genau diesen Zeitraum eine Nachricht;
 zusätzlich gibt es eine **Rundmeldung an alle** (In-App + E-Mail).
 
-**Wechselwunsch:** Ein Mitglied kann ein anderes um einen **Quartiertausch** bitten –
-auch bei nur **überlappenden** Zeiträumen (mit Hinweis). Die/der Empfänger:in stimmt
-zu oder lehnt ab.
+**Unterkunfts-Tausch (ADR 0077):** Ein Mitglied kann ein anderes um einen
+**Quartiertausch** bitten – **nur bei exakt gleichem Zeitraum** (nur dann ergibt ein
+Tausch Sinn und ist konfliktfrei ausführbar). Die/der Empfänger:in stimmt zu oder
+lehnt ab; **bei Zustimmung wird sofort getauscht** (beide Buchungen wechseln die
+Unterkunft, der Zeitraum bleibt). Getrennt davon zeigt „Meine Buchungen" rein
+informativ, **wer zur gleichen Zeit da** ist (nur Mitglieder). Gibt es keinen
+exakten Tausch-Partner, verweist ein Tipp auf **„Buchung ändern"** (freie bzw. mit
+leicht verschobenem Zeitraum freie Unterkünfte).
 
 ---
 

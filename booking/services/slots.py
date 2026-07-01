@@ -24,6 +24,7 @@ __all__ = [
     'is_gap_fill', 'gap_fill_allowed', 'is_group_booking', 'lead_time_blocker',
     'high_demand_periods', 'winter_usage', 'weekend_usage', 'wish_weekend_usage',
     'undersized_allowed', 'has_fitting_free_quarter', 'booking_policy_summary',
+    'swap_shift_hint',
 ]
 
 def _quarters_payload() -> list[L.Quarter]:
@@ -422,6 +423,52 @@ def booking_policy_summary() -> dict:
         "stay_cap_weeks": (stay_cap // 7) if stay_cap else None,
         "stay_cap_name": stay_cap_name,
     }
+
+
+def swap_shift_hint(allocation, max_shift: int = 3) -> dict | None:
+    """Optionaler Tipp für „Unterkunft tauschen" (ADR 0077): Gäbe es mit einem
+    **leicht verschobenen** Zeitraum (gleiche Dauer, bis zu ±`max_shift` Tage) eine
+    **freie** Unterkunft, die zur Personenzahl passt? Umzusetzen ist das nur über
+    „Buchung ändern" – hier nur der Hinweis. Gibt den nächstliegenden Treffer
+    `{shift, quarter, label}` zurück oder None.
+
+    Effizient: lädt Belegung, Freigabefenster und Quartiere **je einmal** für das
+    ganze Suchfenster und rechnet die Verschiebungen in Python (keine Abfrage je
+    Verschiebung)."""
+    nights = (allocation.end - allocation.start).days
+    if nights <= 0 or max_shift <= 0:
+        return None
+    first = allocation.start - timedelta(days=max_shift)
+    last = allocation.end + timedelta(days=max_shift)
+    occ = _occupied_days_by_quarter(first, last)
+    windows = _active_windows()
+    quarters = [q for q in Quarter.objects.filter(active=True)
+                if q.id != allocation.quarter_id
+                and q.min_occupancy <= allocation.persons <= q.max_occupancy]
+    # Kleinste Verschiebung zuerst (−1, +1, −2, +2, …).
+    shifts = sorted((s for s in range(-max_shift, max_shift + 1) if s != 0),
+                    key=lambda s: (abs(s), s))
+    for shift in shifts:
+        s = allocation.start + timedelta(days=shift)
+        e = allocation.end + timedelta(days=shift)
+        for q in quarters:
+            if not A.range_released(windows, str(q.id), s, e):
+                continue
+            if not _in_season_range(q, s, e):
+                continue
+            occ_days = occ.get(str(q.id), set())
+            d, is_free = s, True
+            while d < e:
+                if d in occ_days:
+                    is_free = False
+                    break
+                d += timedelta(days=1)
+            if is_free:
+                n = abs(shift)
+                label = (f"{n} Tag{'e' if n != 1 else ''} "
+                         f"{'früher' if shift < 0 else 'später'}")
+                return {"shift": shift, "quarter": q, "label": label}
+    return None
 
 
 def _active_windows() -> list[A.Window]:

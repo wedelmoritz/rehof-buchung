@@ -112,7 +112,8 @@ Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
-`SwapRequest` (Quartier-Wechselwunsch zwischen Mitgliedern), `BookingPolicy`
+`SwapRequest` (Unterkunfts-Tausch zwischen Mitgliedern; nur gleicher Zeitraum, bei
+Zustimmung sofort ausgeführt, ADR 0077), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines; zusätzlich
 `min_lead_days`/`allow_gap_fill`/`group_min_persons`/`winter_guideline_nights`/
 `max_weekends_per_year`/`allow_undersized_units`, ADR 0075/0076), `SeasonRule`,
@@ -191,10 +192,15 @@ Losverfahren. (Frontend-Wortwahl bewusst **positiv**: „beliebt“ statt „umk
 Konflikt“, ADR 0072.) (`services.wish_deconfliction`
 liefert weiter die reine Zeitraum-Verschiebung je Quartier.)),
 `my_bookings` (eigene Buchungen + Storno **mit
-Rückfrage**; je Buchung „wer ist gleichzeitig da“ – aufgeteilt in **exakt gleiche
-An-/Abreise** und **nur überlappend** [`services.concurrent_split`] – mit
-Wechselwunsch an andere Mitglieder [auch bei Überlappung möglich, mit Hinweis;
-Empfänger:in stimmt zu/lehnt ab]; **Buchung ändern** je Buchung
+Rückfrage**; je Buchung drei getrennte Aufklapp-Bereiche (ADR 0077): (1) **„Wer ist
+zur gleichen Zeit da?“** – rein informativ, **nur Mitglieder**, aufgeteilt in **exakt
+gleiche An-/Abreise** und **nur überlappend** [`services.concurrent_split`], **ohne**
+Aktion; (2) **Buchung ändern**; (3) **Unterkunft tauschen** – **nur bei exakt gleichem
+Zeitraum** [`services.create_swap_request` erzwingt das]; bei Zustimmung wird der
+Tausch **sofort ausgeführt** (Quartiere getauscht, konfliktfrei, unter Sperre neu
+geprüft; `services.respond_swap_request`); gibt es keinen exakten Partner, verweist
+ein Tipp auf „Buchung ändern“ [freie bzw. mit leicht verschobenem Zeitraum freie
+Unterkünfte, `services.swap_shift_hint`]. **Buchung ändern** je Buchung
 [`services.adjust_allocation`] deckt neben dem **Zeitraum** auch
 **Unterkunft-Wechsel** [nur freie – `services.free_quarters_for` listet sie] und
 die **Personenzahl** ab: **verlängern** spontan, solange die zusätzlichen

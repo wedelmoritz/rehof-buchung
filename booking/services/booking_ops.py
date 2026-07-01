@@ -207,11 +207,30 @@ def concurrent_split(allocation: Allocation) -> dict:
     return {"exact": exact, "overlap": overlap}
 
 
+def _persons_fit(persons: int, quarter: Quarter) -> bool:
+    """Passt die Personenzahl in die (getauschte) Unterkunft – im ausgelegten
+    Rahmen ODER wenn die Richtlinie Abweichungen zulässt (ADR 0076)?"""
+    return (quarter.min_occupancy <= persons <= quarter.max_occupancy
+            or undersized_allowed())
+
+
 @transaction.atomic
 def create_swap_request(from_member, from_allocation, to_allocation, message=""):
-    """Legt einen Wechselwunsch an und benachrichtigt das Gegenüber."""
+    """Legt einen Unterkunfts-Tausch-Wunsch an (ADR 0077). Nur bei **exakt gleichem
+    Zeitraum** sinnvoll – nur dann lässt sich bei Zustimmung sauber (konfliktfrei)
+    tauschen. Benachrichtigt das Gegenüber."""
     if to_allocation.member_id == from_member.id:
         return None, "Das ist deine eigene Buchung."
+    if (from_allocation.start != to_allocation.start
+            or from_allocation.end != to_allocation.end):
+        return None, ("Ein Unterkunfts-Tausch ist nur bei genau gleichem Zeitraum "
+                      "möglich.")
+    if from_allocation.quarter_id == to_allocation.quarter_id:
+        return None, "Ihr seid bereits in derselben Unterkunft."
+    if SwapRequest.objects.filter(
+            from_allocation=from_allocation, to_allocation=to_allocation,
+            status=SwapRequest.PENDING).exists():
+        return None, "Dafür läuft bereits eine Tausch-Anfrage."
     sr = SwapRequest.objects.create(
         from_member=from_member, to_member=to_allocation.member,
         from_allocation=from_allocation, to_allocation=to_allocation,
@@ -219,8 +238,10 @@ def create_swap_request(from_member, from_allocation, to_allocation, message="")
     )
     Notification.objects.create(
         member=to_allocation.member,
-        message=(f"{from_member.display_name} fragt nach einem Quartier-Tausch "
-                 f"({from_allocation.quarter.name} ↔ {to_allocation.quarter.name})."),
+        message=(f"{from_member.display_name} möchte die Unterkunft tauschen "
+                 f"({from_allocation.quarter.name} ↔ {to_allocation.quarter.name}, "
+                 f"{from_allocation.start}–{from_allocation.end}). Bei Zustimmung "
+                 f"wird sofort getauscht."),
         url="/meine-buchungen/",
     )
     return sr, None
@@ -228,23 +249,73 @@ def create_swap_request(from_member, from_allocation, to_allocation, message="")
 
 @transaction.atomic
 def respond_swap_request(member, swap_id, accept: bool) -> tuple[bool, str | None]:
-    """Nimmt einen eingegangenen Wechselwunsch an oder lehnt ihn ab und
-    benachrichtigt die anfragende Person."""
+    """Nimmt einen Tausch-Wunsch an oder lehnt ihn ab. **Bei Zustimmung wird der
+    Tausch sofort ausgeführt** (die beiden Buchungen wechseln die Unterkunft; der
+    Zeitraum bleibt identisch, ADR 0077) – vorher unter Sperre neu geprüft, ob er
+    noch gültig ist. Benachrichtigt beide Seiten."""
     try:
-        sr = SwapRequest.objects.select_related("from_allocation", "to_allocation") \
-            .get(id=swap_id, to_member=member, status=SwapRequest.PENDING)
+        sr = SwapRequest.objects.select_for_update().select_related(
+            "from_allocation", "to_allocation", "from_member").get(
+            id=swap_id, to_member=member, status=SwapRequest.PENDING)
     except SwapRequest.DoesNotExist:
-        return False, "Wechselwunsch nicht gefunden."
-    sr.status = SwapRequest.ACCEPTED if accept else SwapRequest.DECLINED
+        return False, "Tausch-Anfrage nicht gefunden."
+
+    if not accept:
+        sr.status = SwapRequest.DECLINED
+        sr.responded_at = timezone.now()
+        sr.save(update_fields=["status", "responded_at"])
+        Notification.objects.create(
+            member=sr.from_member,
+            message=(f"{member.display_name} hat deinen Unterkunfts-Tausch "
+                     f"abgelehnt ({sr.from_allocation.quarter.name} ↔ "
+                     f"{sr.to_allocation.quarter.name})."),
+            url="/meine-buchungen/")
+        return True, None
+
+    # Zustimmung → tatsächlich tauschen. Beide Buchungen frisch unter Sperre laden
+    # (Zustand kann sich seit der Anfrage geändert haben).
+    try:
+        a = Allocation.objects.select_for_update().select_related("quarter").get(
+            id=sr.from_allocation_id)
+        b = Allocation.objects.select_for_update().select_related("quarter").get(
+            id=sr.to_allocation_id)
+    except Allocation.DoesNotExist:
+        sr.status = SwapRequest.DECLINED
+        sr.responded_at = timezone.now()
+        sr.save(update_fields=["status", "responded_at"])
+        return False, "Der Tausch ist nicht mehr möglich (eine Buchung wurde storniert)."
+
+    if (a.member_id != sr.from_member_id or b.member_id != member.id
+            or a.start != b.start or a.end != b.end
+            or a.quarter_id == b.quarter_id):
+        return False, ("Der Tausch ist nicht mehr möglich – Buchung oder Zeitraum "
+                       "hat sich geändert.")
+    if not _persons_fit(a.persons, b.quarter) or not _persons_fit(b.persons, a.quarter):
+        return False, "Die Personenzahl passt nicht zur getauschten Unterkunft."
+
+    old_a_quarter, old_b_quarter = a.quarter, b.quarter
+    a.quarter_id, b.quarter_id = b.quarter_id, a.quarter_id
+    a.save(update_fields=["quarter"])
+    b.save(update_fields=["quarter"])
+
+    sr.status = SwapRequest.ACCEPTED
     sr.responded_at = timezone.now()
     sr.save(update_fields=["status", "responded_at"])
-    verb = "angenommen" if accept else "abgelehnt"
+
+    # Andere offene Tausch-Anfragen, die eine der beiden Buchungen betreffen, sind
+    # jetzt hinfällig (die Unterkünfte haben gewechselt) → schließen.
+    from django.db.models import Q
+    SwapRequest.objects.filter(status=SwapRequest.PENDING).filter(
+        Q(from_allocation_id__in=(a.id, b.id))
+        | Q(to_allocation_id__in=(a.id, b.id))
+    ).exclude(id=sr.id).update(status=SwapRequest.DECLINED,
+                               responded_at=timezone.now())
+
     Notification.objects.create(
         member=sr.from_member,
-        message=(f"{member.display_name} hat deinen Wechselwunsch {verb} "
-                 f"({sr.from_allocation.quarter.name} ↔ {sr.to_allocation.quarter.name})."),
-        url="/meine-buchungen/",
-    )
+        message=(f"{member.display_name} hat zugestimmt – ihr habt getauscht: "
+                 f"du bist jetzt in {old_b_quarter.name} (statt {old_a_quarter.name})."),
+        url="/meine-buchungen/")
     return True, None
 
 

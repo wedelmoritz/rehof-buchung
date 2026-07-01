@@ -16,15 +16,16 @@
       {{ sr.from_allocation.quarter.name }} ({{ sr.from_allocation.start }}–{{ sr.from_allocation.end }})
       &harr; deine {{ sr.to_allocation.quarter.name }} ({{ sr.to_allocation.start }}–{{ sr.to_allocation.end }})</div>
     {% if sr.message %}<div class="muted">„{{ sr.message }}“</div>{% endif %}
-    <form method="post" class="inline" style="margin-top:.4rem">{% csrf_token %}
+    <form method="post" class="inline" style="margin-top:.4rem"
+          data-confirm="Tausch mit {{ sr.from_member.display_name }} bestätigen? Ihr wechselt sofort die Unterkunft ({{ sr.to_allocation.quarter.name }} → {{ sr.from_allocation.quarter.name }}), der Zeitraum bleibt.">{% csrf_token %}
       <input type="hidden" name="action" value="swap_respond">
       <input type="hidden" name="swap_id" value="{{ sr.id }}">
-      <button class="btn small sage" name="decision" value="accept" type="submit">Zustimmen</button>
+      <button class="btn small sage" name="decision" value="accept" type="submit">Zustimmen &amp; tauschen</button>
       <button class="btn small ghost" name="decision" value="decline" type="submit">Ablehnen</button>
     </form>
   </div>
   {% endfor %}
-  <p class="muted" style="margin-bottom:0">Bei Zustimmung seid ihr euch einig – die konkrete Umbuchung stimmt ihr untereinander bzw. mit der Verwaltung ab.</p>
+  <p class="muted" style="margin-bottom:0">Bei Zustimmung wird <strong>sofort getauscht</strong> – ihr wechselt nur die Unterkunft, der Zeitraum bleibt gleich.</p>
 </div>
 {% endif %}
 
@@ -67,46 +68,29 @@
     </div>
 
     <details class="concurrent">
-      <summary>Wer ist zur gleichen Zeit da? &middot; Wechselwunsch anfragen</summary>
+      <summary>Wer ist zur gleichen Zeit da?
+        {% if a.concurrent_count %}<span class="cnt">{{ a.concurrent_count }}</span>{% endif %}</summary>
       {% if a.concurrent.exact or a.concurrent.overlap %}
-
       {% if a.concurrent.exact %}
-      <p class="grp">Genau zur gleichen Zeit auf dem Re:Hof
-        <span class="muted">(An- und Abreise identisch)</span></p>
-      {% for c in a.concurrent.exact %}
-      <form method="post" class="swap-row">{% csrf_token %}
-        <input type="hidden" name="action" value="swap_request">
-        <input type="hidden" name="from_allocation" value="{{ a.id }}">
-        <input type="hidden" name="to_allocation" value="{{ c.id }}">
-        <span class="who">{{ c.quarter.name }} – <strong>{{ c.member.display_name }}</strong>
-          <span class="muted">({{ c.persons }} Pers., {{ c.start }}–{{ c.end }})</span></span>
-        <input type="text" name="message" placeholder="Nachricht (optional)">
-        <button class="btn small" type="submit">Wechselwunsch</button>
-      </form>
-      {% endfor %}
+      <p class="grp">Genau in deinem Zeitraum <span class="muted">(An-/Abreise identisch)</span></p>
+      <ul class="who-list">
+        {% for c in a.concurrent.exact %}
+        <li><strong>{{ c.member.display_name }}</strong> &middot; {{ c.quarter.name }}
+          <span class="muted">({{ c.persons }} Pers.)</span></li>
+        {% endfor %}
+      </ul>
       {% endif %}
-
       {% if a.concurrent.overlap %}
-      <p class="grp">Während deiner Zeit auch auf dem Re:Hof
-        <span class="muted">(andere An-/Abreise)</span></p>
-      <p class="muted hint">Hier sind die Zeiträume nicht deckungsgleich – ein
-        direkter Tausch passt nur teilweise. Du kannst trotzdem anfragen und die
-        Details miteinander absprechen.</p>
-      {% for c in a.concurrent.overlap %}
-      <form method="post" class="swap-row">{% csrf_token %}
-        <input type="hidden" name="action" value="swap_request">
-        <input type="hidden" name="from_allocation" value="{{ a.id }}">
-        <input type="hidden" name="to_allocation" value="{{ c.id }}">
-        <span class="who">{{ c.quarter.name }} – <strong>{{ c.member.display_name }}</strong>
-          <span class="muted">({{ c.persons }} Pers., {{ c.start }}–{{ c.end }})</span></span>
-        <input type="text" name="message" placeholder="Nachricht (optional)">
-        <button class="btn small ghost" type="submit">Wechselwunsch trotzdem</button>
-      </form>
-      {% endfor %}
+      <p class="grp">Zeitlich überlappend <span class="muted">(andere An-/Abreise)</span></p>
+      <ul class="who-list">
+        {% for c in a.concurrent.overlap %}
+        <li><strong>{{ c.member.display_name }}</strong> &middot; {{ c.quarter.name }}
+          <span class="muted">({{ c.start|date:"d.m." }}–{{ c.end|date:"d.m." }}, {{ c.persons }} Pers.)</span></li>
+        {% endfor %}
+      </ul>
       {% endif %}
-
       {% else %}
-      <p class="muted">In diesem Zeitraum ist niemand sonst eingebucht.</p>
+      <p class="muted">In diesem Zeitraum ist sonst niemand eingebucht.</p>
       {% endif %}
     </details>
 
@@ -131,6 +115,42 @@
         <label>Personen <input type="number" name="new_persons" value="{{ a.persons }}" min="1" max="12" style="width:4.2rem"></label>
         <button class="btn small" type="submit">Übernehmen</button>
       </form>
+    </details>
+
+    <details class="swap">
+      <summary>Unterkunft mit jemandem tauschen
+        {% if a.swap_exact %}<span class="cnt">{{ a.swap_exact|length }}</span>{% endif %}</summary>
+      <p class="muted hint">Ein Tausch ergibt nur Sinn mit jemandem, der <strong>genau
+        in deinem Zeitraum</strong> in einer anderen Unterkunft ist. Bei Zustimmung
+        wird <strong>sofort</strong> getauscht – ihr wechselt nur die Unterkunft, der
+        Zeitraum bleibt.</p>
+      {% if a.swap_exact %}
+      {% for c in a.swap_exact %}
+      <form method="post" class="swap-row"
+            data-confirm="Tausch mit {{ c.member.display_name }} anfragen? Bei Zustimmung wechselt ihr die Unterkunft ({{ a.quarter.name }} ↔ {{ c.quarter.name }}).">{% csrf_token %}
+        <input type="hidden" name="action" value="swap_request">
+        <input type="hidden" name="from_allocation" value="{{ a.id }}">
+        <input type="hidden" name="to_allocation" value="{{ c.id }}">
+        <span class="who"><strong>{{ c.member.display_name }}</strong> &middot; {{ c.quarter.name }}
+          <span class="muted">({{ c.persons }} Pers.)</span></span>
+        <input type="text" name="message" placeholder="Nachricht (optional)">
+        <button class="btn small" type="submit">Tausch anfragen</button>
+      </form>
+      {% endfor %}
+      {% else %}
+      <p class="muted">Für deinen genauen Zeitraum ist niemand in einer anderen
+        Unterkunft – ein direkter Tausch ist derzeit nicht möglich.</p>
+      {% if a.switch_options %}
+      <p class="muted hint">💡 Es sind aber Unterkünfte <strong>frei</strong>: Du kannst
+        über <strong>„Buchung ändern"</strong> (oben) direkt in eine freie Unterkunft
+        wechseln – ganz ohne Tausch.</p>
+      {% elif a.swap_shift %}
+      <p class="muted hint">💡 Mit leicht verschobenem Zeitraum wäre etwas frei:
+        <strong>{{ a.swap_shift.label }}</strong> ist <strong>{{ a.swap_shift.quarter.name }}</strong>
+        frei. Das lässt sich über <strong>„Buchung ändern"</strong> umsetzen (Zeitraum
+        anpassen und Unterkunft wählen).</p>
+      {% endif %}
+      {% endif %}
     </details>
   </div>
   {% endfor %}
@@ -186,16 +206,22 @@
 
 <style>
   .booking-head { display:flex; align-items:flex-start; gap:.6rem; }
-  details.concurrent { margin-top:.6rem; border-top:1px solid var(--line); padding-top:.5rem; }
-  details.concurrent summary { cursor:pointer; color:var(--accent-deep); font-weight:600; font-size:.9rem; }
+  details.concurrent, details.adjust, details.swap {
+    margin-top:.5rem; border-top:1px solid var(--line); padding-top:.5rem; }
+  details.concurrent summary, details.adjust summary, details.swap summary {
+    cursor:pointer; color:var(--accent-deep); font-weight:600; font-size:.9rem; }
+  summary .cnt { display:inline-block; min-width:1.2rem; text-align:center;
+    background:var(--sage-soft); color:var(--sage-deep); border-radius:999px;
+    font-size:.74rem; padding:0 .35rem; margin-left:.25rem; }
+  .who-list { list-style:none; padding:0; margin:.2rem 0 .4rem; }
+  .who-list li { padding:.28rem 0; border-bottom:1px solid var(--line); font-size:.92rem; }
+  .who-list li:last-child { border-bottom:0; }
   .swap-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin:.5rem 0; }
-  .swap-row .who { flex:1 1 16rem; }
-  .swap-row input[type=text] { flex:1 1 12rem; min-width:10rem; }
+  .swap-row .who { flex:1 1 15rem; }
+  .swap-row input[type=text] { flex:1 1 11rem; min-width:9rem; }
   .swap-in { border:1px solid var(--line); border-radius:10px; padding:.6rem .8rem; margin-bottom:.5rem; }
-  .concurrent .grp { font-weight:600; font-size:.88rem; margin:.6rem 0 .2rem; }
-  .concurrent .hint, .adjust .hint { font-size:.82rem; margin:.2rem 0 .4rem; }
-  details.adjust { margin-top:.5rem; border-top:1px solid var(--line); padding-top:.5rem; }
-  details.adjust summary { cursor:pointer; color:var(--accent-deep); font-weight:600; font-size:.9rem; }
+  .concurrent .grp, .swap .grp { font-weight:600; font-size:.88rem; margin:.6rem 0 .2rem; }
+  .concurrent .hint, .adjust .hint, .swap .hint { font-size:.82rem; margin:.2rem 0 .4rem; }
   .adjust-row { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; margin:.3rem 0; }
   .adjust-row label { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.88rem; }
 </style>

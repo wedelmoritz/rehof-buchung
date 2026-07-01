@@ -98,6 +98,7 @@ die Regelwerte zu wiederholen.
 | [0074](0074-hilfe-gemeinschaft-ux.md) | UX-Feinschliff: Karma-Erklärung präzisiert (+0,1 je Auslosung, nicht je Wunsch), Hilfe nach Tätigkeiten gegliedert (Losung-Inhalte raus aus „Gemeinschaft"), „unbegrenzte Wünsche"-Erklärung mit Beispiel, Gemeinschafts-Spiegel mit Quartals-Auslastungskurve, Hofladen-PIN unter „Anmeldedaten" | Accepted |
 | [0075](0075-buchungsrichtlinien-vorlauf-luecken-gruppen-richtwerte.md) | Buchungsrichtlinien: Spontan-Vorausfrist (Default 7 T, konfigurierbar), Lückenfüllung hebt Mindestnächte+Vorlauf auf, Gruppen→Stallgebäude zuerst (sanft), weiche Richtwerte (Winter Okt–März, Rücksichts-Hinweis in begehrten Zeiten) – Rest als Richtschnur auf der Hilfe | Accepted |
 | [0076](0076-richtwerte-wochenenden-kleinere-unterkuenfte-losung-transparenz.md) | Wochenend-Richtwert (Höchstwert) analog Winter (Mindestwert, pro Anteil skaliert); kleinere Unterkünfte buchbar (konfigurierbar, angezeigt); Hilfe-Werte aus der Backend-Konfiguration; Regel-Transparenz für Wünsche/Losung (was greift beim Eintragen vs. erst in der Losung; Über-Wünschen ist legitim) | Accepted |
+| [0077](0077-unterkunfts-tausch-exakter-zeitraum-automatisch.md) | Unterkunfts-Tausch nur bei exakt gleichem Zeitraum und bei Zustimmung sofort ausgeführt (Quartiere getauscht, konfliktfrei); Belegungsanzeige (nur Mitglieder) von der Tausch-Aktion getrennt; Fallback-Tipp auf „Buchung ändern" (freie/leicht verschobene Unterkünfte) | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 
