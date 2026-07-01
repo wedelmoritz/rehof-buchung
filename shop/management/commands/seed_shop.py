@@ -28,7 +28,7 @@ PRODUCTS = [
     ("Vorrat & Trockenwaren", "Kaffee 250g", "6.50", "stueck", 7, "ware", False),
     ("Snacks", "Müsliriegel", "0.90", "stueck", 7, "ware", False),
     ("Dienstleistungen", "Sauna (Tag)", "8.00", "portion", 19, "dienstleistung", True),
-    ("Dienstleistungen", "Endreinigung", "45.00", "portion", 19, "dienstleistung", False),
+    ("Dienstleistungen", "Endreinigung", "70.00", "portion", 19, "dienstleistung", False),
 ]
 
 
