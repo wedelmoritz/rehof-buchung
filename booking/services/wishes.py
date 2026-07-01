@@ -49,6 +49,13 @@ def add_wish(member, period, quarter, start, end,
     rule_err = wish_rule_error(start, end)
     if rule_err:
         return None, rule_err
+    # Exakte Doppel-Wünsche verhindern (Feedback #2a): dieselbe Unterkunft im exakt
+    # gleichen Zeitraum nicht zweimal. Bewusst nur exakte Duplikate – überlappende
+    # Wünsche bleiben zulässig (Losverfahren-Konzept unberührt).
+    if Wish.objects.filter(member=member, period=period, quarter=quarter,
+                           start=start, end=end).exists():
+        return None, ("Diesen Wunsch hast du schon eingetragen (gleiche Unterkunft "
+                      "und gleicher Zeitraum).")
     last = (
         Wish.objects.filter(member=member, period=period)
         .order_by("-priority").first()

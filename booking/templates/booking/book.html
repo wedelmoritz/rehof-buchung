@@ -8,8 +8,8 @@
 {% else %}
 
 <div class="card">
-  <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage verfügbar.
-    Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
+  <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage deines
+    Kontingents verfügbar. Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
   {% if winter and winter.target %}
   <p class="muted" style="margin:.2rem 0 0;font-size:.88rem">🌙 Winter ({{ winter.label }}):
     <strong>{{ winter.booked }}</strong>/{{ winter.target }} Tage{% if winter.reached %} ✓{% endif %}.
@@ -82,6 +82,7 @@
     <span><i class="sw lvl-full"></i> nichts frei</span>
     <span><i class="sw lvl-none"></i> nicht buchbar</span>
     <span><span class="mine-dot">●</span> eigene Buchung</span>
+    <span class="muted">Zahl je Tag = freie/gesamte Unterkünfte</span>
   </div>
   {% if cal.holidays %}
   <p class="muted" style="margin:.4rem 0 0">Ferien:
@@ -111,6 +112,11 @@
     <a class="btn small ghost" data-ajax style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
   </div>
 
+  {% if not sel_end %}
+  <div class="msg info">Wähle jetzt den <strong>Abreisetag</strong> im Kalender (2. Klick)
+    – oder gib den Zeitraum oben direkt ein. Danach erscheinen die passenden Unterkünfte.</div>
+  {% else %}
+
   {% include "booking/_high_demand_note.html" %}
 
   {% if has_group_pref %}
@@ -118,14 +124,16 @@
     zuerst die Wohnungen des <strong>Stallgebäudes</strong> – sie stehen unten oben.</p>
   {% endif %}
 
+  {# Ein einziger Hinweis oben statt Wiederholung je Quartier (#13). #}
   {% if too_short %}
   <div class="msg warning">Mindestaufenthalt in diesem Zeitraum: <strong>{{ range_min_nights }} Nächte</strong>
     (aktuell {{ nights_selected }}). <span class="muted">Ausnahme: Füllt die Buchung eine bestehende
     Lücke genau aus, ist sie trotzdem möglich (unten als „füllt Lücke“ markiert).</span></div>
-  {% endif %}
-  {% if not_enough_days %}
+  {% elif not_enough_days %}
   <div class="msg warning">Nicht genügend Tage übrig: du hast <strong>{{ days_remaining_year }}</strong>
     Tage in {{ eff_start.year }}, der Zeitraum braucht {{ nights_selected }}.</div>
+  {% elif range_reason %}
+  <div class="msg warning">{{ range_reason }}</div>
   {% endif %}
 
   {% if suitable %}
@@ -134,7 +142,7 @@
   {% endif %}
 
   {% if maybe_unsuitable %}
-  <h3>Anhand der Merkmale ggf. nicht geeignet</h3>
+  <h3>Nur eingeschränkt geeignet <span class="muted" style="font-weight:400;font-size:.85rem">(Grund je Unterkunft angezeigt)</span></h3>
   {% for info in maybe_unsuitable %}{% include "booking/_quarter_row.html" with info=info action="book" %}{% endfor %}
   {% endif %}
 
@@ -159,6 +167,7 @@
   </form>
   {% endfor %}
   {% endif %}
+  {% endif %}{# sel_end #}
 </div>
 {% else %}
 <div class="msg info">Klicke einen Tag im Kalender, um die freien Quartiere zu sehen. Grün = frei, Rot = belegt.</div>

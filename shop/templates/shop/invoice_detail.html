@@ -69,13 +69,16 @@
     <div>Verwendungszweck: <strong>{{ invoice.number }}</strong></div>
     {% if invoice.status == 'open' %}
     <form method="post" action="{% url 'shop_invoices' %}" style="margin-top:.6rem"
-          data-confirm="Als bezahlt melden?">{% csrf_token %}
+          data-confirm="Überweisung melden? Die Verwaltung bestätigt den Eingang (Kontoabgleich).">{% csrf_token %}
       <input type="hidden" name="action" value="mark_paid">
       <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
-      <button class="btn" type="submit">Habe ich bezahlt</button>
+      <button class="btn" type="submit">Habe ich überwiesen</button>
     </form>
+    <p class="sm muted" style="margin:.4rem 0 0">Das ist nur eine Meldung – den Eingang
+      bestätigt die Verwaltung über den <strong>Kontoabgleich</strong>. Alternativ kannst du
+      <strong>online bezahlen</strong> (sofort bestätigt).</p>
     {% elif invoice.status == 'paid' %}
-    <p class="msg info" style="margin-top:.6rem">Als bezahlt gemeldet – wird von der Verwaltung bestätigt.</p>
+    <p class="msg info" style="margin-top:.6rem">Als überwiesen gemeldet – wird von der Verwaltung (Kontoabgleich) bestätigt.</p>
     {% else %}
     <p class="msg success" style="margin-top:.6rem">Zahlung bestätigt.</p>
     {% endif %}

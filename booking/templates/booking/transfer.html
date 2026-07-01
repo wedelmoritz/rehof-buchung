@@ -166,6 +166,10 @@
       <input type="hidden" name="action" value="pool_withdraw">
       <label>Entnehmen<br><input type="number" name="nights" min="1" max="{{ pool.max_withdraw }}" value="1" style="width:5rem"> (max. {{ pool.max_withdraw }})</label>
       <button class="btn small" type="submit" style="margin-left:.4rem">Aus dem Pool entnehmen</button>
+      <p class="sm muted" style="margin:.3rem 0 0">Höchstens {{ pool.max_withdraw }} Tage – begrenzt
+        durch den aktuellen <strong>Topf-Bestand</strong> ({{ pool.balance }}) und den Jahres-Deckel
+        ({{ pool.cap }}/Jahr, davon {{ pool.withdrawn }} genutzt). <em>Unabhängig</em> davon, wie viel
+        du selbst gespendet hast.</p>
     </form>
     {% elif not pool.eligible_to_withdraw %}
     <p class="sm muted" style="align-self:center;margin:0">Entnahme ist erst möglich, wenn dein

@@ -176,6 +176,11 @@ CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_REFERRER_POLICY = "same-origin"
+# Automatischer Logout nach Inaktivität (Feedback #25). Idle-Timeout: die Sitzung
+# läuft nach SESSION_COOKIE_AGE Sekunden ohne Aktivität ab; jeder Request verlängert
+# sie (SESSION_SAVE_EVERY_REQUEST). Per Env überschreibbar (Default 8 Stunden).
+SESSION_COOKIE_AGE = int(os.environ.get("SESSION_COOKIE_AGE", str(8 * 60 * 60)))
+SESSION_SAVE_EVERY_REQUEST = True
 
 # --- Rate-Limiting (django-ratelimit, ADR 0061) ----------------------------
 # Greift über den Login-Schutz (django-axes) hinaus auf weitere sensible

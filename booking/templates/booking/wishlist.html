@@ -146,10 +146,11 @@
   {% if wish_weekends and wish_weekends.booked %}
   <p class="muted" style="margin:.1rem 0 .5rem;font-size:.9rem">📅 Deine Wünsche umfassen
     <strong>{{ wish_weekends.booked }}</strong> Wochenende{{ wish_weekends.booked|pluralize:"n" }}{% if wish_weekends.target %}
-    (Richtwert höchstens {{ wish_weekends.target }}){% endif %}.{% if wish_weekends.over %}
+    (Richtwert höchstens {{ wish_weekends.target }} je Mitglied){% endif %}.{% if wish_weekends.over %}
     <strong>Das ist völlig in Ordnung</strong> – du darfst ruhig mehr wünschen, als am Ende
     erfüllt wird: Über die Losung gehen höchstens <strong>{{ wish_budget }} Nächte</strong>,
-    der Rest ist Rückfall.{% endif %}</p>
+    der Rest ist Rückfall.{% else %} <span class="muted">Reine Orientierung – kein Limit; über die
+    Losung werden ohnehin höchstens {{ wish_budget }} Nächte vergeben.</span>{% endif %}</p>
   {% endif %}
   {% if wishlist_submitted %}
     <div class="msg success">Deine Wünsche sind im Lostopf eingereicht. Zum Bearbeiten erst zurückziehen.</div>
@@ -213,7 +214,18 @@
     <form method="post" id="reorder-form">{% csrf_token %}
       <input type="hidden" name="action" value="reorder"><input type="hidden" name="order" id="reorder-order">
     </form>
-    <p class="muted" style="margin:.6rem 0">Summe: {{ wish_nights }} Nächte gewünscht (Losung-Budget bis {{ wish_budget }} Nächte).</p>
+    {% if wish_nights > wish_budget %}
+    <div class="msg info" style="margin:.6rem 0">Du hast <strong>{{ wish_nights }} Nächte</strong>
+      gewünscht – mehr als dein <strong>Wunsch-Budget</strong> von {{ wish_budget }} Nächten (das ist
+      die Hälfte deiner Jahres-Tage, die über die Losung vergeben wird). <strong>Das ist erlaubt:</strong>
+      Über die Losung bekommst du höchstens {{ wish_budget }} Nächte zugeteilt; alles darüber sind
+      <strong>Rückfall-Wünsche</strong>, die nur greifen, wenn ein wichtigerer Wunsch belegt ist –
+      in deiner Prioritäts-Reihenfolge (oben = wichtiger).</div>
+    {% else %}
+    <p class="muted" style="margin:.6rem 0">Summe: <strong>{{ wish_nights }}</strong> von
+      {{ wish_budget }} Nächten deines <strong>Wunsch-Budgets</strong> (die Hälfte deiner Jahres-Tage,
+      die über die Losung vergeben wird).</p>
+    {% endif %}
     <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei sehr beliebten
       Zeiträumen (rot im Kalender) lohnt ein Blick, ob du einen Wunsch <strong>entzerren</strong>
       kannst – z.&nbsp;B. die Anreise einen Tag verschieben. Das erhöht für alle die Chance.</p>

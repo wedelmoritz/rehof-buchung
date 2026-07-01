@@ -374,7 +374,8 @@ def book(request):
     if sel_end:
         sel_qs += f"&end={sel_end.isoformat()}"
 
-    eff_start = eff_end = None
+    eff_start = sel_start if member else None    # für die Auswahl-Leiste
+    eff_end = None
     suitable, maybe_unsuitable, occ_quarters = [], [], []
     range_min_nights = 0
     too_short = False
@@ -382,9 +383,11 @@ def book(request):
     days_remaining_year = 0
     high_demand = []
     is_group = False
-    if member and sel_start:
-        eff_start = sel_start
-        eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+    range_reason = None
+    # Kandidaten erst zeigen, wenn BEIDE Daten gewählt sind (Feedback #14): mit nur
+    # der Anreise gäbe es sonst eine irreführende 1-Nacht-Vorschau.
+    if member and sel_start and sel_end:
+        eff_start, eff_end = sel_start, sel_end
         nights = (eff_end - eff_start).days
         range_min_nights = svc.min_nights_for_range(eff_start, eff_end)
         too_short = nights < range_min_nights
@@ -396,6 +399,7 @@ def book(request):
         # Termin-/Regel-/Budget-Grund ist quartiers-unabhängig → einmal berechnen,
         # plus die Variante ohne Mindestnächte/Vorausfrist für Lückenfüller (ADR 0075).
         reason = svc.schedule_blocker(member, eff_start, eff_end)
+        range_reason = reason        # quartiers-unabhängig → einmal oben anzeigen (#13)
         waived = svc.schedule_blocker(member, eff_start, eff_end,
                                       skip_min_nights=True, skip_lead=True)
         # Lückenfüllung kann nur helfen, wenn der allgemeine Grund eben gerade
@@ -451,6 +455,7 @@ def book(request):
         "range_min_nights": range_min_nights,
         "too_short": too_short,
         "not_enough_days": not_enough_days,
+        "range_reason": range_reason,
         "days_remaining_year": days_remaining_year,
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,
@@ -560,6 +565,17 @@ def my_bookings(request):
                 Wish.objects.filter(member=member, period=wish_period, submitted=True)
                 .select_related("quarter").order_by("priority", "id"))
 
+    y = today.year
+    budget_info = None
+    if member:
+        budget_info = {
+            "nominal": member.annual_night_budget,
+            "effective": member.effective_annual_budget(y),
+            "received": member.nights_received_in_year(y),
+            "given": member.nights_given_in_year(y),
+            "donated": member.pool_donated_in_year(y),
+            "withdrawn": member.pool_received_in_year(y),
+        }
     return render(request, "booking/my_bookings.html", {
         "member": member,
         "today": today,
@@ -567,6 +583,7 @@ def my_bookings(request):
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,
         "nights_used": member.nights_used_in_year(today.year) if member else 0,
         "annual_budget": member.annual_night_budget if member else 0,
+        "budget_info": budget_info,
         "upcoming": upcoming,
         "past": past,
         "incoming_swaps": incoming_swaps,
