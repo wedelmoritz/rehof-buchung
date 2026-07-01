@@ -370,7 +370,8 @@ Hinweis statt Knopf), Endpunkte
 `push_subscribe`/`push_unsubscribe`; SW-`push`/`notificationclick` in `sw.js`.
 **Navigation:** Icons als
 einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
-**Desktop** vertikale Leiste rechts (`.sidenav`) mit Umschalter IN der Leiste
+**Desktop** vertikale Leiste **links** (`.sidenav`, `order:-1` im Flex-Layout;
+#24/ADR 0078) mit Umschalter IN der Leiste
 (Kopf „Menü“ + Chevron `#navToggle`), die zur schmalen Icon-Leiste einklappt –
 Zustand in `localStorage`, schon im `<head>` gesetzt (kein FOUC). Auf dem
 **Smartphone** stattdessen eine feste **untere Tab-Leiste** (`.tabbar`,
@@ -437,7 +438,10 @@ mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
 Stammdaten der Genossenschaft im `ShopConfig`-Singleton (Admin-Label **„Rechtliche &
 Zahlungs-Einstellungen“** – bewusst übergreifend, da Rechnungen auch für externe
 Gäste gelten; früher „Hofladen-Einstellungen“): `coop_name`, `coop_address`,
-`tax_number`/`vat_id`, `iban`, `bic`, `invoice_prefix`, `payment_term_days`, `board`
+`tax_number`/`vat_id`, `iban`, `bic`, `invoice_prefix`, `payment_term_days`,
+`allow_self_report_paid` (Selbst-Meldung „Habe ich überwiesen“ optional abschaltbar,
+Default an – dann zählt allein der Kontoabgleich; server-seitig in `mark_paid`
+erzwungen, #26/ADR 0078), `board`
 (Vorstand), `contact_email` + USt-Schalter (`small_business`) + Impressum/Datenschutz/
 AGB. Der Admin springt direkt aufs Singleton (`changelist_view`-Redirect, keine
 Zwischen-Liste). Editierbar nur im Django-Admin (Admin-Rolle). Geldlogik/Tests in

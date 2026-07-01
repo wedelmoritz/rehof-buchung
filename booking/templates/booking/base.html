@@ -83,6 +83,9 @@
     .shell > main { flex: 1 1 auto; min-width: 0; margin: 1.6rem 0; }
 
     .sidenav {
+      /* Navigation links neben dem Inhalt (#24/ADR 0078): order rückt die im DOM
+         nach dem <main> stehende Leiste im Flex-Layout nach LINKS. */
+      order: -1;
       flex: 0 0 212px; margin: 1.6rem 0; position: sticky; top: 72px;
       background: var(--card); border: 1px solid var(--line);
       border-radius: var(--radius); box-shadow: var(--shadow);

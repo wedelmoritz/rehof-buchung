@@ -53,7 +53,7 @@
         {% if inv.is_payable %}
         <a class="btn small" href="{% url 'pay_invoice' inv.id %}">Online bezahlen</a>
         {% endif %}
-        {% if inv.status == 'open' %}
+        {% if inv.status == 'open' and allow_self_report %}
         <form method="post" data-confirm="Rechnung {{ inv.number }} als bezahlt melden?">{% csrf_token %}
           <input type="hidden" name="action" value="mark_paid">
           <input type="hidden" name="invoice_id" value="{{ inv.id }}">

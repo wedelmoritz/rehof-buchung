@@ -203,6 +203,31 @@ class InvoiceTests(ShopBase):
         inv.refresh_from_db()
         self.assertTrue(inv.archived)
 
+    def test_selbst_meldung_abschaltbar(self):
+        """Selbst-Meldung optional abschaltbar (#26/ADR 0078): dann lehnt der
+        Service ab und der Knopf fehlt in der Rechnungsansicht."""
+        from shop.models import ShopConfig
+        svc.add_item(self.alice, self.apple, "2")
+        svc.checkout(self.alice)
+        inv = svc.generate_monthly_invoices(date.today().year, date.today().month)[0]
+        cfg = ShopConfig.get_solo()
+        cfg.allow_self_report_paid = False
+        cfg.save(update_fields=["allow_self_report_paid"])
+        ok, err = svc.mark_paid(self.alice, inv.id)
+        self.assertFalse(ok)
+        self.assertIn("deaktiviert", err)
+        inv.refresh_from_db()
+        self.assertEqual(inv.status, Invoice.OPEN)
+        # Knopf fehlt in der Rechnungsansicht
+        self.client.force_login(self.alice.user)
+        r = self.client.get(f"/hofladen/rechnung/{inv.id}/")
+        self.assertNotContains(r, "Habe ich überwiesen")
+        # Wieder an: Meldung wieder möglich
+        cfg.allow_self_report_paid = True
+        cfg.save(update_fields=["allow_self_report_paid"])
+        ok2, err2 = svc.mark_paid(self.alice, inv.id)
+        self.assertTrue(ok2, err2)
+
 
 class AccessTests(ShopBase):
     def test_nur_eigene_rechnung_sichtbar(self):

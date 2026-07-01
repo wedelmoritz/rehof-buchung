@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import Invoice, Payment, Product, ProductGroup
+from .models import Invoice, Payment, Product, ProductGroup, ShopConfig
 from . import payments, services as svc
 
 
@@ -134,6 +134,8 @@ def invoices(request):
         "unbilled_total": svc.unbilled_total(member) if member else 0,
         "open_total": svc.open_total(member) if member else 0,
         "open_count": svc.open_items(member).count() if member else 0,
+        # Selbst-Meldung „Habe ich überwiesen" optional abschaltbar (#26/ADR 0078).
+        "allow_self_report": ShopConfig.get_solo().allow_self_report_paid,
     })
 
 
@@ -150,6 +152,8 @@ def invoice_detail(request, invoice_id: int):
         "invoice": invoice,
         "purchase_groups": invoice.purchase_groups(),
         "breakdown": invoice.vat_breakdown(),
+        # Selbst-Meldung „Habe ich überwiesen" optional abschaltbar (#26/ADR 0078).
+        "allow_self_report": ShopConfig.get_solo().allow_self_report_paid,
     })
 
 
