@@ -32,15 +32,23 @@
 <div class="card">
   <div class="stat-row">
     <div class="stat"><div class="num">{{ nights_remaining }}</div>
-      <div class="lbl">Tage verfügbar ({{ booking_year }}, von {{ annual_budget }})</div></div>
+      <div class="lbl">Tage-Kontingent verfügbar ({{ booking_year }}, von {{ budget_info.effective }})</div></div>
     <div class="stat"><div class="num">{{ nights_used }}</div>
-      <div class="lbl">Tage gebucht ({{ booking_year }})</div></div>
+      <div class="lbl">Tage gebucht ({{ booking_year }}, inkl. vergangene)</div></div>
   </div>
+  {% if budget_info %}
+  <p class="muted" style="margin:.5rem 0 0;font-size:.88rem">
+    Kontingent {{ booking_year }}: <strong>{{ budget_info.effective }}</strong> Tage
+    {% if budget_info.effective != budget_info.nominal %}
+      <span class="muted">({{ budget_info.nominal }} aus deinem Anteil{% if budget_info.received %} +{{ budget_info.received }} erhalten{% endif %}{% if budget_info.withdrawn %} +{{ budget_info.withdrawn }} aus dem Pool{% endif %}{% if budget_info.given %} −{{ budget_info.given }} übertragen{% endif %}{% if budget_info.donated %} −{{ budget_info.donated }} gespendet{% endif %})</span>
+    {% endif %}
+    · verfügbar <strong>{{ nights_remaining }}</strong> = Kontingent − {{ nights_used }} gebucht.
+  </p>
+  {% endif %}
   {% if member.memberships %}
-  <p class="muted" style="margin:.6rem 0 0">
+  <p class="muted" style="margin:.4rem 0 0">
     Mitglieds-Anteil(e):
     {% for ms in member.memberships %}{{ ms.eg_number|default:ms }}{% if not forloop.last %}, {% endif %}{% endfor %}
-    · dein Tage-Budget gesamt: <strong>{{ annual_budget }}</strong>
     {% if member.tandem_partners %}· gemeinsam mit
       {% for p in member.tandem_partners %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}.
   </p>

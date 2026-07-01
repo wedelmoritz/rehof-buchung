@@ -560,6 +560,17 @@ def my_bookings(request):
                 Wish.objects.filter(member=member, period=wish_period, submitted=True)
                 .select_related("quarter").order_by("priority", "id"))
 
+    y = today.year
+    budget_info = None
+    if member:
+        budget_info = {
+            "nominal": member.annual_night_budget,
+            "effective": member.effective_annual_budget(y),
+            "received": member.nights_received_in_year(y),
+            "given": member.nights_given_in_year(y),
+            "donated": member.pool_donated_in_year(y),
+            "withdrawn": member.pool_received_in_year(y),
+        }
     return render(request, "booking/my_bookings.html", {
         "member": member,
         "today": today,
@@ -567,6 +578,7 @@ def my_bookings(request):
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,
         "nights_used": member.nights_used_in_year(today.year) if member else 0,
         "annual_budget": member.annual_night_budget if member else 0,
+        "budget_info": budget_info,
         "upcoming": upcoming,
         "past": past,
         "incoming_swaps": incoming_swaps,

@@ -247,8 +247,11 @@ class Member(models.Model):
         return self.annual_night_budget // 2
 
     def nights_used_in_year(self, year: int) -> int:
+        # Nur bestätigte Buchungen zählen als „gebucht" – vorläufige (unbestätigte
+        # Losungs-)Zuteilungen sind für das Mitglied unsichtbar und würden die
+        # Anzeige verfälschen (Feedback #9).
         total = 0
-        for a in self.allocations.filter(start__year=year):
+        for a in self.allocations.filter(start__year=year, provisional=False):
             total += (a.end - a.start).days
         return total
 
