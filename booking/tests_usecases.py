@@ -325,6 +325,33 @@ class LosungEinreichungUndIdempotenzTests(UseCaseBase):
                                 s + timedelta(days=1), e + timedelta(days=1))
         self.assertIsNotNone(w3, err3)
 
+    def test_wunsch_obergrenze_konfigurierbar(self):
+        """Optionale Obergrenze je Periode (#5, ADR 0078): 0 = unbegrenzt (Default),
+        gesetzt greift sie server-seitig beim Eintragen."""
+        from booking.models import BookingPolicy
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+        pol = BookingPolicy.get_solo()
+        pol.max_wishes_per_period = 2
+        pol.save(update_fields=["max_wishes_per_period"])
+        s = date(NEXT_YEAR, 6, 7)
+        w1, e1 = svc.add_wish(self.alice, period, self.k1, s, s + timedelta(days=4))
+        w2, e2 = svc.add_wish(self.alice, period, self.k2, s, s + timedelta(days=4))
+        self.assertIsNotNone(w1, e1)
+        self.assertIsNotNone(w2, e2)
+        # Dritter Wunsch → abgelehnt (Grenze erreicht)
+        w3, e3 = svc.add_wish(self.alice, period, self.k3, s, s + timedelta(days=4))
+        self.assertIsNone(w3)
+        self.assertIn("höchstens 2", e3)
+        # 0 = unbegrenzt: Grenze aufheben, dann geht der dritte wieder
+        pol.max_wishes_per_period = 0
+        pol.save(update_fields=["max_wishes_per_period"])
+        w3b, e3b = svc.add_wish(self.alice, period, self.k3, s, s + timedelta(days=4))
+        self.assertIsNotNone(w3b, e3b)
+
     def test_entwuerfe_nehmen_nicht_teil_und_rerun_ist_idempotent(self):
         period = BookingPeriod.objects.create(
             name="Losung", target_year=NEXT_YEAR,

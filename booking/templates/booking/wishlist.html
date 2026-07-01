@@ -191,6 +191,11 @@
             <button class="btn small ghost danger" type="submit" aria-label="Wunsch entfernen" title="Wunsch entfernen">&#10005;</button>
           </form>
         </span>
+        {% if w.overlap_same_quarter %}
+        <div class="wish-hint">ℹ️ <strong>Überlappt mit einem anderen Wunsch für „{{ w.quarter.name }}“.</strong>
+          Das ist erlaubt – die Losung berücksichtigt in einem überlappenden Zeitraum immer nur einen davon.
+          Wenn das nicht gewollt ist, kannst du einen der beiden entfernen.</div>
+        {% endif %}
         {% if w.alt %}
         <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist im gewählten Zeitraum sehr beliebt</strong>
           ({{ w.alt.base }}&times; von anderen gewünscht). Weniger beliebte Alternativen &ndash; dort hast du bessere Chancen:
@@ -225,6 +230,10 @@
     <p class="muted" style="margin:.6rem 0">Summe: <strong>{{ wish_nights }}</strong> von
       {{ wish_budget }} Nächten deines <strong>Wunsch-Budgets</strong> (die Hälfte deiner Jahres-Tage,
       die über die Losung vergeben wird).</p>
+    {% endif %}
+    {% if wish_cap %}
+    <p class="muted" style="margin:.6rem 0">Du hast <strong>{{ wishes|length }}</strong> von
+      höchstens <strong>{{ wish_cap }}</strong> zulässigen Wünschen je Periode eingetragen.</p>
     {% endif %}
     <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei sehr beliebten
       Zeiträumen (rot im Kalender) lohnt ein Blick, ob du einen Wunsch <strong>entzerren</strong>

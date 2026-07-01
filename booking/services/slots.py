@@ -416,6 +416,7 @@ def booking_policy_summary() -> dict:
         "group_min_persons": p.group_min_persons,
         "winter_guideline": p.winter_guideline_nights,
         "max_weekends": p.max_weekends_per_year,
+        "max_wishes": p.max_wishes_per_period,
         "season_min_nights": season_min,
         "season_min_names": season_min_names,
         "parallel_limit": parallel,

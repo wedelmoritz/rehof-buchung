@@ -698,6 +698,14 @@ def wishlist(request):
             alts = svc.wish_alternatives(period, member, wishes)
             for w in wishes:
                 w.alt = alts.get(w.id)
+        # Sanfter Hinweis JE WUNSCH bei überlappenden Wünschen fürs SELBE Quartier
+        # (Feedback #2b): überlappende Wünsche bleiben bewusst zulässig (das
+        # Losverfahren berücksichtigt jeweils nur einen), aber ein Hinweis macht die
+        # Doppelung sichtbar. Rein aus den bereits geladenen Wünschen (0 Abfragen).
+        for w in wishes:
+            w.overlap_same_quarter = any(
+                o.id != w.id and o.quarter_id == w.quarter_id
+                and o.start < w.end and o.end > w.start for o in wishes)
 
     # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
     sel_start = _parse_date(request.GET.get("start"))
@@ -711,6 +719,11 @@ def wishlist(request):
         sel_qs += f"&start={sel_start.isoformat()}"
     if sel_end:
         sel_qs += f"&end={sel_end.isoformat()}"
+
+    # Optionale Wunsch-Obergrenze je Periode (Feedback #5, ADR 0078): 0 = unbegrenzt
+    # (Standard). Nur ein Singleton-Zugriff, sichtbar gemacht in „Meine Wünsche".
+    from .models import BookingPolicy
+    wish_cap = BookingPolicy.get_solo().max_wishes_per_period if member and period else 0
 
     eff_start = eff_end = None
     candidates = []
@@ -750,6 +763,7 @@ def wishlist(request):
         "wishlist_submitted": wishlist_submitted,
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
+        "wish_cap": wish_cap,
         "notifications": svc.unread_notifications(member),
     })
 

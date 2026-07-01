@@ -113,10 +113,13 @@ Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
 `SwapRequest` (Unterkunfts-Tausch zwischen Mitgliedern; nur gleicher Zeitraum, bei
-Zustimmung sofort ausgeführt, ADR 0077), `BookingPolicy`
+Zustimmung sofort ausgeführt, ADR 0077; **abschaltbar je Mitglied** über
+`Member.accept_swap_requests`, Default an, #8/ADR 0078), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines; zusätzlich
 `min_lead_days`/`allow_gap_fill`/`group_min_persons`/`winter_guideline_nights`/
-`max_weekends_per_year`/`allow_undersized_units`, ADR 0075/0076), `SeasonRule`,
+`max_weekends_per_year`/`allow_undersized_units`/`max_wishes_per_period`
+(0 = unbegrenzt, optionale Wunsch-Obergrenze je Periode, ADR 0078),
+ADR 0075/0076), `SeasonRule`,
 `SchoolHoliday`, `FairnessSimConfig` (Singleton: Parameter + letztes Ergebnis
 des Fairness-Nachweises). (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 **Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login, mit

@@ -996,6 +996,13 @@ class BookingPolicy(models.Model):
                   "Jahr sind fair (bei voller Gemeinschaft). Beim Buchen wird ein "
                   "Hinweis angezeigt, wenn man sich diesem Höchstwert nähert.",
     )
+    max_wishes_per_period = models.PositiveIntegerField(
+        "Max. Wünsche je Periode (0 = unbegrenzt)", default=0,
+        help_text="Obergrenze für die Anzahl der Wünsche, die ein Mitglied je "
+                  "Losungs-Periode eintragen darf. 0 = unbegrenzt (Standard – bewusst, "
+                  "damit Rückfall-Wünsche möglich bleiben). Nur setzen, wenn die "
+                  "Delegation eine Begrenzung beschließt (ADR 0078).",
+    )
     allow_undersized_units = models.BooleanField(
         "Personenzahl außerhalb des Rahmens zulassen", default=True,
         help_text="Erlaubt, eine Unterkunft auch für MEHR oder WENIGER Personen zu "

@@ -246,6 +246,14 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
   Wünsche** (`submitted=True`) nehmen am Losverfahren teil (§ 5).
 - Wünsche bleiben bewusst **änderbar**, solange das Wunsch-Fenster offen ist.
 - Höchstens **25 Tage** des Jahresbudgets laufen über die Wunschliste (§ 1).
+- **Keine exakten Doppel-Wünsche:** Dieselbe Unterkunft im **exakt gleichen**
+  Zeitraum lässt sich nicht zweimal eintragen. **Überlappende** Wünsche fürs selbe
+  Quartier bleiben bewusst **erlaubt** (die Losung berücksichtigt in einem
+  überlappenden Zeitraum ohnehin nur einen davon) – ein Hinweis macht die Überlappung
+  sichtbar (ADR 0078).
+- **Optionale Obergrenze:** Die Verwaltung kann im Backend eine **Höchstzahl an
+  Wünschen je Periode** festlegen (`BookingPolicy.max_wishes_per_period`); Standard ist
+  **0 = unbegrenzt** (bewusst, damit Rückfall-Wünsche möglich bleiben, § 1/ADR 0078).
 - **Mindestnächte** werden bereits beim Eintragen/Einreichen geprüft (§ 4).
 - **Nachfrage sichtbar & Entzerren vor dem Einreichen:** Schon beim Eintragen zeigt
   der Kalender, **wie umkämpft** ein Zeitraum ist (Nachfrage der anderen Mitglieder).
