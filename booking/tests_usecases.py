@@ -701,6 +701,51 @@ class DetailUndWechselwunschTests(UseCaseBase):
         self.assertIn("nicht mehr möglich", err)
 
 
+class KurzeLueckenUndBarrierefreiTests(UseCaseBase):
+    def test_kurze_freie_luecke_wird_gefunden(self):
+        """short_free_gaps (#16b/ADR 0078) findet eine kurze, beidseitig belegte
+        freie Lücke der passenden Unterkunft im kommenden Fenster."""
+        year = date.today().year
+        self.open_full_year_window(year)
+        # Zwei Buchungen von K1 lassen eine 2-Nächte-Lücke dazwischen frei.
+        d = date.today() + timedelta(days=10)
+        svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        svc.book_spontaneous(self.bob, self.k1, d + timedelta(days=5),
+                             d + timedelta(days=8))
+        gaps = svc.short_free_gaps(persons=2, ref_from=d - timedelta(days=1))
+        k1_gaps = [g for g in gaps if g["q"].id == self.k1.id]
+        self.assertEqual(len(k1_gaps), 1)
+        self.assertEqual(k1_gaps[0]["start"], d + timedelta(days=3))
+        self.assertEqual(k1_gaps[0]["end"], d + timedelta(days=5))
+        self.assertEqual(k1_gaps[0]["nights"], 2)
+        # Eine offene Lücke am Fensterrand (K2 ist ganz frei) ist NICHT beidseitig
+        # geschlossen → wird nicht als kurze Füll-Lücke gelistet.
+        self.assertFalse([g for g in gaps if g["q"].id == self.k2.id])
+        # Die Buchen-Seite rendert die Lücken-Karte (ref_from = heute; die Lücke
+        # liegt im 60-Tage-Fenster).
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("book"), {"persons": 2})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Kurze freie Lücken")
+
+    def test_fitting_free_quarter_barrierefrei(self):
+        """has_fitting_free_quarter (#17/ADR 0078): mit Barrierefrei-Bedarf zählen
+        nur barrierefreie freie Unterkünfte als „passend"."""
+        year = date.today().year
+        self.open_full_year_window(year)
+        big = Quarter.objects.create(name="Gross", eq_class=self.cls_a,
+                                     min_occupancy=1, max_occupancy=8)
+        Quarter.objects.create(name="Barrierefrei", eq_class=self.cls_b,
+                               min_occupancy=1, max_occupancy=4, accessible=True)
+        d = date.today() + timedelta(days=10)
+        e = d + timedelta(days=3)
+        # 6 Personen: die große (nicht barrierefreie) Unterkunft passt.
+        self.assertTrue(svc.has_fitting_free_quarter(d, e, 6))
+        # Mit Barrierefrei-Bedarf passt KEINE freie Unterkunft (die barrierefreie
+        # ist für höchstens 4 ausgelegt) → nichts Passendes frei.
+        self.assertFalse(svc.has_fitting_free_quarter(d, e, 6, need_accessible=True))
+
+
 class TerminierteLosungTests(UseCaseBase):
     def _period(self, draw_at, status=BookingPeriod.WISHES_OPEN):
         return BookingPeriod.objects.create(

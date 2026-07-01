@@ -177,7 +177,10 @@ eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warte
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
 je eigen markiert [Fähnchen „Anreise“/„Abreise“], das gewählte Band ist deutlich,
 sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf – ebenso in
-Wunsch-/Externen-Kalendern), `book_confirm`
+Wunsch-/Externen-Kalendern; unter dem Kalender eine anklickbare Liste **„Kurze freie
+Lücken zum Füllen"** [`services.short_free_gaps`, beidseitig belegte kurze Zeiträume
+der nächsten Wochen, passend zu Personenzahl/Barrierefrei – ideal fürs Lückenfüllen,
+#16b/ADR 0078; Belegung einmal geladen]), `book_confirm`
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
@@ -692,7 +695,10 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   (`allow_undersized_units`, Default an, ADR 0076): erlaubt Buchung für **mehr ODER
   weniger** Personen als ausgelegt, **hart gekoppelt** an „alles Passende belegt"
   (`services.has_fitting_free_quarter` – nur wenn keine passende freie Unterkunft mehr
-  existiert; sonst gesperrt + Verweis) – durchgesetzt in `book_spontaneous`/
+  existiert; sonst gesperrt + Verweis; **barrierefrei-bewusst** über
+  `need_accessible`: bei einer barrierefreien Unterkunft zählen nur andere
+  barrierefreie freie Unterkünfte als „passend", #17/ADR 0078) – durchgesetzt in
+  `book_spontaneous`/
   `book_confirm`/`free_quarters_for` (`Allocation.clean` prüft nur den Schalter), im UI
   als „kleiner als eure Gruppe" bzw. „größer als nötig" markiert (Badge + Hinweis).
   **Gruppe** ab `group_min_persons` (Default 6).

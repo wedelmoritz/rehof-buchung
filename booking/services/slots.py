@@ -24,7 +24,7 @@ __all__ = [
     'is_gap_fill', 'gap_fill_allowed', 'is_group_booking', 'lead_time_blocker',
     'high_demand_periods', 'winter_usage', 'weekend_usage', 'wish_weekend_usage',
     'undersized_allowed', 'has_fitting_free_quarter', 'booking_policy_summary',
-    'swap_shift_hint',
+    'swap_shift_hint', 'short_free_gaps',
 ]
 
 def _quarters_payload() -> list[L.Quarter]:
@@ -154,15 +154,23 @@ def is_gap_fill(quarter: Quarter, start: date, end: date) -> bool:
     return left_closed and right_closed
 
 
-def has_fitting_free_quarter(start: date, end: date, persons: int) -> bool:
+def has_fitting_free_quarter(start: date, end: date, persons: int,
+                             need_accessible: bool = False) -> bool:
     """Gibt es im Zeitraum [start, end) eine **passende** (für `persons` ausgelegte),
     freigeschaltete und freie Unterkunft? Grundlage für die harte Kopplung „eine
     Unterkunft außerhalb des Personen-Rahmens ist nur buchbar, wenn alles Passende
     belegt ist" (ADR 0076). Filtert zuerst auf der DB nach passender Auslegung
-    (min ≤ persons ≤ max) – nur diese wenigen werden auf Freigabe/Belegung geprüft."""
+    (min ≤ persons ≤ max) – nur diese wenigen werden auf Freigabe/Belegung geprüft.
+
+    Ist `need_accessible` gesetzt (#17/ADR 0078), zählen nur **barrierefreie**
+    Unterkünfte als „passend" – so wird ein Mitglied mit Barrierefrei-Bedarf nicht
+    auf eine freie, aber nicht barrierefreie Unterkunft verwiesen."""
     persons = int(persons or 0)
-    for q in Quarter.objects.filter(
-            active=True, min_occupancy__lte=persons, max_occupancy__gte=persons):
+    qs = Quarter.objects.filter(
+        active=True, min_occupancy__lte=persons, max_occupancy__gte=persons)
+    if need_accessible:
+        qs = qs.filter(accessible=True)
+    for q in qs:
         if range_is_released(q, start, end) and quarter_is_free(q, start, end):
             return True
     return False
@@ -503,6 +511,58 @@ def range_is_released(quarter: Quarter, start: date, end: date) -> bool:
         A.range_released(_active_windows(), str(quarter.id), start, end)
         and _in_season_range(quarter, start, end)
     )
+
+
+def short_free_gaps(persons: int, need_accessible: bool = False,
+                    ref_from: date | None = None, horizon_days: int = 60,
+                    max_nights: int = 6, limit: int = 12) -> list[dict]:
+    """Kurze, **beidseitig geschlossene** freie Lücken je passender Unterkunft im
+    kommenden Fenster – ideal zum **Lückenfüllen** (ADR 0075: Mindestnächte/Vorausfrist
+    entfallen dort). „Beidseitig geschlossen" = die Nacht direkt davor UND danach ist
+    belegt, die Lücke lässt sich also nicht verlängern.
+
+    Berücksichtigt Personenzahl und (optional) Barrierefrei-Bedarf. Effizient: die
+    Belegung wird EINMAL fürs ganze Fenster geladen (`_occupied_days_by_quarter`),
+    die Lücken werden in Python aus den Tages-Mengen gerechnet; nur Quartier-Liste
+    und Freigabe-Perioden kommen zusätzlich aus der DB (wenige Abfragen).
+    Rückgabe: Liste `{q, start, end, nights}`, nach Datum sortiert (max. `limit`)."""
+    persons = int(persons or 0)
+    ref_from = ref_from or date.today()
+    win_start, win_end = ref_from, ref_from + timedelta(days=horizon_days)
+    qs = Quarter.objects.filter(active=True)
+    if persons:
+        qs = qs.filter(min_occupancy__lte=persons, max_occupancy__gte=persons)
+    if need_accessible:
+        qs = qs.filter(accessible=True)
+    quarters = list(qs.order_by("name"))
+    if not quarters:
+        return []
+    day = timedelta(days=1)
+    # Belegung inkl. der Nacht VOR dem Fenster (für die „links geschlossen"-Prüfung).
+    occ = _occupied_days_by_quarter(win_start - day, win_end)
+    windows = _active_windows()
+    out: list[dict] = []
+    for q in quarters:
+        days = occ.get(str(q.id), set())
+        d = win_start
+        while d < win_end:
+            if d in days:
+                d += day
+                continue
+            run_start = d
+            while d < win_end and d not in days:
+                d += day
+            run_end = d   # erster belegter Tag nach dem freien Lauf (exklusiv)
+            nights = (run_end - run_start).days
+            # Beidseitig geschlossen: Tag davor und danach belegt (kein Fensterrand).
+            if ((run_start - day) in days and run_end in days
+                    and 1 <= nights <= max_nights
+                    and A.range_released(windows, str(q.id), run_start, run_end)
+                    and _in_season_range(q, run_start, run_end)):
+                out.append({"q": q, "start": run_start, "end": run_end,
+                            "nights": nights})
+    out.sort(key=lambda g: (g["start"], g["q"].name))
+    return out[:limit]
 
 
 def find_bookable_gaps(

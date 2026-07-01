@@ -57,7 +57,11 @@ def book_spontaneous(
             return None, (f"{quarter.name} ist für {quarter.min_occupancy}–"
                           f"{quarter.max_occupancy} Personen ausgelegt "
                           f"(angegeben: {persons}).")
-        if has_fitting_free_quarter(start, end, persons):
+        # Barrierefrei-Bedarf berücksichtigen (#17/ADR 0078): wird eine barrierefreie
+        # Unterkunft gebucht, zählen nur andere BARRIEREFREIE freie Unterkünfte als
+        # „passend" – sonst würde man auf eine nicht barrierefreie Unterkunft verwiesen.
+        if has_fitting_free_quarter(start, end, persons,
+                                    need_accessible=quarter.accessible):
             return None, ("Für diese Personenzahl ist noch eine passende Unterkunft "
                           "frei – bitte diese buchen.")
     if not range_is_released(quarter, start, end):

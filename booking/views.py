@@ -239,7 +239,10 @@ def book_confirm(request):
     person_block = None
     undersized = False
     if outside:
-        if svc.has_fitting_free_quarter(start, end, persons):
+        # Barrierefrei-Bedarf berücksichtigen (#17/ADR 0078): bei einer barrierefreien
+        # Unterkunft zählen nur andere barrierefreie freie Unterkünfte als „passend".
+        if svc.has_fitting_free_quarter(start, end, persons,
+                                        need_accessible=quarter.accessible):
             person_block = ("Für diese Personenzahl ist noch eine passende "
                             "Unterkunft frei – bitte diese buchen.")
         else:
@@ -436,6 +439,10 @@ def book(request):
         if is_group:
             suitable.sort(key=lambda i: (not i["group_pref"], i["q"].name))
     has_group_pref = is_group and any(i["group_pref"] for i in suitable)
+    # Kurze, beidseitig geschlossene freie Lücken zum Lückenfüllen (#16b/ADR 0078):
+    # anklickbar, passend zu Personenzahl/Barrierefrei. Wenige Abfragen (Belegung
+    # einmal geladen). Nur zeigen, wenn überhaupt frei buchbar ist (Periode aktiv).
+    short_gaps = svc.short_free_gaps(persons, need_accessible) if member else []
 
     return render(request, "booking/book.html", {
         "member": member,
@@ -463,6 +470,7 @@ def book(request):
         "high_demand": high_demand,
         "is_group": is_group,
         "has_group_pref": has_group_pref,
+        "short_gaps": short_gaps,
         "winter": svc.winter_usage(member) if member else None,
         "weekend": svc.weekend_usage(member) if member else None,
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,

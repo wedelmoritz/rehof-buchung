@@ -277,6 +277,14 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
 - Optional kann beim Buchen eine **Endreinigung** mitgebucht werden (als
   Hofladen-Position, § 13).
 - Bei Belegung kann man sich auf die **Warteliste** setzen (§ 10).
+- **Kurze freie Lücken zum Füllen (ADR 0078):** Unter dem Kalender listet ein
+  anklickbarer Abschnitt kurze, **beidseitig belegte** freie Zeiträume der nächsten
+  Wochen (passend zu Personenzahl/Barrierefrei) – ideal fürs Lückenfüllen, weil dort
+  Mindestnächte und Vorlauf entfallen.
+- **Barrierefrei-Bedarf:** Die Kopplung „Personenzahl außerhalb des Rahmens nur, wenn
+  nichts Passendes frei ist" berücksichtigt den Barrierefrei-Bedarf – wer eine
+  barrierefreie Unterkunft braucht, wird nicht auf eine freie, aber nicht
+  barrierefreie Unterkunft verwiesen (ADR 0078).
 
 ---
 
