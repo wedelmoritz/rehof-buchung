@@ -68,6 +68,7 @@
     <div>IBAN: {{ invoice.iban|default:"—" }}{% if invoice.bic %} · BIC: {{ invoice.bic }}{% endif %}</div>
     <div>Verwendungszweck: <strong>{{ invoice.number }}</strong></div>
     {% if invoice.status == 'open' %}
+    {% if allow_self_report %}
     <form method="post" action="{% url 'shop_invoices' %}" style="margin-top:.6rem"
           data-confirm="Überweisung melden? Die Verwaltung bestätigt den Eingang (Kontoabgleich).">{% csrf_token %}
       <input type="hidden" name="action" value="mark_paid">
@@ -77,6 +78,11 @@
     <p class="sm muted" style="margin:.4rem 0 0">Das ist nur eine Meldung – den Eingang
       bestätigt die Verwaltung über den <strong>Kontoabgleich</strong>. Alternativ kannst du
       <strong>online bezahlen</strong> (sofort bestätigt).</p>
+    {% else %}
+    <p class="sm muted" style="margin:.6rem 0 0">Den Zahlungseingang bestätigt die
+      Verwaltung über den <strong>Kontoabgleich</strong>. Alternativ kannst du
+      <strong>online bezahlen</strong> (sofort bestätigt).</p>
+    {% endif %}
     {% elif invoice.status == 'paid' %}
     <p class="msg info" style="margin-top:.6rem">Als überwiesen gemeldet – wird von der Verwaltung (Kontoabgleich) bestätigt.</p>
     {% else %}

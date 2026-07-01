@@ -57,7 +57,11 @@ def book_spontaneous(
             return None, (f"{quarter.name} ist für {quarter.min_occupancy}–"
                           f"{quarter.max_occupancy} Personen ausgelegt "
                           f"(angegeben: {persons}).")
-        if has_fitting_free_quarter(start, end, persons):
+        # Barrierefrei-Bedarf berücksichtigen (#17/ADR 0078): wird eine barrierefreie
+        # Unterkunft gebucht, zählen nur andere BARRIEREFREIE freie Unterkünfte als
+        # „passend" – sonst würde man auf eine nicht barrierefreie Unterkunft verwiesen.
+        if has_fitting_free_quarter(start, end, persons,
+                                    need_accessible=quarter.accessible):
             return None, ("Für diese Personenzahl ist noch eine passende Unterkunft "
                           "frei – bitte diese buchen.")
     if not range_is_released(quarter, start, end):
@@ -221,6 +225,10 @@ def create_swap_request(from_member, from_allocation, to_allocation, message="")
     tauschen. Benachrichtigt das Gegenüber."""
     if to_allocation.member_id == from_member.id:
         return None, "Das ist deine eigene Buchung."
+    # Opt-out je Mitglied (#8/ADR 0078): wer keine Tausch-Anfragen möchte, kann
+    # nicht als Partner angefragt werden. Server-seitig erzwungen (nicht nur im UI).
+    if not to_allocation.member.accept_swap_requests:
+        return None, "Dieses Mitglied nimmt derzeit keine Tausch-Anfragen an."
     if (from_allocation.start != to_allocation.start
             or from_allocation.end != to_allocation.end):
         return None, ("Ein Unterkunfts-Tausch ist nur bei genau gleichem Zeitraum "

@@ -239,7 +239,10 @@ def book_confirm(request):
     person_block = None
     undersized = False
     if outside:
-        if svc.has_fitting_free_quarter(start, end, persons):
+        # Barrierefrei-Bedarf berücksichtigen (#17/ADR 0078): bei einer barrierefreien
+        # Unterkunft zählen nur andere barrierefreie freie Unterkünfte als „passend".
+        if svc.has_fitting_free_quarter(start, end, persons,
+                                        need_accessible=quarter.accessible):
             person_block = ("Für diese Personenzahl ist noch eine passende "
                             "Unterkunft frei – bitte diese buchen.")
         else:
@@ -436,6 +439,10 @@ def book(request):
         if is_group:
             suitable.sort(key=lambda i: (not i["group_pref"], i["q"].name))
     has_group_pref = is_group and any(i["group_pref"] for i in suitable)
+    # Kurze, beidseitig geschlossene freie Lücken zum Lückenfüllen (#16b/ADR 0078):
+    # anklickbar, passend zu Personenzahl/Barrierefrei. Wenige Abfragen (Belegung
+    # einmal geladen). Nur zeigen, wenn überhaupt frei buchbar ist (Periode aktiv).
+    short_gaps = svc.short_free_gaps(persons, need_accessible) if member else []
 
     return render(request, "booking/book.html", {
         "member": member,
@@ -463,6 +470,7 @@ def book(request):
         "high_demand": high_demand,
         "is_group": is_group,
         "has_group_pref": has_group_pref,
+        "short_gaps": short_gaps,
         "winter": svc.winter_usage(member) if member else None,
         "weekend": svc.weekend_usage(member) if member else None,
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,
@@ -549,8 +557,11 @@ def my_bookings(request):
                 a.start, a.end, a.persons, exclude_id=a.quarter_id)
             # Unterkunfts-Tausch nur mit exakt gleichem Zeitraum (ADR 0077); der
             # Verschiebe-Tipp wird nur berechnet, wenn weder Tausch- noch freie
-            # Wechsel-Option besteht (spart Abfragen).
-            a.swap_exact = a.concurrent["exact"]
+            # Wechsel-Option besteht (spart Abfragen). Mitglieder mit Opt-out
+            # (#8/ADR 0078) fallen als Tausch-Partner raus – member ist bereits
+            # select_related geladen (0 zusätzliche Abfragen).
+            a.swap_exact = [c for c in a.concurrent["exact"]
+                            if c.member.accept_swap_requests]
             a.swap_shift = None
             if not a.swap_exact and not a.switch_options:
                 a.swap_shift = svc.swap_shift_hint(a)
@@ -698,6 +709,14 @@ def wishlist(request):
             alts = svc.wish_alternatives(period, member, wishes)
             for w in wishes:
                 w.alt = alts.get(w.id)
+        # Sanfter Hinweis JE WUNSCH bei überlappenden Wünschen fürs SELBE Quartier
+        # (Feedback #2b): überlappende Wünsche bleiben bewusst zulässig (das
+        # Losverfahren berücksichtigt jeweils nur einen), aber ein Hinweis macht die
+        # Doppelung sichtbar. Rein aus den bereits geladenen Wünschen (0 Abfragen).
+        for w in wishes:
+            w.overlap_same_quarter = any(
+                o.id != w.id and o.quarter_id == w.quarter_id
+                and o.start < w.end and o.end > w.start for o in wishes)
 
     # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
     sel_start = _parse_date(request.GET.get("start"))
@@ -711,6 +730,11 @@ def wishlist(request):
         sel_qs += f"&start={sel_start.isoformat()}"
     if sel_end:
         sel_qs += f"&end={sel_end.isoformat()}"
+
+    # Optionale Wunsch-Obergrenze je Periode (Feedback #5, ADR 0078): 0 = unbegrenzt
+    # (Standard). Nur ein Singleton-Zugriff, sichtbar gemacht in „Meine Wünsche".
+    from .models import BookingPolicy
+    wish_cap = BookingPolicy.get_solo().max_wishes_per_period if member and period else 0
 
     eff_start = eff_end = None
     candidates = []
@@ -750,6 +774,7 @@ def wishlist(request):
         "wishlist_submitted": wishlist_submitted,
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
+        "wish_cap": wish_cap,
         "notifications": svc.unread_notifications(member),
     })
 
@@ -856,8 +881,11 @@ def profile(request):
         elif action == "notify_prefs":
             # E-Mail-Benachrichtigungen an/aus (Checkbox). In-App bleibt immer an.
             member.email_opt_in = bool(request.POST.get("email_opt_in"))
-            member.save(update_fields=["email_opt_in"])
-            messages.success(request, "Benachrichtigungs-Einstellung gespeichert.")
+            # Tausch-Anfragen an/aus (#8/ADR 0078): steuert, ob andere Mitglieder
+            # dieses Konto als Tausch-Partner anfragen dürfen.
+            member.accept_swap_requests = bool(request.POST.get("accept_swap_requests"))
+            member.save(update_fields=["email_opt_in", "accept_swap_requests"])
+            messages.success(request, "Einstellungen gespeichert.")
             return redirect("profile")
         elif action == "terminal_prefs":
             # Teilnahme am Hofladen-Terminal selbst an/aus + optional PIN setzen.

@@ -195,6 +195,7 @@
       <li>Du darfst <strong>mehr Nächte an Wünschen</strong> eintragen, als über die Losung laufen – sinnvoll als Rückfall. Ist dein Wunsch-Budget aufgebraucht, werden weitere Wünsche <strong>übersprungen</strong> (zählt nicht negativ, kein Karma-Effekt).</li>
       <li>Die restlichen Tage (bis 50) buchst du danach ganz normal selbst.</li>
       <li>Mehr Wünsche bringen <strong>keinen unfairen Vorteil</strong>: deine Position in der Reihenfolge ändert sich dadurch nicht.</li>
+      {% if p.max_wishes %}<li>Aktuell gilt eine <strong>Obergrenze von {{ p.max_wishes }} Wünschen je Periode</strong> (von der Verwaltung festgelegt). Denselben Wunsch für dieselbe Unterkunft und denselben Zeitraum kannst du ohnehin nur einmal eintragen.</li>{% endif %}
       <li>In Sonderzeiten gelten <strong>Saison-Grenzen</strong> (z.&nbsp;B. höchstens 2&nbsp;gleichzeitige Unterkünfte oder ein Nächte-Deckel je Mitglied). Ist deine Grenze in der Saison erreicht, wird ein weiterer überlappender Wunsch in der Losung <strong>übersprungen</strong> – ebenfalls <strong>ohne</strong> negativen Eintrag und <strong>ohne</strong> Karma-Effekt. Die Losung geht dann sofort zu deinem <strong>nächsten Wunsch</strong> über: Dein Zug in der Runde geht nicht verloren, nur der eine gedeckelte Wunsch wird übergangen.</li>
     </ul>
   </details>

@@ -246,6 +246,14 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
   Wünsche** (`submitted=True`) nehmen am Losverfahren teil (§ 5).
 - Wünsche bleiben bewusst **änderbar**, solange das Wunsch-Fenster offen ist.
 - Höchstens **25 Tage** des Jahresbudgets laufen über die Wunschliste (§ 1).
+- **Keine exakten Doppel-Wünsche:** Dieselbe Unterkunft im **exakt gleichen**
+  Zeitraum lässt sich nicht zweimal eintragen. **Überlappende** Wünsche fürs selbe
+  Quartier bleiben bewusst **erlaubt** (die Losung berücksichtigt in einem
+  überlappenden Zeitraum ohnehin nur einen davon) – ein Hinweis macht die Überlappung
+  sichtbar (ADR 0078).
+- **Optionale Obergrenze:** Die Verwaltung kann im Backend eine **Höchstzahl an
+  Wünschen je Periode** festlegen (`BookingPolicy.max_wishes_per_period`); Standard ist
+  **0 = unbegrenzt** (bewusst, damit Rückfall-Wünsche möglich bleiben, § 1/ADR 0078).
 - **Mindestnächte** werden bereits beim Eintragen/Einreichen geprüft (§ 4).
 - **Nachfrage sichtbar & Entzerren vor dem Einreichen:** Schon beim Eintragen zeigt
   der Kalender, **wie umkämpft** ein Zeitraum ist (Nachfrage der anderen Mitglieder).
@@ -269,6 +277,14 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
 - Optional kann beim Buchen eine **Endreinigung** mitgebucht werden (als
   Hofladen-Position, § 13).
 - Bei Belegung kann man sich auf die **Warteliste** setzen (§ 10).
+- **Kurze freie Lücken zum Füllen (ADR 0078):** Unter dem Kalender listet ein
+  anklickbarer Abschnitt kurze, **beidseitig belegte** freie Zeiträume der nächsten
+  Wochen (passend zu Personenzahl/Barrierefrei) – ideal fürs Lückenfüllen, weil dort
+  Mindestnächte und Vorlauf entfallen.
+- **Barrierefrei-Bedarf:** Die Kopplung „Personenzahl außerhalb des Rahmens nur, wenn
+  nichts Passendes frei ist" berücksichtigt den Barrierefrei-Bedarf – wer eine
+  barrierefreie Unterkunft braucht, wird nicht auf eine freie, aber nicht
+  barrierefreie Unterkunft verwiesen (ADR 0078).
 
 ---
 
@@ -295,7 +311,10 @@ lehnt ab; **bei Zustimmung wird sofort getauscht** (beide Buchungen wechseln die
 Unterkunft, der Zeitraum bleibt). Getrennt davon zeigt „Meine Buchungen" rein
 informativ, **wer zur gleichen Zeit da** ist (nur Mitglieder). Gibt es keinen
 exakten Tausch-Partner, verweist ein Tipp auf **„Buchung ändern"** (freie bzw. mit
-leicht verschobenem Zeitraum freie Unterkünfte).
+leicht verschobenem Zeitraum freie Unterkünfte). Wer **keine** Tausch-Anfragen
+erhalten möchte, schaltet dies im **Profil** ab (`Member.accept_swap_requests`,
+Default an); solche Mitglieder erscheinen für andere **nicht** als Tausch-Partner
+(server-seitig erzwungen, ADR 0078). Die reine Belegungsanzeige bleibt unberührt.
 
 ---
 

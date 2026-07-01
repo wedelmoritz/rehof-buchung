@@ -281,6 +281,11 @@ def create_invoice_for_guest(guest, line_specs, due_days: int = 14) -> Invoice:
 @transaction.atomic
 def mark_paid(member, invoice_id) -> tuple[bool, str | None]:
     """Mitglied meldet eine eigene Rechnung als bezahlt."""
+    # Selbst-Meldung optional abschaltbar (#26/ADR 0078): dann zählt allein der
+    # Kontoabgleich bzw. die Online-Zahlung. Server-seitig erzwungen (nicht nur UI).
+    if not ShopConfig.get_solo().allow_self_report_paid:
+        return False, ("Die Selbst-Meldung ist deaktiviert – der Zahlungseingang "
+                       "wird über den Kontoabgleich bestätigt. Alternativ online bezahlen.")
     try:
         inv = member.invoices.get(id=invoice_id)
     except Invoice.DoesNotExist:

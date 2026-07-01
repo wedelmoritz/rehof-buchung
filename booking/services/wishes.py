@@ -7,7 +7,7 @@ from __future__ import annotations
 from django.db import transaction
 from django.utils import timezone
 from ..models import (
-    BookingPeriod, Member, Wish,
+    BookingPeriod, BookingPolicy, Member, Wish,
 )
 from .slots import _in_season_range, wish_rule_error
 
@@ -56,6 +56,14 @@ def add_wish(member, period, quarter, start, end,
                            start=start, end=end).exists():
         return None, ("Diesen Wunsch hast du schon eingetragen (gleiche Unterkunft "
                       "und gleicher Zeitraum).")
+    # Optionale Obergrenze je Periode (Feedback #5, ADR 0078): standardmäßig 0 =
+    # unbegrenzt (bewusst, damit Rückfall-Wünsche möglich bleiben). Nur wenn die
+    # Delegation eine Grenze setzt, wird beim Eintragen server-seitig geprüft.
+    cap = BookingPolicy.get_solo().max_wishes_per_period or 0
+    if cap and Wish.objects.filter(member=member, period=period).count() >= cap:
+        return None, (f"Du kannst höchstens {cap} Wünsche je Periode eintragen. "
+                      "Bitte ordne stattdessen deine bestehenden Wünsche nach "
+                      "Priorität oder entferne einen.")
     last = (
         Wish.objects.filter(member=member, period=period)
         .order_by("-priority").first()

@@ -40,6 +40,12 @@ class ShopConfig(models.Model):
         "Zahlungsziel (Tage)", default=14,
         help_text="Nach so vielen Tagen ohne Zahlungseingang gilt eine Rechnung "
                   "als überfällig (für die Zahlungserinnerung).")
+    allow_self_report_paid = models.BooleanField(
+        "Selbst-Meldung „Habe ich überwiesen“ erlauben", default=True,
+        help_text="AN (Standard): Mitglieder/Gäste können auf der Rechnung melden, "
+                  "dass sie überwiesen haben (bestätigt wird der Eingang weiterhin per "
+                  "Kontoabgleich). AUS: der Knopf entfällt – dann zählt allein der "
+                  "Kontoabgleich bzw. die Online-Zahlung (ADR 0078).")
     # Online-Bezahlung (Mollie) – EIN System für Hofladen UND externe Gäste.
     payments_active = models.BooleanField(
         "Online-Bezahlung aktiv", default=True,

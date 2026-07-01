@@ -325,6 +325,33 @@ class LosungEinreichungUndIdempotenzTests(UseCaseBase):
                                 s + timedelta(days=1), e + timedelta(days=1))
         self.assertIsNotNone(w3, err3)
 
+    def test_wunsch_obergrenze_konfigurierbar(self):
+        """Optionale Obergrenze je Periode (#5, ADR 0078): 0 = unbegrenzt (Default),
+        gesetzt greift sie server-seitig beim Eintragen."""
+        from booking.models import BookingPolicy
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+        pol = BookingPolicy.get_solo()
+        pol.max_wishes_per_period = 2
+        pol.save(update_fields=["max_wishes_per_period"])
+        s = date(NEXT_YEAR, 6, 7)
+        w1, e1 = svc.add_wish(self.alice, period, self.k1, s, s + timedelta(days=4))
+        w2, e2 = svc.add_wish(self.alice, period, self.k2, s, s + timedelta(days=4))
+        self.assertIsNotNone(w1, e1)
+        self.assertIsNotNone(w2, e2)
+        # Dritter Wunsch → abgelehnt (Grenze erreicht)
+        w3, e3 = svc.add_wish(self.alice, period, self.k3, s, s + timedelta(days=4))
+        self.assertIsNone(w3)
+        self.assertIn("höchstens 2", e3)
+        # 0 = unbegrenzt: Grenze aufheben, dann geht der dritte wieder
+        pol.max_wishes_per_period = 0
+        pol.save(update_fields=["max_wishes_per_period"])
+        w3b, e3b = svc.add_wish(self.alice, period, self.k3, s, s + timedelta(days=4))
+        self.assertIsNotNone(w3b, e3b)
+
     def test_entwuerfe_nehmen_nicht_teil_und_rerun_ist_idempotent(self):
         period = BookingPeriod.objects.create(
             name="Losung", target_year=NEXT_YEAR,
@@ -645,6 +672,23 @@ class DetailUndWechselwunschTests(UseCaseBase):
         self.assertContains(r, "Tausch anfragen")     # Bob ist exakter Kandidat
         self.assertContains(r, self.bob.display_name)
 
+    def test_tausch_opt_out_blockt_anfrage(self):
+        """Opt-out je Mitglied (#8/ADR 0078): wer keine Tausch-Anfragen möchte,
+        kann nicht angefragt werden und erscheint nicht als exakter Kandidat."""
+        d = date(NEXT_YEAR, 4, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        b, _ = svc.book_spontaneous(self.bob, self.k2, d, d + timedelta(days=3))
+        self.bob.accept_swap_requests = False
+        self.bob.save(update_fields=["accept_swap_requests"])
+        # Server-seitig abgelehnt
+        sr, err = svc.create_swap_request(self.alice, a, b)
+        self.assertIsNone(sr)
+        self.assertIn("keine Tausch-Anfragen", err)
+        # Und Bob taucht in Alices my_bookings nicht als Tausch-Kandidat auf
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("my_bookings"))
+        self.assertNotContains(r, "Tausch anfragen")
+
     def test_tausch_hinfaellig_wenn_zeitraum_geaendert(self):
         d = date(NEXT_YEAR, 4, 10)
         a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
@@ -655,6 +699,51 @@ class DetailUndWechselwunschTests(UseCaseBase):
         ok, err = svc.respond_swap_request(self.bob, sr.id, accept=True)
         self.assertFalse(ok)
         self.assertIn("nicht mehr möglich", err)
+
+
+class KurzeLueckenUndBarrierefreiTests(UseCaseBase):
+    def test_kurze_freie_luecke_wird_gefunden(self):
+        """short_free_gaps (#16b/ADR 0078) findet eine kurze, beidseitig belegte
+        freie Lücke der passenden Unterkunft im kommenden Fenster."""
+        year = date.today().year
+        self.open_full_year_window(year)
+        # Zwei Buchungen von K1 lassen eine 2-Nächte-Lücke dazwischen frei.
+        d = date.today() + timedelta(days=10)
+        svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        svc.book_spontaneous(self.bob, self.k1, d + timedelta(days=5),
+                             d + timedelta(days=8))
+        gaps = svc.short_free_gaps(persons=2, ref_from=d - timedelta(days=1))
+        k1_gaps = [g for g in gaps if g["q"].id == self.k1.id]
+        self.assertEqual(len(k1_gaps), 1)
+        self.assertEqual(k1_gaps[0]["start"], d + timedelta(days=3))
+        self.assertEqual(k1_gaps[0]["end"], d + timedelta(days=5))
+        self.assertEqual(k1_gaps[0]["nights"], 2)
+        # Eine offene Lücke am Fensterrand (K2 ist ganz frei) ist NICHT beidseitig
+        # geschlossen → wird nicht als kurze Füll-Lücke gelistet.
+        self.assertFalse([g for g in gaps if g["q"].id == self.k2.id])
+        # Die Buchen-Seite rendert die Lücken-Karte (ref_from = heute; die Lücke
+        # liegt im 60-Tage-Fenster).
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("book"), {"persons": 2})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Kurze freie Lücken")
+
+    def test_fitting_free_quarter_barrierefrei(self):
+        """has_fitting_free_quarter (#17/ADR 0078): mit Barrierefrei-Bedarf zählen
+        nur barrierefreie freie Unterkünfte als „passend"."""
+        year = date.today().year
+        self.open_full_year_window(year)
+        big = Quarter.objects.create(name="Gross", eq_class=self.cls_a,
+                                     min_occupancy=1, max_occupancy=8)
+        Quarter.objects.create(name="Barrierefrei", eq_class=self.cls_b,
+                               min_occupancy=1, max_occupancy=4, accessible=True)
+        d = date.today() + timedelta(days=10)
+        e = d + timedelta(days=3)
+        # 6 Personen: die große (nicht barrierefreie) Unterkunft passt.
+        self.assertTrue(svc.has_fitting_free_quarter(d, e, 6))
+        # Mit Barrierefrei-Bedarf passt KEINE freie Unterkunft (die barrierefreie
+        # ist für höchstens 4 ausgelegt) → nichts Passendes frei.
+        self.assertFalse(svc.has_fitting_free_quarter(d, e, 6, need_accessible=True))
 
 
 class TerminierteLosungTests(UseCaseBase):

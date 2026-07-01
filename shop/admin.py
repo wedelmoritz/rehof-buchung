@@ -63,11 +63,14 @@ class ShopConfigAdmin(admin.ModelAdmin):
                            "Datenschutzerklärung (DSGVO) und AGB werden als Seiten "
                            "ausgegeben und im Fuß verlinkt, sobald sie ausgefüllt sind."}),
         ("Zahlung", {
-            "fields": ("iban", "bic", "invoice_prefix", "payment_term_days"),
+            "fields": ("iban", "bic", "invoice_prefix", "payment_term_days",
+                       "allow_self_report_paid"),
             "description": "IBAN/BIC, auf die Mitglieder überweisen. Das Präfix "
                            "bildet die Rechnungsnummer (z. B. HL-2026-04-001). Das "
                            "Zahlungsziel bestimmt, ab wann eine Rechnung als "
-                           "überfällig gilt (für die Zahlungserinnerung)."}),
+                           "überfällig gilt (für die Zahlungserinnerung). Die "
+                           "Selbst-Meldung „Habe ich überwiesen“ lässt sich "
+                           "abschalten (dann zählt allein der Kontoabgleich)."}),
         ("Online-Bezahlung (Mollie)", {
             "fields": ("payments_active", "payments_test_mode", "mollie_api_key"),
             "description": "EIN Zahlsystem für Hofladen UND externe Gäste. Im "

@@ -113,10 +113,13 @@ Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
 `SwapRequest` (Unterkunfts-Tausch zwischen Mitgliedern; nur gleicher Zeitraum, bei
-Zustimmung sofort ausgeführt, ADR 0077), `BookingPolicy`
+Zustimmung sofort ausgeführt, ADR 0077; **abschaltbar je Mitglied** über
+`Member.accept_swap_requests`, Default an, #8/ADR 0078), `BookingPolicy`
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines; zusätzlich
 `min_lead_days`/`allow_gap_fill`/`group_min_persons`/`winter_guideline_nights`/
-`max_weekends_per_year`/`allow_undersized_units`, ADR 0075/0076), `SeasonRule`,
+`max_weekends_per_year`/`allow_undersized_units`/`max_wishes_per_period`
+(0 = unbegrenzt, optionale Wunsch-Obergrenze je Periode, ADR 0078),
+ADR 0075/0076), `SeasonRule`,
 `SchoolHoliday`, `FairnessSimConfig` (Singleton: Parameter + letztes Ergebnis
 des Fairness-Nachweises). (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
 **Externe Gäste** (`docs/EXTERNE-GAESTE.md`): `Guest` (Bucher ohne Login, mit
@@ -174,7 +177,10 @@ eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warte
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
 je eigen markiert [Fähnchen „Anreise“/„Abreise“], das gewählte Band ist deutlich,
 sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf – ebenso in
-Wunsch-/Externen-Kalendern), `book_confirm`
+Wunsch-/Externen-Kalendern; unter dem Kalender eine anklickbare Liste **„Kurze freie
+Lücken zum Füllen"** [`services.short_free_gaps`, beidseitig belegte kurze Zeiträume
+der nächsten Wochen, passend zu Personenzahl/Barrierefrei – ideal fürs Lückenfüllen,
+#16b/ADR 0078; Belegung einmal geladen]), `book_confirm`
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
@@ -240,8 +246,9 @@ Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
 Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile`. Eigene Karte **„Benachrichtigungen“** bündelt
 die Kanäle: **In-App** (immer), **E-Mail** (`email_opt_in`, Aktion `notify_prefs` –
-getrennt aus der Profil-Form gelöst) und **Push** je Gerät (Toggle wenn
-`push_enabled`, sonst Hinweis „nicht aktiviert“). Die **Anmeldedaten** (E-Mail/
+getrennt aus der Profil-Form gelöst; dieselbe Aktion speichert auch
+`accept_swap_requests` = Tausch-Anfragen erlauben/abschalten, #8/ADR 0078) und
+**Push** je Gerät (Toggle wenn `push_enabled`, sonst Hinweis „nicht aktiviert“). Die **Anmeldedaten** (E-Mail/
 Passwort ändern) stehen in einem **eingeklappten `<details>`** mit `autocomplete="off"`
 – so springt Safari nicht beim Laden auf das Passwortfeld / den Mac-Passwortmanager.
 Dort ändert das Mitglied **E-Mail (= Login, folgt
@@ -363,7 +370,8 @@ Hinweis statt Knopf), Endpunkte
 `push_subscribe`/`push_unsubscribe`; SW-`push`/`notificationclick` in `sw.js`.
 **Navigation:** Icons als
 einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
-**Desktop** vertikale Leiste rechts (`.sidenav`) mit Umschalter IN der Leiste
+**Desktop** vertikale Leiste **links** (`.sidenav`, `order:-1` im Flex-Layout;
+#24/ADR 0078) mit Umschalter IN der Leiste
 (Kopf „Menü“ + Chevron `#navToggle`), die zur schmalen Icon-Leiste einklappt –
 Zustand in `localStorage`, schon im `<head>` gesetzt (kein FOUC). Auf dem
 **Smartphone** stattdessen eine feste **untere Tab-Leiste** (`.tabbar`,
@@ -430,7 +438,10 @@ mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
 Stammdaten der Genossenschaft im `ShopConfig`-Singleton (Admin-Label **„Rechtliche &
 Zahlungs-Einstellungen“** – bewusst übergreifend, da Rechnungen auch für externe
 Gäste gelten; früher „Hofladen-Einstellungen“): `coop_name`, `coop_address`,
-`tax_number`/`vat_id`, `iban`, `bic`, `invoice_prefix`, `payment_term_days`, `board`
+`tax_number`/`vat_id`, `iban`, `bic`, `invoice_prefix`, `payment_term_days`,
+`allow_self_report_paid` (Selbst-Meldung „Habe ich überwiesen“ optional abschaltbar,
+Default an – dann zählt allein der Kontoabgleich; server-seitig in `mark_paid`
+erzwungen, #26/ADR 0078), `board`
 (Vorstand), `contact_email` + USt-Schalter (`small_business`) + Impressum/Datenschutz/
 AGB. Der Admin springt direkt aufs Singleton (`changelist_view`-Redirect, keine
 Zwischen-Liste). Editierbar nur im Django-Admin (Admin-Rolle). Geldlogik/Tests in
@@ -688,7 +699,10 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   (`allow_undersized_units`, Default an, ADR 0076): erlaubt Buchung für **mehr ODER
   weniger** Personen als ausgelegt, **hart gekoppelt** an „alles Passende belegt"
   (`services.has_fitting_free_quarter` – nur wenn keine passende freie Unterkunft mehr
-  existiert; sonst gesperrt + Verweis) – durchgesetzt in `book_spontaneous`/
+  existiert; sonst gesperrt + Verweis; **barrierefrei-bewusst** über
+  `need_accessible`: bei einer barrierefreien Unterkunft zählen nur andere
+  barrierefreie freie Unterkünfte als „passend", #17/ADR 0078) – durchgesetzt in
+  `book_spontaneous`/
   `book_confirm`/`free_quarters_for` (`Allocation.clean` prüft nur den Schalter), im UI
   als „kleiner als eure Gruppe" bzw. „größer als nötig" markiert (Badge + Hinweis).
   **Gruppe** ab `group_min_persons` (Default 6).

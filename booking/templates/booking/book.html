@@ -104,8 +104,30 @@
   </details>
 </div>
 
-{% if sel_start %}
+{% if short_gaps %}
 <div class="card">
+  <details class="explain" open>
+    <summary>Kurze freie Lücken zum Füllen ({{ short_gaps|length }})</summary>
+    <p class="muted" style="margin:.4rem 0">Kurze, <strong>beidseitig belegte</strong>
+      freie Zeiträume der nächsten Wochen – ideal zum <strong>Lückenfüllen</strong>
+      (hier entfallen Mindestnächte und Vorlauf). Tippe eine Lücke an, um sie in die
+      Auswahl zu übernehmen.</p>
+    <ul class="gaps">
+      {% for g in short_gaps %}
+      <li>
+        <a data-ajax href="?year={{ cal.year }}&month={{ g.start|date:'n' }}&start={{ g.start|date:'Y-m-d' }}&end={{ g.end|date:'Y-m-d' }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}#auswahl">
+          <strong>{{ g.q.name }}</strong> · {{ g.start|date:'D, d.m.' }} &ndash; {{ g.end|date:'D, d.m.' }}
+          <span class="muted">({{ g.nights }} {% if g.nights == 1 %}Nacht{% else %}Nächte{% endif %})</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+</div>
+{% endif %}
+
+{% if sel_start %}
+<div class="card" id="auswahl">
   <div style="display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap">
     <h2 style="margin:0">Auswahl</h2>
     <span class="muted">{{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}{% if not sel_end %} · jetzt Abreisetag wählen (oder 1 Nacht){% endif %}</span>
@@ -180,6 +202,11 @@
   .filters .chk { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.9rem; }
   .filters .chk input { min-width:auto; }
   .notif ul { margin:.4rem 0 .6rem; padding-left:1.1rem; }
+  ul.gaps { list-style:none; margin:.4rem 0 0; padding:0; display:flex;
+    flex-direction:column; gap:.35rem; }
+  ul.gaps a { display:block; padding:.45rem .6rem; border:1px solid var(--line);
+    border-radius:8px; text-decoration:none; color:var(--ink); background:var(--card); }
+  ul.gaps a:hover { border-color:var(--accent); }
   table.book-cal td { padding:0; }
   table.book-cal td.out { background:#f6f0e6; }
   td.lvl-free { background:#d9efce; }
