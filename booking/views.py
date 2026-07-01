@@ -549,8 +549,11 @@ def my_bookings(request):
                 a.start, a.end, a.persons, exclude_id=a.quarter_id)
             # Unterkunfts-Tausch nur mit exakt gleichem Zeitraum (ADR 0077); der
             # Verschiebe-Tipp wird nur berechnet, wenn weder Tausch- noch freie
-            # Wechsel-Option besteht (spart Abfragen).
-            a.swap_exact = a.concurrent["exact"]
+            # Wechsel-Option besteht (spart Abfragen). Mitglieder mit Opt-out
+            # (#8/ADR 0078) fallen als Tausch-Partner raus – member ist bereits
+            # select_related geladen (0 zusätzliche Abfragen).
+            a.swap_exact = [c for c in a.concurrent["exact"]
+                            if c.member.accept_swap_requests]
             a.swap_shift = None
             if not a.swap_exact and not a.switch_options:
                 a.swap_shift = svc.swap_shift_hint(a)
@@ -870,8 +873,11 @@ def profile(request):
         elif action == "notify_prefs":
             # E-Mail-Benachrichtigungen an/aus (Checkbox). In-App bleibt immer an.
             member.email_opt_in = bool(request.POST.get("email_opt_in"))
-            member.save(update_fields=["email_opt_in"])
-            messages.success(request, "Benachrichtigungs-Einstellung gespeichert.")
+            # Tausch-Anfragen an/aus (#8/ADR 0078): steuert, ob andere Mitglieder
+            # dieses Konto als Tausch-Partner anfragen dürfen.
+            member.accept_swap_requests = bool(request.POST.get("accept_swap_requests"))
+            member.save(update_fields=["email_opt_in", "accept_swap_requests"])
+            messages.success(request, "Einstellungen gespeichert.")
             return redirect("profile")
         elif action == "terminal_prefs":
             # Teilnahme am Hofladen-Terminal selbst an/aus + optional PIN setzen.

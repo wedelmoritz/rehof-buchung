@@ -303,7 +303,10 @@ lehnt ab; **bei Zustimmung wird sofort getauscht** (beide Buchungen wechseln die
 Unterkunft, der Zeitraum bleibt). Getrennt davon zeigt „Meine Buchungen" rein
 informativ, **wer zur gleichen Zeit da** ist (nur Mitglieder). Gibt es keinen
 exakten Tausch-Partner, verweist ein Tipp auf **„Buchung ändern"** (freie bzw. mit
-leicht verschobenem Zeitraum freie Unterkünfte).
+leicht verschobenem Zeitraum freie Unterkünfte). Wer **keine** Tausch-Anfragen
+erhalten möchte, schaltet dies im **Profil** ab (`Member.accept_swap_requests`,
+Default an); solche Mitglieder erscheinen für andere **nicht** als Tausch-Partner
+(server-seitig erzwungen, ADR 0078). Die reine Belegungsanzeige bleibt unberührt.
 
 ---
 

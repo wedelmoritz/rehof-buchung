@@ -672,6 +672,23 @@ class DetailUndWechselwunschTests(UseCaseBase):
         self.assertContains(r, "Tausch anfragen")     # Bob ist exakter Kandidat
         self.assertContains(r, self.bob.display_name)
 
+    def test_tausch_opt_out_blockt_anfrage(self):
+        """Opt-out je Mitglied (#8/ADR 0078): wer keine Tausch-Anfragen möchte,
+        kann nicht angefragt werden und erscheint nicht als exakter Kandidat."""
+        d = date(NEXT_YEAR, 4, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        b, _ = svc.book_spontaneous(self.bob, self.k2, d, d + timedelta(days=3))
+        self.bob.accept_swap_requests = False
+        self.bob.save(update_fields=["accept_swap_requests"])
+        # Server-seitig abgelehnt
+        sr, err = svc.create_swap_request(self.alice, a, b)
+        self.assertIsNone(sr)
+        self.assertIn("keine Tausch-Anfragen", err)
+        # Und Bob taucht in Alices my_bookings nicht als Tausch-Kandidat auf
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("my_bookings"))
+        self.assertNotContains(r, "Tausch anfragen")
+
     def test_tausch_hinfaellig_wenn_zeitraum_geaendert(self):
         d = date(NEXT_YEAR, 4, 10)
         a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))

@@ -201,6 +201,11 @@ class Member(models.Model):
         "E-Mail-Benachrichtigungen", default=True,
         help_text="Wenn aus, bekommt das Mitglied keine E-Mails (In-App-Hinweise "
                   "bleiben).")
+    accept_swap_requests = models.BooleanField(
+        "Tausch-Anfragen erlauben", default=True,
+        help_text="Wenn aus, erscheint das Mitglied für andere nicht als "
+                  "Tausch-Partner und kann keine Tausch-Anfrage erhalten (ADR 0078). "
+                  "Die reine Anzeige „wer ist zur gleichen Zeit da“ bleibt.")
     # Profil-/Rechnungsdaten (vom Nutzer selbst pflegbar; nur eigene Sicht)
     legal_name = models.CharField("Vollständiger Name", max_length=160, blank=True)
     street = models.CharField("Straße & Nr.", max_length=160, blank=True)

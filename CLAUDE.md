@@ -243,8 +243,9 @@ Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
 Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile`. Eigene Karte **„Benachrichtigungen“** bündelt
 die Kanäle: **In-App** (immer), **E-Mail** (`email_opt_in`, Aktion `notify_prefs` –
-getrennt aus der Profil-Form gelöst) und **Push** je Gerät (Toggle wenn
-`push_enabled`, sonst Hinweis „nicht aktiviert“). Die **Anmeldedaten** (E-Mail/
+getrennt aus der Profil-Form gelöst; dieselbe Aktion speichert auch
+`accept_swap_requests` = Tausch-Anfragen erlauben/abschalten, #8/ADR 0078) und
+**Push** je Gerät (Toggle wenn `push_enabled`, sonst Hinweis „nicht aktiviert“). Die **Anmeldedaten** (E-Mail/
 Passwort ändern) stehen in einem **eingeklappten `<details>`** mit `autocomplete="off"`
 – so springt Safari nicht beim Laden auf das Passwortfeld / den Mac-Passwortmanager.
 Dort ändert das Mitglied **E-Mail (= Login, folgt
