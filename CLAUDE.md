@@ -179,10 +179,9 @@ je eigen markiert [Fähnchen „Anreise“/„Abreise“], das gewählte Band is
 sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf – ebenso in
 Wunsch-/Externen-Kalendern; unter dem Kalender eine **eingeklappte, hervorgehobene**
 Liste **„Kurze freie Lücken zum Füllen"** [`services.short_free_gaps`, beidseitig
-belegte kurze Zeiträume, passend zu Personenzahl/Barrierefrei – ideal fürs
-Lückenfüllen; **nur im angezeigten Monat** (Seite bleibt kompakt, mobil-freundlich),
-weitere Monate über die Kalender-Navigation, #16b/ADR 0078; Belegung einmal geladen]),
-`book_confirm`
+belegte kurze Zeiträume der **nächsten Wochen**, passend zu Personenzahl/Barrierefrei –
+ideal fürs Lückenfüllen; eingeklappt, daher bleibt die Seite kompakt (mobil-freundlich),
+#16b/ADR 0078; Belegung einmal geladen]), `book_confirm`
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange

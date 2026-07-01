@@ -704,14 +704,11 @@ class DetailUndWechselwunschTests(UseCaseBase):
 class KurzeLueckenUndBarrierefreiTests(UseCaseBase):
     def test_kurze_freie_luecke_wird_gefunden(self):
         """short_free_gaps (#16b/ADR 0078) findet eine kurze, beidseitig belegte
-        freie Lücke der passenden Unterkunft. Die Buchen-Seite zeigt sie NUR im
-        angezeigten Monat (die Seite bleibt kompakt)."""
-        # Fester Tag mitten in einem Monat ~2 Monate voraus (unabhängig von „heute“),
-        # damit die Lücke sicher komplett im selben Monat liegt.
-        m2 = (date.today().replace(day=1) + timedelta(days=70))
-        d = date(m2.year, m2.month, 10)
-        self.open_full_year_window(d.year)
-        # Zwei Buchungen von K1 lassen eine 2-Nächte-Lücke (13.–15.) dazwischen frei.
+        freie Lücke der passenden Unterkunft in den nächsten Wochen."""
+        year = date.today().year
+        self.open_full_year_window(year)
+        # Zwei Buchungen von K1 lassen eine 2-Nächte-Lücke dazwischen frei.
+        d = date.today() + timedelta(days=10)
         svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
         svc.book_spontaneous(self.bob, self.k1, d + timedelta(days=5),
                              d + timedelta(days=8))
@@ -724,16 +721,12 @@ class KurzeLueckenUndBarrierefreiTests(UseCaseBase):
         # Eine offene Lücke am Fensterrand (K2 ist ganz frei) ist NICHT beidseitig
         # geschlossen → wird nicht als kurze Füll-Lücke gelistet.
         self.assertFalse([g for g in gaps if g["q"].id == self.k2.id])
-        # Die Buchen-Seite rendert die Lücken-Karte im angezeigten Monat der Lücke.
+        # Die Buchen-Seite rendert die (eingeklappte) Lücken-Karte – die Lücke liegt
+        # in den nächsten Wochen (Standard-Fenster).
         self.client.force_login(self.alice.user)
-        r = self.client.get(reverse("book"),
-                            {"persons": 2, "year": d.year, "month": d.month})
+        r = self.client.get(reverse("book"), {"persons": 2})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "freie Lücke")
-        # In einem Monat OHNE Lücke erscheint die Karte nicht.
-        r2 = self.client.get(reverse("book"), {"persons": 2, "year": d.year,
-                                               "month": 1 if d.month != 1 else 2})
-        self.assertNotContains(r2, "freie Lücke")
 
     def test_fitting_free_quarter_barrierefrei(self):
         """has_fitting_free_quarter (#17/ADR 0078): mit Barrierefrei-Bedarf zählen
