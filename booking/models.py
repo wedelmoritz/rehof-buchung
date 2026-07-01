@@ -912,11 +912,12 @@ class OutboxEmail(models.Model):
 
 
 class SwapRequest(models.Model):
-    """Wechselwunsch: ein Mitglied möchte mit einem anderen, das im selben
-    Zeitraum da ist, das Quartier tauschen. Das Gegenüber kann zustimmen oder
-    ablehnen; beide werden per Notification informiert. Die tatsächliche
-    Umbuchung stimmen die Beteiligten anschließend miteinander/mit der
-    Verwaltung ab."""
+    """Unterkunfts-Tausch: ein Mitglied möchte mit einem anderen, das im **exakt
+    gleichen Zeitraum** in einer anderen Unterkunft ist, das Quartier tauschen
+    (ADR 0077). Das Gegenüber kann zustimmen oder ablehnen. **Bei Zustimmung wird
+    der Tausch sofort ausgeführt** – beide Buchungen wechseln die Unterkunft (der
+    Zeitraum bleibt identisch, daher immer konfliktfrei); beide werden per
+    Notification informiert."""
     PENDING, ACCEPTED, DECLINED = "pending", "accepted", "declined"
     STATUS = [
         (PENDING, "Offen"),

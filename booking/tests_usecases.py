@@ -590,15 +590,52 @@ class DetailUndWechselwunschTests(UseCaseBase):
         # Bob ist benachrichtigt und sieht den offenen Wunsch
         self.assertEqual(self.bob.notifications.filter(read=False).count(), 1)
         self.assertEqual(len(svc.pending_swaps_for(self.bob)), 1)
-        # Bob stimmt zu -> Status gesetzt, Alice benachrichtigt
+        # Bob stimmt zu -> Tausch wird SOFORT ausgeführt (Quartiere wechseln)
         ok, err = svc.respond_swap_request(self.bob, sr.id, accept=True)
         self.assertTrue(ok, err)
         sr.refresh_from_db()
         self.assertEqual(sr.status, "accepted")
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.quarter, self.k2)     # Alice ist jetzt in K2
+        self.assertEqual(b.quarter, self.k1)     # Bob ist jetzt in K1
+        self.assertEqual(a.start, d)             # Zeitraum unverändert
         self.assertEqual(self.alice.notifications.filter(read=False).count(), 1)
         # Kein doppeltes Beantworten
         ok2, _ = svc.respond_swap_request(self.bob, sr.id, accept=False)
         self.assertFalse(ok2)
+
+    def test_tausch_nur_bei_gleichem_zeitraum(self):
+        d = date(NEXT_YEAR, 4, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        # Bob hat einen anderen (nur überlappenden) Zeitraum → kein Tausch möglich.
+        b, _ = svc.book_spontaneous(self.bob, self.k2, d + timedelta(days=1),
+                                    d + timedelta(days=4))
+        sr, err = svc.create_swap_request(self.alice, a, b)
+        self.assertIsNone(sr)
+        self.assertIn("gleichem Zeitraum", err)
+
+    def test_my_bookings_rendert_tausch_und_belegung(self):
+        d = date(NEXT_YEAR, 4, 10)
+        svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        svc.book_spontaneous(self.bob, self.k2, d, d + timedelta(days=3))
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("my_bookings"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Wer ist zur gleichen Zeit da")
+        self.assertContains(r, "Unterkunft mit jemandem tauschen")
+        self.assertContains(r, "Tausch anfragen")     # Bob ist exakter Kandidat
+        self.assertContains(r, self.bob.display_name)
+
+    def test_tausch_hinfaellig_wenn_zeitraum_geaendert(self):
+        d = date(NEXT_YEAR, 4, 10)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))
+        b, _ = svc.book_spontaneous(self.bob, self.k2, d, d + timedelta(days=3))
+        sr, _ = svc.create_swap_request(self.alice, a, b)
+        # Alice verlängert ihre Buchung → Zeitraum stimmt nicht mehr überein.
+        svc.adjust_allocation(self.alice, a.id, d, d + timedelta(days=4))
+        ok, err = svc.respond_swap_request(self.bob, sr.id, accept=True)
+        self.assertFalse(ok)
+        self.assertIn("nicht mehr möglich", err)
 
 
 class TerminierteLosungTests(UseCaseBase):

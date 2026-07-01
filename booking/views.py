@@ -536,11 +536,19 @@ def my_bookings(request):
         for a in upcoming:
             a.waiters = svc.waiters_for_allocation(a)
             a.concurrent = svc.concurrent_split(a)
+            a.concurrent_count = len(a.concurrent["exact"]) + len(a.concurrent["overlap"])
             a.min_nights = svc.min_nights_for_range(a.start, a.end)
             # Andere Quartiere, die für den AKTUELLEN Zeitraum + Personen frei
             # sind (für den Unterkunfts-Wechsel im „Buchung ändern“-Bereich).
             a.switch_options = svc.free_quarters_for(
                 a.start, a.end, a.persons, exclude_id=a.quarter_id)
+            # Unterkunfts-Tausch nur mit exakt gleichem Zeitraum (ADR 0077); der
+            # Verschiebe-Tipp wird nur berechnet, wenn weder Tausch- noch freie
+            # Wechsel-Option besteht (spart Abfragen).
+            a.swap_exact = a.concurrent["exact"]
+            a.swap_shift = None
+            if not a.swap_exact and not a.switch_options:
+                a.swap_shift = svc.swap_shift_hint(a)
         incoming_swaps = svc.pending_swaps_for(member)
         my_waitlist = list(
             member.waitlist_entries.filter(fulfilled=False, end__gte=today)
