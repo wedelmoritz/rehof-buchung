@@ -441,8 +441,16 @@ def book(request):
     has_group_pref = is_group and any(i["group_pref"] for i in suitable)
     # Kurze, beidseitig geschlossene freie Lücken zum Lückenfüllen (#16b/ADR 0078):
     # anklickbar, passend zu Personenzahl/Barrierefrei. Wenige Abfragen (Belegung
-    # einmal geladen). Nur zeigen, wenn überhaupt frei buchbar ist (Periode aktiv).
-    short_gaps = svc.short_free_gaps(persons, need_accessible) if member else []
+    # einmal geladen). Bewusst NUR im ANGEZEIGTEN Monat (die Seite bleibt kompakt) –
+    # ab heute bis Monatsende; wer weiter voraus will, blättert den Monat weiter.
+    from calendar import monthrange as _monthrange
+    _m_start = date(year, month, 1)
+    _m_end = _m_start + timedelta(days=_monthrange(year, month)[1])
+    _gap_from = max(today, _m_start)
+    _gap_horizon = (_m_end - _gap_from).days
+    short_gaps = svc.short_free_gaps(
+        persons, need_accessible, ref_from=_gap_from, horizon_days=_gap_horizon) \
+        if member and _gap_horizon > 0 else []
 
     return render(request, "booking/book.html", {
         "member": member,
