@@ -306,6 +306,25 @@ class LosungTransparenzTests(UseCaseBase):
 # --------------------------------------------------------------------------- #
 
 class LosungEinreichungUndIdempotenzTests(UseCaseBase):
+    def test_exakter_doppelwunsch_abgelehnt(self):
+        period = BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+        s = date(NEXT_YEAR, 6, 7)
+        e = s + timedelta(days=4)
+        w1, err1 = svc.add_wish(self.alice, period, self.k1, s, e)
+        self.assertIsNotNone(w1, err1)
+        # Exakt gleicher Wunsch → abgelehnt (#2a)
+        w2, err2 = svc.add_wish(self.alice, period, self.k1, s, e)
+        self.assertIsNone(w2)
+        self.assertIn("schon eingetragen", err2)
+        # Nur überlappender Zeitraum bleibt bewusst erlaubt
+        w3, err3 = svc.add_wish(self.alice, period, self.k1,
+                                s + timedelta(days=1), e + timedelta(days=1))
+        self.assertIsNotNone(w3, err3)
+
     def test_entwuerfe_nehmen_nicht_teil_und_rerun_ist_idempotent(self):
         period = BookingPeriod.objects.create(
             name="Losung", target_year=NEXT_YEAR,

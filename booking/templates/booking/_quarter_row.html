@@ -12,7 +12,6 @@
   {% if info.undersized %}{% if persons > info.q.max_occupancy %}<span class="tag" style="background:var(--warn-soft);color:var(--warn)">kleiner als eure Gruppe · Platz für {{ info.q.max_occupancy }}</span>{% else %}<span class="tag" style="background:var(--warn-soft);color:var(--warn)">größer als nötig · für {{ info.q.min_occupancy }}–{{ info.q.max_occupancy }} Pers.</span>{% endif %}
   {% elif not info.fits_persons %}<span class="reason">für {{ persons }} Pers. nicht geeignet</span>{% endif %}
   {% if not info.fits_access %}<span class="reason">nicht barrierearm/-frei</span>{% endif %}
-  {% if info.reason %}<span class="reason">{{ info.reason }}</span>{% endif %}
   <span class="spacer"></span>
   <button class="btn small" type="submit" {% if not info.bookable %}disabled{% endif %}>Weiter →</button>
 </form>
@@ -31,7 +30,6 @@
   {% if info.undersized %}{% if persons > info.q.max_occupancy %}<span class="tag" style="background:var(--warn-soft);color:var(--warn)">kleiner als eure Gruppe · Platz für {{ info.q.max_occupancy }}</span>{% else %}<span class="tag" style="background:var(--warn-soft);color:var(--warn)">größer als nötig · für {{ info.q.min_occupancy }}–{{ info.q.max_occupancy }} Pers.</span>{% endif %}
   {% elif not info.fits_persons %}<span class="reason">für {{ persons }} Pers. nicht geeignet</span>{% endif %}
   {% if not info.fits_access %}<span class="reason">nicht barrierearm/-frei</span>{% endif %}
-  {% if info.reason %}<span class="reason">{{ info.reason }}</span>{% endif %}
   <span class="spacer"></span>
   <button class="btn small ghost" type="submit" {% if not info.bookable %}disabled{% endif %}>Warteliste</button>
 </form>

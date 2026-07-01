@@ -98,7 +98,7 @@
   {% endif %}
 
   <div class="confirm-actions">
-    <a class="btn ghost" href="{% url 'book' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">Abbrechen</a>
+    <a class="btn ghost" href="{% url 'book' %}?start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}&persons={{ persons }}">&larr; Zurück zur Auswahl</a>
     {% if can_book %}
     <button class="btn" type="submit">Verbindlich buchen</button>
     {% else %}

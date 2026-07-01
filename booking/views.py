@@ -374,7 +374,8 @@ def book(request):
     if sel_end:
         sel_qs += f"&end={sel_end.isoformat()}"
 
-    eff_start = eff_end = None
+    eff_start = sel_start if member else None    # für die Auswahl-Leiste
+    eff_end = None
     suitable, maybe_unsuitable, occ_quarters = [], [], []
     range_min_nights = 0
     too_short = False
@@ -382,9 +383,11 @@ def book(request):
     days_remaining_year = 0
     high_demand = []
     is_group = False
-    if member and sel_start:
-        eff_start = sel_start
-        eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
+    range_reason = None
+    # Kandidaten erst zeigen, wenn BEIDE Daten gewählt sind (Feedback #14): mit nur
+    # der Anreise gäbe es sonst eine irreführende 1-Nacht-Vorschau.
+    if member and sel_start and sel_end:
+        eff_start, eff_end = sel_start, sel_end
         nights = (eff_end - eff_start).days
         range_min_nights = svc.min_nights_for_range(eff_start, eff_end)
         too_short = nights < range_min_nights
@@ -396,6 +399,7 @@ def book(request):
         # Termin-/Regel-/Budget-Grund ist quartiers-unabhängig → einmal berechnen,
         # plus die Variante ohne Mindestnächte/Vorausfrist für Lückenfüller (ADR 0075).
         reason = svc.schedule_blocker(member, eff_start, eff_end)
+        range_reason = reason        # quartiers-unabhängig → einmal oben anzeigen (#13)
         waived = svc.schedule_blocker(member, eff_start, eff_end,
                                       skip_min_nights=True, skip_lead=True)
         # Lückenfüllung kann nur helfen, wenn der allgemeine Grund eben gerade
@@ -451,6 +455,7 @@ def book(request):
         "range_min_nights": range_min_nights,
         "too_short": too_short,
         "not_enough_days": not_enough_days,
+        "range_reason": range_reason,
         "days_remaining_year": days_remaining_year,
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,

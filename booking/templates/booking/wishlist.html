@@ -213,7 +213,18 @@
     <form method="post" id="reorder-form">{% csrf_token %}
       <input type="hidden" name="action" value="reorder"><input type="hidden" name="order" id="reorder-order">
     </form>
-    <p class="muted" style="margin:.6rem 0">Summe: {{ wish_nights }} Nächte gewünscht (Losung-Budget bis {{ wish_budget }} Nächte).</p>
+    {% if wish_nights > wish_budget %}
+    <div class="msg info" style="margin:.6rem 0">Du hast <strong>{{ wish_nights }} Nächte</strong>
+      gewünscht – mehr als dein <strong>Wunsch-Budget</strong> von {{ wish_budget }} Nächten (das ist
+      die Hälfte deiner Jahres-Tage, die über die Losung vergeben wird). <strong>Das ist erlaubt:</strong>
+      Über die Losung bekommst du höchstens {{ wish_budget }} Nächte zugeteilt; alles darüber sind
+      <strong>Rückfall-Wünsche</strong>, die nur greifen, wenn ein wichtigerer Wunsch belegt ist –
+      in deiner Prioritäts-Reihenfolge (oben = wichtiger).</div>
+    {% else %}
+    <p class="muted" style="margin:.6rem 0">Summe: <strong>{{ wish_nights }}</strong> von
+      {{ wish_budget }} Nächten deines <strong>Wunsch-Budgets</strong> (die Hälfte deiner Jahres-Tage,
+      die über die Losung vergeben wird).</p>
+    {% endif %}
     <p class="hint-entzerren">💡 <strong>Vor dem Einreichen:</strong> Bei sehr beliebten
       Zeiträumen (rot im Kalender) lohnt ein Blick, ob du einen Wunsch <strong>entzerren</strong>
       kannst – z.&nbsp;B. die Anreise einen Tag verschieben. Das erhöht für alle die Chance.</p>
