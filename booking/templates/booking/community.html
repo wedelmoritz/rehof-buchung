@@ -9,22 +9,22 @@
 
 <div class="card">
   <h2 style="margin-top:0">Auslastung der Quartiere</h2>
-  {% with occ=stats.occ_quarters %}
-  <p class="sm muted" style="margin:0 0 .3rem">Jahr {{ occ.year }}, quartalsweise –
-    gebuchte gegen mögliche Unterkunfts-Nächte (Mitglieder + bestätigte externe Gäste).</p>
+  {% with occ=stats.occ_curve %}
+  <p class="sm muted" style="margin:0 0 .3rem">Jahr {{ occ.year }}, monatlich –
+    gebuchte gegen mögliche Unterkunfts-Nächte (Mitglieder + bestätigte externe
+    Gäste). Genauer Wert je Monat beim Überfahren/Antippen des Punktes.</p>
   <figure class="occ-fig">
     <svg class="occ-chart" viewBox="0 0 360 160" role="img"
-         aria-label="Auslastung je Quartal {{ occ.year }}: {% for p in occ.points %}{{ p.label }} {{ p.pct }} Prozent{% if not forloop.last %}, {% endif %}{% endfor %}.">
+         aria-label="Auslastung je Monat {{ occ.year }}: {% for p in occ.points %}{{ p.label }} {{ p.pct }} Prozent{% if not forloop.last %}, {% endif %}{% endfor %}.">
       <line class="occ-grid" x1="40" y1="18" x2="344" y2="18"/>
       <line class="occ-grid dash" x1="40" y1="72" x2="344" y2="72"/>
       <line class="occ-axis" x1="40" y1="126" x2="344" y2="126"/>
       <polygon class="occ-area" points="{{ occ.area }}"/>
       <polyline class="occ-line" points="{{ occ.line }}"/>
       {% for p in occ.points %}
-      <line class="occ-grid v" x1="{{ p.x }}" y1="18" x2="{{ p.x }}" y2="126"/>
-      <circle class="occ-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="3.6"/>
-      <text class="occ-val {{ p.anchor }}" x="{{ p.x }}" y="{{ p.vy }}">{{ p.pct }}&#8201;%</text>
-      <text class="occ-q" x="{{ p.x }}" y="148">{{ p.label }}</text>
+      <text class="occ-m" x="{{ p.x }}" y="148">{{ p.label }}</text>
+      <text class="occ-val" x="{{ p.x }}" y="{{ p.vy }}">{{ p.pct }}</text>
+      <circle class="occ-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="2.6"><title>{{ p.label }}: {{ p.pct }} % ({{ p.booked }} von {{ p.possible }} Nächten)</title></circle>
       {% endfor %}
       <text class="occ-ax" x="36" y="22">100&#8201;%</text>
       <text class="occ-ax" x="36" y="76">50&#8201;%</text>
@@ -32,17 +32,6 @@
     </svg>
   </figure>
   {% endwith %}
-  {% if stats.occ_months %}
-  <details class="occ-detail">
-    <summary>Alle Monate im Detail</summary>
-    {% for m in stats.occ_months %}
-    <div class="mbar" {% if forloop.first %}style="margin-top:.5rem"{% endif %}>
-      <span class="mbar-lbl">{{ m.label }}</span>
-      <span class="mbar-track"><span class="mbar-fill" style="width:{{ m.pct }}%"></span></span>
-      <span class="mbar-val">{{ m.pct }}&nbsp;%</span></div>
-    {% endfor %}
-  </details>
-  {% endif %}
 </div>
 
 {% if stats.lottery_history %}
@@ -86,22 +75,16 @@
   .mbar-val { flex:0 0 3.4rem; text-align:right; font-variant-numeric:tabular-nums;
     font-size:.9rem; }
   .occ-fig { margin:.2rem 0; }
-  .occ-chart { display:block; width:100%; max-width:480px; height:auto; }
+  .occ-chart { display:block; width:100%; max-width:560px; height:auto; }
   .occ-grid { stroke:var(--line); stroke-width:1; }
   .occ-grid.dash { stroke-dasharray:3 3; }
-  .occ-grid.v { stroke:var(--line); stroke-width:1; opacity:.6; }
   .occ-axis { stroke:var(--muted); stroke-width:1; }
   .occ-area { fill:var(--accent-soft); stroke:none; }
-  .occ-line { fill:none; stroke:var(--accent); stroke-width:2.4;
+  .occ-line { fill:none; stroke:var(--accent); stroke-width:2.2;
     stroke-linejoin:round; stroke-linecap:round; }
   .occ-dot { fill:var(--accent); }
-  .occ-val { font:700 11px system-ui,sans-serif; fill:var(--accent-deep); text-anchor:middle; }
-  .occ-val.start { text-anchor:start; }
-  .occ-val.end { text-anchor:end; }
-  .occ-q { font:700 13px system-ui,sans-serif; fill:var(--ink); text-anchor:middle; }
+  .occ-val { font:600 7.5px system-ui,sans-serif; fill:var(--accent-deep); text-anchor:middle; }
+  .occ-m { font:600 8.5px system-ui,sans-serif; fill:var(--ink); text-anchor:middle; }
   .occ-ax { font:500 9px system-ui,sans-serif; fill:var(--muted); text-anchor:end; }
-  .occ-detail { margin-top:.6rem; }
-  .occ-detail > summary { cursor:pointer; color:var(--accent-deep); font-weight:600;
-    font-size:.9rem; }
 </style>
 {% endblock %}
