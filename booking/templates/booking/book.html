@@ -8,8 +8,8 @@
 {% else %}
 
 <div class="card">
-  <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage verfügbar.
-    Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
+  <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage deines
+    Kontingents verfügbar. Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
   {% if winter and winter.target %}
   <p class="muted" style="margin:.2rem 0 0;font-size:.88rem">🌙 Winter ({{ winter.label }}):
     <strong>{{ winter.booked }}</strong>/{{ winter.target }} Tage{% if winter.reached %} ✓{% endif %}.
@@ -82,6 +82,7 @@
     <span><i class="sw lvl-full"></i> nichts frei</span>
     <span><i class="sw lvl-none"></i> nicht buchbar</span>
     <span><span class="mine-dot">●</span> eigene Buchung</span>
+    <span class="muted">Zahl je Tag = freie/gesamte Unterkünfte</span>
   </div>
   {% if cal.holidays %}
   <p class="muted" style="margin:.4rem 0 0">Ferien:
@@ -141,7 +142,7 @@
   {% endif %}
 
   {% if maybe_unsuitable %}
-  <h3>Anhand der Merkmale ggf. nicht geeignet</h3>
+  <h3>Nur eingeschränkt geeignet <span class="muted" style="font-weight:400;font-size:.85rem">(Grund je Unterkunft angezeigt)</span></h3>
   {% for info in maybe_unsuitable %}{% include "booking/_quarter_row.html" with info=info action="book" %}{% endfor %}
   {% endif %}
 

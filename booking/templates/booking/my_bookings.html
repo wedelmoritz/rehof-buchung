@@ -66,7 +66,8 @@
         {% if a.via_substitution %}<span class="tag sub">Ausweich</span>{% endif %}
         {% if a.contested %}<span class="tag con">umk&auml;mpft</span>{% endif %}
         {% if a.waiters %}<span class="tag mine">{{ a.waiters|length }} wartet</span>{% endif %}
-        <div class="muted">{{ a.start }} – {{ a.end }} · {{ a.nights }} Nächte · {{ a.persons }} Pers. · {{ a.get_source_display }}</div>
+        <div class="muted">{{ a.start }} – {{ a.end }} · {{ a.nights }} Nächte · {{ a.persons }} Pers. ·
+          <abbr title="So ist die Buchung entstanden: Spontanbuchung = selbst gebucht · Losung = über das Losverfahren · Import = aus dem Altsystem übernommen." style="text-decoration:underline dotted">{{ a.get_source_display }}</abbr></div>
       </div>
       <form method="post" data-confirm="{{ a.quarter.name }} vom {{ a.start }} bis {{ a.end }} wirklich stornieren? Das gibt den Zeitraum und deine Tage wieder frei." style="margin-left:auto">{% csrf_token %}
         <input type="hidden" name="action" value="cancel">
