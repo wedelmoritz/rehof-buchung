@@ -14,7 +14,7 @@ from .notify import absolute_url, queue_email_many
 
 __all__ = [
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
-    '_month_occupancy', 'quarter_occupancy_curve', '_year_months_occupancy',
+    '_month_occupancy', 'year_occupancy_curve',
     'dashboard_stats', 'karma_distribution', 'community_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
@@ -187,55 +187,67 @@ def _month_occupancy(year: int, month: int) -> dict:
             "booked": booked, "possible": possible, "pct": pct}
 
 
-def quarter_occupancy_curve(year: int) -> dict:
-    """Auslastung des Kalenderjahres `year` **quartalsweise** als fertige Daten für
-    eine kleine Inline-SVG-Kurve (Gemeinschafts-Spiegel, ADR 0074). Aggregiert je
-    Quartal die gebuchten gegen die möglichen Unterkunfts-Nächte (Mitglieder +
-    bestätigte externe Gäste) und rechnet die Prozentwerte gleich in SVG-Koordinaten
-    um, damit das Template ohne Mathematik (und ohne JS, CSP-konform) zeichnen kann.
+_MONTHS_DE_ABBR = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug",
+                   "Sep", "Okt", "Nov", "Dez"]
+
+
+def year_occupancy_curve(year: int) -> dict:
+    """Auslastung **je Monat** des Kalenderjahres `year` als fertige Geometrie für
+    eine Inline-SVG-Kurve (Gemeinschafts-Spiegel, ADR 0079). Ersetzt die frühere
+    Quartals-Kurve + separate Monatsliste durch EINE monatliche Kurve – so ist die
+    Auslastung übers Jahr feiner ablesbar (Wert je Monat als Hover-Titel), ohne
+    zusätzlichen aufklappbaren Detail-Block.
+
+    Effizient: lädt die Belegungen des Jahres EINMAL (Mitglieder + bestätigte externe
+    Gäste) und verteilt die Nächte in Python auf die Monate – zwei Abfragen statt 24
+    Einzel-Monatsabfragen. Prozentwerte werden gleich in SVG-Koordinaten umgerechnet,
+    damit das Template ohne Mathematik/JS zeichnet (CSP-konform).
 
     Geometrie passend zu `viewBox 0 0 360 160`: linke Achse bei x=40, Nulllinie
-    (0&nbsp;%) bei y=126, 100&nbsp;% bei y=18, Quartals-Beschriftung bei y=148."""
-    PAD_L, BASE_Y, TOP_Y = 40.0, 126.0, 18.0
-    STEP = (360.0 - PAD_L - 16.0) / 3.0        # 4 Quartals-Punkte, 3 Abstände
+    (0&nbsp;%) bei y=126, 100&nbsp;% bei y=18, Monats-Beschriftung bei y=148."""
+    PAD_L, RIGHT, BASE_Y, TOP_Y = 40.0, 344.0, 126.0, 18.0
+    STEP = (RIGHT - PAD_L) / 11.0               # 12 Monatspunkte, 11 Abstände
     SPAN_Y = BASE_Y - TOP_Y                     # Höhe für 100 %
+    n_quarters = Quarter.objects.count()
+    y_first, y_end = date(year, 1, 1), date(year + 1, 1, 1)
+    days_in = [_calendar.monthrange(year, m)[1] for m in range(1, 13)]
+    m_starts = [date(year, m, 1) for m in range(1, 13)]
+    m_ends = [m_starts[i] + timedelta(days=days_in[i]) for i in range(12)]
+    booked = [0] * 12
+
+    def _spread(s: date, e: date) -> None:
+        """Verteilt die Nächte einer Belegung [s, e) auf die berührten Monate."""
+        for i in range(12):
+            lo, hi = max(s, m_starts[i]), min(e, m_ends[i])
+            if hi > lo:
+                booked[i] += (hi - lo).days
+
+    for s, e in Allocation.objects.filter(
+            start__lt=y_end, end__gt=y_first, provisional=False
+    ).values_list("start", "end"):
+        _spread(s, e)
+    for s, e in ExternalBooking.objects.filter(
+            status=ExternalBooking.CONFIRMED, start__lt=y_end, end__gt=y_first
+    ).values_list("start", "end"):
+        _spread(s, e)
+
     points = []
-    for q in range(4):
-        booked = possible = 0
-        for i in range(3):
-            mo = _month_occupancy(year, q * 3 + i + 1)
-            booked += mo["booked"]
-            possible += mo["possible"]
-        pct = round(100 * booked / possible) if possible else 0
-        x = round(PAD_L + q * STEP, 1)
+    for i in range(12):
+        possible = n_quarters * days_in[i]
+        pct = round(100 * booked[i] / possible) if possible else 0
+        x = round(PAD_L + i * STEP, 1)
         y = round(BASE_Y - SPAN_Y * pct / 100.0, 1)
-        # Wert-Label über dem Punkt, sonst (bei sehr hoher Auslastung) darunter.
-        vy = round(y - 9 if y - 9 >= TOP_Y + 2 else y + 17, 1)
-        # Randpunkte links/rechts ausrichten, damit der Wert nicht die Achsen-
-        # Beschriftung (links) bzw. den Rand (rechts) überlappt.
-        anchor = "start" if q == 0 else ("end" if q == 3 else "middle")
-        points.append({"label": f"Q{q + 1}", "pct": pct, "booked": booked,
-                       "possible": possible, "x": x, "y": y, "vy": vy,
-                       "anchor": anchor})
+        # Wert-Label immer ÜBER dem Punkt (nie unter, damit es die Monatsleiste
+        # nicht überlagert); am oberen Rand leicht eingeklemmt.
+        vy = round(max(9.0, y - 6.5), 1)
+        points.append({"label": _MONTHS_DE_ABBR[i + 1], "pct": pct,
+                       "booked": booked[i], "possible": possible,
+                       "x": x, "y": y, "vy": vy})
     line = " ".join(f"{p['x']},{p['y']}" for p in points)
     area = (f"{points[0]['x']},{BASE_Y} " + line +
             f" {points[-1]['x']},{BASE_Y}")
     return {"year": year, "points": points, "line": line, "area": area,
             "base_y": BASE_Y}
-
-
-_MONTHS_DE_ABBR = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug",
-                   "Sep", "Okt", "Nov", "Dez"]
-
-
-def _year_months_occupancy(year: int) -> list[dict]:
-    """Auslastung **je Monat** des Kalenderjahres (für den aufklappbaren Detail-
-    Block im Gemeinschafts-Spiegel, ADR 0076). Kurze Monatslabel + Prozent."""
-    out = []
-    for m in range(1, 13):
-        mo = _month_occupancy(year, m)
-        out.append({"label": _MONTHS_DE_ABBR[m], "month": m, "pct": mo["pct"]})
-    return out
 
 
 def dashboard_stats() -> dict:
@@ -312,8 +324,7 @@ def community_stats() -> dict:
     stats = {
         "occ_current": _month_occupancy(today.year, today.month),
         "occ_next": _month_occupancy(ny, nm),
-        "occ_quarters": quarter_occupancy_curve(today.year),
-        "occ_months": _year_months_occupancy(today.year),
+        "occ_curve": year_occupancy_curve(today.year),
         "lottery_history": history,
         "karma": karma_distribution(),
         "n_members": Member.objects.filter(is_external=False).count(),

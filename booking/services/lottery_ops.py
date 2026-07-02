@@ -5,6 +5,7 @@ Teil des aufgeteilten `booking.services`-Pakets (siehe __init__).
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import timedelta
 from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
@@ -20,8 +21,82 @@ from .slots import _in_season_range, _materialized_seasons
 __all__ = [
     'run_period_lottery', '_restore_factors', 'confirm_lottery',
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
-    'ensure_seed_commit', 'verify_period_lottery',
+    'ensure_seed_commit', 'verify_period_lottery', 'send_wish_reminders',
 ]
+
+
+def _members_without_submitted_wishes(period: BookingPeriod):
+    """Buchungsberechtigte Mitglieder (nicht extern, mit Tage-Anteil, aktives Login),
+    die für `period` NOCH KEINEN Wunsch eingereicht haben (submitted=True). Wenige
+    Abfragen: eine Mitglieder-Abfrage + eine Menge der bereits Eingereichten."""
+    submitted_ids = set(
+        Wish.objects.filter(period=period, submitted=True)
+        .values_list("member_id", flat=True)
+    )
+    return [
+        m for m in Member.objects.filter(
+            is_external=False, shares__isnull=False, user__is_active=True)
+        .select_related("user").distinct()
+        if m.id not in submitted_ids
+    ]
+
+
+def send_wish_reminders(force: bool = False) -> int:
+    """Erinnert – zweistufig kurz vor dem Einreiche-Schluss – alle buchungs-
+    berechtigten Mitglieder, die **noch keinen Wunsch eingereicht** haben (gar keinen
+    oder nur einen Entwurf), an die laufende Wunsch-Losung (ADR 0080). In-App-
+    Benachrichtigung (löst zugleich Web-Push aus) + E-Mail (opt-in). Idempotent: jede
+    Stufe wird je Periode **genau einmal** versendet (Zeitstempel an der Periode).
+
+    Stufen/Fristen sind konfigurierbar (`BookingPolicy.wish_reminder_lead1/2`,
+    Tage vor der Frist; 0 = Stufe aus). `force` ignoriert das Zeitfenster (Stufe 1),
+    solange sie noch nicht versendet wurde – für Tests/manuellen Anstoß.
+    Gibt die Zahl der versendeten Erinnerungen zurück."""
+    period = BookingPeriod.objects.filter(
+        status=BookingPeriod.WISHES_OPEN).order_by("draw_at").first()
+    if not period:
+        return 0
+    deadline = period.submission_deadline
+    if not deadline:
+        return 0
+    pol = BookingPolicy.get_solo()
+    lead1, lead2 = pol.wish_reminder_lead1 or 0, pol.wish_reminder_lead2 or 0
+    today = timezone.localdate()
+    # Welche Stufe ist jetzt fällig? Stufe 1 im Fenster [Frist−lead1, Frist−lead2),
+    # Stufe 2 im Fenster [Frist−lead2, Frist). Jede nur, wenn noch nicht versendet.
+    stage = None
+    if lead2 and not period.wish_reminder2_at and \
+            deadline - timedelta(days=lead2) <= today < deadline:
+        stage = 2
+    elif lead1 and not period.wish_reminder1_at and (
+            force or deadline - timedelta(days=lead1) <= today
+            < (deadline - timedelta(days=lead2) if lead2 else deadline)):
+        stage = 1
+    if stage is None:
+        return 0
+
+    recipients = _members_without_submitted_wishes(period)
+    url = reverse("wishlist")
+    days_left = (deadline - today).days
+    when = ("morgen" if days_left == 1 else "heute" if days_left == 0
+            else f"in {days_left} Tagen")
+    urgency = "Letzte Erinnerung: " if stage == 2 else ""
+    msg = (f"{urgency}Die Auslosung {period.target_year} steht an – Einreichen bis "
+           f"{deadline:%d.%m.%Y} ({when}). Du hast noch keinen Wunsch im Lostopf. "
+           f"Trage deine Wünsche ein und reiche sie ein, sonst nimmst du nicht teil.")
+    for m in recipients:
+        Notification.objects.create(member=m, message=msg, url=url)
+        email_member(
+            m, f"Re:Hof: Wünsche einreichen bis {deadline:%d.%m.%Y}",
+            f"Hallo {m.display_name},\n\n{msg}\n\nZur Wunschliste: "
+            f"{absolute_url(url)}\n\nViele Grüße\nRe:Hof")
+    if stage == 2:
+        period.wish_reminder2_at = timezone.now()
+        period.save(update_fields=["wish_reminder2_at"])
+    else:
+        period.wish_reminder1_at = timezone.now()
+        period.save(update_fields=["wish_reminder1_at"])
+    return len(recipients)
 
 
 def ensure_seed_commit(period: BookingPeriod) -> BookingPeriod:

@@ -8,7 +8,13 @@
   {% if member %}<a class="ov-chip" href="{% url 'book' %}"><strong>{{ nights_remaining }}</strong> Tage frei · buchen →</a>{% endif %}
   {% if winter and winter.target %}<span class="ov-chip" title="Richtwert (Mindestwert): mindestens so viele Tage ins Winterhalbjahr legen ({{ winter.label }})">🌙 Winter <strong>{{ winter.booked }}</strong>/{{ winter.target }}{% if winter.reached %} ✓{% endif %}</span>{% endif %}
   {% if weekend and weekend.target %}<span class="ov-chip{% if weekend.near %} warn{% endif %}" title="Richtwert (Höchstwert): so viele Wochenenden pro Jahr sind fair">📅 WE <strong>{{ weekend.booked }}</strong>/{{ weekend.target }}</span>{% endif %}
-  {% if open_period %}<a class="ov-chip accent" href="{% url 'wishlist' %}">Losung {{ open_period }} offen → Wünsche eintragen</a>{% endif %}
+  {% if open_period %}
+    {% if member and not wish_submitted %}
+    <a class="ov-chip warn" href="{% url 'wishlist' %}">⚠️ Noch keine Wünsche eingereicht{% if open_period.submission_deadline %} · bis {{ open_period.submission_deadline|date:"d.m.Y" }}{% endif %} → jetzt eintragen</a>
+    {% else %}
+    <a class="ov-chip accent" href="{% url 'wishlist' %}">Losung {{ open_period }}{% if open_period.submission_deadline %} · Einreichen bis {{ open_period.submission_deadline|date:"d.m.Y" }}{% endif %} → Wünsche</a>
+    {% endif %}
+  {% endif %}
 </div>
 
 {% if notifications %}

@@ -989,6 +989,16 @@ class BookingPolicyAdmin(admin.ModelAdmin):
                 "Wochenenden/Jahr</b>: Wochenend-Richtwert (ein <i>Höchstwert</i>) – "
                 "beide nur Anzeige beim Buchen, keine Sperre."),
         }),
+        ("Wunsch-Losung", {
+            "fields": ("max_wishes_per_period", "wish_reminder_lead1",
+                       "wish_reminder_lead2"),
+            "description": (
+                "<b>Max. Wünsche je Periode</b>: optionale Obergrenze (0 = unbegrenzt, "
+                "damit Rückfall-Wünsche möglich bleiben). <b>Wunsch-Erinnerungen</b>: "
+                "so viele Tage vor dem Einreiche-Schluss (Losdatum) werden Mitglieder "
+                "erinnert, die noch nichts eingereicht haben – zweistufig (die zweite "
+                "Zahl sollte kleiner sein), je 0 = diese Stufe aus."),
+        }),
     )
 
     def has_add_permission(self, request):

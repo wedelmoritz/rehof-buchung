@@ -1,10 +1,15 @@
 """Tests für den Gemeinschafts-Spiegel + Karma-Transparenz (ADR 0063)."""
+from datetime import date, timedelta
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
 from booking import services as svc
-from booking.models import Member
+from booking.models import (
+    Allocation, BookingPeriod, EquivalenceClass, Member, Membership, Quarter,
+    Share,
+)
 
 
 class KarmaDistributionTests(TestCase):
@@ -26,6 +31,36 @@ class KarmaDistributionTests(TestCase):
         Member.objects.create(user=u, display_name="Gast", factor=1.3,
                               is_external=True)
         self.assertEqual(svc.karma_distribution()["total"], 0)
+
+
+class YearOccupancyCurveTests(TestCase):
+    def test_monatskurve_geometrie_und_wert(self):
+        """year_occupancy_curve (ADR 0079): 12 Monatspunkte, korrekte Auslastung,
+        wenige Abfragen (alle Belegungen einmal geladen)."""
+        year = date.today().year
+        cls = EquivalenceClass.objects.create(name="K")
+        q = Quarter.objects.create(name="Q1", eq_class=cls,
+                                   min_occupancy=1, max_occupancy=4)
+        u = User.objects.create_user("occ", password="pw12345")
+        m = Member.objects.create(user=u, display_name="Occ")
+        ms = Membership.objects.create(eg_number="EG-occ", label="occ",
+                                       annual_night_budget=50, wish_night_budget=25)
+        Share.objects.create(membership=ms, member=m, night_budget=50,
+                             wish_night_budget=25)
+        # 10 Nächte im März belegen (März hat 31 Tage → 10/31 der möglichen Nächte).
+        Allocation.objects.create(member=m, quarter=q, start=date(year, 3, 5),
+                                  end=date(year, 3, 15), persons=2, membership=ms)
+        # Geometrie: konstant wenige Abfragen unabhängig von der Belegungszahl.
+        with self.assertNumQueries(3):   # Quarter.count + Allocation + External
+            curve = svc.year_occupancy_curve(year)
+        self.assertEqual(len(curve["points"]), 12)
+        maerz = curve["points"][2]
+        self.assertEqual(maerz["label"], "Mär")
+        self.assertEqual(maerz["booked"], 10)
+        self.assertEqual(maerz["pct"], round(100 * 10 / 31))
+        # Januar ohne Belegung → 0 %, Punkt auf der Nulllinie.
+        self.assertEqual(curve["points"][0]["pct"], 0)
+        self.assertEqual(curve["points"][0]["y"], curve["base_y"])
 
 
 class CommunityViewTests(TestCase):

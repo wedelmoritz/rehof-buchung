@@ -161,8 +161,10 @@ gezeigt. Die **Online-Bezahlung (Mollie)** ist aktiv (s. „Hofladen“ →
 Online-Bezahlung) und gilt für Gäste wie Mitglieder gleichermaßen.
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Übersicht, aufgeräumt
-nach ADR 0059): oben schlanke **Status-Chips** (Tage frei / offene Losung) +
-eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
+nach ADR 0059): oben schlanke **Status-Chips** (Tage frei / offene Losung **mit
+Einreiche-Frist** `BookingPeriod.submission_deadline`; wer noch **nichts eingereicht**
+hat, sieht stattdessen einen **Warn-Chip** „Noch keine Wünsche eingereicht · bis …",
+ADR 0080) + eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
 **„Diese Woche"-Agenda** (`services.week_agenda`: je Tag An-/Abreisen + freie
 Quartiere, mobil der Schnell-Überblick). **Held ist der Belegungs-Zeitstrahl**
 (`services.build_occupancy_timeline`, Standard-Ansicht: pro Unterkunft EINE Zeile
@@ -177,9 +179,10 @@ eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warte
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
 je eigen markiert [Fähnchen „Anreise“/„Abreise“], das gewählte Band ist deutlich,
 sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf – ebenso in
-Wunsch-/Externen-Kalendern; unter dem Kalender eine anklickbare Liste **„Kurze freie
-Lücken zum Füllen"** [`services.short_free_gaps`, beidseitig belegte kurze Zeiträume
-der nächsten Wochen, passend zu Personenzahl/Barrierefrei – ideal fürs Lückenfüllen,
+Wunsch-/Externen-Kalendern; unter dem Kalender eine **eingeklappte, hervorgehobene**
+Liste **„Kurze freie Lücken zum Füllen"** [`services.short_free_gaps`, beidseitig
+belegte kurze Zeiträume der **nächsten Wochen**, passend zu Personenzahl/Barrierefrei –
+ideal fürs Lückenfüllen; eingeklappt, daher bleibt die Seite kompakt (mobil-freundlich),
 #16b/ADR 0078; Belegung einmal geladen]), `book_confirm`
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
@@ -274,9 +277,11 @@ Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
 (Admin-Knopf „Simulation jetzt berechnen", Ergebnis als JSON gespeichert);
 Service `services.run_fairness_simulation`. **Gemeinschafts-Spiegel** (`community`,
 `/gemeinschaft/`, login-pflichtig, ADR 0063): aggregierte, anonyme Transparenz –
-Auslastung (**quartalsweise als Inline-SVG-Kurve** `services.quarter_occupancy_curve`
-+ **alle Monate** des Kalenderjahrs im eingeklappten Detail
-`services._year_months_occupancy`, ADR 0074/0076), Los-Ergebnis-
+Auslastung (**monatliche Inline-SVG-Kurve** übers Kalenderjahr
+`services.year_occupancy_curve` – 12 Monatspunkte mit Wert je Monat als Hover-Titel;
+löst die frühere Quartals-Kurve + separate Monatsliste ab, ADR 0074/0076/0079;
+effizient: alle Belegungen des Jahres einmal geladen, 2 Abfragen statt 24),
+Los-Ergebnis-
 Historie, **Karma-Verteilung** (`services.community_stats`/`karma_distribution`) als
 schlanke **CSS-Balken**/SVG (kein JS); in der Sekundär-Nav („Gemeinschaft"). Den
 **eigenen** Ausgleichsfaktor zeigt eine Karte auf der **Wunschliste** (Karma-
@@ -492,7 +497,12 @@ Kontoabgleich) + Benachrichtigung. Konfiguriert am `ShopConfig` (`payments_activ
 **Cron:** `generate_monthly_invoices`
 (monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
 (Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
-`OpsConfig.notify_day`), `cleanup_data` (täglich, **DSGVO-Aufräumen**).
+`OpsConfig.notify_day`), `send_wish_reminders` (täglich, **zweistufige Wunsch-
+Erinnerung** vor der Losung an Mitglieder ohne eingereichten Wunsch;
+`services.send_wish_reminders`, idempotent je Stufe über
+`BookingPeriod.wish_reminder1_at/2_at`; Vorlauf konfigurierbar
+`BookingPolicy.wish_reminder_lead1/2`, Default 7/2 Tage, ADR 0080),
+`cleanup_data` (täglich, **DSGVO-Aufräumen**).
 **DSGVO/Datensparsamkeit (ADR 0043):** `cleanup_data` (Service
 `services.run_data_retention`, idempotent, im `run_scheduler` täglich) löscht/
 pseudonymisiert abgelaufene Daten anhand der `RETENTION_*`-Settings (per Env

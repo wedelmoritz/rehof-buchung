@@ -701,10 +701,65 @@ class DetailUndWechselwunschTests(UseCaseBase):
         self.assertIn("nicht mehr möglich", err)
 
 
+class WunschErinnerungTests(UseCaseBase):
+    def _open_period(self, close_in_days):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today() - timedelta(days=10),
+            wishlist_close=date.today() + timedelta(days=close_in_days),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_erinnerung_nur_an_nicht_eingereichte_und_idempotent(self):
+        """send_wish_reminders (ADR 0080): erinnert zweistufig nur Mitglieder ohne
+        eingereichten Wunsch, jede Stufe genau einmal je Periode."""
+        from booking.models import BookingPolicy
+        pol = BookingPolicy.get_solo()
+        pol.wish_reminder_lead1, pol.wish_reminder_lead2 = 7, 2
+        pol.save(update_fields=["wish_reminder_lead1", "wish_reminder_lead2"])
+        period = self._open_period(close_in_days=5)   # Stufe-1-Fenster
+        # Alice hat eingereicht, Bob nur Entwurf, Carla gar nichts.
+        Wish.objects.create(member=self.alice, period=period, quarter=self.qa,
+                            start=date(NEXT_YEAR, 6, 7), end=date(NEXT_YEAR, 6, 12),
+                            priority=1, submitted=True)
+        Wish.objects.create(member=self.bob, period=period, quarter=self.qa,
+                            start=date(NEXT_YEAR, 6, 7), end=date(NEXT_YEAR, 6, 12),
+                            priority=1, submitted=False)
+        n = svc.send_wish_reminders()
+        self.assertEqual(n, 2)   # Bob (Entwurf) + Carla (nichts)
+        self.assertEqual(self.bob.notifications.count(), 1)
+        self.assertEqual(self.carla.notifications.count(), 1)
+        self.assertEqual(self.alice.notifications.count(), 0)
+        period.refresh_from_db()
+        self.assertIsNotNone(period.wish_reminder1_at)
+        # Zweiter Lauf: Stufe 1 schon versendet, Stufe-2-Fenster noch nicht → nichts.
+        self.assertEqual(svc.send_wish_reminders(), 0)
+        self.assertEqual(self.bob.notifications.count(), 1)
+
+    def test_stufe_zwei_kurz_vor_schluss(self):
+        from booking.models import BookingPolicy
+        pol = BookingPolicy.get_solo()
+        pol.wish_reminder_lead1, pol.wish_reminder_lead2 = 7, 2
+        pol.save(update_fields=["wish_reminder_lead1", "wish_reminder_lead2"])
+        period = self._open_period(close_in_days=1)   # innerhalb Stufe-2-Fenster
+        n = svc.send_wish_reminders()
+        self.assertGreaterEqual(n, 1)
+        period.refresh_from_db()
+        self.assertIsNotNone(period.wish_reminder2_at)
+
+    def test_erinnerung_aus_wenn_leads_null(self):
+        from booking.models import BookingPolicy
+        pol = BookingPolicy.get_solo()
+        pol.wish_reminder_lead1, pol.wish_reminder_lead2 = 0, 0
+        pol.save(update_fields=["wish_reminder_lead1", "wish_reminder_lead2"])
+        self._open_period(close_in_days=3)
+        self.assertEqual(svc.send_wish_reminders(), 0)
+
+
 class KurzeLueckenUndBarrierefreiTests(UseCaseBase):
     def test_kurze_freie_luecke_wird_gefunden(self):
         """short_free_gaps (#16b/ADR 0078) findet eine kurze, beidseitig belegte
-        freie Lücke der passenden Unterkunft im kommenden Fenster."""
+        freie Lücke der passenden Unterkunft in den nächsten Wochen."""
         year = date.today().year
         self.open_full_year_window(year)
         # Zwei Buchungen von K1 lassen eine 2-Nächte-Lücke dazwischen frei.
@@ -721,12 +776,12 @@ class KurzeLueckenUndBarrierefreiTests(UseCaseBase):
         # Eine offene Lücke am Fensterrand (K2 ist ganz frei) ist NICHT beidseitig
         # geschlossen → wird nicht als kurze Füll-Lücke gelistet.
         self.assertFalse([g for g in gaps if g["q"].id == self.k2.id])
-        # Die Buchen-Seite rendert die Lücken-Karte (ref_from = heute; die Lücke
-        # liegt im 60-Tage-Fenster).
+        # Die Buchen-Seite rendert die (eingeklappte) Lücken-Karte – die Lücke liegt
+        # in den nächsten Wochen (Standard-Fenster).
         self.client.force_login(self.alice.user)
         r = self.client.get(reverse("book"), {"persons": 2})
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Kurze freie Lücken")
+        self.assertContains(r, "freie Lücke")
 
     def test_fitting_free_quarter_barrierefrei(self):
         """has_fitting_free_quarter (#17/ADR 0078): mit Barrierefrei-Bedarf zählen

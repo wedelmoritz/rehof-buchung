@@ -28,6 +28,13 @@
 {% else %}
 
 <div class="card">
+  {% if period.submission_deadline %}
+  <p class="msg {% if wishlist_submitted %}info{% else %}warn{% endif %}" style="margin-top:0">
+    ⏳ <strong>Einreichen bis {{ period.submission_deadline|date:"d.m.Y" }}</strong>{% if period.draw_at %}
+    · Ziehung {{ period.draw_at|date:"d.m.Y" }}{% endif %}.
+    {% if wishlist_submitted %}Deine Wünsche sind im Lostopf – du kannst sie bis dahin noch ändern (zurückziehen &amp; neu einreichen).{% else %}<strong>Bisher hast du nichts eingereicht</strong> – trage deine Wünsche ein und reiche sie unten ein, sonst nimmst du nicht teil.{% endif %}
+  </p>
+  {% endif %}
   <p class="muted" style="margin-top:0">
     Periode <strong>{{ period }}</strong>. Die Ampel zeigt, wie beliebt ein Zeitraum
     ist (rot = besonders gefragt) – eintragen kannst du trotzdem überall.

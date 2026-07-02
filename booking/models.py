@@ -423,6 +423,13 @@ class BookingPeriod(models.Model):
     seed_commit = models.CharField("Seed-Prüfsumme (SHA-256)", max_length=64, blank=True)
     seed_committed_at = models.DateTimeField(
         "Prüfsumme veröffentlicht am", null=True, blank=True)
+    # Erinnerung an noch nicht eingereichte Wünsche (ADR 0080): zweistufig kurz vor
+    # dem Losdatum. Hier wird nur der Zeitpunkt des jeweiligen Batch-Versands
+    # vermerkt (Idempotenz – jede Stufe genau einmal je Periode).
+    wish_reminder1_at = models.DateTimeField(
+        "1. Wunsch-Erinnerung versendet am", null=True, blank=True)
+    wish_reminder2_at = models.DateTimeField(
+        "2. Wunsch-Erinnerung versendet am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Buchungsperiode (Jahr)"
@@ -453,6 +460,17 @@ class BookingPeriod(models.Model):
     @property
     def status_rank(self) -> int:
         return self.LIFECYCLE.index(self.status) if self.status in self.LIFECYCLE else -1
+
+    @property
+    def submission_deadline(self):
+        """Letzter Tag, an dem Wünsche eingereicht werden können: `wishlist_close`
+        (dann schließt das Wunsch-Fenster), sonst der Tag des Losdatums `draw_at`.
+        None, wenn kein Termin gesetzt ist. Grundlage für Anzeige + Erinnerung."""
+        if self.wishlist_close:
+            return self.wishlist_close
+        if self.draw_at:
+            return self.draw_at.date()
+        return None
 
 
 class Wish(models.Model):
@@ -1014,6 +1032,17 @@ class BookingPolicy(models.Model):
                   "buchen, als sie ausgelegt ist (z. B. wenn nichts Passendes mehr "
                   "frei ist). Die Buchung wird dann deutlich gekennzeichnet "
                   "(„kleiner als eure Gruppe“ bzw. „größer als nötig“).",
+    )
+    wish_reminder_lead1 = models.PositiveSmallIntegerField(
+        "1. Wunsch-Erinnerung (Tage vor Frist)", default=7,
+        help_text="So viele Tage VOR dem Einreiche-Schluss (Losdatum) werden "
+                  "Mitglieder erinnert, die noch keinen Wunsch eingereicht haben. "
+                  "0 = diese Stufe aus (ADR 0080).",
+    )
+    wish_reminder_lead2 = models.PositiveSmallIntegerField(
+        "2. Wunsch-Erinnerung (Tage vor Frist)", default=2,
+        help_text="Zweite, dringlichere Erinnerung so viele Tage vor dem Schluss. "
+                  "Sollte kleiner als die erste sein. 0 = diese Stufe aus (ADR 0080).",
     )
 
     class Meta:

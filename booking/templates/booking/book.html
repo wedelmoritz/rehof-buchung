@@ -105,10 +105,15 @@
 </div>
 
 {% if short_gaps %}
-<div class="card">
-  <details class="explain" open>
-    <summary>Kurze freie Lücken zum Füllen ({{ short_gaps|length }})</summary>
-    <p class="muted" style="margin:.4rem 0">Kurze, <strong>beidseitig belegte</strong>
+<div class="card gaps-card">
+  <details class="gaps-details">
+    <summary>
+      <svg class="gaps-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+      <span class="gaps-sum">{{ short_gaps|length }} kurze freie {% if short_gaps|length == 1 %}Lücke{% else %}Lücken{% endif %} zum Füllen
+        <span class="muted">· nächste Wochen</span></span>
+      <span class="gaps-chev" aria-hidden="true">▾</span>
+    </summary>
+    <p class="muted" style="margin:.5rem 0">Kurze, <strong>beidseitig belegte</strong>
       freie Zeiträume der nächsten Wochen – ideal zum <strong>Lückenfüllen</strong>
       (hier entfallen Mindestnächte und Vorlauf). Tippe eine Lücke an, um sie in die
       Auswahl zu übernehmen.</p>
@@ -202,10 +207,18 @@
   .filters .chk { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.9rem; }
   .filters .chk input { min-width:auto; }
   .notif ul { margin:.4rem 0 .6rem; padding-left:1.1rem; }
+  .gaps-card { border-color:var(--accent-soft); }
+  .gaps-details > summary { list-style:none; cursor:pointer; display:flex;
+    align-items:center; gap:.55rem; font-weight:600; color:var(--accent-deep); }
+  .gaps-details > summary::-webkit-details-marker { display:none; }
+  .gaps-ic { width:20px; height:20px; flex:0 0 auto; color:var(--accent); }
+  .gaps-sum { flex:1 1 auto; }
+  .gaps-chev { flex:0 0 auto; color:var(--muted); transition:transform .2s ease; }
+  .gaps-details[open] > summary .gaps-chev { transform:rotate(180deg); }
   ul.gaps { list-style:none; margin:.4rem 0 0; padding:0; display:flex;
     flex-direction:column; gap:.35rem; }
-  ul.gaps a { display:block; padding:.45rem .6rem; border:1px solid var(--line);
-    border-radius:8px; text-decoration:none; color:var(--ink); background:var(--card); }
+  ul.gaps a { display:block; padding:.5rem .6rem; border:1px solid var(--line);
+    border-radius:8px; text-decoration:none; color:var(--ink); background:var(--bg); }
   ul.gaps a:hover { border-color:var(--accent); }
   table.book-cal td { padding:0; }
   table.book-cal td.out { background:#f6f0e6; }
