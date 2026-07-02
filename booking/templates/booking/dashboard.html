@@ -35,11 +35,53 @@
 
 {# Schnell-Sprünge zu den Abschnitten (klebrig) – die Seite ist lang. #}
 <nav class="dash-jump" aria-label="Zu Abschnitt springen">
+  {% if service_requests %}<a href="#d-anfragen">Anfragen ({{ service_requests|length }})</a>{% endif %}
   <a href="#d-reinigung">Reinigung</a>
   <a href="#d-buchungen">Buchungen</a>
   <a href="#d-rechnungen">Rechnungen</a>
   <a href="#d-konto">Kontoabgleich</a>
 </nav>
+
+{# --- Dienstleistungs-Anfragen (z.B. Endreinigung) freigeben (#28/ADR 0081) --- #}
+{% if service_requests %}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0" id="d-anfragen">Anfragen zur Freigabe</h2>
+    <span class="spacer"></span>
+    <span class="tag warn">{{ service_requests|length }} offen</span>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .6rem">Beim Buchen angefragte Leistungen
+    (z.&nbsp;B. Endreinigung). <strong>Bestätigen</strong> legt die Rechnungs-Position
+    an und trägt sie in die Reinigungsliste ein; <strong>Ablehnen</strong> informiert
+    das Mitglied. Beide melden sich per In-App-Nachricht/E-Mail zurück.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Leistung</th><th>Mitglied</th><th>Unterkunft</th><th>Termin</th><th>Angefragt</th><th></th></tr></thead>
+    <tbody>
+      {% for sr in service_requests %}
+      <tr>
+        <td>{{ sr.product.name }}</td>
+        <td>{{ sr.member.display_name }}</td>
+        <td>{{ sr.allocation.quarter.name }}</td>
+        <td>{{ sr.service_date|date:"d.m.Y" }}</td>
+        <td class="muted">{{ sr.requested_at|date:"d.m.Y" }}</td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end">
+          <form method="post" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} bestätigen? Wird abgerechnet und in die Reinigungsliste eingetragen.">{% csrf_token %}
+            <input type="hidden" name="action" value="confirm_service">
+            <input type="hidden" name="request_id" value="{{ sr.id }}">
+            <button class="btn small" type="submit">Bestätigen</button>
+          </form>
+          <form method="post" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} ablehnen? Das Mitglied wird benachrichtigt.">{% csrf_token %}
+            <input type="hidden" name="action" value="reject_service">
+            <input type="hidden" name="request_id" value="{{ sr.id }}">
+            <button class="btn small ghost danger" type="submit">Ablehnen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
 
 {# --- Kennzahlen ----------------------------------------------------------- #}
 <div class="kpis">

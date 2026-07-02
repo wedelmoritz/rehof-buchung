@@ -280,8 +280,13 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
   nach Personenzahl/Barrierefreiheit, Mindestnächte-Hinweis), dann ein
   **Bestätigungsschritt** – erst dieser legt die Buchung verbindlich an. So sieht
   man Fehler/Verstöße, **bevor** etwas verbindlich wird.
-- Optional kann beim Buchen eine **Endreinigung** mitgebucht werden (als
-  Hofladen-Position, § 13).
+- Optional kann beim Buchen eine **Endreinigung angefragt** werden (ADR 0081): Sie
+  ist **bestätigungspflichtig** (`Product.needs_approval`) – die Betriebsleitung
+  **bestätigt oder lehnt** sie im Verwaltungs-Dashboard ab; **erst nach Bestätigung**
+  entsteht die Hofladen-Position (§ 13) und der Eintrag in der Reinigungsliste. Den
+  Status (**angefragt / bestätigt / abgelehnt**) sieht das Mitglied in „Meine
+  Buchungen“. Nicht bestätigungspflichtige Leistungen (z. B. Sauna) werden weiterhin
+  sofort mitgebucht.
 - Bei Belegung kann man sich auf die **Warteliste** setzen (§ 10).
 - **Kurze freie Lücken zum Füllen (ADR 0078):** Unter dem Kalender listet ein
   anklickbarer Abschnitt kurze, **beidseitig belegte** freie Zeiträume der nächsten

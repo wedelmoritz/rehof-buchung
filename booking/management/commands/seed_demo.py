@@ -540,6 +540,22 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"{n_alloc} wilde Buchungen im laufenden Jahr {this_year} angelegt."))
 
+        # 2b) Offene Endreinigungs-Anfragen (BL-Freigabe im Dashboard, ADR 0081) --
+        from shop.models import ServiceRequest
+        clean = Product.objects.filter(
+            needs_approval=True, counts_as_cleaning=True).first()
+        n_req = 0
+        if clean:
+            future = list(Allocation.objects.filter(
+                end__gt=date.today(), provisional=False).order_by("start")[:8])
+            for a in rng.sample(future, min(3, len(future))):
+                _, created = ServiceRequest.objects.get_or_create(
+                    allocation=a, product=clean,
+                    defaults=dict(member=a.member, service_date=a.end))
+                n_req += 1 if created else 0
+        self.stdout.write(self.style.SUCCESS(
+            f"{n_req} offene Endreinigungs-Anfragen angelegt."))
+
         # 3) Offene Hofladen-Rechnungen ------------------------------------------
         wares = list(Product.objects.filter(kind="ware"))
         n_inv = 0

@@ -10,7 +10,7 @@ from django.urls import reverse
 from . import reconcile, services as svc
 from .models import (
     BankImport, BankTransaction, ExternalInvoice, Invoice, LineItem, Payment,
-    Product, ProductGroup, Purchase, ShopConfig)
+    Product, ProductGroup, Purchase, ServiceRequest, ShopConfig)
 
 WEEKDAYS = [("0", "Montag"), ("1", "Dienstag"), ("2", "Mittwoch"),
             ("3", "Donnerstag"), ("4", "Freitag"), ("5", "Samstag"),
@@ -128,15 +128,34 @@ class ProductAdmin(admin.ModelAdmin):
                            "abgerechnet. „Termin nötig“ = Mitglied gibt beim Kauf "
                            "ein Datum an."}),
         ("Beim Buchen anbieten (z. B. Endreinigung)", {
-            "fields": ("book_with_stay", "counts_as_cleaning", "unavailable_weekdays"),
+            "fields": ("book_with_stay", "counts_as_cleaning", "needs_approval",
+                       "unavailable_weekdays"),
             "description": "Ist „Beim Buchen anbieten“ aktiv, erscheint die "
                            "Dienstleistung im Bestätigungsschritt der Unterkunfts-"
-                           "Buchung und kann gleich mitgebucht werden. „Zählt als "
-                           "Endreinigung“ markiert die betroffenen Buchungen in der "
-                           "Reinigungsliste fürs Team. Über die Wochentage lässt sich "
-                           "steuern, an welchen Abreisetagen die Leistung NICHT "
-                           "gewährleistet werden kann."}),
+                           "Buchung. „Muss bestätigt werden“ = sie wird beim Buchen "
+                           "nur ANGEFRAGT und erst nach Freigabe durch die "
+                           "Betriebsleitung (Dashboard) abgerechnet – sonst sofort. "
+                           "„Zählt als Endreinigung“ markiert die betroffenen "
+                           "Buchungen in der Reinigungsliste fürs Team. Über die "
+                           "Wochentage lässt sich steuern, an welchen Abreisetagen die "
+                           "Leistung NICHT gewährleistet werden kann."}),
     )
+
+
+@admin.register(ServiceRequest)
+class ServiceRequestAdmin(admin.ModelAdmin):
+    """Dienstleistungs-Anfragen (z. B. Endreinigung, ADR 0081). Bestätigt/abgelehnt
+    wird im Verwaltungs-Dashboard; hier nur Übersicht/Nachschau."""
+    list_display = ("product", "member", "allocation", "service_date", "status",
+                    "requested_at", "decided_at")
+    list_filter = ("status", "product")
+    search_fields = ("member__display_name", "product__name")
+    readonly_fields = ("member", "product", "allocation", "service_date",
+                       "requested_at", "line_item")
+    date_hierarchy = "service_date"
+
+    def has_add_permission(self, request):
+        return False   # Anfragen entstehen nur beim Buchen.
 
 
 class LineItemInline(admin.TabularInline):

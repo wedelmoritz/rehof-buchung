@@ -455,10 +455,18 @@ archiviert, §14-Angaben + Steuer-Aufschlüsselung; Positionen nach Einkauf
 gruppiert via `Invoice.purchase_groups`). Rechnung **monatlich**
 (`generate_monthly_invoices`, Cron) **oder sofort** (`generate_invoice_now`,
 Button „Jetzt abrechnen“ bzw. „sofort abrechnen“ beim Checkout). Beim Buchen
-mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
-`services.purchase_service` direkt als bestätigter Einkauf – dabei wird
-`LineItem.allocation` gesetzt (verknüpft die Reinigung mit Quartier + Abreisetag).
-`Product.counts_as_cleaning` markiert die Endreinigung für die Reinigungsliste.
+mitgebuchte Dienstleistungen (opt-in) laufen über `services.purchase_service` direkt
+als bestätigter Einkauf – dabei wird `LineItem.allocation` gesetzt (verknüpft die
+Reinigung mit Quartier + Abreisetag). `Product.counts_as_cleaning` markiert die
+Endreinigung für die Reinigungsliste. **Bestätigungspflichtige Leistungen
+(`Product.needs_approval`, ADR 0081):** die **Endreinigung** wird beim Buchen NUR
+**angefragt** (`services.request_service` legt eine `shop.ServiceRequest` an, Status
+`requested`, E-Mail an die Betriebsleitung) – **keine** Abrechnung, bis die BL im
+Dashboard **bestätigt** (`confirm_service_request` → `purchase_service` + Reinigungs-
+liste) oder **ablehnt** (`reject_service_request`); beide idempotent, benachrichtigen
+das Mitglied. Das Mitglied sieht den Status („angefragt/bestätigt/abgelehnt“) in
+**„Meine Buchungen“** (`Allocation.service_requests`, prefetch). Sofort-Kauf bleibt für
+DLs ohne `needs_approval` (z.B. Sauna).
 **Offene Posten:** `Invoice.due_date` (aus `ShopConfig.payment_term_days`) +
 `is_overdue`; **Zahlungserinnerung** idempotent über `services.send_payment_reminder`
 / `remind_overdue` (Aktion im Admin + Dashboard, „zuletzt erinnert am“).
@@ -603,6 +611,9 @@ Seite fürs kleine Team – Kennzahlen (inkl. KPI **„online bezahlt (Monat)“
 **Benutzerkonten**, **Auslastung** der Unterkünfte [gebuchte vs. mögliche
 Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis der
 **letzten bestätigten Verlosung** = erfüllte vs. nicht erfüllte Wünsche),
+**Anfragen zur Freigabe** (beim Buchen angefragte, bestätigungspflichtige Leistungen
+wie die **Endreinigung**, `services.pending_service_requests`; **Bestätigen** →
+Abrechnung + Reinigungsliste, **Ablehnen** → Mitglied benachrichtigt; #28/ADR 0081),
 **Reinigungsliste** (alle Abreisen des
 gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
 **anstehende Buchungen** und **offene/überfällige/online bezahlte Rechnungen**

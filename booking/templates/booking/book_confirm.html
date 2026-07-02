@@ -99,15 +99,17 @@
     <label class="service">
       <input type="checkbox" name="service_{{ o.p.id }}"
              {% if not o.available %}disabled{% endif %}>
-      <span class="svc-name">{{ o.p.name }}</span>
+      <span class="svc-name">{{ o.p.name }}{% if o.p.needs_approval %} <span class="tag" style="background:var(--warn-soft);color:var(--warn)">Anfrage</span>{% endif %}</span>
       <span class="svc-price">{{ o.p.price }} €</span>
       {% if not o.available %}
       <span class="reason">am {{ end|date:"l" }} (Abreise) nicht möglich</span>
       {% endif %}
     </label>
     {% endfor %}
-    <p class="muted" style="margin:.5rem 0 0">Gewählte Dienstleistungen werden über
-      den Hofladen (monatliche Sammelrechnung) abgerechnet.</p>
+    <p class="muted" style="margin:.5rem 0 0">Ohne Markierung „Anfrage“ wird direkt
+      über den Hofladen (monatliche Sammelrechnung) abgerechnet. Mit „<strong>Anfrage</strong>“
+      (z.&nbsp;B. Endreinigung) wird die Leistung nur <strong>angefragt</strong> – die
+      Betriebsleitung bestätigt oder lehnt sie ab, erst dann wird sie abgerechnet.</p>
   </div>
   {% endif %}
 

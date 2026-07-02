@@ -141,6 +141,99 @@ def purchase_service(member, product: Product, quantity=1, service_date=None,
     return item, None
 
 
+# --------------------------------------------------------------------------- #
+# Bestätigungspflichtige Dienstleistungen (z.B. Endreinigung, ADR 0081)
+# --------------------------------------------------------------------------- #
+
+def request_service(member, product: Product, allocation, service_date):
+    """Legt eine **Anfrage** für eine bestätigungspflichtige Dienstleistung an
+    (statt sie sofort abzurechnen) und benachrichtigt die Betriebsleitung.
+    Idempotent je Buchung+Produkt (Schutz gegen Doppelklick)."""
+    from .models import ServiceRequest
+    existing = ServiceRequest.objects.filter(
+        allocation=allocation, product=product,
+        status=ServiceRequest.REQUESTED).first()
+    if existing:
+        return existing, None
+    sr = ServiceRequest.objects.create(
+        member=member, product=product, allocation=allocation,
+        service_date=service_date)
+    from booking import services as bsvc
+    q = allocation.quarter.name
+    bsvc.email_admins(
+        f"Re:Hof: Anfrage {product.name} – {q} ({service_date:%d.%m.%Y})",
+        f"{member.display_name} hat beim Buchen „{product.name}“ angefragt.\n\n"
+        f"Unterkunft: {q}\nTermin (Abreise): {service_date:%d.%m.%Y}\n\n"
+        f"Bitte im Verwaltungs-Dashboard bestätigen oder ablehnen:\n"
+        f"{bsvc.absolute_url('/verwaltung/#d-anfragen')}\n")
+    return sr, None
+
+
+def _notify_member_service(sr, confirmed: bool) -> None:
+    from booking import services as bsvc
+    from booking.models import Notification
+    q = sr.allocation.quarter.name
+    name = sr.product.name if sr.product else "Dienstleistung"
+    if confirmed:
+        msg = (f"Deine Anfrage „{name}“ für {q} "
+               f"({sr.service_date:%d.%m.%Y}) wurde bestätigt.")
+    else:
+        extra = f" Grund: {sr.note}" if sr.note else ""
+        msg = (f"Deine Anfrage „{name}“ für {q} "
+               f"({sr.service_date:%d.%m.%Y}) wurde abgelehnt.{extra}")
+    Notification.objects.create(member=sr.member, message=msg,
+                                url="/meine-buchungen/")
+    bsvc.email_member(sr.member, "Re:Hof: Rückmeldung zu deiner Anfrage", msg + "\n")
+
+
+@transaction.atomic
+def confirm_service_request(sr, by_user=None) -> tuple[bool, str | None]:
+    """Betriebsleitung bestätigt eine Anfrage → es entsteht die Rechnungs-Position
+    (`purchase_service`), das Mitglied wird benachrichtigt. Idempotent."""
+    from .models import ServiceRequest
+    if sr.status != ServiceRequest.REQUESTED:
+        return False, "Diese Anfrage ist bereits entschieden."
+    if sr.product is None:
+        return False, "Dienstleistung nicht mehr vorhanden."
+    item, err = purchase_service(sr.member, sr.product, 1,
+                                 service_date=sr.service_date,
+                                 allocation=sr.allocation)
+    if err:
+        return False, err
+    sr.status = ServiceRequest.CONFIRMED
+    sr.line_item = item
+    sr.decided_at = timezone.now()
+    sr.decided_by = by_user
+    sr.save(update_fields=["status", "line_item", "decided_at", "decided_by"])
+    _notify_member_service(sr, confirmed=True)
+    return True, None
+
+
+@transaction.atomic
+def reject_service_request(sr, by_user=None, reason: str = "") -> tuple[bool, str | None]:
+    """Betriebsleitung lehnt eine Anfrage ab → keine Abrechnung, Mitglied wird
+    (mit optionalem Grund) benachrichtigt. Idempotent."""
+    from .models import ServiceRequest
+    if sr.status != ServiceRequest.REQUESTED:
+        return False, "Diese Anfrage ist bereits entschieden."
+    sr.status = ServiceRequest.REJECTED
+    sr.note = (reason or "")[:255]
+    sr.decided_at = timezone.now()
+    sr.decided_by = by_user
+    sr.save(update_fields=["status", "note", "decided_at", "decided_by"])
+    _notify_member_service(sr, confirmed=False)
+    return True, None
+
+
+def pending_service_requests():
+    """Offene Dienstleistungs-Anfragen fürs Verwaltungs-Dashboard (wenige Abfragen)."""
+    from .models import ServiceRequest
+    return (ServiceRequest.objects.filter(status=ServiceRequest.REQUESTED)
+            .select_related("member", "product", "allocation",
+                            "allocation__quarter")
+            .order_by("service_date"))
+
+
 def unbilled_purchases(member):
     """Bestätigte, aber noch nicht abgerechnete Einkäufe."""
     return (Purchase.objects.filter(member=member, items__invoice__isnull=True)

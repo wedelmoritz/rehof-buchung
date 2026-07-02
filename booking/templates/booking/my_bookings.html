@@ -68,6 +68,15 @@
         {% if a.waiters %}<span class="tag mine">{{ a.waiters|length }} wartet</span>{% endif %}
         <div class="muted">{{ a.start }} – {{ a.end }} · {{ a.nights }} Nächte · {{ a.persons }} Pers. ·
           <abbr title="So ist die Buchung entstanden: Spontanbuchung = selbst gebucht · Losung = über das Losverfahren · Import = aus dem Altsystem übernommen." style="text-decoration:underline dotted">{{ a.get_source_display }}</abbr></div>
+        {% for sr in a.service_reqs %}
+          {% if sr.status == 'requested' %}
+          <div class="svc-status" title="Deine Anfrage wurde an die Betriebsleitung übermittelt und wartet auf Bestätigung.">🕓 {{ sr.product.name }}: <strong>angefragt</strong> · an Betriebsleitung übermittelt</div>
+          {% elif sr.status == 'confirmed' %}
+          <div class="svc-status good">✅ {{ sr.product.name }}: <strong>bestätigt</strong></div>
+          {% else %}
+          <div class="svc-status bad">✖ {{ sr.product.name }}: <strong>abgelehnt</strong>{% if sr.note %} <span class="muted">({{ sr.note }})</span>{% endif %}</div>
+          {% endif %}
+        {% endfor %}
       </div>
       <form method="post" data-confirm="{{ a.quarter.name }} vom {{ a.start }} bis {{ a.end }} wirklich stornieren? Das gibt den Zeitraum und deine Tage wieder frei." style="margin-left:auto">{% csrf_token %}
         <input type="hidden" name="action" value="cancel">
@@ -215,6 +224,11 @@
 
 <style>
   .booking-head { display:flex; align-items:flex-start; gap:.6rem; }
+  .svc-status { margin-top:.35rem; font-size:.88rem; padding:.25rem .5rem;
+    border-radius:8px; background:var(--warn-soft); color:var(--warn);
+    display:inline-block; }
+  .svc-status.good { background:var(--good-soft); color:var(--good-deep); }
+  .svc-status.bad { background:var(--bad-soft); color:var(--bad); }
   details.concurrent, details.adjust, details.swap {
     margin-top:.5rem; border-top:1px solid var(--line); padding-top:.5rem; }
   details.concurrent summary, details.adjust summary, details.swap summary {
