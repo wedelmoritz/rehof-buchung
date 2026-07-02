@@ -627,7 +627,9 @@ gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
 (Filter-Chip „Online bezahlt“ + Status-Spalte). Je Liste
 **Export** als xlsx **und** CSV (`booking/exports.py`) und **Versand per Knopf**
 (Reinigungsliste ans Reinigungsteam, Buchungen an die Verwaltung,
-Zahlungserinnerung an überfällige). Empfänger in `OpsConfig`
+Zahlungserinnerung an überfällige – **alle** auf einmal ODER **je Rechnung**
+[`action=remind_one`]; es gibt **keinen automatischen Konto-Abruf**, Eingänge kommen
+über den Kontoabgleich, Erinnerungen stößt die BL manuell an, #36). Empfänger in `OpsConfig`
 (`email_admins`/`email_cleaning`; Reinigungsteam leer = Verwaltungs-Adresse).
 **Hofladen-Katalog im Dashboard pflegen** (`dashboard_products`,
 `/verwaltung/produkte/`): Produkte/Gruppen anlegen + ändern, Preise/aktiv – für

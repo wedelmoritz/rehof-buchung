@@ -243,6 +243,11 @@
   {% if inv_filter == 'online' %}<p class="muted" style="margin:.2rem 0 .6rem">Per
     Zahldienst (Mollie) beglichene Rechnungen – Eingang ist bereits bestätigt,
     kein Kontoabgleich nötig.</p>{% endif %}
+  <p class="muted sm" style="margin:.2rem 0 .6rem">Es gibt <strong>keinen automatischen
+    Konto-Abruf</strong>: Zahlungseingänge kommen über den <strong>Kontoabgleich</strong>
+    (Auszug unten hochladen) rein und werden bei eindeutigem Treffer automatisch als
+    bezahlt verbucht. <strong>Zahlungserinnerungen löst ihr manuell aus</strong> –
+    unten „Überfällige anschreiben“ (alle) oder je Zeile „erinnern“.</p>
   {% if invoices_view %}
   <div class="table-wrap">
     <table class="grid">
@@ -255,7 +260,15 @@
           <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
           <td>{{ i.total_gross }} €</td>
           <td>{% if i.paid_online %}<span class="tag" style="background:#e1efd6;color:#41663a">online ({{ i.payment_method }})</span>{% else %}{{ i.get_status_display }}{% endif %}</td>
-          <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}</td>
+          <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}
+            {% if i.is_overdue and i.status == 'open' %}
+            <form method="post" class="inline" data-confirm="Zahlungserinnerung zu {{ i.number }} an {{ i.recipient_label }} senden?">{% csrf_token %}
+              <input type="hidden" name="action" value="remind_one">
+              <input type="hidden" name="invoice_id" value="{{ i.id }}">
+              <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+              <button class="btn small ghost" type="submit">erinnern</button>
+            </form>
+            {% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

@@ -1141,6 +1141,15 @@ def dashboard(request):
         elif action == "remind_overdue":
             n = shop_svc.remind_overdue()
             messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
+        elif action == "remind_one":
+            # Einzelne überfällige Rechnung erinnern (#36) – manueller Anstoß durch
+            # die BL (es gibt keinen automatischen Konto-Abruf).
+            inv = Invoice.objects.filter(id=request.POST.get("invoice_id")).first()
+            if inv and shop_svc.send_payment_reminder(inv):
+                messages.success(request,
+                                 f"Zahlungserinnerung zu {inv.number} verschickt.")
+            else:
+                messages.info(request, "Erinnerung nicht möglich (Rechnung/Adresse?).")
         elif action in ("confirm_service", "reject_service"):
             # Dienstleistungs-Anfrage (z.B. Endreinigung) bestätigen/ablehnen (#28).
             from shop.models import ServiceRequest

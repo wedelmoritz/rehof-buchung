@@ -197,6 +197,18 @@ class InvoiceDashboardTests(TestCase):
         self.overdue_inv.refresh_from_db()
         self.assertIsNotNone(self.overdue_inv.reminded_at)
 
+    def test_einzelne_rechnung_erinnern(self):
+        """#36: je-Rechnung „erinnern“-Knopf im Dashboard."""
+        OutboxEmail.objects.all().delete()
+        self.client.force_login(self.staff.user)
+        self.client.post(reverse("dashboard"), {
+            "action": "remind_one", "invoice_id": self.overdue_inv.id,
+            "year": date.today().year, "month": 1})
+        self.overdue_inv.refresh_from_db()
+        self.assertIsNotNone(self.overdue_inv.reminded_at)
+        self.assertTrue(OutboxEmail.objects.filter(
+            to_email="mia@example.org", subject__contains="Zahlungserinnerung").exists())
+
     def test_dashboard_queries_skalieren_nicht_mit_rechnungen(self):
         """N+1-Wächter: das Dashboard darf nicht pro Rechnung neue Queries feuern
         (total_gross summiert items → ohne prefetch O(n))."""
