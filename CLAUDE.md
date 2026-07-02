@@ -188,7 +188,10 @@ Kopfleiste + „Anzeigen ⌄“/„Verbergen ⌃“-Pill), daher bleibt die Seit
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
-Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
+Mindestaufenthalt oder verfügbare Tage verletzt sind]; die **Personenzahl** steht in
+einem eigenen `data-ajax`-GET-Formular und **prüft bei Änderung sofort neu** [zu viele
+Personen → klarer „Platz für höchstens N"-Hinweis + gesperrter Knopf, Korrektur bleibt
+auf der Seite statt Rauswurf zur Auswahl, #32]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
 bleiben bewusst änderbar; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
 [`quarter_wish_counts`]; **je eingetragenem, sehr beliebtem Wunsch** steht in „Meine

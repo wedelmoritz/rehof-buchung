@@ -3,58 +3,72 @@
 {% block content %}
 <h1>Buchung bestätigen</h1>
 
+<div class="card">
+  <h2 style="margin-top:0">{{ quarter.name }}</h2>
+  <p class="muted" style="margin:.2rem 0 .8rem">
+    {{ quarter.size_sqm }} m² · Platz für {{ quarter.min_occupancy }}–{{ quarter.max_occupancy }} Personen{% if quarter.accessible %} · barrierearm/-frei{% endif %}
+  </p>
+  <table style="width:auto">
+    <tr><td class="muted">Anreise</td><td><strong>{{ start|date:"l, d.m.Y" }}</strong></td></tr>
+    <tr><td class="muted">Abreise</td><td><strong>{{ end|date:"l, d.m.Y" }}</strong></td></tr>
+    <tr><td class="muted">Nächte</td><td><strong>{{ nights }}</strong></td></tr>
+  </table>
+
+  {# Personen-Zahl mit SOFORTIGER Neuprüfung (eigenes GET-Formular, data-ajax):
+     Ändern lädt die Seite neu und aktualisiert Hinweise + „Buchen“-Knopf – man
+     bleibt im Bestätigungsschritt und wird nicht zur Auswahl zurückgeworfen. #}
+  <form method="get" action="{% url 'book_confirm' %}" data-ajax class="persons-form">
+    <input type="hidden" name="quarter" value="{{ quarter.id }}">
+    <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
+    <input type="hidden" name="end" value="{{ end|date:'Y-m-d' }}">
+    <label for="id_persons">Personen</label>
+    <input type="number" id="id_persons" name="persons" value="{{ persons }}"
+           min="{% if allow_under %}1{% else %}{{ quarter.min_occupancy }}{% endif %}"
+           max="{% if allow_under %}20{% else %}{{ quarter.max_occupancy }}{% endif %}"
+           data-autosubmit inputmode="numeric">
+    <span class="muted sm">Ändern prüft sofort neu.</span>
+  </form>
+
+  {% if gap_fill and nights < min_nights %}
+  <div class="msg info">Diese Buchung füllt eine bestehende Lücke vollständig –
+    der Mindestaufenthalt ({{ min_nights }} Nächte) entfällt hier, ebenso die
+    Spontan-Vorausfrist.</div>
+  {% elif block_reason %}
+  <div class="msg warning">{{ block_reason }}</div>
+  {% endif %}
+  {% if person_block %}
+  <div class="msg warning"><strong>{{ quarter.name }} bietet Platz für höchstens
+    {{ quarter.max_occupancy }} {% if quarter.max_occupancy == 1 %}Person{% else %}Personen{% endif %}</strong>
+    – ihr seid {{ persons }}. {{ person_block }} Alternativ die <strong>Personenzahl oben
+    anpassen</strong>.</div>
+  {% endif %}
+  {% if undersized %}
+  <div class="msg warning">{% if persons > quarter.max_occupancy %}Diese Unterkunft ist
+    <strong>kleiner als eure Gruppe</strong>: ausgelegt für bis zu {{ quarter.max_occupancy }}
+    Personen, ihr seid {{ persons }}.{% else %}Diese Unterkunft ist <strong>größer als nötig</strong>:
+    ausgelegt für {{ quarter.min_occupancy }}–{{ quarter.max_occupancy }} Personen, ihr seid
+    {{ persons }}.{% endif %} Buchung ist möglich (nichts Passendes mehr frei) – bitte achtet
+    selbst auf eine vertretbare Belegung.</div>
+  {% endif %}
+  {% if enough_days %}
+  <p style="margin:.6rem 0 0">Nach dieser Buchung hast du noch
+    <strong>{{ remaining_after }}</strong> von {{ remaining_now }} Tagen übrig.</p>
+  {% endif %}
+</div>
+
+{% include "booking/_high_demand_note.html" %}
+
 <form method="post" action="{% url 'book_confirm' %}">{% csrf_token %}
   <input type="hidden" name="action" value="confirm">
   <input type="hidden" name="quarter" value="{{ quarter.id }}">
   <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
   <input type="hidden" name="end" value="{{ end|date:'Y-m-d' }}">
-
-  <div class="card">
-    <h2 style="margin-top:0">{{ quarter.name }}</h2>
-    <p class="muted" style="margin:.2rem 0 .8rem">
-      {{ quarter.size_sqm }} m² · {{ quarter.min_occupancy }}–{{ quarter.max_occupancy }} Pers.{% if quarter.accessible %} · barrierearm/-frei{% endif %}
-    </p>
-    <table style="width:auto">
-      <tr><td class="muted">Anreise</td><td><strong>{{ start|date:"l, d.m.Y" }}</strong></td></tr>
-      <tr><td class="muted">Abreise</td><td><strong>{{ end|date:"l, d.m.Y" }}</strong></td></tr>
-      <tr><td class="muted">Nächte</td><td><strong>{{ nights }}</strong></td></tr>
-    </table>
-
-    {% if gap_fill and nights < min_nights %}
-    <div class="msg info">Diese Buchung füllt eine bestehende Lücke vollständig –
-      der Mindestaufenthalt ({{ min_nights }} Nächte) entfällt hier, ebenso die
-      Spontan-Vorausfrist.</div>
-    {% elif block_reason %}
-    <div class="msg warning">{{ block_reason }}</div>
-    {% endif %}
-    {% if person_block %}
-    <div class="msg warning">{{ person_block }}</div>
-    {% endif %}
-    {% if undersized %}
-    <div class="msg warning">{% if persons > quarter.max_occupancy %}Diese Unterkunft ist
-      <strong>kleiner als eure Gruppe</strong>: ausgelegt für bis zu {{ quarter.max_occupancy }}
-      Personen, ihr seid {{ persons }}.{% else %}Diese Unterkunft ist <strong>größer als nötig</strong>:
-      ausgelegt für {{ quarter.min_occupancy }}–{{ quarter.max_occupancy }} Personen, ihr seid
-      {{ persons }}.{% endif %} Buchung ist möglich (nichts Passendes mehr frei) – bitte achtet
-      selbst auf eine vertretbare Belegung.</div>
-    {% endif %}
-    {% if enough_days %}
-    <p style="margin:.6rem 0 0">Nach dieser Buchung hast du noch
-      <strong>{{ remaining_after }}</strong> von {{ remaining_now }} Tagen übrig.</p>
-    {% endif %}
-  </div>
-
-  {% include "booking/_high_demand_note.html" %}
+  {# Personen kommt aus dem GET-Formular oben (bereits geprüft) – hier nur mitsenden. #}
+  <input type="hidden" name="persons" value="{{ persons }}">
 
   <div class="card">
     <h2 style="margin-top:0">Wer kommt?</h2>
     <div class="form-row">
-      <div class="field" style="flex:0 0 9rem">
-        <label for="id_persons">Personen</label>
-        <input type="number" id="id_persons" name="persons" value="{{ persons }}"
-               min="{% if allow_under %}1{% else %}{{ quarter.min_occupancy }}{% endif %}"
-               max="{% if allow_under %}20{% else %}{{ quarter.max_occupancy }}{% endif %}">
-      </div>
       <div class="field" style="flex:1 1 16rem">
         <label for="id_companions">Begleitung (mit wem reist du an?)</label>
         <input type="text" id="id_companions" name="companions" maxlength="255"
@@ -109,6 +123,11 @@
 </form>
 
 <style>
+  .persons-form { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap;
+    margin:.2rem 0 .2rem; }
+  .persons-form label { color:var(--muted); font-size:.9rem; }
+  .persons-form input[type=number] { width:5rem; min-width:0; }
+  .sm { font-size:.85rem; }
   .service { display:flex; align-items:center; gap:.6rem; padding:.5rem 0;
     border-bottom:1px solid var(--line); flex-wrap:wrap; }
   .service:last-of-type { border-bottom:0; }

@@ -1111,6 +1111,29 @@ class BuchungBestaetigungTests(UseCaseBase):
         self.assertEqual(Allocation.objects.count(), 1)
         self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 0)
 
+    def test_personen_ueberzahl_live_korrigierbar(self):
+        """#32: Zu viele Personen sperren den Knopf mit klarem Hinweis; eine
+        Korrektur (GET, gleiche Seite) macht die Buchung wieder möglich – kein
+        Rauswurf zur Auswahl."""
+        small = Quarter.objects.create(name="Salix", eq_class=self.cls_klein,
+                                       min_occupancy=1, max_occupancy=2)
+        Quarter.objects.create(name="Gross", eq_class=self.cls_a,
+                               min_occupancy=1, max_occupancy=6)
+        c = self._client()
+        r = c.get(reverse("book_confirm"), {
+            "quarter": small.id, "start": self.s.isoformat(),
+            "end": self.e.isoformat(), "persons": 4})
+        self.assertEqual(r.status_code, 200)          # bleibt auf book_confirm
+        self.assertContains(r, "bietet Platz für höchstens")
+        self.assertContains(r, "Bitte zuerst die Hinweise oben beheben")  # Knopf gesperrt
+        # Personen auf 2 korrigieren → wieder buchbar
+        r2 = c.get(reverse("book_confirm"), {
+            "quarter": small.id, "start": self.s.isoformat(),
+            "end": self.e.isoformat(), "persons": 2})
+        self.assertEqual(r2.status_code, 200)
+        self.assertNotContains(r2, "bietet Platz für höchstens")
+        self.assertNotContains(r2, "Bitte zuerst die Hinweise oben beheben")
+
 
 class WunschSaisonTests(UseCaseBase):
     """Der GESAMTE Wunschzeitraum muss innerhalb der Quartier-Saison liegen –

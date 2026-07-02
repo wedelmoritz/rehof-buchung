@@ -138,7 +138,13 @@
 <div class="card" id="auswahl">
   <div style="display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap">
     <h2 style="margin:0">Auswahl</h2>
-    <span class="muted">{{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}{% if not sel_end %} · jetzt Abreisetag wählen (oder 1 Nacht){% endif %}</span>
+    {% if sel_end %}
+    <span><strong>{{ eff_start|date:"D, d.m.Y" }}</strong> &ndash; <strong>{{ eff_end|date:"D, d.m.Y" }}</strong>
+      <span class="muted">· {{ nights_selected }} Nächte · {{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %}</span></span>
+    {% else %}
+    <span><strong>Anreise {{ eff_start|date:"D, d.m.Y" }}</strong>
+      <span class="muted">· {{ persons }} Pers.{% if need_accessible %} · barrierearm/-frei{% endif %} · jetzt Abreisetag wählen (oder 1 Nacht)</span></span>
+    {% endif %}
     <a class="btn small ghost" data-ajax style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}&persons={{ persons }}{% if need_accessible %}&accessible=1{% endif %}">Auswahl zurücksetzen</a>
   </div>
 
