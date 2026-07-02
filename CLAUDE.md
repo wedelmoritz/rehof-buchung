@@ -246,9 +246,11 @@ gemeinsamen Topf **spenden** und **bei Bedarf, gedeckelt entnehmen** [`DayPoolEn
 [`POOL_ELIGIBLE_REMAINING`], gedeckelt `POOL_WITHDRAW_CAP_PER_YEAR`]).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
-den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
-`unavailable_weekdays` sperrt Wochentage (geprüft am Abreisetag, z.B.
-Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
+den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit
+`book_with_stay=True`; sie erscheinen **nur im Buchungsabschnitt** (Bestätigungsschritt),
+NICHT im Mitglieder-Hofladen-Katalog (`shop_index` blendet sie aus, der `add`-Endpoint
+lehnt sie server-seitig ab, #37/ADR 0081). `unavailable_weekdays` sperrt Wochentage
+(geprüft am Abreisetag, z.B. Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` **und** (über die Outbox)
 eine E-Mail. **E-Mail-Benachrichtigungen:** In-App-`Notification` bleibt; parallel
 stellt `services.email_member` (Opt-out je Mitglied via `Member.email_opt_in`)

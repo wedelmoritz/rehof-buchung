@@ -54,6 +54,30 @@ class PriceSnapshotTests(ShopBase):
         self.assertIn("größer als 0", err)
 
 
+class KatalogSichtbarkeitTests(ShopBase):
+    """„Beim Buchen anbieten“-Leistungen (Endreinigung) gehören NICHT in den
+    Hofladen-Katalog (#37/ADR 0081), nur in den Buchungsabschnitt."""
+
+    def setUp(self):
+        super().setUp()
+        self.clean = Product.objects.create(
+            group=self.group, name="Endreinigung", price=Decimal("70.00"),
+            unit="portion", vat_rate=19, kind="dienstleistung", needs_date=True,
+            book_with_stay=True)
+
+    def test_endreinigung_nicht_im_katalog(self):
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("shop_index"))
+        self.assertNotContains(r, "Endreinigung")
+        self.assertContains(r, "Äpfel")   # normale Ware bleibt sichtbar
+
+    def test_add_endreinigung_serverseitig_abgelehnt(self):
+        self.client.force_login(self.alice.user)
+        self.client.post(reverse("shop_index"), {
+            "action": "add", "product": self.clean.id, "quantity": "1"})
+        self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 0)
+
+
 class MengenRasterTests(ShopBase):
     def test_kg_in_zehntel_schritten_erlaubt(self):
         item, err = svc.add_item(self.alice, self.apple, "0.1")

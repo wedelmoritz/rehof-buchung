@@ -45,6 +45,16 @@ Einkauf (`purchase_service`) auf der Monatsrechnung. Aus der Praxis (Tester-Feed
 5. **Abrechnung erst bei Bestätigung** – eine abgelehnte/offene Anfrage erzeugt
    **keine** Rechnungsposition.
 
+## Nicht im Hofladen-Katalog (#37)
+
+Beim-Buchen-Leistungen (`book_with_stay`, z. B. Endreinigung) gehören in den
+**Buchungsabschnitt**, nicht in den Hofladen. Der Mitglieder-Katalog (`shop_index`)
+**blendet sie aus**, und der `add`-Endpoint **lehnt sie server-seitig ab** – so lassen
+sie sich nicht als eigenständiger Warenkorb-Kauf hinzufügen. Die Abrechnung einer
+**bestätigten** Endreinigung läuft weiterhin über die reguläre Monatsrechnung (das
+Rechnungs-/USt-/Kontoabgleich-System ist bewusst der einzige Abrechnungsweg); im
+Mitglieder-Katalog taucht sie aber nicht mehr auf.
+
 ## Aufteilung Backend ↔ Dashboard
 
 Die **Freigabe** liegt bewusst im **Verwaltungs-Dashboard** (Tagesgeschäft der BL,
