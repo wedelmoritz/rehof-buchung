@@ -131,7 +131,7 @@
 
 {% if push_enabled %}
 <script nonce="{{ request.csp_nonce }}">
-(function () {
+function initPushProfile() {
   var card = document.getElementById("push-card");
   if (!card) return;
   var btn = document.getElementById("push-toggle");
@@ -218,7 +218,15 @@
          renderDiag();
        });
   });
-})();
+}
+// WICHTIG: erst starten, wenn das Seiten-Ende-Skript `window.__rehofPush` definiert
+// hat. Dieses Inline-Skript steht im Inhaltsbereich (weiter oben im DOM) und würde
+// sonst VOR der Modul-Definition am Body-Ende laufen → „__rehofPush fehlt“.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initPushProfile);
+} else {
+  initPushProfile();
+}
 </script>
 {% endif %}
 {% endif %}

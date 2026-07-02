@@ -388,6 +388,10 @@ aufklappbares „Diagnose“-Panel (`__rehofPush.diagnose()`: HTTPS/Standalone/S
 PushManager/Berechtigung/Abo/Push-Dienst-Host, keine Geheimnisse); `enable()` markiert
 den fehlgeschlagenen Schritt (`permission`/`subscribe`/`server`); serverseitig loggt
 `booking.push` Abo-Speicherung und jede Zustellung (Erfolg/HTTP-Fehler von Apple/FCM).
+**Wichtig (Reihenfolge):** `window.__rehofPush` wird am **Body-Ende** definiert
+(nach `{% block content %}`); Verbraucher im Inhalt (Profil) starten daher erst bei
+`DOMContentLoaded` – sonst liefe das Skript VOR der Modul-Definition (`__rehofPush
+fehlt`). Das Modul hängt nur an `user.is_authenticated` (nicht an `user.member`).
 **Navigation:** Icons als
 einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
 **Desktop** vertikale Leiste **links** (`.sidenav`, `order:-1` im Flex-Layout;
