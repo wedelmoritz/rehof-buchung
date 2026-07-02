@@ -14,9 +14,9 @@
     <tr><td class="muted">Nächte</td><td><strong>{{ nights }}</strong></td></tr>
   </table>
 
-  {# Personen-Zahl mit SOFORTIGER Neuprüfung (eigenes GET-Formular, data-ajax):
-     Ändern lädt die Seite neu und aktualisiert Hinweise + „Buchen“-Knopf – man
-     bleibt im Bestätigungsschritt und wird nicht zur Auswahl zurückgeworfen. #}
+  {% comment %}Personen-Zahl mit SOFORTIGER Neuprüfung (eigenes GET-Formular,
+  data-ajax): Ändern lädt die Seite neu und aktualisiert Hinweise + „Buchen“-Knopf –
+  man bleibt im Bestätigungsschritt und wird nicht zur Auswahl zurückgeworfen.{% endcomment %}
   <form method="get" action="{% url 'book_confirm' %}" data-ajax class="persons-form">
     <input type="hidden" name="quarter" value="{{ quarter.id }}">
     <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
@@ -95,21 +95,28 @@
   {% if offers %}
   <div class="card">
     <h2 style="margin-top:0">Dienstleistung dazubuchen <span class="muted" style="font-weight:400;font-size:.9rem">(optional)</span></h2>
+    <p class="muted" style="margin:.2rem 0 .6rem">Ankreuzen, um eine Leistung
+      dazuzubuchen.</p>
     {% for o in offers %}
     <label class="service">
       <input type="checkbox" name="service_{{ o.p.id }}"
              {% if not o.available %}disabled{% endif %}>
-      <span class="svc-name">{{ o.p.name }}{% if o.p.needs_approval %} <span class="tag" style="background:var(--warn-soft);color:var(--warn)">Anfrage</span>{% endif %}</span>
+      <span class="svc-name">{{ o.p.name }}</span>
       <span class="svc-price">{{ o.p.price }} €</span>
+      {% if o.p.needs_approval %}
+      <span class="svc-hint">nur auf Anfrage – Betriebsleitung bestätigt</span>
+      {% endif %}
       {% if not o.available %}
       <span class="reason">am {{ end|date:"l" }} (Abreise) nicht möglich</span>
       {% endif %}
     </label>
     {% endfor %}
-    <p class="muted" style="margin:.5rem 0 0">Ohne Markierung „Anfrage“ wird direkt
-      über den Hofladen (monatliche Sammelrechnung) abgerechnet. Mit „<strong>Anfrage</strong>“
-      (z.&nbsp;B. Endreinigung) wird die Leistung nur <strong>angefragt</strong> – die
-      Betriebsleitung bestätigt oder lehnt sie ab, erst dann wird sie abgerechnet.</p>
+    <p class="muted" style="margin:.5rem 0 0">Leistungen mit dem Hinweis
+      <strong>„nur auf Anfrage“</strong> (z.&nbsp;B. die Endreinigung) werden beim
+      Ankreuzen zunächst nur <strong>angefragt</strong>: Die Betriebsleitung bestätigt
+      oder lehnt sie ab – erst nach Bestätigung werden sie abgerechnet. Den Status
+      siehst du danach in „Meine Buchungen“. Alle anderen Leistungen laufen direkt
+      über die monatliche Hofladen-Rechnung.</p>
   </div>
   {% endif %}
 
@@ -136,6 +143,8 @@
   .service input[type=checkbox] { width:1.1rem; height:1.1rem; min-width:0; }
   .service .svc-name { font-weight:600; }
   .service .svc-price { color:var(--accent-deep); font-weight:600; }
+  .service .svc-hint { color:var(--warn); font-size:.82rem;
+    background:var(--warn-soft); padding:.1rem .5rem; border-radius:999px; }
   .service .reason { color:var(--bad); font-size:.85rem; }
   .confirm-actions { display:flex; gap:.8rem; align-items:center; justify-content:flex-end;
     flex-wrap:wrap; margin-top:.4rem; }
