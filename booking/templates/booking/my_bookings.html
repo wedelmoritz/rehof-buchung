@@ -85,6 +85,9 @@
       </form>
     </div>
 
+    <details class="booking-more">
+      <summary class="more-sum">Details &amp; Aktionen
+        <span class="muted more-hint">Wer ist da · ändern · tauschen{% if a.concurrent_count %} · {{ a.concurrent_count }} gleichzeitig{% endif %}{% if a.swap_exact %} · {{ a.swap_exact|length }} Tausch möglich{% endif %}</span></summary>
     <details class="concurrent">
       <summary>Wer ist zur gleichen Zeit da?
         {% if a.concurrent_count %}<span class="cnt">{{ a.concurrent_count }}</span>{% endif %}</summary>
@@ -170,6 +173,7 @@
       {% endif %}
       {% endif %}
     </details>
+    </details>
   </div>
   {% endfor %}
 {% else %}
@@ -250,6 +254,18 @@
     display:inline-block; }
   .svc-status.good { background:var(--good-soft); color:var(--good-deep); }
   .svc-status.bad { background:var(--bad-soft); color:var(--bad); }
+  /* Kompakte Karte (#34): alle Details/Aktionen hinter EINEM Aufklapper. */
+  details.booking-more { margin-top:.5rem; border-top:1px solid var(--line);
+    padding-top:.5rem; }
+  details.booking-more > summary.more-sum { cursor:pointer; color:var(--accent-deep);
+    font-weight:600; font-size:.92rem; list-style:none; display:flex;
+    align-items:baseline; gap:.5rem; flex-wrap:wrap; }
+  details.booking-more > summary.more-sum::-webkit-details-marker { display:none; }
+  details.booking-more > summary.more-sum::before { content:"▸"; color:var(--muted); }
+  details.booking-more[open] > summary.more-sum::before { content:"▾"; }
+  .more-hint { font-weight:400; }
+  /* Innere Aufklapper sitzen jetzt IM äußeren – erste braucht keine Extra-Linie. */
+  details.booking-more > details.concurrent { border-top:0; padding-top:.2rem; margin-top:.2rem; }
   details.concurrent, details.adjust, details.swap {
     margin-top:.5rem; border-top:1px solid var(--line); padding-top:.5rem; }
   details.concurrent summary, details.adjust summary, details.swap summary {

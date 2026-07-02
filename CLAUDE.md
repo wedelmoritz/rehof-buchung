@@ -206,9 +206,12 @@ anklickbar, saison-gefiltert, eigene Wünsche zählen nicht, kein Eingriff ins
 Losverfahren. (Frontend-Wortwahl bewusst **positiv**: „beliebt“ statt „umkämpft/
 Konflikt“, ADR 0072.) (`services.wish_deconfliction`
 liefert weiter die reine Zeitraum-Verschiebung je Quartier.)),
-`my_bookings` (eigene Buchungen + Storno; je Buchung ein **Endreinigungs-Status**
-(angefragt/bestätigt/abgelehnt, #33/ADR 0081) und ein eingeklappter Abschnitt
-**„Zuletzt storniert"** (Storno-Nachweis, #30/ADR 0082); Storno **mit
+`my_bookings` (eigene Buchungen als **kompakte Karten**: je Buchung EINE Zeile
+(Quartier · Zeitraum · Personen · Quelle) + Storno; alle Details/Aktionen hinter
+EINEM Aufklapper **„Details & Aktionen"** (Wer-ist-da · ändern · tauschen), #34.
+Je Buchung ein **Endreinigungs-Status** (angefragt/bestätigt/abgelehnt, #33/ADR 0081)
+und ein eingeklappter Abschnitt **„Zuletzt storniert"** (Storno-Nachweis, #30/ADR 0082);
+Storno **mit
 Rückfrage**; je Buchung drei getrennte Aufklapp-Bereiche (ADR 0077): (1) **„Wer ist
 zur gleichen Zeit da?“** – rein informativ, **nur Mitglieder**, aufgeteilt in **exakt
 gleiche An-/Abreise** und **nur überlappend** [`services.concurrent_split`], **ohne**
