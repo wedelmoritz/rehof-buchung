@@ -216,10 +216,13 @@
   .filters .chk { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.9rem; }
   .filters .chk input { min-width:auto; }
   .notif ul { margin:.4rem 0 .6rem; padding-left:1.1rem; }
-  .gaps-card { border-color:var(--accent); padding:0; overflow:hidden; }
+  /* Die Karte behält ihren normalen Innenabstand; die Kopfleiste ist eine
+     abgerundete, getönte Fläche INNERHALB der Karte (kein full-bleed → der Text
+     bekommt sauberen Abstand zum Rand). */
+  .gaps-card { border-color:var(--accent); }
   .gaps-details > summary { list-style:none; cursor:pointer; display:flex;
     align-items:center; gap:.55rem; font-weight:600; color:var(--accent-deep);
-    background:var(--accent-soft); padding:.7rem .85rem; }
+    background:var(--accent-soft); padding:.6rem .75rem; border-radius:10px; }
   .gaps-details > summary:hover { background:var(--accent); color:#fff; }
   .gaps-details > summary::-webkit-details-marker { display:none; }
   .gaps-ic { width:20px; height:20px; flex:0 0 auto; color:inherit; }
@@ -234,9 +237,6 @@
   .gaps-t-close { display:none; }
   .gaps-details[open] .gaps-t-open { display:none; }
   .gaps-details[open] .gaps-t-close { display:inline; }
-  .gaps-details > *:not(summary) { margin-left:.85rem; margin-right:.85rem; }
-  .gaps-details > p { margin-top:.7rem; }
-  .gaps-details > ul.gaps { margin-bottom:.85rem; }
   ul.gaps { list-style:none; margin:.4rem 0 0; padding:0; display:flex;
     flex-direction:column; gap:.35rem; }
   ul.gaps a { display:block; padding:.5rem .6rem; border:1px solid var(--line);
