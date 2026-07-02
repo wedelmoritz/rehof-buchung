@@ -182,6 +182,15 @@
     <span class="spacer"></span>
     <span class="muted">{{ invoices_view|length }} angezeigt · {{ inv_view_sum }} €</span>
   </div>
+  {# USt-Modus der Rechnungen – nur zur Anzeige (Transparenz); ändern nur im Admin. #}
+  <p class="msg {% if shop_small_business %}warning{% else %}info{% endif %}" style="margin:.2rem 0 .6rem">
+    Umsatzsteuer-Modus der Rechnungen:
+    {% if shop_small_business %}<strong>Kleinunternehmer (§19 UStG)</strong> – Rechnungen
+      <strong>ohne</strong> MwSt-Ausweis.{% else %}<strong>Regelbesteuerung</strong> –
+      MwSt wird je Satz ausgewiesen.{% endif %}
+    {% if is_admin %}<a href="/admin/shop/shopconfig/">ändern →</a>{% else %}
+    <span class="muted">(Änderung nur durch Admin)</span>{% endif %}
+  </p>
   <div class="chips">
     <a class="chip {% if inv_filter == 'open' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
     <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>

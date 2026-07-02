@@ -498,9 +498,12 @@ physische Sicherung) im Deployment-Runbook – ohne sie ist der Modus nicht frei
 keine Kassenfunktion nach KassenSichV/§146a AO, ADR 0040). **Umsatzsteuer**
 umschaltbar im Backend (`ShopConfig.small_business`): Regelbesteuerung (per-Artikel
 `vat_rate`, Beherbergung 7 % / Zusatz 19 %) **oder** §19-Kleinunternehmer (Rechnung
-ohne MwSt-Ausweis + Hinweis). Die USt-Behandlung wird je `Invoice` gesnapshotet
-(`Invoice.small_business`/`tax_note`); USt-Status vor Go-Live mit dem Steuerberater
-klären (ADR 0041, keine Rechtsberatung). **Rechtstexte** (ADR 0042): Impressum
+ohne MwSt-Ausweis + Hinweis). Die USt-Behandlung wird je `Invoice` **beim Erstellen
+gesnapshotet** (`Invoice.small_business`/`tax_note`) – nach einer Änderung des Modus
+zeigen ALTE Rechnungen weiter ihren alten Snapshot; sie müssen neu erstellt werden.
+Der **aktive USt-Modus** wird der Verwaltung im **Dashboard** (Abschnitt Rechnungen)
+**read-only** angezeigt (Transparenz ohne Backend; ändern nur Admin, #27). USt-Status
+vor Go-Live mit dem Steuerberater klären (ADR 0041, keine Rechtsberatung). **Rechtstexte** (ADR 0042): Impressum
 (Pflicht, §5 DDG), Datenschutz (DSGVO) und AGB sind im `ShopConfig` konfigurierbar,
 öffentliche Seiten `imprint`/`privacy`/`terms` (`/impressum/`, `/datenschutz/`,
 `/agb/`), auf jeder Seite im Fuß verlinkt (Context-Processor `legal` + `base.html`).

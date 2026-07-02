@@ -1084,7 +1084,7 @@ def dashboard(request):
         return redirect("overview")
 
     from shop import services as shop_svc
-    from shop.models import Invoice
+    from shop.models import Invoice, ShopConfig
     from .models import OpsConfig
     from decimal import Decimal
 
@@ -1201,6 +1201,10 @@ def dashboard(request):
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
         "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
         "stats": svc.dashboard_stats(),
+        # USt-Modus der Rechnungen nur ZUR ANZEIGE (Transparenz für die BL, die kein
+        # Backend hat, #27). Geändert wird der Schalter bewusst nur im Admin
+        # (rechtlich sensibel, Go-Live-Setup) – Deep-Link nur für Admins.
+        "shop_small_business": ShopConfig.get_solo().small_business,
     })
 
 
