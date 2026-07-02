@@ -182,8 +182,9 @@ sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf –
 Wunsch-/Externen-Kalendern; unter dem Kalender eine **eingeklappte, hervorgehobene**
 Liste **„Kurze freie Lücken zum Füllen"** [`services.short_free_gaps`, beidseitig
 belegte kurze Zeiträume der **nächsten Wochen**, passend zu Personenzahl/Barrierefrei –
-ideal fürs Lückenfüllen; eingeklappt, daher bleibt die Seite kompakt (mobil-freundlich),
-#16b/ADR 0078; Belegung einmal geladen]), `book_confirm`
+ideal fürs Lückenfüllen; eingeklappt (deutlich als aufklappbar markiert: getönte
+Kopfleiste + „Anzeigen ⌄“/„Verbergen ⌃“-Pill), daher bleibt die Seite kompakt
+(mobil-freundlich), #16b/ADR 0078; Belegung einmal geladen]), `book_confirm`
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
@@ -280,7 +281,9 @@ Service `services.run_fairness_simulation`. **Gemeinschafts-Spiegel** (`communit
 Auslastung (**monatliche Inline-SVG-Kurve** übers Kalenderjahr
 `services.year_occupancy_curve` – 12 Monatspunkte mit Wert je Monat als Hover-Titel;
 löst die frühere Quartals-Kurve + separate Monatsliste ab, ADR 0074/0076/0079;
-effizient: alle Belegungen des Jahres einmal geladen, 2 Abfragen statt 24),
+effizient: alle Belegungen des Jahres einmal geladen, 2 Abfragen statt 24;
+**SVG-Text-Größe als Präsentationsattribut** `font-size` statt CSS-`font`-Kurzform,
+weil Safari die Kurzform auf SVG-Text ignoriert – ADR 0079-Nachtrag),
 Los-Ergebnis-
 Historie, **Karma-Verteilung** (`services.community_stats`/`karma_distribution`) als
 schlanke **CSS-Balken**/SVG (kein JS); in der Sekundär-Nav („Gemeinschaft"). Den
@@ -373,6 +376,18 @@ Mollie-Sandbox). Opt-in-Knopf im Profil (`window.__rehofPush`, in der
 „Benachrichtigungen“-Karte neben dem E-Mail-Schalter; ohne `push_enabled` ein
 Hinweis statt Knopf), Endpunkte
 `push_subscribe`/`push_unsubscribe`; SW-`push`/`notificationclick` in `sw.js`.
+**iOS-Hinweis (wichtig):** Web-Push läuft auf iPhone/iPad **nur in der installierten
+PWA** (Home-Bildschirm, iOS 16.4+), NICHT im Safari-Tab (dort fehlt `PushManager`).
+Das Profil erkennt iOS + Standalone-Modus und zeigt statt „nicht verfügbar“ eine
+**konkrete Anleitung** („Zum Home-Bildschirm“ → App öffnen → aktivieren) bzw. den
+iOS-16.4-Hinweis, wenn schon installiert. **Apple-Zustellung strikt:** der VAPID-
+`sub`-Claim muss gültig sein – `services._vapid_sub_claim` nimmt `VAPID_ADMIN_EMAIL`
+(echte Domain-Adresse!), sonst `PUBLIC_BASE_URL` (https), NIE `mailto:admin@localhost`
+gegenüber Apple (sonst keine iOS-Zustellung). **Diagnose:** Profil-Push-Karte hat ein
+aufklappbares „Diagnose“-Panel (`__rehofPush.diagnose()`: HTTPS/Standalone/SW/
+PushManager/Berechtigung/Abo/Push-Dienst-Host, keine Geheimnisse); `enable()` markiert
+den fehlgeschlagenen Schritt (`permission`/`subscribe`/`server`); serverseitig loggt
+`booking.push` Abo-Speicherung und jede Zustellung (Erfolg/HTTP-Fehler von Apple/FCM).
 **Navigation:** Icons als
 einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
 **Desktop** vertikale Leiste **links** (`.sidenav`, `order:-1` im Flex-Layout;

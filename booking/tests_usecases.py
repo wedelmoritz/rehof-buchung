@@ -701,6 +701,23 @@ class DetailUndWechselwunschTests(UseCaseBase):
         self.assertIn("nicht mehr möglich", err)
 
 
+class VapidSubClaimTests(TestCase):
+    """Der VAPID-`sub`-Claim muss für Apple gültig sein (nicht mailto:localhost)."""
+    def test_sub_claim_prioritaet(self):
+        from django.test import override_settings
+        from booking.services.notify import _vapid_sub_claim
+        with override_settings(VAPID_ADMIN_EMAIL="hof@example.org",
+                               PUBLIC_BASE_URL="https://buchung.example.org"):
+            self.assertEqual(_vapid_sub_claim(), "mailto:hof@example.org")
+        # Ohne E-Mail: https-Basis-URL ist ein zulässiger `sub` (Apple akzeptiert das)
+        with override_settings(VAPID_ADMIN_EMAIL="",
+                               PUBLIC_BASE_URL="https://buchung.example.org"):
+            self.assertEqual(_vapid_sub_claim(), "https://buchung.example.org")
+        # Weder noch: Notnagel (nur für lokale Entwicklung)
+        with override_settings(VAPID_ADMIN_EMAIL="", PUBLIC_BASE_URL=""):
+            self.assertEqual(_vapid_sub_claim(), "mailto:admin@localhost")
+
+
 class WunschErinnerungTests(UseCaseBase):
     def _open_period(self, close_in_days):
         return BookingPeriod.objects.create(

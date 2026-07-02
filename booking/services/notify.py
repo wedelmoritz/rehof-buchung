@@ -135,13 +135,33 @@ def notify_admins_new_user(user):
     return email_admins("Re:Hof: Neuer Benutzer wartet auf Zuordnung", body)
 
 
+def _vapid_sub_claim() -> str:
+    """Baut den VAPID-`sub`-Claim. **Apple** (web.push.apple.com) ist strikt und
+    LEHNT ungültige `sub` ab (z. B. `mailto:admin@localhost`) – Google/FCM sind hier
+    nachsichtig. Daher: echte Admin-E-Mail bevorzugen, sonst die öffentliche
+    Basis-URL (https-`sub` ist zulässig), erst zuletzt der localhost-Notnagel."""
+    from django.conf import settings
+    email = (settings.VAPID_ADMIN_EMAIL or "").strip()
+    if "@" in email:
+        return f"mailto:{email}"
+    base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").strip()
+    if base.startswith("https://"):
+        return base
+    return "mailto:admin@localhost"
+
+
 def send_web_push(member, title: str, body: str, url: str = "") -> int:
     """Schickt eine Web-Push-Nachricht an alle Geräte des Mitglieds. Gibt die
     Anzahl erfolgreich zugestellter Push-Nachrichten zurück (0, wenn Push aus
-    ist oder kein Abo besteht)."""
+    ist oder kein Abo besteht). Zustellfehler werden protokolliert
+    (Logger `booking.push`), damit Push-Probleme nachvollziehbar sind."""
     import json
+    import logging
+    from urllib.parse import urlsplit
     from django.conf import settings
+    log = logging.getLogger("booking.push")
     if not settings.PUSH_ENABLED:
+        log.info("Push aus (keine VAPID-Schlüssel) – nichts gesendet.")
         return 0
     subs = list(member.push_subscriptions.all())
     if not subs:
@@ -149,10 +169,13 @@ def send_web_push(member, title: str, body: str, url: str = "") -> int:
     try:
         from pywebpush import webpush, WebPushException
     except Exception:  # pywebpush nicht installiert – Push überspringen
+        log.warning("pywebpush nicht installiert – Push übersprungen.")
         return 0
     payload = json.dumps({"title": title, "body": body, "url": url or "/"})
+    claims = {"sub": _vapid_sub_claim()}
     sent = 0
     for sub in subs:
+        host = urlsplit(sub.endpoint).netloc          # nur Host loggen (kein Token)
         try:
             webpush(
                 subscription_info={
@@ -161,14 +184,25 @@ def send_web_push(member, title: str, body: str, url: str = "") -> int:
                 },
                 data=payload,
                 vapid_private_key=settings.VAPID_PRIVATE_KEY,
-                vapid_claims={"sub": f"mailto:{settings.VAPID_ADMIN_EMAIL or 'admin@localhost'}"},
+                vapid_claims=dict(claims),   # pywebpush mutiert das dict (aud/exp)
                 timeout=10,
             )
             sent += 1
+            log.info("Push zugestellt an %s (Mitglied %s).", host, member.pk)
         except WebPushException as exc:
-            status = getattr(getattr(exc, "response", None), "status_code", None)
+            resp = getattr(exc, "response", None)
+            status = getattr(resp, "status_code", None)
+            detail = ""
+            try:
+                detail = (resp.text or "")[:200] if resp is not None else ""
+            except Exception:
+                detail = ""
             if status in (404, 410):       # Abo abgelaufen/abgemeldet → entfernen
                 sub.delete()
-        except Exception:                  # Netzfehler o.ä. – nicht kippen lassen
-            pass
+                log.info("Push-Abo %s abgelaufen (HTTP %s) – entfernt.", host, status)
+            else:
+                log.warning("Push an %s fehlgeschlagen: HTTP %s %s",
+                            host, status, detail)
+        except Exception as exc:           # Netzfehler o.ä. – nicht kippen lassen
+            log.warning("Push an %s fehlgeschlagen: %s", host, exc)
     return sent

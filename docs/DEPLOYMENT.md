@@ -248,7 +248,7 @@ Entwicklung/Tests, **nicht** für den Server.
 |---|---|---|
 | `VAPID_PUBLIC_KEY` | optional | **Ohne Schlüsselpaar ist Push aus** (`PUSH_ENABLED`). |
 | `VAPID_PRIVATE_KEY` | optional | Privater Schlüssel (geheim halten). |
-| `VAPID_ADMIN_EMAIL` | optional | Kontakt im VAPID-Claim (mailto:). |
+| `VAPID_ADMIN_EMAIL` | für iOS empfohlen | Kontakt im VAPID-`sub`-Claim. **Echte Domain-Adresse** setzen – Apple lehnt ungültige `sub` ab (sonst keine iOS-Zustellung). Leer ⇒ Server nutzt `PUBLIC_BASE_URL`. |
 
 ### Optional: Redis / Demo
 
@@ -296,13 +296,28 @@ docker compose up -d        # WICHTIG: neu hochfahren, sonst greift die neue .en
 > „auf diesem Server nicht aktiviert“.
 
 Erst wenn **beide** Schlüssel gesetzt sind, ist `PUSH_ENABLED` aktiv.
-`VAPID_ADMIN_EMAIL` ist nur der Kontakt im VAPID-Claim – es genügt eine **gültige
-`mailto:`-Adresse im Format** (ein echtes Postfach ist nicht nötig).
+`VAPID_ADMIN_EMAIL` ist der Kontakt im VAPID-`sub`-Claim.
+
+> ⚠️ **Für iPhone/iPad zwingend eine ECHTE Domain-Adresse eintragen** (z. B.
+> `vorstand@quartiere.example.de`). **Apple** (`web.push.apple.com`) prüft den
+> `sub`-Claim streng und **lehnt** ungültige Werte wie `admin@localhost` ab (Google/
+> Android ist nachsichtig) – dann kommt die Push zwar „abonniert“ an, aber **keine
+> Zustellung**. Ist `VAPID_ADMIN_EMAIL` leer, nimmt der Server ersatzweise die
+> `PUBLIC_BASE_URL` (`https://…`) als `sub` (auch von Apple akzeptiert); fehlt beides,
+> scheitert iOS-Push. Zustellfehler stehen im Log (`docker compose logs web | grep
+> booking.push`) mit HTTP-Status/Grund von Apple.
 
 **Auf dem iPhone** zusätzlich nötig (iOS-Vorgaben): iOS **16.4+**, die App per Safari
 **„Zum Home-Bildschirm“** hinzufügen und **aus diesem Symbol** öffnen – Push gibt es
 nur in der installierten PWA, nicht im Safari-Tab. Danach im Profil aktivieren und im
 Dialog **Erlauben**. (Bedien-Schritte für Mitglieder stehen auch in der Hilfe.)
+
+**Fehlersuche:** Das Profil hat unter „Push" einen aufklappbaren Abschnitt
+**„Diagnose"** – er zeigt sicher (ohne Geheimnisse), ob HTTPS/Standalone/Service-
+Worker/PushManager/Berechtigung/Abo vorhanden sind und welcher Push-Dienst
+(z. B. `web.push.apple.com`) genutzt wird. Beim Aktivieren wird der **fehlgeschlagene
+Schritt** angezeigt (`permission`/`subscribe`/`server`). Serverseitig protokolliert
+`booking.push` das Speichern des Abos und jede Zustellung (Erfolg/HTTP-Fehler).
 
 Mitglieder aktivieren Push **pro Gerät** über den Opt-in-Knopf im Profil; jede In-App-
 Benachrichtigung wird dann zusätzlich als Web-Push zugestellt (best-effort).
