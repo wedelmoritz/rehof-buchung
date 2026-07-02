@@ -162,6 +162,13 @@ class Product(models.Model):
         help_text="Wenn aktiv, gilt diese Dienstleistung als Endreinigung und "
                   "erscheint in der Reinigungsliste fürs Team (Markierung an der "
                   "betroffenen Buchung).")
+    needs_approval = models.BooleanField(
+        "Muss von der Betriebsleitung bestätigt werden", default=False,
+        help_text="Wenn aktiv, wird die Leistung beim Buchen nur ANGEFRAGT (nicht "
+                  "sofort abgerechnet) – die Betriebsleitung bestätigt oder lehnt sie "
+                  "im Verwaltungs-Dashboard ab, erst dann entsteht die Rechnungs-"
+                  "Position. Für Leistungen mit Abstimmung, z.B. die Endreinigung "
+                  "(ADR 0081).")
     unavailable_weekdays = models.CharField(
         "Nicht möglich an Wochentagen", max_length=20, blank=True, default="",
         help_text="Komma-getrennt 0=Mo … 6=So. An diesen Wochentagen (Abreisetag) "
@@ -284,6 +291,50 @@ class LineItem(models.Model):
     @property
     def vat(self) -> Decimal:
         return _q(self.gross - self.net)
+
+
+class ServiceRequest(models.Model):
+    """Anfrage einer beim Buchen gewählten, **bestätigungspflichtigen** Dienstleistung
+    (z.B. Endreinigung, ADR 0081). Entsteht statt eines sofortigen Einkaufs, wenn
+    `Product.needs_approval` gesetzt ist. Die Betriebsleitung **bestätigt** (→ es
+    entsteht die Rechnungs-Position via `purchase_service`, `line_item`) oder **lehnt
+    ab**. Das Mitglied sieht den Status in „Meine Buchungen“."""
+    REQUESTED, CONFIRMED, REJECTED = "requested", "confirmed", "rejected"
+    STATUS = [
+        (REQUESTED, "Angefragt"),
+        (CONFIRMED, "Bestätigt"),
+        (REJECTED, "Abgelehnt"),
+    ]
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="service_requests",
+        verbose_name="Mitglied")
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT, related_name="requests",
+        verbose_name="Dienstleistung")
+    allocation = models.ForeignKey(
+        "booking.Allocation", on_delete=models.CASCADE,
+        related_name="service_requests", verbose_name="Zugehörige Buchung")
+    service_date = models.DateField("Termin (Abreisetag)")
+    status = models.CharField("Status", max_length=10, choices=STATUS,
+                              default=REQUESTED)
+    note = models.CharField("Anmerkung/Grund", max_length=255, blank=True)
+    line_item = models.ForeignKey(
+        "LineItem", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Rechnungs-Position (nach Bestätigung)")
+    requested_at = models.DateTimeField("Angefragt am", auto_now_add=True)
+    decided_at = models.DateTimeField("Entschieden am", null=True, blank=True)
+    decided_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Entschieden von")
+
+    class Meta:
+        verbose_name = "Dienstleistungs-Anfrage"
+        verbose_name_plural = "Dienstleistungs-Anfragen"
+        ordering = ["-requested_at"]
+        indexes = [models.Index(fields=["status", "service_date"])]
+
+    def __str__(self) -> str:
+        return f"{self.product} für {self.member} ({self.get_status_display()})"
 
 
 class Invoice(models.Model):

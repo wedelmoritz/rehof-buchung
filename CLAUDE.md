@@ -108,7 +108,9 @@ Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neu
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
 erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thanked_at` =
 „Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5), `WaitlistEntry` (Spontanbuchungs-
-Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
+Warteliste), `CancellationLog` (schlanker **Storno-Nachweis** je gelöschter Buchung –
+Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 0082),
+`Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
@@ -188,7 +190,10 @@ Kopfleiste + „Anzeigen ⌄“/„Verbergen ⌃“-Pill), daher bleibt die Seit
 (**Bestätigungsschritt**: Unterkunft/Zeitraum prüfen, Personen + Begleitung
 angeben, verbleibende Tage sehen, optional Endreinigung mitbuchen – erst
 „Verbindlich buchen“ legt die `Allocation` an [der Knopf ist deaktiviert, solange
-Mindestaufenthalt oder verfügbare Tage verletzt sind]; gewählte Dienstleistungen
+Mindestaufenthalt oder verfügbare Tage verletzt sind]; die **Personenzahl** steht in
+einem eigenen `data-ajax`-GET-Formular und **prüft bei Änderung sofort neu** [zu viele
+Personen → klarer „Platz für höchstens N"-Hinweis + gesperrter Knopf, Korrektur bleibt
+auf der Seite statt Rauswurf zur Auswahl, #32]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
 bleiben bewusst änderbar; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
 [`quarter_wish_counts`]; **je eingetragenem, sehr beliebtem Wunsch** steht in „Meine
@@ -201,7 +206,12 @@ anklickbar, saison-gefiltert, eigene Wünsche zählen nicht, kein Eingriff ins
 Losverfahren. (Frontend-Wortwahl bewusst **positiv**: „beliebt“ statt „umkämpft/
 Konflikt“, ADR 0072.) (`services.wish_deconfliction`
 liefert weiter die reine Zeitraum-Verschiebung je Quartier.)),
-`my_bookings` (eigene Buchungen + Storno **mit
+`my_bookings` (eigene Buchungen als **kompakte Karten**: je Buchung EINE Zeile
+(Quartier · Zeitraum · Personen · Quelle) + Storno; alle Details/Aktionen hinter
+EINEM Aufklapper **„Details & Aktionen"** (Wer-ist-da · ändern · tauschen), #34.
+Je Buchung ein **Endreinigungs-Status** (angefragt/bestätigt/abgelehnt, #33/ADR 0081)
+und ein eingeklappter Abschnitt **„Zuletzt storniert"** (Storno-Nachweis, #30/ADR 0082);
+Storno **mit
 Rückfrage**; je Buchung drei getrennte Aufklapp-Bereiche (ADR 0077): (1) **„Wer ist
 zur gleichen Zeit da?“** – rein informativ, **nur Mitglieder**, aufgeteilt in **exakt
 gleiche An-/Abreise** und **nur überlappend** [`services.concurrent_split`], **ohne**
@@ -236,9 +246,11 @@ gemeinsamen Topf **spenden** und **bei Bedarf, gedeckelt entnehmen** [`DayPoolEn
 [`POOL_ELIGIBLE_REMAINING`], gedeckelt `POOL_WITHDRAW_CAP_PER_YEAR`]).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
-den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit `book_with_stay=True`;
-`unavailable_weekdays` sperrt Wochentage (geprüft am Abreisetag, z.B.
-Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
+den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit
+`book_with_stay=True`; sie erscheinen **nur im Buchungsabschnitt** (Bestätigungsschritt),
+NICHT im Mitglieder-Hofladen-Katalog (`shop_index` blendet sie aus, der `add`-Endpoint
+lehnt sie server-seitig ab, #37/ADR 0081). `unavailable_weekdays` sperrt Wochentage
+(geprüft am Abreisetag, z.B. Endreinigung am Wochenende). Wird ein Wartelisten-Zeitraum durch Storno frei, erzeugt
 `services.notify_waitlist_if_free` eine `Notification` **und** (über die Outbox)
 eine E-Mail. **E-Mail-Benachrichtigungen:** In-App-`Notification` bleibt; parallel
 stellt `services.email_member` (Opt-out je Mitglied via `Member.email_opt_in`)
@@ -452,10 +464,18 @@ archiviert, §14-Angaben + Steuer-Aufschlüsselung; Positionen nach Einkauf
 gruppiert via `Invoice.purchase_groups`). Rechnung **monatlich**
 (`generate_monthly_invoices`, Cron) **oder sofort** (`generate_invoice_now`,
 Button „Jetzt abrechnen“ bzw. „sofort abrechnen“ beim Checkout). Beim Buchen
-mitgebuchte Dienstleistungen (Endreinigung, opt-in) laufen über
-`services.purchase_service` direkt als bestätigter Einkauf – dabei wird
-`LineItem.allocation` gesetzt (verknüpft die Reinigung mit Quartier + Abreisetag).
-`Product.counts_as_cleaning` markiert die Endreinigung für die Reinigungsliste.
+mitgebuchte Dienstleistungen (opt-in) laufen über `services.purchase_service` direkt
+als bestätigter Einkauf – dabei wird `LineItem.allocation` gesetzt (verknüpft die
+Reinigung mit Quartier + Abreisetag). `Product.counts_as_cleaning` markiert die
+Endreinigung für die Reinigungsliste. **Bestätigungspflichtige Leistungen
+(`Product.needs_approval`, ADR 0081):** die **Endreinigung** wird beim Buchen NUR
+**angefragt** (`services.request_service` legt eine `shop.ServiceRequest` an, Status
+`requested`, E-Mail an die Betriebsleitung) – **keine** Abrechnung, bis die BL im
+Dashboard **bestätigt** (`confirm_service_request` → `purchase_service` + Reinigungs-
+liste) oder **ablehnt** (`reject_service_request`); beide idempotent, benachrichtigen
+das Mitglied. Das Mitglied sieht den Status („angefragt/bestätigt/abgelehnt“) in
+**„Meine Buchungen“** (`Allocation.service_requests`, prefetch). Sofort-Kauf bleibt für
+DLs ohne `needs_approval` (z.B. Sauna).
 **Offene Posten:** `Invoice.due_date` (aus `ShopConfig.payment_term_days`) +
 `is_overdue`; **Zahlungserinnerung** idempotent über `services.send_payment_reminder`
 / `remind_overdue` (Aktion im Admin + Dashboard, „zuletzt erinnert am“).
@@ -495,9 +515,12 @@ physische Sicherung) im Deployment-Runbook – ohne sie ist der Modus nicht frei
 keine Kassenfunktion nach KassenSichV/§146a AO, ADR 0040). **Umsatzsteuer**
 umschaltbar im Backend (`ShopConfig.small_business`): Regelbesteuerung (per-Artikel
 `vat_rate`, Beherbergung 7 % / Zusatz 19 %) **oder** §19-Kleinunternehmer (Rechnung
-ohne MwSt-Ausweis + Hinweis). Die USt-Behandlung wird je `Invoice` gesnapshotet
-(`Invoice.small_business`/`tax_note`); USt-Status vor Go-Live mit dem Steuerberater
-klären (ADR 0041, keine Rechtsberatung). **Rechtstexte** (ADR 0042): Impressum
+ohne MwSt-Ausweis + Hinweis). Die USt-Behandlung wird je `Invoice` **beim Erstellen
+gesnapshotet** (`Invoice.small_business`/`tax_note`) – nach einer Änderung des Modus
+zeigen ALTE Rechnungen weiter ihren alten Snapshot; sie müssen neu erstellt werden.
+Der **aktive USt-Modus** wird der Verwaltung im **Dashboard** (Abschnitt Rechnungen)
+**read-only** angezeigt (Transparenz ohne Backend; ändern nur Admin, #27). USt-Status
+vor Go-Live mit dem Steuerberater klären (ADR 0041, keine Rechtsberatung). **Rechtstexte** (ADR 0042): Impressum
 (Pflicht, §5 DDG), Datenschutz (DSGVO) und AGB sind im `ShopConfig` konfigurierbar,
 öffentliche Seiten `imprint`/`privacy`/`terms` (`/impressum/`, `/datenschutz/`,
 `/agb/`), auf jeder Seite im Fuß verlinkt (Context-Processor `legal` + `base.html`).
@@ -527,7 +550,7 @@ Erinnerung** vor der Losung an Mitglieder ohne eingereichten Wunsch;
 pseudonymisiert abgelaufene Daten anhand der `RETENTION_*`-Settings (per Env
 überschreibbar): versendete `OutboxEmail` inkl. DB-Anhang (90 T), `Notification`
 (180 T), `BankTransaction.raw` leeren (90 T), `Beds24Import` (180 T), `BankImport`
-(365 T), erledigte `SwapRequest`/`WaitlistEntry` (180 T), `Wish` beendeter Perioden
+(365 T), erledigte `SwapRequest`/`WaitlistEntry` **+ `CancellationLog`** (180 T), `Wish` beendeter Perioden
 (2 J), abgelaufene Sessions, `axes`-Fehlversuche (30 T). **Rechnungen/Zahlungen
 (10 Jahre, §147 AO/§14b UStG) bleiben unangetastet** (`Invoice.member/guest=PROTECT`).
 **Recht auf Löschung (Art. 17):** Admin-Aktion „Mitglied anonymisieren“ am
@@ -597,13 +620,18 @@ Seite fürs kleine Team – Kennzahlen (inkl. KPI **„online bezahlt (Monat)“
 **Benutzerkonten**, **Auslastung** der Unterkünfte [gebuchte vs. mögliche
 Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis der
 **letzten bestätigten Verlosung** = erfüllte vs. nicht erfüllte Wünsche),
+**Anfragen zur Freigabe** (beim Buchen angefragte, bestätigungspflichtige Leistungen
+wie die **Endreinigung**, `services.pending_service_requests`; **Bestätigen** →
+Abrechnung + Reinigungsliste, **Ablehnen** → Mitglied benachrichtigt; #28/ADR 0081),
 **Reinigungsliste** (alle Abreisen des
 gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
 **anstehende Buchungen** und **offene/überfällige/online bezahlte Rechnungen**
 (Filter-Chip „Online bezahlt“ + Status-Spalte). Je Liste
 **Export** als xlsx **und** CSV (`booking/exports.py`) und **Versand per Knopf**
 (Reinigungsliste ans Reinigungsteam, Buchungen an die Verwaltung,
-Zahlungserinnerung an überfällige). Empfänger in `OpsConfig`
+Zahlungserinnerung an überfällige – **alle** auf einmal ODER **je Rechnung**
+[`action=remind_one`]; es gibt **keinen automatischen Konto-Abruf**, Eingänge kommen
+über den Kontoabgleich, Erinnerungen stößt die BL manuell an, #36). Empfänger in `OpsConfig`
 (`email_admins`/`email_cleaning`; Reinigungsteam leer = Verwaltungs-Adresse).
 **Hofladen-Katalog im Dashboard pflegen** (`dashboard_products`,
 `/verwaltung/produkte/`): Produkte/Gruppen anlegen + ändern, Preise/aktiv – für

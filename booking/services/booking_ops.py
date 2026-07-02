@@ -393,6 +393,12 @@ def cancel_allocation(member: Member, allocation_id) -> tuple[bool, str | None]:
     if a.end <= date.today():
         return False, "Vergangene Buchungen können nicht storniert werden."
     quarter, start, end = a.quarter, a.start, a.end
+    # Schlanken Storno-Nachweis anlegen, BEVOR die Buchung gelöscht wird (#30) –
+    # damit das Mitglied in „Meine Buchungen“ sieht, dass sie wirklich raus ist.
+    from ..models import CancellationLog
+    CancellationLog.objects.create(
+        member=member, quarter_name=quarter.name, start=start, end=end,
+        persons=a.persons, source=a.source)
     a.delete()
     notify_waitlist_if_free(quarter, start, end)
     return True, None

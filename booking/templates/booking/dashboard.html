@@ -35,11 +35,53 @@
 
 {# Schnell-Sprünge zu den Abschnitten (klebrig) – die Seite ist lang. #}
 <nav class="dash-jump" aria-label="Zu Abschnitt springen">
+  {% if service_requests %}<a href="#d-anfragen">Anfragen ({{ service_requests|length }})</a>{% endif %}
   <a href="#d-reinigung">Reinigung</a>
   <a href="#d-buchungen">Buchungen</a>
   <a href="#d-rechnungen">Rechnungen</a>
   <a href="#d-konto">Kontoabgleich</a>
 </nav>
+
+{# --- Dienstleistungs-Anfragen (z.B. Endreinigung) freigeben (#28/ADR 0081) --- #}
+{% if service_requests %}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0" id="d-anfragen">Anfragen zur Freigabe</h2>
+    <span class="spacer"></span>
+    <span class="tag warn">{{ service_requests|length }} offen</span>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .6rem">Beim Buchen angefragte Leistungen
+    (z.&nbsp;B. Endreinigung). <strong>Bestätigen</strong> legt die Rechnungs-Position
+    an und trägt sie in die Reinigungsliste ein; <strong>Ablehnen</strong> informiert
+    das Mitglied. Beide melden sich per In-App-Nachricht/E-Mail zurück.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Leistung</th><th>Mitglied</th><th>Unterkunft</th><th>Termin</th><th>Angefragt</th><th></th></tr></thead>
+    <tbody>
+      {% for sr in service_requests %}
+      <tr>
+        <td>{{ sr.product.name }}</td>
+        <td>{{ sr.member.display_name }}</td>
+        <td>{{ sr.allocation.quarter.name }}</td>
+        <td>{{ sr.service_date|date:"d.m.Y" }}</td>
+        <td class="muted">{{ sr.requested_at|date:"d.m.Y" }}</td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end">
+          <form method="post" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} bestätigen? Wird abgerechnet und in die Reinigungsliste eingetragen.">{% csrf_token %}
+            <input type="hidden" name="action" value="confirm_service">
+            <input type="hidden" name="request_id" value="{{ sr.id }}">
+            <button class="btn small" type="submit">Bestätigen</button>
+          </form>
+          <form method="post" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} ablehnen? Das Mitglied wird benachrichtigt.">{% csrf_token %}
+            <input type="hidden" name="action" value="reject_service">
+            <input type="hidden" name="request_id" value="{{ sr.id }}">
+            <button class="btn small ghost danger" type="submit">Ablehnen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
 
 {# --- Kennzahlen ----------------------------------------------------------- #}
 <div class="kpis">
@@ -182,6 +224,15 @@
     <span class="spacer"></span>
     <span class="muted">{{ invoices_view|length }} angezeigt · {{ inv_view_sum }} €</span>
   </div>
+  {# USt-Modus der Rechnungen – nur zur Anzeige (Transparenz); ändern nur im Admin. #}
+  <p class="msg {% if shop_small_business %}warning{% else %}info{% endif %}" style="margin:.2rem 0 .6rem">
+    Umsatzsteuer-Modus der Rechnungen:
+    {% if shop_small_business %}<strong>Kleinunternehmer (§19 UStG)</strong> – Rechnungen
+      <strong>ohne</strong> MwSt-Ausweis.{% else %}<strong>Regelbesteuerung</strong> –
+      MwSt wird je Satz ausgewiesen.{% endif %}
+    {% if is_admin %}<a href="/admin/shop/shopconfig/">ändern →</a>{% else %}
+    <span class="muted">(Änderung nur durch Admin)</span>{% endif %}
+  </p>
   <div class="chips">
     <a class="chip {% if inv_filter == 'open' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
     <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
@@ -192,6 +243,11 @@
   {% if inv_filter == 'online' %}<p class="muted" style="margin:.2rem 0 .6rem">Per
     Zahldienst (Mollie) beglichene Rechnungen – Eingang ist bereits bestätigt,
     kein Kontoabgleich nötig.</p>{% endif %}
+  <p class="muted sm" style="margin:.2rem 0 .6rem">Es gibt <strong>keinen automatischen
+    Konto-Abruf</strong>: Zahlungseingänge kommen über den <strong>Kontoabgleich</strong>
+    (Auszug unten hochladen) rein und werden bei eindeutigem Treffer automatisch als
+    bezahlt verbucht. <strong>Zahlungserinnerungen löst ihr manuell aus</strong> –
+    unten „Überfällige anschreiben“ (alle) oder je Zeile „erinnern“.</p>
   {% if invoices_view %}
   <div class="table-wrap">
     <table class="grid">
@@ -204,7 +260,15 @@
           <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
           <td>{{ i.total_gross }} €</td>
           <td>{% if i.paid_online %}<span class="tag" style="background:#e1efd6;color:#41663a">online ({{ i.payment_method }})</span>{% else %}{{ i.get_status_display }}{% endif %}</td>
-          <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}</td>
+          <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}
+            {% if i.is_overdue and i.status == 'open' %}
+            <form method="post" class="inline" data-confirm="Zahlungserinnerung zu {{ i.number }} an {{ i.recipient_label }} senden?">{% csrf_token %}
+              <input type="hidden" name="action" value="remind_one">
+              <input type="hidden" name="invoice_id" value="{{ i.id }}">
+              <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+              <button class="btn small ghost" type="submit">erinnern</button>
+            </form>
+            {% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

@@ -68,6 +68,15 @@
         {% if a.waiters %}<span class="tag mine">{{ a.waiters|length }} wartet</span>{% endif %}
         <div class="muted">{{ a.start }} – {{ a.end }} · {{ a.nights }} Nächte · {{ a.persons }} Pers. ·
           <abbr title="So ist die Buchung entstanden: Spontanbuchung = selbst gebucht · Losung = über das Losverfahren · Import = aus dem Altsystem übernommen." style="text-decoration:underline dotted">{{ a.get_source_display }}</abbr></div>
+        {% for sr in a.service_reqs %}
+          {% if sr.status == 'requested' %}
+          <div class="svc-status" title="Deine Anfrage wurde an die Betriebsleitung übermittelt und wartet auf Bestätigung.">🕓 {{ sr.product.name }}: <strong>angefragt</strong> · an Betriebsleitung übermittelt</div>
+          {% elif sr.status == 'confirmed' %}
+          <div class="svc-status good">✅ {{ sr.product.name }}: <strong>bestätigt</strong></div>
+          {% else %}
+          <div class="svc-status bad">✖ {{ sr.product.name }}: <strong>abgelehnt</strong>{% if sr.note %} <span class="muted">({{ sr.note }})</span>{% endif %}</div>
+          {% endif %}
+        {% endfor %}
       </div>
       <form method="post" data-confirm="{{ a.quarter.name }} vom {{ a.start }} bis {{ a.end }} wirklich stornieren? Das gibt den Zeitraum und deine Tage wieder frei." style="margin-left:auto">{% csrf_token %}
         <input type="hidden" name="action" value="cancel">
@@ -76,6 +85,9 @@
       </form>
     </div>
 
+    <details class="booking-more">
+      <summary class="more-sum">Details &amp; Aktionen
+        <span class="muted more-hint">Wer ist da · ändern · tauschen{% if a.concurrent_count %} · {{ a.concurrent_count }} gleichzeitig{% endif %}{% if a.swap_exact %} · {{ a.swap_exact|length }} Tausch möglich{% endif %}</span></summary>
     <details class="concurrent">
       <summary>Wer ist zur gleichen Zeit da?
         {% if a.concurrent_count %}<span class="cnt">{{ a.concurrent_count }}</span>{% endif %}</summary>
@@ -161,6 +173,7 @@
       {% endif %}
       {% endif %}
     </details>
+    </details>
   </div>
   {% endfor %}
 {% else %}
@@ -180,6 +193,27 @@
     {% endfor %}
     </tbody>
   </table></div>
+</div>
+{% endif %}
+
+{% if cancellations %}
+<div class="card">
+  <details>
+    <summary style="cursor:pointer;font-weight:600;color:var(--muted)">Zuletzt storniert ({{ cancellations|length }})</summary>
+    <p class="muted" style="margin:.5rem 0">Diese Buchungen hast du storniert – sie sind
+      aus dem System entfernt (Zeitraum und Tage sind wieder frei). Nur zur Sicherheit
+      hier gelistet (letzte 90 Tage).</p>
+    <div class="table-wrap"><table class="grid">
+      <thead><tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Pers.</th><th>Storniert am</th></tr></thead>
+      <tbody>
+      {% for cx in cancellations %}
+        <tr><td>{{ cx.quarter_name }}</td><td>{{ cx.start|date:"d.m.Y" }}</td>
+          <td>{{ cx.end|date:"d.m.Y" }}</td><td>{{ cx.persons }}</td>
+          <td class="muted">{{ cx.cancelled_at|date:"d.m.Y H:i" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </details>
 </div>
 {% endif %}
 
@@ -215,6 +249,23 @@
 
 <style>
   .booking-head { display:flex; align-items:flex-start; gap:.6rem; }
+  .svc-status { margin-top:.35rem; font-size:.88rem; padding:.25rem .5rem;
+    border-radius:8px; background:var(--warn-soft); color:var(--warn);
+    display:inline-block; }
+  .svc-status.good { background:var(--good-soft); color:var(--good-deep); }
+  .svc-status.bad { background:var(--bad-soft); color:var(--bad); }
+  /* Kompakte Karte (#34): alle Details/Aktionen hinter EINEM Aufklapper. */
+  details.booking-more { margin-top:.5rem; border-top:1px solid var(--line);
+    padding-top:.5rem; }
+  details.booking-more > summary.more-sum { cursor:pointer; color:var(--accent-deep);
+    font-weight:600; font-size:.92rem; list-style:none; display:flex;
+    align-items:baseline; gap:.5rem; flex-wrap:wrap; }
+  details.booking-more > summary.more-sum::-webkit-details-marker { display:none; }
+  details.booking-more > summary.more-sum::before { content:"▸"; color:var(--muted); }
+  details.booking-more[open] > summary.more-sum::before { content:"▾"; }
+  .more-hint { font-weight:400; }
+  /* Innere Aufklapper sitzen jetzt IM äußeren – erste braucht keine Extra-Linie. */
+  details.booking-more > details.concurrent { border-top:0; padding-top:.2rem; margin-top:.2rem; }
   details.concurrent, details.adjust, details.swap {
     margin-top:.5rem; border-top:1px solid var(--line); padding-top:.5rem; }
   details.concurrent summary, details.adjust summary, details.swap summary {

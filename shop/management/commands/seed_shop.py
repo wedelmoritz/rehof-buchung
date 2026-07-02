@@ -56,9 +56,10 @@ class Command(BaseCommand):
                 group=groups[gname], name=name,
                 defaults=dict(price=price, unit=unit, vat_rate=vat, kind=kind,
                               needs_date=needs))
-        # Endreinigung: beim Buchen anbieten; Demo: sonntags nicht möglich.
+        # Endreinigung: beim Buchen anbieten, aber BESTÄTIGUNGSPFLICHTIG (die
+        # Betriebsleitung stimmt sie mit dem Team ab, ADR 0081); Demo: sonntags nicht.
         Product.objects.filter(name="Endreinigung").update(
             book_with_stay=True, counts_as_cleaning=True, needs_date=True,
-            unavailable_weekdays="6")
+            needs_approval=True, unavailable_weekdays="6")
         self.stdout.write(self.style.SUCCESS(
             f"{len(GROUPS)} Gruppen, {len(PRODUCTS)} Produkte angelegt."))

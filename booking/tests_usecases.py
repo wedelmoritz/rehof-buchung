@@ -111,6 +111,15 @@ class BuchungslebenszyklusTests(UseCaseBase):
         self.assertEqual(self.alice.nights_remaining_in_year(NEXT_YEAR), 50)
         self.assertTrue(svc.quarter_is_free(self.k1, start, end))
 
+        # Storno-Nachweis angelegt (#30) und in „Meine Buchungen“ sichtbar
+        from booking.models import CancellationLog
+        cx = CancellationLog.objects.get(member=self.alice)
+        self.assertEqual(cx.quarter_name, self.k1.name)
+        self.assertEqual((cx.start, cx.end), (start, end))
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("my_bookings"))
+        self.assertContains(r, "Zuletzt storniert")
+
         # Jetzt kann Bob buchen
         b2, err_b2 = svc.book_spontaneous(self.bob, self.k1, start, end)
         self.assertIsNotNone(b2, err_b2)
@@ -1110,6 +1119,108 @@ class BuchungBestaetigungTests(UseCaseBase):
         # Buchung entsteht, Endreinigung aber NICHT (Wochentag gesperrt)
         self.assertEqual(Allocation.objects.count(), 1)
         self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 0)
+
+    def test_personen_ueberzahl_live_korrigierbar(self):
+        """#32: Zu viele Personen sperren den Knopf mit klarem Hinweis; eine
+        Korrektur (GET, gleiche Seite) macht die Buchung wieder möglich – kein
+        Rauswurf zur Auswahl."""
+        small = Quarter.objects.create(name="Salix", eq_class=self.cls_klein,
+                                       min_occupancy=1, max_occupancy=2)
+        Quarter.objects.create(name="Gross", eq_class=self.cls_a,
+                               min_occupancy=1, max_occupancy=6)
+        c = self._client()
+        r = c.get(reverse("book_confirm"), {
+            "quarter": small.id, "start": self.s.isoformat(),
+            "end": self.e.isoformat(), "persons": 4})
+        self.assertEqual(r.status_code, 200)          # bleibt auf book_confirm
+        self.assertContains(r, "bietet Platz für höchstens")
+        self.assertContains(r, "Bitte zuerst die Hinweise oben beheben")  # Knopf gesperrt
+        # Personen auf 2 korrigieren → wieder buchbar
+        r2 = c.get(reverse("book_confirm"), {
+            "quarter": small.id, "start": self.s.isoformat(),
+            "end": self.e.isoformat(), "persons": 2})
+        self.assertEqual(r2.status_code, 200)
+        self.assertNotContains(r2, "bietet Platz für höchstens")
+        self.assertNotContains(r2, "Bitte zuerst die Hinweise oben beheben")
+
+
+class EndreinigungFreigabeTests(UseCaseBase):
+    """Endreinigung als BL-Freigabe-Workflow (#28/#33, ADR 0081): beim Buchen nur
+    ANGEFRAGT, Abrechnung erst nach Bestätigung durch die Betriebsleitung."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+        from shop.models import Product, ProductGroup
+        g = ProductGroup.objects.create(name="DL")
+        self.clean = Product.objects.create(
+            group=g, name="Endreinigung", price="70.00", unit="portion",
+            vat_rate=19, kind="dienstleistung", needs_date=True,
+            book_with_stay=True, counts_as_cleaning=True, needs_approval=True)
+        self.s = date(NEXT_YEAR, 4, 6)
+        self.e = date(NEXT_YEAR, 4, 13)
+
+    def test_buchen_erzeugt_anfrage_keine_rechnung(self):
+        from shop.models import ServiceRequest, LineItem
+        self.client.force_login(self.alice.user)
+        self.client.post(reverse("book_confirm"), {
+            "action": "confirm", "quarter": self.k1.id,
+            "start": self.s.isoformat(), "end": self.e.isoformat(),
+            "persons": 2, f"service_{self.clean.id}": "on"})
+        a = Allocation.objects.get()
+        sr = ServiceRequest.objects.get(allocation=a)
+        self.assertEqual(sr.status, "requested")
+        # Noch NICHT abgerechnet
+        self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 0)
+        # „Meine Buchungen“ zeigt den Status „angefragt“ (#33)
+        r = self.client.get(reverse("my_bookings"))
+        self.assertContains(r, "angefragt")
+
+    def test_bestaetigen_legt_rechnung_an_und_benachrichtigt(self):
+        from shop.models import ServiceRequest, LineItem
+        from shop import services as shop_svc
+        a, _ = svc.book_spontaneous(self.alice, self.k1, self.s, self.e, persons=2)
+        sr, _ = shop_svc.request_service(self.alice, self.clean, a, self.e)
+        ok, err = shop_svc.confirm_service_request(sr)
+        self.assertTrue(ok, err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "confirmed")
+        self.assertEqual(
+            LineItem.objects.filter(product=self.clean, allocation=a).count(), 1)
+        self.assertTrue(
+            self.alice.notifications.filter(message__icontains="bestätigt").exists())
+        # Zweite Bestätigung ist idempotent (keine Doppel-Abrechnung)
+        ok2, _ = shop_svc.confirm_service_request(sr)
+        self.assertFalse(ok2)
+        self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 1)
+
+    def test_ablehnen_keine_rechnung_und_benachrichtigt(self):
+        from shop.models import LineItem
+        from shop import services as shop_svc
+        a, _ = svc.book_spontaneous(self.alice, self.k1, self.s, self.e, persons=2)
+        sr, _ = shop_svc.request_service(self.alice, self.clean, a, self.e)
+        ok, err = shop_svc.reject_service_request(sr, reason="Team ausgebucht")
+        self.assertTrue(ok, err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "rejected")
+        self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 0)
+        self.assertTrue(
+            self.alice.notifications.filter(message__icontains="abgelehnt").exists())
+
+    def test_dashboard_freigabe_per_knopf(self):
+        from shop.models import ServiceRequest
+        from shop import services as shop_svc
+        a, _ = svc.book_spontaneous(self.alice, self.k1, self.s, self.e, persons=2)
+        sr, _ = shop_svc.request_service(self.alice, self.clean, a, self.e)
+        admin = User.objects.create_superuser("chef", "chef@example.org", "pw12345678")
+        self.client.force_login(admin)
+        r = self.client.get(reverse("dashboard"))
+        self.assertContains(r, "Anfragen zur Freigabe")
+        self.assertContains(r, "Endreinigung")
+        self.client.post(reverse("dashboard"),
+                         {"action": "confirm_service", "request_id": sr.id})
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "confirmed")
 
 
 class WunschSaisonTests(UseCaseBase):

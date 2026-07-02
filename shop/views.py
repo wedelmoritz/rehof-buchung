@@ -43,6 +43,13 @@ def shop_index(request):
             except (Product.DoesNotExist, ValueError, TypeError):
                 messages.error(request, "Produkt nicht gefunden.")
                 return redirect("shop_index")
+            if product.book_with_stay:
+                # Server-seitig absichern (#37): solche Leistungen werden nur beim
+                # Buchen angefragt, nicht über den Hofladen-Warenkorb gekauft.
+                messages.error(request, "Diese Leistung (z.B. Endreinigung) wird "
+                                "direkt beim Buchen einer Unterkunft angefragt, "
+                                "nicht über den Hofladen.")
+                return redirect("shop_index")
             item, err = svc.add_item(
                 member, product, request.POST.get("quantity", "1"),
                 _parse_date(request.POST.get("service_date")))
@@ -62,7 +69,11 @@ def shop_index(request):
     q = (request.GET.get("q") or "").strip()
     groups = []
     for g in ProductGroup.objects.filter(active=True).prefetch_related("products"):
-        products = [p for p in g.products.all() if p.active]
+        # „Beim Buchen anbieten“-Leistungen (z.B. Endreinigung) gehören in den
+        # Buchungsabschnitt, NICHT in den Hofladen-Katalog (#37/ADR 0081): hier
+        # ausblenden, damit sie nicht als eigenständiger Kauf erscheinen.
+        products = [p for p in g.products.all()
+                    if p.active and not p.book_with_stay]
         if q:
             products = [p for p in products if q.lower() in p.name.lower()]
         if products:

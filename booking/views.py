@@ -274,19 +274,30 @@ def book_confirm(request):
         if not alloc:
             messages.error(request, err or "Buchung nicht möglich.")
         else:
-            added = []
+            added, requested = [], []
             for o in offers:
                 if request.POST.get(f"service_{o['p'].id}") and o["available"]:
-                    # Direkt als bestätigter Einkauf (nicht im Warenkorb),
-                    # verknüpft mit der Buchung (für die Reinigungsliste).
-                    item, _serr = shop_svc.purchase_service(
-                        member, o["p"], 1, service_date=end, allocation=alloc)
-                    if item:
-                        added.append(o["p"].name)
+                    if o["p"].needs_approval:
+                        # Bestätigungspflichtig (z.B. Endreinigung, ADR 0081):
+                        # nur ANFRAGEN – die Betriebsleitung bestätigt/lehnt ab.
+                        sr, _serr = shop_svc.request_service(
+                            member, o["p"], alloc, end)
+                        if sr:
+                            requested.append(o["p"].name)
+                    else:
+                        # Direkt als bestätigter Einkauf (nicht im Warenkorb),
+                        # verknüpft mit der Buchung (für die Reinigungsliste).
+                        item, _serr = shop_svc.purchase_service(
+                            member, o["p"], 1, service_date=end, allocation=alloc)
+                        if item:
+                            added.append(o["p"].name)
             msg = f"Gebucht: {quarter.name}, {start} – {end} ({persons} Pers.)."
             if added:
                 msg += (" Zusätzlich gebucht: " + ", ".join(added)
                         + " (wird über den Hofladen abgerechnet).")
+            if requested:
+                msg += (" Angefragt (Bestätigung durch die Betriebsleitung): "
+                        + ", ".join(requested) + ".")
             messages.success(request, msg)
             return redirect("my_bookings")
 
@@ -547,12 +558,17 @@ def my_bookings(request):
     incoming_swaps = []
     submitted_wishes = []
     my_waitlist = []
+    cancellations = []
     wish_period = None
     if member:
+        # Dienstleistungs-Anfragen (z.B. Endreinigung) je Buchung mitladen, damit der
+        # Status (angefragt/bestätigt/abgelehnt) angezeigt werden kann (#33; 1 Query).
         for a in member.allocations.select_related("quarter").filter(
-                provisional=False).order_by("start"):
+                provisional=False).order_by("start").prefetch_related(
+                "service_requests__product"):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
+            a.service_reqs = list(a.service_requests.all())
             a.waiters = svc.waiters_for_allocation(a)
             a.concurrent = svc.concurrent_split(a)
             a.concurrent_count = len(a.concurrent["exact"]) + len(a.concurrent["overlap"])
@@ -581,6 +597,10 @@ def my_bookings(request):
             submitted_wishes = list(
                 Wish.objects.filter(member=member, period=wish_period, submitted=True)
                 .select_related("quarter").order_by("priority", "id"))
+        # Kürzlich stornierte Buchungen (#30): zur Sicherheit sichtbar, dass sie raus
+        # sind. Nur die jüngsten (90 Tage) – ältere räumt die Aufbewahrung ab.
+        cancellations = list(member.cancellations.filter(
+            cancelled_at__date__gte=today - timedelta(days=90))[:20])
 
     y = today.year
     budget_info = None
@@ -606,6 +626,7 @@ def my_bookings(request):
         "incoming_swaps": incoming_swaps,
         "submitted_wishes": submitted_wishes,
         "my_waitlist": my_waitlist,
+        "cancellations": cancellations,
         "wish_period": wish_period,
         "notifications": svc.unread_notifications(member),
     })
@@ -1084,7 +1105,7 @@ def dashboard(request):
         return redirect("overview")
 
     from shop import services as shop_svc
-    from shop.models import Invoice
+    from shop.models import Invoice, ShopConfig
     from .models import OpsConfig
     from decimal import Decimal
 
@@ -1120,6 +1141,35 @@ def dashboard(request):
         elif action == "remind_overdue":
             n = shop_svc.remind_overdue()
             messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
+        elif action == "remind_one":
+            # Einzelne überfällige Rechnung erinnern (#36) – manueller Anstoß durch
+            # die BL (es gibt keinen automatischen Konto-Abruf).
+            inv = Invoice.objects.filter(id=request.POST.get("invoice_id")).first()
+            if inv and shop_svc.send_payment_reminder(inv):
+                messages.success(request,
+                                 f"Zahlungserinnerung zu {inv.number} verschickt.")
+            else:
+                messages.info(request, "Erinnerung nicht möglich (Rechnung/Adresse?).")
+        elif action in ("confirm_service", "reject_service"):
+            # Dienstleistungs-Anfrage (z.B. Endreinigung) bestätigen/ablehnen (#28).
+            from shop.models import ServiceRequest
+            sr = ServiceRequest.objects.filter(
+                id=request.POST.get("request_id")).select_related(
+                "member", "product", "allocation").first()
+            if not sr:
+                messages.error(request, "Anfrage nicht gefunden.")
+            elif action == "confirm_service":
+                ok, err = shop_svc.confirm_service_request(sr, by_user=request.user)
+                messages.success(request, f"Bestätigt: {sr.product.name} für "
+                                 f"{sr.member.display_name}.") if ok \
+                    else messages.error(request, err or "Nicht möglich.")
+            else:
+                ok, err = shop_svc.reject_service_request(
+                    sr, by_user=request.user,
+                    reason=request.POST.get("reason", ""))
+                messages.success(request, f"Abgelehnt: {sr.product.name} für "
+                                 f"{sr.member.display_name}.") if ok \
+                    else messages.error(request, err or "Nicht möglich.")
         elif action == "import_bank":
             from shop import reconcile
             f = request.FILES.get("statement")
@@ -1201,6 +1251,12 @@ def dashboard(request):
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
         "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
         "stats": svc.dashboard_stats(),
+        # USt-Modus der Rechnungen nur ZUR ANZEIGE (Transparenz für die BL, die kein
+        # Backend hat, #27). Geändert wird der Schalter bewusst nur im Admin
+        # (rechtlich sensibel, Go-Live-Setup) – Deep-Link nur für Admins.
+        "shop_small_business": ShopConfig.get_solo().small_business,
+        # Offene Dienstleistungs-Anfragen (z.B. Endreinigung) zur Freigabe (#28).
+        "service_requests": list(shop_svc.pending_service_requests()),
     })
 
 
