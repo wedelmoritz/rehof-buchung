@@ -212,6 +212,12 @@
       font: inherit; padding: .5rem .6rem; border: 1px solid var(--line);
       border-radius: 9px; background: #fff; min-width: 12rem; color: var(--ink);
     }
+    /* Kontrollkästchen/Radios sind KEINE Textfelder: die 12rem-Mindestbreite oben
+       würde sonst (nur am Desktop) eine riesige Lücke zwischen Häkchen und Text
+       erzeugen. Hier auf die natürliche Größe zurücksetzen. */
+    input[type=checkbox], input[type=radio] {
+      min-width: 0; width: auto; padding: 0; border-radius: 0;
+    }
     input:focus, select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 
     .btn {

@@ -58,3 +58,14 @@ weniger Redundanz; deutlich weniger DB-Abfragen. `quarter_occupancy_curve` und
 **Grenzen** – 12 kleine Wert-Labels sind kompakt; die exakten Zahlen liest man am
 bequemsten über den Hover-/Tap-Titel. Für Screenreader nennt das `aria-label` der
 Grafik weiterhin alle Monate mit Prozentwert.
+
+## Nachtrag (Safari-Fix)
+
+Die Schriftgröße der SVG-`<text>`-Elemente wird als **Präsentationsattribut**
+(`font-size="…"`) direkt am Element gesetzt, **nicht** über die CSS-`font`-Kurzform.
+Grund: **Safari (macOS/iOS) ignoriert die `font`-Kurzform auf SVG-Text** – die Größe
+fiel dann auf den Default von 16px (in Nutzer-Einheiten des `viewBox`) zurück, was den
+Text riesig, überlappend und unlesbar machte (Achsen-/Wert-Labels „verschmolzen“).
+Präsentationsattribute werden von allen SVG-Renderern zuverlässig beachtet; Farbe und
+Schriftfamilie bleiben per CSS (beides greift auch in Safari). Die Prozent-Labels
+tragen zusätzlich ein „%“ für Klarheit.

@@ -30,13 +30,17 @@
     <strong>E-Mail</strong> und – auf diesem Gerät – per <strong>Push</strong> erhalten.</p>
 
   <h3>E-Mail &amp; Tausch</h3>
+  <style>
+    .opt { display:flex; align-items:baseline; gap:.5rem; cursor:pointer; }
+    .opt input { flex:0 0 auto; }
+  </style>
   <form method="post" data-no-ajax style="display:flex;gap:.7rem;flex-direction:column;align-items:flex-start">{% csrf_token %}
     <input type="hidden" name="action" value="notify_prefs">
     <label class="opt"><input type="checkbox" name="email_opt_in" {% if member.email_opt_in %}checked{% endif %}>
-      E-Mail-Benachrichtigungen erhalten (Losergebnis, Wartelisten-Platz, Rechnung …)</label>
+      <span>E-Mail-Benachrichtigungen erhalten (Losergebnis, Wartelisten-Platz, Rechnung …)</span></label>
     <label class="opt"><input type="checkbox" name="accept_swap_requests" {% if member.accept_swap_requests %}checked{% endif %}>
-      Tausch-Anfragen erlauben (andere dürfen dir bei gleichem Zeitraum einen
-      Unterkunfts-Tausch vorschlagen)</label>
+      <span>Tausch-Anfragen erlauben (andere dürfen dir bei gleichem Zeitraum einen
+      Unterkunfts-Tausch vorschlagen)</span></label>
     <button class="btn small" type="submit">Speichern</button>
   </form>
 
@@ -126,10 +130,29 @@
   var state = document.getElementById("push-state");
   var hint = document.getElementById("push-hint");
   var P = window.__rehofPush;
+  // iPhone/iPad erkennen (iPadOS meldet sich als „Macintosh“ mit Touch); und ob die
+  // Seite bereits als installierte App (Home-Bildschirm) im Standalone-Modus läuft.
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+              (navigator.maxTouchPoints > 1 && /macintosh/i.test(navigator.userAgent));
+  var standalone = (window.matchMedia &&
+                    window.matchMedia("(display-mode: standalone)").matches) ||
+                   window.navigator.standalone === true;
   if (!P || !P.supported()) {
-    state.textContent = "Auf diesem Gerät/Browser nicht verfügbar.";
     btn.style.display = "none";
-    hint.textContent = "Tipp: Auf dem iPhone zuerst die App „Zum Home-Bildschirm“ hinzufügen.";
+    if (isIOS && !standalone) {
+      // KEIN echter Fehler – auf iOS geht Push nur in der installierten App.
+      state.textContent = "Als App installieren, dann hier aktivieren.";
+      hint.innerHTML = "Auf iPhone/iPad funktioniert Push nur in der <strong>installierten App</strong> " +
+        "(iOS&nbsp;16.4 oder neuer). So geht’s: in <strong>Safari</strong> das Teilen-Symbol " +
+        "(Quadrat mit Pfeil) antippen → <strong>„Zum Home-Bildschirm“</strong>, dann Re:Hof vom " +
+        "Home-Bildschirm öffnen und hier auf „Benachrichtigungen aktivieren“ tippen.";
+    } else if (isIOS && standalone) {
+      state.textContent = "Auf diesem Gerät nicht verfügbar.";
+      hint.textContent = "Dafür ist iOS 16.4 oder neuer nötig.";
+    } else {
+      state.textContent = "Auf diesem Gerät/Browser nicht verfügbar.";
+      hint.textContent = "Push braucht einen aktuellen Browser mit Service-Worker-Unterstützung.";
+    }
     return;
   }
   function render(on) {

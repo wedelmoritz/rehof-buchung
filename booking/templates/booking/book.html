@@ -111,7 +111,10 @@
       <svg class="gaps-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
       <span class="gaps-sum">{{ short_gaps|length }} kurze freie {% if short_gaps|length == 1 %}Lücke{% else %}Lücken{% endif %} zum Füllen
         <span class="muted">· nächste Wochen</span></span>
-      <span class="gaps-chev" aria-hidden="true">▾</span>
+      <span class="gaps-toggle">
+        <span class="gaps-t-open">Anzeigen</span><span class="gaps-t-close">Verbergen</span>
+        <svg class="gaps-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </span>
     </summary>
     <p class="muted" style="margin:.5rem 0">Kurze, <strong>beidseitig belegte</strong>
       freie Zeiträume der nächsten Wochen – ideal zum <strong>Lückenfüllen</strong>
@@ -207,14 +210,27 @@
   .filters .chk { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.9rem; }
   .filters .chk input { min-width:auto; }
   .notif ul { margin:.4rem 0 .6rem; padding-left:1.1rem; }
-  .gaps-card { border-color:var(--accent-soft); }
+  .gaps-card { border-color:var(--accent); padding:0; overflow:hidden; }
   .gaps-details > summary { list-style:none; cursor:pointer; display:flex;
-    align-items:center; gap:.55rem; font-weight:600; color:var(--accent-deep); }
+    align-items:center; gap:.55rem; font-weight:600; color:var(--accent-deep);
+    background:var(--accent-soft); padding:.7rem .85rem; }
+  .gaps-details > summary:hover { background:var(--accent); color:#fff; }
   .gaps-details > summary::-webkit-details-marker { display:none; }
-  .gaps-ic { width:20px; height:20px; flex:0 0 auto; color:var(--accent); }
+  .gaps-ic { width:20px; height:20px; flex:0 0 auto; color:inherit; }
   .gaps-sum { flex:1 1 auto; }
-  .gaps-chev { flex:0 0 auto; color:var(--muted); transition:transform .2s ease; }
-  .gaps-details[open] > summary .gaps-chev { transform:rotate(180deg); }
+  /* Deutlich als aufklappbar erkennbar: rechts ein Pill „Anzeigen ⌄“, das beim
+     Öffnen zu „Verbergen ⌃“ wird. */
+  .gaps-toggle { flex:0 0 auto; display:inline-flex; align-items:center; gap:.3rem;
+    font-size:.82rem; font-weight:700; padding:.2rem .5rem; border-radius:999px;
+    border:1px solid currentColor; white-space:nowrap; }
+  .gaps-chev { width:15px; height:15px; transition:transform .2s ease; }
+  .gaps-details[open] .gaps-chev { transform:rotate(180deg); }
+  .gaps-t-close { display:none; }
+  .gaps-details[open] .gaps-t-open { display:none; }
+  .gaps-details[open] .gaps-t-close { display:inline; }
+  .gaps-details > *:not(summary) { margin-left:.85rem; margin-right:.85rem; }
+  .gaps-details > p { margin-top:.7rem; }
+  .gaps-details > ul.gaps { margin-bottom:.85rem; }
   ul.gaps { list-style:none; margin:.4rem 0 0; padding:0; display:flex;
     flex-direction:column; gap:.35rem; }
   ul.gaps a { display:block; padding:.5rem .6rem; border:1px solid var(--line);
