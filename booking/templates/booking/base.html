@@ -826,9 +826,13 @@
       navigator.serviceWorker.register("/sw.js").catch(function () { /* still ok */ });
     });
   }
-{% if push_enabled and user.is_authenticated and user.member %}
+{% if push_enabled and user.is_authenticated %}
   // Web-Push: An-/Abmelden gegen den eigenen Server. `window.__rehofPush` wird
-  // von der Profil-Seite genutzt (Knopf „Benachrichtigungen aktivieren“).
+  // von der Profil-Seite genutzt (Knopf „Benachrichtigungen aktivieren“). Bewusst
+  // NUR an `user.is_authenticated` gekoppelt (nicht an `user.member`) – so ist das
+  // Modul für jedes eingeloggte Konto definiert; die Endpunkte prüfen das Mitglied
+  // serverseitig. (Verhindert „__rehofPush fehlt“, falls die Member-Relation im
+  // Template mal nicht auflöst.)
   (function () {
     var VAPID = "{{ vapid_public_key }}";
     var CSRF = "{{ csrf_token }}";
