@@ -111,6 +111,15 @@ class BuchungslebenszyklusTests(UseCaseBase):
         self.assertEqual(self.alice.nights_remaining_in_year(NEXT_YEAR), 50)
         self.assertTrue(svc.quarter_is_free(self.k1, start, end))
 
+        # Storno-Nachweis angelegt (#30) und in „Meine Buchungen“ sichtbar
+        from booking.models import CancellationLog
+        cx = CancellationLog.objects.get(member=self.alice)
+        self.assertEqual(cx.quarter_name, self.k1.name)
+        self.assertEqual((cx.start, cx.end), (start, end))
+        self.client.force_login(self.alice.user)
+        r = self.client.get(reverse("my_bookings"))
+        self.assertContains(r, "Zuletzt storniert")
+
         # Jetzt kann Bob buchen
         b2, err_b2 = svc.book_spontaneous(self.bob, self.k1, start, end)
         self.assertIsNotNone(b2, err_b2)

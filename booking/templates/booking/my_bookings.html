@@ -192,6 +192,27 @@
 </div>
 {% endif %}
 
+{% if cancellations %}
+<div class="card">
+  <details>
+    <summary style="cursor:pointer;font-weight:600;color:var(--muted)">Zuletzt storniert ({{ cancellations|length }})</summary>
+    <p class="muted" style="margin:.5rem 0">Diese Buchungen hast du storniert – sie sind
+      aus dem System entfernt (Zeitraum und Tage sind wieder frei). Nur zur Sicherheit
+      hier gelistet (letzte 90 Tage).</p>
+    <div class="table-wrap"><table class="grid">
+      <thead><tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Pers.</th><th>Storniert am</th></tr></thead>
+      <tbody>
+      {% for cx in cancellations %}
+        <tr><td>{{ cx.quarter_name }}</td><td>{{ cx.start|date:"d.m.Y" }}</td>
+          <td>{{ cx.end|date:"d.m.Y" }}</td><td>{{ cx.persons }}</td>
+          <td class="muted">{{ cx.cancelled_at|date:"d.m.Y H:i" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </details>
+</div>
+{% endif %}
+
 {% if submitted_wishes %}
 <div class="card">
   <h2>Wunschliste fürs nächste Jahr</h2>

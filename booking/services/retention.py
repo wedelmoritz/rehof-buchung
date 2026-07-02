@@ -9,8 +9,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from ..models import (
-    Allocation, NightTransfer, Notification, OutboxEmail, SwapRequest,
-    WaitlistEntry, Wish,
+    Allocation, CancellationLog, NightTransfer, Notification, OutboxEmail,
+    SwapRequest, WaitlistEntry, Wish,
 )
 
 __all__ = [
@@ -70,6 +70,10 @@ def run_data_retention(now=None) -> dict:
     n, _ = WaitlistEntry.objects.filter(
         fulfilled=True, created_at__lt=swap_cut).delete()
     counts["waitlist_entries"] = n
+    # Storno-Nachweise (#30/ADR 0082): nur kurzlebiger Komfort für die Mitglieds-
+    # Ansicht → nach derselben Frist wie erledigte Wechselwünsche entfernen.
+    n, _ = CancellationLog.objects.filter(cancelled_at__lt=swap_cut).delete()
+    counts["cancellations"] = n
 
     # B7: Wünsche längst beendeter Perioden.
     max_year = now.year - settings.RETENTION_WISH_YEARS

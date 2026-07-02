@@ -676,6 +676,37 @@ class LotteryRun(models.Model):
         return f"Losung {self.period} @ {self.executed_at:%Y-%m-%d %H:%M}"
 
 
+class CancellationLog(models.Model):
+    """Kurzer Nachweis einer **stornierten** Buchung (#30/ADR 0082). Die Buchung
+    selbst wird beim Stornieren gelöscht (gibt Verfügbarkeit + Tage sofort frei);
+    dieser Eintrag hält für die Mitglieds-Ansicht („Meine Buchungen“) fest, DASS und
+    WAS storniert wurde – zur Sicherheit, dass die Buchung wirklich raus ist. Bewusst
+    nur ein schlanker Snapshot (kein Soft-Delete → Belegungs-/Regel-Abfragen bleiben
+    unberührt). DSGVO: wird nach Frist von der Aufbewahrung gelöscht."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="cancellations",
+        verbose_name="Mitglied")
+    quarter_name = models.CharField("Quartier", max_length=120)
+    start = models.DateField("Anreise")
+    end = models.DateField("Abreise")
+    persons = models.PositiveIntegerField("Personen", default=1)
+    source = models.CharField("Quelle", max_length=12, blank=True)
+    cancelled_at = models.DateTimeField("Storniert am", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Stornierte Buchung (Nachweis)"
+        verbose_name_plural = "Stornierte Buchungen (Nachweis)"
+        ordering = ["-cancelled_at"]
+        indexes = [models.Index(fields=["member", "cancelled_at"])]
+
+    @property
+    def nights(self) -> int:
+        return (self.end - self.start).days
+
+    def __str__(self) -> str:
+        return f"{self.quarter_name} {self.start}–{self.end} (storniert)"
+
+
 class NightTransfer(models.Model):
     """Übertragung von Tagen an ein anderes Mitglied innerhalb eines Jahres.
     (Ein Übertrag ins Folgejahr ist bewusst NICHT vorgesehen.)"""

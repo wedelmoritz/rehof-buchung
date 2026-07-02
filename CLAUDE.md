@@ -108,7 +108,9 @@ Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neu
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
 erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thanked_at` =
 „Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5), `WaitlistEntry` (Spontanbuchungs-
-Warteliste), `Notification` (In-App-Benachrichtigung), `OutboxEmail`
+Warteliste), `CancellationLog` (schlanker **Storno-Nachweis** je gelöschter Buchung –
+Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 0082),
+`Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
@@ -204,7 +206,9 @@ anklickbar, saison-gefiltert, eigene Wünsche zählen nicht, kein Eingriff ins
 Losverfahren. (Frontend-Wortwahl bewusst **positiv**: „beliebt“ statt „umkämpft/
 Konflikt“, ADR 0072.) (`services.wish_deconfliction`
 liefert weiter die reine Zeitraum-Verschiebung je Quartier.)),
-`my_bookings` (eigene Buchungen + Storno **mit
+`my_bookings` (eigene Buchungen + Storno; je Buchung ein **Endreinigungs-Status**
+(angefragt/bestätigt/abgelehnt, #33/ADR 0081) und ein eingeklappter Abschnitt
+**„Zuletzt storniert"** (Storno-Nachweis, #30/ADR 0082); Storno **mit
 Rückfrage**; je Buchung drei getrennte Aufklapp-Bereiche (ADR 0077): (1) **„Wer ist
 zur gleichen Zeit da?“** – rein informativ, **nur Mitglieder**, aufgeteilt in **exakt
 gleiche An-/Abreise** und **nur überlappend** [`services.concurrent_split`], **ohne**
@@ -541,7 +545,7 @@ Erinnerung** vor der Losung an Mitglieder ohne eingereichten Wunsch;
 pseudonymisiert abgelaufene Daten anhand der `RETENTION_*`-Settings (per Env
 überschreibbar): versendete `OutboxEmail` inkl. DB-Anhang (90 T), `Notification`
 (180 T), `BankTransaction.raw` leeren (90 T), `Beds24Import` (180 T), `BankImport`
-(365 T), erledigte `SwapRequest`/`WaitlistEntry` (180 T), `Wish` beendeter Perioden
+(365 T), erledigte `SwapRequest`/`WaitlistEntry` **+ `CancellationLog`** (180 T), `Wish` beendeter Perioden
 (2 J), abgelaufene Sessions, `axes`-Fehlversuche (30 T). **Rechnungen/Zahlungen
 (10 Jahre, §147 AO/§14b UStG) bleiben unangetastet** (`Invoice.member/guest=PROTECT`).
 **Recht auf Löschung (Art. 17):** Admin-Aktion „Mitglied anonymisieren“ am

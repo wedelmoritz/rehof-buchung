@@ -558,6 +558,7 @@ def my_bookings(request):
     incoming_swaps = []
     submitted_wishes = []
     my_waitlist = []
+    cancellations = []
     wish_period = None
     if member:
         # Dienstleistungs-Anfragen (z.B. Endreinigung) je Buchung mitladen, damit der
@@ -596,6 +597,10 @@ def my_bookings(request):
             submitted_wishes = list(
                 Wish.objects.filter(member=member, period=wish_period, submitted=True)
                 .select_related("quarter").order_by("priority", "id"))
+        # Kürzlich stornierte Buchungen (#30): zur Sicherheit sichtbar, dass sie raus
+        # sind. Nur die jüngsten (90 Tage) – ältere räumt die Aufbewahrung ab.
+        cancellations = list(member.cancellations.filter(
+            cancelled_at__date__gte=today - timedelta(days=90))[:20])
 
     y = today.year
     budget_info = None
@@ -621,6 +626,7 @@ def my_bookings(request):
         "incoming_swaps": incoming_swaps,
         "submitted_wishes": submitted_wishes,
         "my_waitlist": my_waitlist,
+        "cancellations": cancellations,
         "wish_period": wish_period,
         "notifications": svc.unread_notifications(member),
     })
