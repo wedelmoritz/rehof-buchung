@@ -52,6 +52,14 @@
     <p id="push-state" class="muted" style="margin:.2rem 0">Status wird geprüft …</p>
     <button class="btn" type="button" id="push-toggle" disabled>Bitte warten …</button>
     <p class="muted" id="push-hint" style="font-size:.85rem;margin:.5rem 0 0"></p>
+    <details class="push-diag" style="margin-top:.7rem">
+      <summary class="muted" style="cursor:pointer;font-size:.85rem">Diagnose (für die Fehlersuche)</summary>
+      <p class="muted" style="font-size:.8rem;margin:.4rem 0">Diese Angaben helfen, ein
+        Push-Problem einzugrenzen (enthält keine Geheimnisse). Bei Bedarf an die
+        Verwaltung weitergeben.</p>
+      <button class="btn small ghost" type="button" id="push-diag-refresh">Diagnose aktualisieren</button>
+      <pre id="push-diag-out" style="white-space:pre-wrap;word-break:break-word;font-size:.78rem;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.5rem;margin:.4rem 0 0"></pre>
+    </details>
   </div>
   {% else %}
   <p class="muted" style="margin:0">Push-Benachrichtigungen sind auf diesem Server
@@ -130,6 +138,39 @@
   var state = document.getElementById("push-state");
   var hint = document.getElementById("push-hint");
   var P = window.__rehofPush;
+  // --- Diagnose (immer verfügbar, auch wenn Push nicht unterstützt wird) ---
+  var diagOut = document.getElementById("push-diag-out");
+  var diagBtn = document.getElementById("push-diag-refresh");
+  function renderDiag() {
+    if (!diagOut) return;
+    if (!P || !P.diagnose) {
+      diagOut.textContent = "Push-Modul nicht geladen (window.__rehofPush fehlt).";
+      return;
+    }
+    diagOut.textContent = "…";
+    P.diagnose().then(function (d) {
+      var lines = [
+        "Sicherer Kontext (HTTPS): " + d.secureContext,
+        "Als App installiert (Standalone): " + d.standalone,
+        "ServiceWorker verfügbar: " + d.serviceWorker,
+        "PushManager verfügbar: " + d.PushManager,
+        "Notification verfügbar: " + d.Notification,
+        "Berechtigung: " + d.permission,
+        "SW registriert: " + (d.swRegistered !== undefined ? d.swRegistered : "?"),
+        "SW-Scope: " + (d.swScope || "–"),
+        "SW aktiv: " + (d.swActive || "–"),
+        "Abo vorhanden: " + (d.subscribed !== undefined ? d.subscribed : "?"),
+        "Push-Dienst: " + (d.endpointHost || "–"),
+        "VAPID-Key-Länge: " + d.vapidKeyLen,
+        d.diagError ? ("Diagnose-Fehler: " + d.diagError) : null,
+        "Browser: " + d.ua
+      ].filter(Boolean);
+      diagOut.textContent = lines.join("\n");
+    }).catch(function (e) { diagOut.textContent = "Diagnose fehlgeschlagen: " + e; });
+  }
+  if (diagBtn) diagBtn.addEventListener("click", renderDiag);
+  renderDiag();
+
   // iPhone/iPad erkennen (iPadOS meldet sich als „Macintosh“ mit Touch); und ob die
   // Seite bereits als installierte App (Home-Bildschirm) im Standalone-Modus läuft.
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
@@ -170,7 +211,11 @@
        .then(render)
        .catch(function (e) {
          btn.disabled = false;
-         hint.textContent = "Konnte nicht ändern: " + (e && e.message || "Fehler") + ".";
+         var where = e && e.step ? " [" + e.step + "]" : "";
+         var name = e && e.name && e.name !== "Error" ? e.name + ": " : "";
+         hint.textContent = "Konnte nicht ändern" + where + " – " + name +
+                            (e && e.message || "Fehler") + ".";
+         renderDiag();
        });
   });
 })();

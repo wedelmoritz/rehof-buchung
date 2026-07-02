@@ -380,7 +380,14 @@ Hinweis statt Knopf), Endpunkte
 PWA** (Home-Bildschirm, iOS 16.4+), NICHT im Safari-Tab (dort fehlt `PushManager`).
 Das Profil erkennt iOS + Standalone-Modus und zeigt statt „nicht verfügbar“ eine
 **konkrete Anleitung** („Zum Home-Bildschirm“ → App öffnen → aktivieren) bzw. den
-iOS-16.4-Hinweis, wenn schon installiert.
+iOS-16.4-Hinweis, wenn schon installiert. **Apple-Zustellung strikt:** der VAPID-
+`sub`-Claim muss gültig sein – `services._vapid_sub_claim` nimmt `VAPID_ADMIN_EMAIL`
+(echte Domain-Adresse!), sonst `PUBLIC_BASE_URL` (https), NIE `mailto:admin@localhost`
+gegenüber Apple (sonst keine iOS-Zustellung). **Diagnose:** Profil-Push-Karte hat ein
+aufklappbares „Diagnose“-Panel (`__rehofPush.diagnose()`: HTTPS/Standalone/SW/
+PushManager/Berechtigung/Abo/Push-Dienst-Host, keine Geheimnisse); `enable()` markiert
+den fehlgeschlagenen Schritt (`permission`/`subscribe`/`server`); serverseitig loggt
+`booking.push` Abo-Speicherung und jede Zustellung (Erfolg/HTTP-Fehler von Apple/FCM).
 **Navigation:** Icons als
 einmaliges SVG-Sprite (`<symbol>`/`<use>`), von allen Varianten geteilt. Auf dem
 **Desktop** vertikale Leiste **links** (`.sidenav`, `order:-1` im Flex-Layout;

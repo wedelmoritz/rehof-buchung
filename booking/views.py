@@ -946,6 +946,10 @@ def push_subscribe(request):
         endpoint=endpoint,
         defaults={"member": member, "p256dh": p256dh, "auth": auth,
                   "user_agent": request.META.get("HTTP_USER_AGENT", "")[:300]})
+    import logging
+    from urllib.parse import urlsplit
+    logging.getLogger("booking.push").info(
+        "Push-Abo gespeichert: %s (Mitglied %s).", urlsplit(endpoint).netloc, member.pk)
     return JsonResponse({"ok": True})
 
 
