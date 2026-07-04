@@ -477,29 +477,47 @@ def overdue_invoices(qs=None):
     return open_invoices(qs).filter(due_date__lt=date.today())
 
 
-def send_payment_reminder(invoice: Invoice) -> bool:
-    """Stellt eine Zahlungserinnerung in die Outbox (idempotent: pro Tag nur
-    einmal). Gibt True zurück, wenn eine Erinnerung erzeugt wurde."""
+def reminder_due(invoice: Invoice, now=None) -> bool:
+    """Darf diese Rechnung (erneut) erinnert werden? Nur offene Rechnungen und
+    frühestens `ShopConfig.reminder_interval_days` nach der letzten Erinnerung –
+    so lässt sich nicht versehentlich sofort ein zweites Mal mahnen (#54)."""
     if invoice.status != Invoice.OPEN:
         return False
+    if not invoice.reminded_at:
+        return True
+    now = now or timezone.now()
+    interval = max(0, ShopConfig.get_solo().reminder_interval_days)
+    return (now - invoice.reminded_at).days >= interval
+
+
+def send_payment_reminder(invoice: Invoice) -> bool:
+    """Stellt eine Zahlungserinnerung in die Outbox. Eskaliert die Mahnstufe
+    (`reminder_count`) und respektiert den Mindestabstand (#54). Gibt True zurück,
+    wenn eine Erinnerung erzeugt wurde."""
     now = timezone.now()
-    if invoice.reminded_at and invoice.reminded_at.date() == now.date():
-        return False  # heute schon erinnert
+    if not reminder_due(invoice, now):
+        return False
     from booking.services import email_member, absolute_url
-    url = absolute_url(f"/hofladen/rechnung/{invoice.id}/")
+    stufe = invoice.reminder_count + 1
+    # Empfänger-neutral: Mitglied per E-Mail-Opt-in, Gast über die Gast-Adresse.
+    empf = invoice.recipient_label
+    betreff = (f"Zahlungserinnerung zu Rechnung {invoice.number}" if stufe == 1
+               else f"{stufe}. Zahlungserinnerung (Mahnung) zu Rechnung {invoice.number}")
     faellig = (f" (fällig am {invoice.due_date:%d.%m.%Y})"
                if invoice.due_date else "")
-    sent = email_member(
-        invoice.member, f"Zahlungserinnerung zu Rechnung {invoice.number}",
-        f"Hallo {invoice.member.display_name},\n\nzu deiner Hofladen-Rechnung "
-        f"{invoice.number} über {invoice.total_gross} €{faellig} haben wir noch "
-        f"keinen Zahlungseingang verbucht. Bitte überweise mit der "
-        f"Rechnungsnummer als Verwendungszweck.\n\n{url}\n\n"
-        f"Falls sich das überschnitten hat, ignoriere diese Nachricht bitte.\n\n"
-        f"Viele Grüße\nRe:Hof")
+    url = absolute_url(f"/hofladen/rechnung/{invoice.id}/") if invoice.member_id else ""
+    body = (
+        f"Hallo {empf},\n\nzu Rechnung {invoice.number} über "
+        f"{invoice.total_gross} €{faellig} haben wir noch keinen Zahlungseingang "
+        f"verbucht. Bitte überweise mit der Rechnungsnummer als Verwendungszweck."
+        + (f"\n\n{url}" if url else "")
+        + "\n\nFalls sich das überschnitten hat, ignoriere diese Nachricht bitte."
+        "\n\nViele Grüße\nRe:Hof")
+    sent = email_member(invoice.member, betreff, body) if invoice.member_id else False
     invoice.reminded_at = now
-    invoice.save(update_fields=["reminded_at"])
-    return bool(sent) or True  # auch ohne Opt-in als „erinnert“ markieren
+    invoice.reminder_count = stufe
+    invoice.save(update_fields=["reminded_at", "reminder_count"])
+    return bool(sent) or True  # auch ohne Opt-in/Adresse als „erinnert“ markieren
 
 
 def remind_overdue(qs=None) -> int:

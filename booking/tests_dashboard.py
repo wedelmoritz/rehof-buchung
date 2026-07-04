@@ -167,6 +167,26 @@ class InvoiceReminderTests(TestCase):
         self.inv.save(update_fields=["due_date"])
         self.assertEqual(shop_svc.remind_overdue(), 1)
 
+    def test_mahnstufe_eskaliert_und_respektiert_abstand(self):
+        """#54: jede Erinnerung zählt die Mahnstufe hoch; ein zweites Mahnen ist
+        erst nach dem Mindestabstand möglich (kein sofortiges Doppel-Mahnen)."""
+        from django.utils import timezone
+        self.inv.due_date = date.today() - timedelta(days=1)
+        self.inv.save(update_fields=["due_date"])
+        self.assertTrue(shop_svc.send_payment_reminder(self.inv))
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.reminder_count, 1)
+        # sofort erneut: gesperrt durch Mindestabstand
+        self.assertFalse(shop_svc.reminder_due(self.inv))
+        self.assertFalse(shop_svc.send_payment_reminder(self.inv))
+        # nach Ablauf des Abstands (8 Tage) eskaliert auf Stufe 2
+        self.inv.reminded_at = timezone.now() - timedelta(days=8)
+        self.inv.save(update_fields=["reminded_at"])
+        self.assertTrue(shop_svc.reminder_due(self.inv))
+        self.assertTrue(shop_svc.send_payment_reminder(self.inv))
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.reminder_count, 2)
+
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class InvoiceDashboardTests(TestCase):

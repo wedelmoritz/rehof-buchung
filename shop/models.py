@@ -40,6 +40,11 @@ class ShopConfig(models.Model):
         "Zahlungsziel (Tage)", default=14,
         help_text="Nach so vielen Tagen ohne Zahlungseingang gilt eine Rechnung "
                   "als überfällig (für die Zahlungserinnerung).")
+    reminder_interval_days = models.PositiveSmallIntegerField(
+        "Mindestabstand Erinnerungen (Tage)", default=7,
+        help_text="Frühestens nach so vielen Tagen darf dieselbe Rechnung erneut "
+                  "erinnert/gemahnt werden (verhindert sofortiges Doppel-Mahnen). "
+                  "Jede Erinnerung zählt eine Stufe hoch (1./2./… Mahnung).")
     allow_self_report_paid = models.BooleanField(
         "Selbst-Meldung „Habe ich überwiesen“ erlauben", default=True,
         help_text="AN (Standard): Mitglieder/Gäste können auf der Rechnung melden, "
@@ -361,6 +366,9 @@ class Invoice(models.Model):
     paid_reported_at = models.DateTimeField("Bezahlt gemeldet am", null=True, blank=True)
     confirmed_at = models.DateTimeField("Bestätigt am", null=True, blank=True)
     reminded_at = models.DateTimeField("Zuletzt erinnert am", null=True, blank=True)
+    reminder_count = models.PositiveSmallIntegerField(
+        "Erinnerungen/Mahnstufe", default=0,
+        help_text="Wie oft wurde bereits erinnert/gemahnt (1./2./… Mahnung).")
     # Snapshots (Empfänger + Genossenschaft) für §14 UStG
     recipient_name = models.CharField("Empfänger", max_length=160, blank=True)
     recipient_address = models.TextField("Empfänger-Anschrift", blank=True)

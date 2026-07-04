@@ -1180,9 +1180,14 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
     elif action == "remind_one":
         inv = Invoice.objects.filter(id=request.POST.get("invoice_id")).first()
         if inv and shop_svc.send_payment_reminder(inv):
-            messages.success(request, f"Zahlungserinnerung zu {inv.number} verschickt.")
+            messages.success(request, f"{inv.reminder_count}. Zahlungserinnerung zu "
+                             f"{inv.number} verschickt.")
+        elif inv and not shop_svc.reminder_due(inv):
+            messages.info(request, f"Zu {inv.number} wurde erst kürzlich erinnert – "
+                          "eine erneute Mahnung ist erst nach dem eingestellten "
+                          "Mindestabstand möglich.")
         else:
-            messages.info(request, "Erinnerung nicht möglich (Rechnung/Adresse?).")
+            messages.info(request, "Erinnerung nicht möglich (Rechnung/Status?).")
         target, extra = "verw_rechnungen", f"&inv={request.POST.get('inv', 'overdue')}"
     elif action in ("confirm_service", "reject_service"):
         from shop.models import ServiceRequest

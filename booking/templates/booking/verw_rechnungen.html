@@ -51,7 +51,7 @@
           <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
           <td>{{ i.total_gross }} €</td>
           <td>{% if i.paid_online %}<span class="tag" style="background:#e1efd6;color:#41663a">online ({{ i.payment_method }})</span>{% else %}{{ i.get_status_display }}{% endif %}</td>
-          <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}
+          <td>{% if i.reminder_count %}<span class="tag warn" title="{{ i.reminder_count }}. Erinnerung/Mahnung">{{ i.reminder_count }}. Mahnung</span><br>{% endif %}{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}
             {% if i.is_overdue and i.status == 'open' %}
             <form method="post" class="inline" data-confirm="Zahlungserinnerung zu {{ i.number }} an {{ i.recipient_label }} senden?">{% csrf_token %}
               <input type="hidden" name="action" value="remind_one">

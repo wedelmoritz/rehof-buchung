@@ -64,7 +64,7 @@ class ShopConfigAdmin(admin.ModelAdmin):
                            "ausgegeben und im Fuß verlinkt, sobald sie ausgefüllt sind."}),
         ("Zahlung", {
             "fields": ("iban", "bic", "invoice_prefix", "payment_term_days",
-                       "allow_self_report_paid"),
+                       "reminder_interval_days", "allow_self_report_paid"),
             "description": "IBAN/BIC, auf die Mitglieder überweisen. Das Präfix "
                            "bildet die Rechnungsnummer (z. B. HL-2026-04-001). Das "
                            "Zahlungsziel bestimmt, ab wann eine Rechnung als "
