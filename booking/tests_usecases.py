@@ -2393,3 +2393,40 @@ class SperrzeitenTests(UseCaseBase):
             "action": "delete_block", "block_id": blk.id})
         self.assertFalse(QuarterBlock.objects.filter(id=blk.id).exists())
         self.assertTrue(svc.quarter_is_free(self.k1, self.s, self.e))
+
+
+class SonderwuenscheTests(UseCaseBase):
+    """Besonderheiten (Hund/Kinder/Zustellbett) je Buchung + interne Notiz der BL
+    (#62/#68/#84)."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+        self.s = date(NEXT_YEAR, 8, 5)
+        self.e = date(NEXT_YEAR, 8, 8)
+
+    def test_besonderheiten_gespeichert_und_dem_mitglied_sichtbar(self):
+        a, err = svc.book_spontaneous(self.alice, self.k1, self.s, self.e,
+                                      persons=2, special_requests="Hund + Kleinkind")
+        self.assertIsNotNone(a)
+        self.assertEqual(a.special_requests, "Hund + Kleinkind")
+        self.client.force_login(self.alice.user)
+        html = self.client.get(reverse("my_bookings")).content.decode()
+        self.assertIn("Hund + Kleinkind", html)
+
+    def test_bl_interne_notiz_setzen_nicht_fuer_mitglied(self):
+        a, _ = svc.book_spontaneous(self.alice, self.k1, self.s, self.e, persons=2)
+        staff = make_member("chefin2")
+        from booking.permissions import ensure_verwaltung_group
+        staff.user.groups.add(ensure_verwaltung_group())
+        self.client.force_login(staff.user)
+        self.client.post(reverse("verw_buchungen"), {
+            "action": "set_note", "alloc_id": a.id,
+            "internal_note": "Schlüssel liegt beim Nachbarn",
+            "year": self.s.year, "month": self.s.month})
+        a.refresh_from_db()
+        self.assertEqual(a.internal_note, "Schlüssel liegt beim Nachbarn")
+        # Interne Notiz taucht in „Meine Buchungen" des Mitglieds NICHT auf.
+        self.client.force_login(self.alice.user)
+        html = self.client.get(reverse("my_bookings")).content.decode()
+        self.assertNotIn("Schlüssel liegt beim Nachbarn", html)

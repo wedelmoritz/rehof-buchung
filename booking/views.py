@@ -293,9 +293,11 @@ def book_confirm(request):
 
     if request.method == "POST" and request.POST.get("action") == "confirm":
         companions = request.POST.get("companions", "").strip()
+        special = request.POST.get("special_requests", "").strip()
         alloc, err = svc.book_spontaneous(
             member, quarter, start, end, persons, companions=companions,
-            membership_id=request.POST.get("membership") or None)
+            membership_id=request.POST.get("membership") or None,
+            special_requests=special)
         if not alloc:
             messages.error(request, err or "Buchung nicht möglich.")
         else:
@@ -1210,6 +1212,16 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
         # Von der Dashboard-Schnellfreigabe zurück aufs Dashboard, sonst zur Reinigung.
         nxt = request.POST.get("next", "")
         target = nxt if nxt in ("dashboard", "verw_reinigung") else "verw_reinigung"
+    elif action == "set_note":
+        from .models import Allocation
+        from . import validation as V
+        a = Allocation.objects.filter(id=request.POST.get("alloc_id")).first()
+        if a:
+            a.internal_note = V.strip_controls(request.POST.get("internal_note", ""),
+                                               max_len=500)
+            a.save(update_fields=["internal_note"])
+            messages.success(request, "Interne Notiz gespeichert.")
+        target = "verw_buchungen"
     elif action == "add_block":
         from .models import Quarter, QuarterBlock
         q = Quarter.objects.filter(id=request.POST.get("quarter")).first()

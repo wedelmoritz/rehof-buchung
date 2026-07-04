@@ -103,7 +103,11 @@ abgerundet**, ADR 0073), `Share` (Through-Modell Nutzer↔Anteil mit festem
 sich, ganze Tage; `wish_night_budget` ist obsolet/abgeleitet), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`
 + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066), `Allocation`
-(mit `persons` + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066),
+(mit `persons` + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066;
+`special_requests` = optionale **Besonderheiten** beim Buchen [Hund/Kinder/
+Zustellbett, dem Mitglied sichtbar] + `internal_note` = **interne Team-/BL-Notiz**
+[nur Verwaltung, editierbar auf `verw_buchungen`, dem Mitglied NIE gezeigt];
+#62/#68/#84),
 `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =

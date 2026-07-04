@@ -560,6 +560,14 @@ class Allocation(models.Model):
     companions = models.CharField(
         "Begleitung", max_length=255, blank=True,
         help_text="Mit wem reise ich an (frei eintragbar).")
+    special_requests = models.CharField(
+        "Besonderheiten", max_length=255, blank=True,
+        help_text="Optional: Hund, Kinder, Zustellbett o. Ä. – für die "
+                  "Vorbereitung durch das Team (#62/#68).")
+    internal_note = models.CharField(
+        "Interne Notiz (nur Team/BL)", max_length=500, blank=True,
+        help_text="Nur für Betriebsleitung/Team – wird dem Mitglied NICHT "
+                  "angezeigt (#84).")
     source = models.CharField("Quelle", max_length=12, choices=SOURCE)
     period = models.ForeignKey(
         BookingPeriod, on_delete=models.SET_NULL, null=True, blank=True,

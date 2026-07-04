@@ -30,7 +30,7 @@ __all__ = [
 def book_spontaneous(
     member: Member, quarter: Quarter, start: date, end: date,
     persons: int = 1, source: str = "spontaneous", companions: str = "",
-    membership_id=None,
+    membership_id=None, special_requests: str = "",
 ) -> tuple[Allocation | None, str | None]:
     """Bucht eine freie Lücke mit den verfügbaren Tagen. Gibt
     (Allocation, None) bei Erfolg zurück bzw. (None, Fehlermeldung) sonst.
@@ -101,6 +101,7 @@ def book_spontaneous(
         member=member, quarter=quarter, start=start, end=end,
         persons=persons, source=source, membership=membership,
         companions=V.strip_controls(companions, max_len=255),
+        special_requests=V.strip_controls(special_requests, max_len=255),
     )
     return alloc, None
 

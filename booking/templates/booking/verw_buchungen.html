@@ -9,7 +9,7 @@
   {% if arrivals %}
   <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>Anreise</th><th>Abreise</th><th>Nächte</th><th>Quartier</th><th>Mitglied</th><th>Pers.</th><th>Endreinig.</th></tr></thead>
+      <thead><tr><th>Anreise</th><th>Abreise</th><th>Nächte</th><th>Quartier</th><th>Mitglied</th><th>Pers.</th><th>Endreinig.</th><th>Besonderheiten / interne Notiz</th></tr></thead>
       <tbody>
         {% for a in arrivals %}
         <tr>
@@ -20,6 +20,18 @@
           <td>{{ a.member.display_name }}{% if a.companions %} <span class="muted">(+{{ a.companions }})</span>{% endif %}</td>
           <td>{{ a.persons }}</td>
           <td>{% if a.has_cleaning %}✓{% endif %}</td>
+          <td style="white-space:normal; min-width:16rem">
+            {% if a.special_requests %}<div class="tag" style="margin-bottom:.3rem">🛎 {{ a.special_requests }}</div>{% endif %}
+            <form method="post" class="inline" style="display:flex; gap:.3rem; align-items:center">{% csrf_token %}
+              <input type="hidden" name="action" value="set_note">
+              <input type="hidden" name="alloc_id" value="{{ a.id }}">
+              <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+              <input type="text" name="internal_note" value="{{ a.internal_note }}" maxlength="500"
+                     placeholder="interne Notiz (nur Team)"
+                     style="flex:1 1 auto; padding:.3rem .45rem; border-radius:8px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); font-size:.85rem">
+              <button class="btn small ghost" type="submit">✓</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
