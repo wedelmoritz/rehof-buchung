@@ -350,6 +350,21 @@ class KontoabgleichTests(ShopBase):
         self.assertEqual(len(txns), 1)               # Belastung ignoriert
         self.assertEqual(txns[0].amount, Decimal("6.40"))
 
+    def test_csv_mit_metadaten_praeambel(self):
+        """Regression #53: Bank-Exporte mit Metadaten-Vorspann vor dem Header
+        (Sparkasse/DKB) dürfen nicht als „nicht erkannt“ scheitern – der Header
+        wird gesucht, nicht als erste Zeile angenommen."""
+        from shop import bankimport
+        data = (
+            "Konto:;DE00 1234;;;\n"
+            "Zeitraum:;01.04.2026 - 30.04.2026;;;\n"
+            "\n"
+            + self._csv(self.inv.number).decode()
+        ).encode("utf-8")
+        txns = bankimport.parse_csv(data)
+        self.assertEqual(len(txns), 1)
+        self.assertEqual(txns[0].amount, Decimal("6.40"))
+
     def test_import_verbucht_und_benachrichtigt(self):
         from shop import reconcile
         from booking.models import Notification, OutboxEmail

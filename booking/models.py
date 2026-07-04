@@ -38,6 +38,17 @@ class Quarter(models.Model):
         "Barrierearm/-frei", default=False,
         help_text="Quartier ist barrierearm bzw. barrierefrei erreichbar.",
     )
+    # Reihenfolge im Belegungsplan (an beds24 angelehnt, #38). Default 0 = wie bisher
+    # alphabetisch; die Verwaltung vergibt die gewohnte beds24-Reihenfolge im Backend.
+    sort_order = models.PositiveIntegerField(
+        "Reihenfolge (Belegungsplan)", default=0,
+        help_text="Sortierung im Belegungsplan – kleiner = weiter oben (an beds24 "
+                  "angelehnt). Gleiche Werte werden alphabetisch gereiht.")
+    # Optionale Zielauslastung für das statische Ampel-System im Dashboard.
+    target_occupancy = models.PositiveSmallIntegerField(
+        "Ziel-Auslastung (%)", null=True, blank=True,
+        help_text="Optionale Zielauslastung in Prozent. Ist sie gesetzt, zeigt das "
+                  "Dashboard je Quartier eine Ampel (🔴/🟡/🟢). Leer = keine Ampel.")
     # Organisatorische Gruppierung + sanfte Gruppen-Empfehlung (ADR 0075).
     building = models.CharField(
         "Gebäude", max_length=80, blank=True, default="",
@@ -68,7 +79,9 @@ class Quarter(models.Model):
     class Meta:
         verbose_name = "Quartier"
         verbose_name_plural = "Quartiere"
-        ordering = ["name"]
+        # sort_order zuerst (Belegungsplan-Reihenfolge, #38); bei Gleichstand
+        # (Default 0 für alle) fällt es auf die bisherige Namens-Sortierung zurück.
+        ordering = ["sort_order", "name"]
 
     def __str__(self) -> str:
         return self.name

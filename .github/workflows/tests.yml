@@ -231,8 +231,11 @@ jobs:
           # Wish.membership ab 0042); ein volles ORM-SELECT/-INSERT würde hier auf
           # der Alt-DB scheitern. Über values_list("id") holen wir nur die ID, der
           # Wunsch wird roh mit ausschließlich Alt-Spalten eingefügt.
-          member_id = Member.objects.values_list("id", flat=True).first()
-          quarter_id = Quarter.objects.values_list("id", flat=True).first()
+          # ACHTUNG: explizites order_by("id") – .first() würde sonst die aktuelle
+          # Meta.ordering anwenden (z. B. Quarter: ["sort_order","name"] ab 0050),
+          # und die Spalte gibt es im Stand 0015 noch nicht.
+          member_id = Member.objects.order_by("id").values_list("id", flat=True).first()
+          quarter_id = Quarter.objects.order_by("id").values_list("id", flat=True).first()
           with connection.cursor() as c:
               c.execute('INSERT INTO booking_bookingperiod '
                         '(name,target_year,"start","end",status,applies_to_all) '

@@ -93,10 +93,13 @@ class QuarterPriceInline(admin.TabularInline):
 @admin.register(Quarter)
 class QuarterAdmin(admin.ModelAdmin):
     inlines = [QuarterPriceInline]
-    list_display = ("name", "eq_class", "size_sqm", "min_occupancy",
-                    "max_occupancy", "accessible", "active")
-    list_filter = ("eq_class", "active", "accessible")
-    list_editable = ("accessible",)
+    list_display = ("sort_order", "name", "building", "eq_class", "size_sqm",
+                    "min_occupancy", "max_occupancy", "target_occupancy",
+                    "accessible", "active")
+    list_display_links = ("name",)
+    list_filter = ("eq_class", "active", "accessible", "building")
+    list_editable = ("sort_order", "accessible")
+    ordering = ("sort_order", "name")
     search_fields = ("name",)
     fieldsets = (
         (None, {
@@ -108,12 +111,17 @@ class QuarterAdmin(admin.ModelAdmin):
         }),
         ("Belegung & Merkmale", {
             "fields": ("size_sqm", "min_occupancy", "max_occupancy", "accessible",
-                       "building", "prefer_for_groups"),
+                       "building", "sort_order", "target_occupancy",
+                       "prefer_for_groups"),
             "description": "Min./Max.-Personen steuern, welche Quartiere beim "
                            "Buchen je nach Personenzahl als passend angezeigt werden. "
-                           "„Gebäude“ gruppiert organisatorisch; „für Gruppen zuerst "
-                           "anbieten“ (z. B. Stallgebäude) reiht die Wohneinheit bei "
-                           "großen Gruppen nach oben (nur Reihenfolge, keine Sperre).",
+                           "„Gebäude“ gruppiert organisatorisch und bildet im "
+                           "Belegungsplan die Zeilen-Bänder; die <b>Reihenfolge</b> "
+                           "(kleiner = weiter oben) bringt den Plan in die gewohnte "
+                           "beds24-Sortierung. „Ziel-Auslastung“ (optional) schaltet "
+                           "im Dashboard die Ampel. „Für Gruppen zuerst anbieten“ "
+                           "(z. B. Stallgebäude) reiht die Wohneinheit bei großen "
+                           "Gruppen nach oben (nur Reihenfolge, keine Sperre).",
         }),
         ("Buchbarkeitszeitraum (jährlich, ohne Jahr – leer = ganzjährig)", {
             "fields": ("season_start_month", "season_start_day",
@@ -495,8 +503,9 @@ class ShareInline(admin.TabularInline):
 
 @admin.register(Membership)
 class MembershipAdmin(VersionAdmin):
-    list_display = ("__str__", "eg_number", "kind", "annual_night_budget",
-                    "allocated_display", "is_tandem_display", "created_on")
+    list_display = ("__str__", "eg_number", "mitglieder_kurz", "kind",
+                    "annual_night_budget", "allocated_display", "is_tandem_display",
+                    "created_on")
     list_filter = ("kind",)
     search_fields = ("eg_number", "label", "shares__member__display_name")
     inlines = [ShareInline]
@@ -526,9 +535,19 @@ class MembershipAdmin(VersionAdmin):
     def get_queryset(self, request):
         # N+1 vermeiden: Anteile je Zeile vorladen + Anzahl annotieren, statt pro
         # Zeile allocated_budget (Summe) und is_tandem (count) einzeln abzufragen.
+        # `shares__member` deckt zusätzlich die Spalte „Mitglied(er)“ ab (#77).
         from django.db.models import Count
         return (super().get_queryset(request)
-                .prefetch_related("shares").annotate(_n_shares=Count("shares")))
+                .prefetch_related("shares__member")
+                .annotate(_n_shares=Count("shares")))
+
+    @admin.display(description="Mitglied(er)")
+    def mitglieder_kurz(self, obj):
+        """Zeigt am Anteil die zugeordneten Konten – damit ist die Kopplung
+        Konto ↔ Anteil auf BEIDEN Listen sichtbar und man muss sich nicht auf
+        gleich lautende Namen verlassen (#77)."""
+        names = [s.member.display_name for s in obj.shares.all() if s.member_id]
+        return ", ".join(names) if names else "—"
 
     @admin.display(description="vergeben / frei")
     def allocated_display(self, obj):

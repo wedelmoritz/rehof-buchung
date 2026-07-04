@@ -168,14 +168,26 @@ Einreiche-Frist** `BookingPeriod.submission_deadline`; wer noch **nichts eingere
 hat, sieht stattdessen einen **Warn-Chip** „Noch keine Wünsche eingereicht · bis …",
 ADR 0080) + eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
 **„Diese Woche"-Agenda** (`services.week_agenda`: je Tag An-/Abreisen + freie
-Quartiere, mobil der Schnell-Überblick). **Held ist der Belegungs-Zeitstrahl**
-(`services.build_occupancy_timeline`, Standard-Ansicht: pro Unterkunft EINE Zeile
-mit Balken Anreise→Abreise, Farbe je Mitglied/extern neutral – „wer ist wo" auf
-einen Blick); **Umschalter „Belegung / Kalender"** schaltet aufs Monatsraster
-(`?view=grid`). Klick auf Balken/Tag öffnet das **Tag-Detail im Kontext** – ein
-Panel **rechts** neben dem Plan (Desktop, sticky) bzw. **darunter** am Handy
-(`day_detail`: wer da ist · noch frei · „An diesem Tag buchen"). **Eine**
-kombinierte Legende (Personen + heute + Ferien)), `book` (Ampel-Kalender → Personen/
+Quartiere, mobil der Schnell-Überblick). **Held ist der Belegungsplan als
+Tape-Chart** (`services.build_occupancy_timeline`, Option A, ADR 0083): Unterkünfte
+als Zeilen – nach `Quarter.sort_order` (beds24-Reihenfolge, #38) in **Gebäude-Bänder**
+gruppiert (statt Zebra, #42) –, durchgehende **Datumsachse ab wählbarem Startdatum**
+über **1/2/4 Wochen** (`from`/`weeks`, #41; nicht mehr monatsgebunden), Buchungen als
+Balken. Ein **Belegungswechsel** wird als **Halbtag** gerendert (Balken beginnen an
+der PM-Kante des Anreise-, enden an der AM-Kante des Abreisetags) – Ab-/Anreise am
+selben Tag treffen sich an der Tagesmitte statt sich zu überlappen (#40, keine
+Schein-Doppelbelegung). Kopf je Tag: Wochentag · Datum · **Zahl freier Unterkünfte**;
+heute markiert. **Rollen-abhängig** (`management=is_verwaltung`): die Verwaltung sieht
+externe Gäste mit Klartext-Name/Personen und im Tagesdetail Kontakt (#46b/#47),
+Mitglieder nur „extern"; Endreinigung als dezentes **🧹** (#46c). **Drucken** (nur
+Verwaltung, `@media print` + delegierter `data-print`-Handler, #39). **Ein** responsiver
+Plan (Media-Query vergrößert am Handy Zeilen/Tap-Flächen; `.tape` scrollt horizontal
+im eigenen Container). **Umschalter „Belegung / Kalender"** schaltet aufs Monatsraster
+(`?view=grid`). Klick auf Balken/Tag öffnet das **Tag-Detail im Kontext** – ein Panel
+**rechts** neben dem Plan (Desktop, sticky) bzw. **darunter** am Handy (`day_detail`,
+klar getrennt nach **Anreise / Abreise / Anwesenheit** = Arrivals/Departures/Stayovers;
+noch frei · „An diesem Tag buchen"). **Eine** kombinierte Legende (Personen + heute +
+Ferien)), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
 eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
@@ -423,7 +435,7 @@ Mitglieder UND für Verwaltungs-/Admin-Konten (auch ohne Mitglieds-Profil). Das 
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
 **Kein seitliches Seiten-Scrollen am Handy:** `html`/`body` haben `overflow-x:clip`
 (damit der sticky-Banner nie „abbricht“), die `.shell` ist am Handy ein **Block**
-(nicht Flex-Spalte), sodass breite Inhalte (Belegungs-Zeitstrahl `.occ`, Tabellen)
+(nicht Flex-Spalte), sodass breite Inhalte (Belegungsplan `.tape`, Tabellen)
 **in ihrem eigenen Wrapper** horizontal scrollen statt die Seite zu dehnen; lange
 Zeichenketten (Benachrichtigungen/Meldungen) brechen um (`overflow-wrap:anywhere`).
 Im **Hofladen** gibt es am Handy einen **schwebenden Warenkorb-Knopf** (`.cart-fab`,

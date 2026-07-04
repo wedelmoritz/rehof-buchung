@@ -129,33 +129,55 @@ def overview(request):
         return redirect("overview")
     year, month = _month_from_request(request, today)
     cal = svc.build_community_calendar(member, year, month)
-    # Jedem im Monat vorkommenden Mitglied eine feste Pastellfarbe geben, damit
-    # auf einen Blick sichtbar ist, wer wann da ist (Gemeinschaftsaspekt).
+    from .permissions import is_verwaltung
+    is_mgmt = is_verwaltung(request.user)
+    # Belegungsplan (Tape-Chart) ist der Standard (ADR 0083); das Monatsraster gibt
+    # es weiter über ?view=grid (ADR 0059).
+    view_mode = "grid" if request.GET.get("view") == "grid" else "timeline"
+
+    # Jedem vorkommenden Mitglied eine feste Pastellfarbe geben (Gemeinschaftsaspekt).
     color_map: dict[int, str] = {}
     legend: list[dict] = []
-    for week in cal["weeks"]:
-        for d in week:
-            for b in d["bookings"]:
-                if b.get("external"):
-                    continue  # Externe: feste Farbe (in services gesetzt)
-                mid = b["member_id"]
-                if mid not in color_map:
-                    color_map[mid] = MEMBER_COLORS[len(color_map) % len(MEMBER_COLORS)]
-                    legend.append({"name": b["who"], "color": color_map[mid],
-                                   "mine": b["mine"]})
-                b["color"] = color_map[mid]
-    # Belegungs-Zeitstrahl ist der Standard (modernes „wer ist wo"); das
-    # Monatsraster gibt es weiter über ?view=grid (ADR 0059).
-    view_mode = "grid" if request.GET.get("view") == "grid" else "timeline"
+
+    def _assign(mid, who, mine):
+        if mid not in color_map:
+            color_map[mid] = MEMBER_COLORS[len(color_map) % len(MEMBER_COLORS)]
+            legend.append({"name": who, "color": color_map[mid], "mine": mine})
+        return color_map[mid]
+
+    # Tape-Chart-Achse: Startdatum (Default heute) + Bereich 1/2/4 Wochen (#41).
+    anchor = _parse_date(request.GET.get("from")) or today
+    try:
+        weeks = int(request.GET.get("weeks", 2))
+    except (TypeError, ValueError):
+        weeks = 2
+    weeks = weeks if weeks in (1, 2, 4) else 2
+
     timeline = None
     if view_mode == "timeline":
-        timeline = svc.build_occupancy_timeline(member, year, month)
-        for row in timeline["rows"]:
-            for bar in row["bars"]:
-                bar["color"] = (timeline["extern_color"] if bar["external"]
-                                else color_map.get(bar["member_id"], "#d8cfc0"))
+        timeline = svc.build_occupancy_timeline(
+            member, anchor, weeks * 7, management=is_mgmt)
+        for grp in timeline["groups"]:
+            for row in grp["rows"]:
+                for bar in row["bars"]:
+                    bar["color"] = (timeline["extern_color"] if bar["external"]
+                                    else _assign(bar["member_id"], bar["who"], bar["mine"]))
+    else:
+        for week in cal["weeks"]:
+            for d in week:
+                for b in d["bookings"]:
+                    if b.get("external"):
+                        continue  # Externe: feste Farbe (in services gesetzt)
+                    b["color"] = _assign(b["member_id"], b["who"], b["mine"])
+
+    # Query-String, der die Plan-Position (Zeitstrahl vs. Monat) beim Tag-Klick hält.
+    if view_mode == "timeline":
+        plan_qs = f"from={anchor:%Y-%m-%d}&weeks={weeks}"
+    else:
+        plan_qs = f"year={cal['year']}&month={cal['month']}&view=grid"
+
     sel_day = _parse_date(request.GET.get("day"))
-    detail = svc.day_detail(member, sel_day) if sel_day else None
+    detail = svc.day_detail(member, sel_day, management=is_mgmt) if sel_day else None
     open_period = BookingPeriod.objects.filter(
         status=BookingPeriod.WISHES_OPEN).first()
     return render(request, "booking/overview.html", {
@@ -168,6 +190,9 @@ def overview(request):
         "legend": legend,
         "sel_day": sel_day,
         "detail": detail,
+        "is_mgmt": is_mgmt,
+        "plan_qs": plan_qs,
+        "weeks": weeks,
         "nav_qs": "&view=grid" if view_mode == "grid" else "",
         "show_today": True,
         "agenda": svc.week_agenda(member, today, 7),
