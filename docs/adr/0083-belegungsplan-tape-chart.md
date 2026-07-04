@@ -81,8 +81,12 @@ Balken. Ein Plan für **beide Rollen**; die Verwaltung bekommt Zusatzinfos
    scrollt in seinem eigenen Container (`.tape { overflow-x:auto }`) – die Seite
    scrollt nie seitlich. **Kein** Web/Handy-Split, **kein** Umschalter.
 
-7. **Ziel-Auslastung (Fundament):** neues optionales Feld `Quarter.target_occupancy`
-   (%) für die spätere statische Dashboard-Ampel (🔴/🟡/🟢).
+7. **Ziel-Auslastung + Ampel (#63/#64):** optionales Feld `Quarter.target_occupancy`
+   (%). Das Dashboard zeigt (aufklappbar) **Auslastung je Unterkunft** im Monat
+   (gebuchte/mögliche Nächte) mit **statischer Ampel** gegen das Ziel
+   (`services.quarter_occupancy_ampel`: 🟢 ab Ziel · 🟡 bis 20 %-Punkte darunter ·
+   🔴 darunter; ohne Ziel keine Ampel). Bewusst **statisch** (kein Live-Hover, ADR
+   0084-Gegenrede zu #64): eine Query je Quelle über den Monat.
 
 ## Effizienz / Sicherheit
 

@@ -601,6 +601,19 @@ class BuchungsFlowTests(UseCaseBase):
         else:
             self.assertEqual(r.status_code, 503)
 
+    def test_zielauslastung_ampel_je_quartier(self):
+        """#63/#64: Auslastung je Unterkunft + statische Ziel-Ampel."""
+        self.k1.target_occupancy = 50; self.k1.sort_order = 1; self.k1.save()
+        self.k2.target_occupancy = 50; self.k2.sort_order = 2; self.k2.save()
+        # k1 gut ausgelastet (16 Nächte im Juni ≈ 53 %), k2 leer, k3 ohne Ziel
+        svc.book_spontaneous(self.alice, self.k1,
+                             date(NEXT_YEAR, 6, 1), date(NEXT_YEAR, 6, 17))
+        rows = {r["quarter"].id: r for r in svc.quarter_occupancy_ampel(NEXT_YEAR, 6)}
+        self.assertEqual(rows[self.k1.id]["booked"], 16)
+        self.assertEqual(rows[self.k1.id]["level"], "good")     # >= Ziel
+        self.assertEqual(rows[self.k2.id]["level"], "bad")      # 0 % << Ziel
+        self.assertIsNone(rows[self.k3.id]["level"])            # kein Ziel → keine Ampel
+
     def test_ampel_kalender_zeigt_belegung(self):
         quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
         d = date(NEXT_YEAR, 6, 15)

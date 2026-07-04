@@ -72,7 +72,7 @@ __all__ = [
     'POOL_ELIGIBLE_REMAINING', 'POOL_WITHDRAW_CAP_PER_YEAR',
     'pool_balance', 'pool_status', 'pool_donate', 'pool_withdraw',
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
-    '_month_occupancy', 'dashboard_stats', 'arrivals_in_range',
+    '_month_occupancy', 'dashboard_stats', 'quarter_occupancy_ampel', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',

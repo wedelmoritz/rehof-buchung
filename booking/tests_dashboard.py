@@ -239,7 +239,11 @@ class InvoiceDashboardTests(TestCase):
         self.client.force_login(self.staff.user)
         with CaptureQueriesContext(connection) as ctx:
             self.client.get(reverse("dashboard") + "?inv=all")
-        self.assertLess(len(ctx.captured_queries), 40,
+        # Budget großzügig: der Wächter zielt auf das NICHT-Skalieren mit der Zahl
+        # der Rechnungen (kein per-Rechnung-Query). Die Auslastungs-Ampel je Quartier
+        # (#63) fügt eine KONSTANTE Zahl Queries hinzu (Quartiere/Belegung des Monats,
+        # unabhängig von der Rechnungszahl).
+        self.assertLess(len(ctx.captured_queries), 45,
                         f"zu viele Queries: {len(ctx.captured_queries)}")
 
 

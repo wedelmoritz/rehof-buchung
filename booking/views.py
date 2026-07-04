@@ -1287,6 +1287,8 @@ def dashboard(request):
         "recent_imports": recent_imports, "unmatched_count": unmatched_count,
         "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
         "stats": svc.dashboard_stats(),
+        # Auslastung je Unterkunft + Ziel-Ampel für den gewählten Monat (#63/#64).
+        "quarter_occupancy": svc.quarter_occupancy_ampel(year, month),
         # USt-Modus der Rechnungen nur ZUR ANZEIGE (Transparenz für die BL, die kein
         # Backend hat, #27). Geändert wird der Schalter bewusst nur im Admin
         # (rechtlich sensibel, Go-Live-Setup) – Deep-Link nur für Admins.

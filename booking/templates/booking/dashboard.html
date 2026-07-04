@@ -11,6 +11,8 @@
       Verlosung (erfüllte / nicht erfüllte Wünsche).</li>
     <li><strong>Kennzahlen</strong> des gewählten Monats (Anreisen, Endreinigungen,
       offene/überfällige Rechnungen, online bezahlte).</li>
+    <li><strong>Auslastung je Unterkunft</strong> (aufklappbar): gebuchte vs. mögliche
+      Nächte im Monat mit <strong>Ziel-Ampel</strong> (Ziel je Quartier im Backend).</li>
     <li><strong>Reinigungsliste</strong>: alle Abreisen des Monats (= Reinigungstage),
       Filter „nur mit Endreinigung“, Export (Excel/CSV) und <strong>Versand ans
       Reinigungsteam</strong> per Knopf.</li>
@@ -157,6 +159,32 @@ Verklicker korrigieren. Danach ist die Entscheidung fest.{% endcomment %}
     </div>
   </div>
 </div>
+
+{% comment %}Auslastung je Unterkunft + statische Ziel-Ampel (#63/#64). Eingeklappt,
+weil es eine Detail-Tabelle ist; die Zielwerte pflegt die Verwaltung/Admin je Quartier
+im Backend (Feld „Ziel-Auslastung").{% endcomment %}
+{% if quarter_occupancy %}
+<details class="card">
+  <summary><strong>Auslastung je Unterkunft</strong> <span class="muted">· {{ month_label }}</span></summary>
+  <p class="muted" style="margin:.4rem 0 .6rem">Gebuchte Nächte im Monat gegen die
+    möglichen. Wo eine <strong>Ziel-Auslastung</strong> hinterlegt ist (Quartier im
+    Backend), zeigt eine Ampel 🟢 ab Ziel · 🟡 bis 20&nbsp;%-Punkte darunter · 🔴 darunter.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Unterkunft</th><th>Gebucht</th><th>Auslastung</th><th>Ziel</th><th>Ampel</th></tr></thead>
+    <tbody>
+      {% for r in quarter_occupancy %}
+      <tr>
+        <td>{{ r.quarter.name }}</td>
+        <td>{{ r.booked }} / {{ r.days }} Nächte</td>
+        <td><div class="occbar"><span style="width:{{ r.pct }}%"></span></div> {{ r.pct }}&nbsp;%</td>
+        <td>{% if r.target %}{{ r.target }}&nbsp;%{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if r.level == 'good' %}<span class="amp good" title="Ziel erreicht">🟢</span>{% elif r.level == 'warn' %}<span class="amp warn" title="knapp unter Ziel">🟡</span>{% elif r.level == 'bad' %}<span class="amp bad" title="deutlich unter Ziel">🔴</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</details>
+{% endif %}
 
 {# --- Monatsauswahl -------------------------------------------------------- #}
 <div class="card monthbar">
@@ -473,5 +501,10 @@ auch nach Monat-/Filter-Reload und ist CSP-konform.{% endcomment %}
   .chip.on.danger { background:rgba(179,38,30,.12); color:#b3261e; border-color:#b3261e; }
   .actions { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
   .actions form.inline { display:inline; }
+  /* Mini-Auslastungsbalken je Unterkunft (#63) */
+  .occbar { display:inline-block; width:64px; height:8px; border-radius:999px;
+    background:var(--line); overflow:hidden; vertical-align:middle; margin-right:.35rem; }
+  .occbar span { display:block; height:100%; background:var(--sage-deep); border-radius:999px; }
+  .amp { font-size:1rem; }
 </style>
 {% endblock %}

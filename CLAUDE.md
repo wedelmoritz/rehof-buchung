@@ -656,6 +656,10 @@ Bereichsleiste (nicht mehr als loser Knopf oben rechts, #58). Inhalte – Kennza
 **Benutzerkonten**, **Auslastung** der Unterkünfte [gebuchte vs. mögliche
 Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis der
 **letzten bestätigten Verlosung** = erfüllte vs. nicht erfüllte Wünsche),
+**Auslastung je Unterkunft** (aufklappbar, `services.quarter_occupancy_ampel`:
+gebuchte/mögliche Nächte im Monat + **statische Ziel-Ampel** gegen
+`Quarter.target_occupancy` – 🟢 ab Ziel · 🟡 bis 20 %-Punkte darunter · 🔴 darunter;
+#63/#64),
 **Anfragen zur Freigabe** (beim Buchen angefragte, bestätigungspflichtige Leistungen
 wie die **Endreinigung**, `services.pending_service_requests`; **Bestätigen** →
 Abrechnung + Reinigungsliste, **Ablehnen** → Mitglied benachrichtigt; #28/ADR 0081),
