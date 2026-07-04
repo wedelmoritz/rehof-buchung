@@ -115,6 +115,57 @@
   {% endif %}
 </div>
 
+{# --- Sperrzeiten (Reinigung/Reparatur) je Quartier (#61) --- #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Sperrzeiten (Reinigung/Reparatur)</h2>
+    <span class="spacer"></span>
+    <span class="tag">{{ blocks|length }} aktuell/künftig</span>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Ein Sperrzeitraum macht ein Quartier
+    <strong>nicht buchbar</strong> (z. B. Renovierung, Grundreinigung, Wasserschaden) und
+    erscheint im Belegungsplan. „Bis" ist der <strong>erste wieder freie Tag</strong>.</p>
+  <form method="post" class="import-form" style="align-items:flex-end">{% csrf_token %}
+    <input type="hidden" name="action" value="add_block">
+    <label>Quartier
+      <select name="quarter" required>
+        <option value="">– wählen –</option>
+        {% for q in quarters %}<option value="{{ q.id }}">{{ q.name }}</option>{% endfor %}
+      </select></label>
+    <label>Von
+      <input type="date" name="start" required></label>
+    <label>Bis (frei ab)
+      <input type="date" name="end" required></label>
+    <label style="flex:1 1 12rem">Grund (optional)
+      <input type="text" name="reason" maxlength="200" placeholder="z. B. Renovierung"
+             style="padding:.4rem .55rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); width:100%"></label>
+    <button class="btn small" type="submit">Sperren</button>
+  </form>
+  {% if blocks %}
+  <div class="table-wrap" style="margin-top:.7rem">
+    <table class="grid">
+      <thead><tr><th>Quartier</th><th>Von</th><th>Bis (frei ab)</th><th>Nächte</th><th>Grund</th><th></th></tr></thead>
+      <tbody>
+        {% for b in blocks %}
+        <tr>
+          <td>{{ b.quarter.name }}</td>
+          <td>{{ b.start|date:"D d.m.Y" }}</td>
+          <td>{{ b.end|date:"D d.m.Y" }}</td>
+          <td>{{ b.nights }}</td>
+          <td>{{ b.reason|default:"—" }}</td>
+          <td><form method="post" class="inline" data-confirm="Sperrzeit für {{ b.quarter.name }} ({{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}) aufheben?">{% csrf_token %}
+            <input type="hidden" name="action" value="delete_block">
+            <input type="hidden" name="block_id" value="{{ b.id }}">
+            <button class="btn small ghost danger" type="submit">aufheben</button>
+          </form></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted" style="margin-top:.5rem">Derzeit keine Sperrzeiten.</p>{% endif %}
+</div>
+
 <style>
   .er-list { list-style:none; margin:0; padding:0; }
   .er-item { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem 1rem;

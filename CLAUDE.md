@@ -111,6 +111,10 @@ erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thank
 „Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5), `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `CancellationLog` (schlanker **Storno-Nachweis** je gelöschter Buchung –
 Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 0082),
+`QuarterBlock` (**Sperrzeit** je Quartier für Reinigung/Reparatur – blockiert die
+Buchbarkeit wie eine Belegung [in `quarter_is_free`/`find_gaps`/Belegungs-Tage],
+Pflege im Dashboard „Reinigung" + Backend, Anzeige als schraffierter Balken im
+Belegungsplan; #61/ADR 0086),
 `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,

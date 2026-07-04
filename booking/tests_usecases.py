@@ -2346,3 +2346,50 @@ class BelegungsCacheTests(UseCaseBase):
             self.assertEqual(
                 sum(len(v) for v in slots._occupied_days_by_quarter(first, last).values()), 3)
         cache.clear()
+
+
+class SperrzeitenTests(UseCaseBase):
+    """Sperrzeiten (Reinigung/Reparatur) blockieren die Buchbarkeit wie eine
+    Belegung und lassen sich von der Verwaltung pflegen (#61/ADR 0086)."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+        self.s = date(NEXT_YEAR, 7, 10)
+        self.e = date(NEXT_YEAR, 7, 14)
+
+    def test_block_sperrt_verfuegbarkeit_und_buchung(self):
+        from booking.models import QuarterBlock
+        # Ohne Sperre buchbar
+        self.assertTrue(svc.quarter_is_free(self.k1, self.s, self.e))
+        QuarterBlock.objects.create(quarter=self.k1, start=self.s, end=self.e,
+                                    reason="Renovierung")
+        # Jetzt gesperrt: quarter_is_free False, Buchung abgelehnt, nicht in freien.
+        self.assertFalse(svc.quarter_is_free(self.k1, self.s, self.e))
+        a, err = svc.book_spontaneous(self.alice, self.k1, self.s, self.e)
+        self.assertIsNone(a)
+        self.assertIsNotNone(err)
+        free = svc.free_quarters_for(self.s, self.e, persons=2)
+        self.assertNotIn(self.k1, free)
+        # Überlappender Rand blockiert ebenfalls; klar getrennter Zeitraum ist frei.
+        self.assertFalse(svc.quarter_is_free(self.k1, self.s - timedelta(days=1), self.s + timedelta(days=1)))
+        self.assertTrue(svc.quarter_is_free(self.k1, self.e, self.e + timedelta(days=3)))
+
+    def test_verwaltung_kann_sperrzeit_anlegen_und_aufheben(self):
+        from booking.models import QuarterBlock
+        staff = make_member("chefin")
+        from booking.permissions import ensure_verwaltung_group
+        staff.user.groups.add(ensure_verwaltung_group())
+        self.client.force_login(staff.user)
+        self.client.post(reverse("verw_reinigung"), {
+            "action": "add_block", "quarter": self.k1.id,
+            "start": self.s.isoformat(), "end": self.e.isoformat(),
+            "reason": "Wasserschaden"})
+        blk = QuarterBlock.objects.get(quarter=self.k1)
+        self.assertEqual(blk.reason, "Wasserschaden")
+        self.assertFalse(svc.quarter_is_free(self.k1, self.s, self.e))
+        # Aufheben gibt wieder frei.
+        self.client.post(reverse("verw_reinigung"), {
+            "action": "delete_block", "block_id": blk.id})
+        self.assertFalse(QuarterBlock.objects.filter(id=blk.id).exists())
+        self.assertTrue(svc.quarter_is_free(self.k1, self.s, self.e))

@@ -1210,6 +1210,31 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
         # Von der Dashboard-Schnellfreigabe zurück aufs Dashboard, sonst zur Reinigung.
         nxt = request.POST.get("next", "")
         target = nxt if nxt in ("dashboard", "verw_reinigung") else "verw_reinigung"
+    elif action == "add_block":
+        from .models import Quarter, QuarterBlock
+        q = Quarter.objects.filter(id=request.POST.get("quarter")).first()
+        s = _parse_date(request.POST.get("start"))
+        e = _parse_date(request.POST.get("end"))
+        if not q or not s or not e:
+            messages.error(request, "Bitte Quartier, Von- und Bis-Datum angeben.")
+        elif e <= s:
+            messages.error(request, "Das Bis-Datum muss nach dem Von-Datum liegen.")
+        else:
+            from . import validation as V
+            QuarterBlock.objects.create(
+                quarter=q, start=s, end=e,
+                reason=V.strip_controls(request.POST.get("reason", ""), max_len=200))
+            messages.success(request, f"{q.name} vom {s:%d.%m.%Y} bis {e:%d.%m.%Y} "
+                             "gesperrt (nicht mehr buchbar).")
+        target = "verw_reinigung"
+    elif action == "delete_block":
+        from .models import QuarterBlock
+        b = QuarterBlock.objects.filter(id=request.POST.get("block_id")).first()
+        if b:
+            name = b.quarter.name
+            b.delete()
+            messages.success(request, f"Sperrzeit für {name} aufgehoben.")
+        target = "verw_reinigung"
     elif action == "import_bank":
         from shop import reconcile
         f = request.FILES.get("statement")
@@ -1293,7 +1318,7 @@ def verw_reinigung(request):
     if not _staff_required(request):
         return redirect("overview")
     from shop import services as shop_svc
-    from .models import BookingPolicy
+    from .models import BookingPolicy, Quarter, QuarterBlock
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
         return _verw_post(request, year, month, m_from, m_to, only_cleaning)
@@ -1308,6 +1333,10 @@ def verw_reinigung(request):
             {"sr": sr, "lock": shop_svc.service_request_lock_date(sr)}
             for sr in shop_svc.revisable_service_requests()],
         "er_lock_days": BookingPolicy.get_solo().er_decision_lock_days,
+        # Sperrzeiten (Reinigung/Reparatur, #61): aktuelle + künftige verwalten.
+        "quarters": list(Quarter.objects.filter(active=True).order_by("sort_order", "name")),
+        "blocks": list(QuarterBlock.objects.filter(end__gte=today)
+                       .select_related("quarter").order_by("start", "quarter__sort_order")),
     })
     return render(request, "booking/verw_reinigung.html", ctx)
 

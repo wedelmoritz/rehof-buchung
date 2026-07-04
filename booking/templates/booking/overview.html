@@ -114,10 +114,10 @@
                    style="grid-column:{{ d.idx|add:d.idx|add:1 }} / span 2;grid-row:1"></div>
               {% endfor %}
               {% for b in row.bars %}
-              <a class="bar {% if b.mine %}mine{% endif %}{% if b.external %} ext{% endif %}{% if b.open_left %} ol{% endif %}{% if b.open_right %} or{% endif %}" data-ajax
+              <a class="bar {% if b.blocked %}blocked{% endif %}{% if b.mine %}mine{% endif %}{% if b.external %} ext{% endif %}{% if b.open_left %} ol{% endif %}{% if b.open_right %} or{% endif %}" data-ajax
                  style="grid-column:{{ b.col_start }} / {{ b.col_end }};grid-row:1;background:{{ b.color }}"
                  href="?{{ plan_qs }}&day={{ b.start|date:'Y-m-d' }}#tag"
-                 title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if not b.external %} · {{ b.persons }} Pers.{% endif %}{% if b.has_cleaning %} · Endreinigung{% endif %}">
+                 title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if b.blocked %} · gesperrt{% elif not b.external %} · {{ b.persons }} Pers.{% endif %}{% if b.has_cleaning %} · Endreinigung{% endif %}">
                 <span class="bw">{{ b.who }}</span>{% if b.persons %}<span class="bp">{{ b.persons }}</span>{% endif %}{% if b.has_cleaning %}<span class="ber" aria-label="Endreinigung">🧹</span>{% endif %}
               </a>
               {% endfor %}
@@ -362,6 +362,10 @@
   .bar .ber { margin-left:auto; font-size:.68rem; }
   .bar.mine { box-shadow:inset 0 0 0 2px var(--accent-deep); font-weight:600; }
   .bar.ext { color:#4c5854; }
+  /* Sperrzeit (Reinigung/Reparatur, #61): dezent schraffiert-grau, klar „kein Gast". */
+  .bar.blocked { color:#4a443d; font-weight:600;
+    background:repeating-linear-gradient(45deg,#e7e2da,#e7e2da 6px,#d9d3c9 6px,#d9d3c9 12px) !important;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.12); }
   .bar.ol { border-top-left-radius:0; border-bottom-left-radius:0; }
   .bar.or { border-top-right-radius:0; border-bottom-right-radius:0; }
   .bar:hover { filter:brightness(1.04); }

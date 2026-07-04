@@ -9,7 +9,8 @@ from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from .models import Allocation, ExternalBooking, Member, Notification
+from .models import (
+    Allocation, ExternalBooking, Member, Notification, QuarterBlock)
 
 # --- Anmelde-Audit (ADR 0061, P3.11) ---------------------------------------
 # Erfolgreiche/fehlgeschlagene An-/Abmeldungen strukturiert ins Log (stdout →
@@ -49,6 +50,8 @@ def _audit_login_failed(sender, credentials, request=None, **kwargs):
 @receiver(post_delete, sender=Allocation)
 @receiver(post_save, sender=ExternalBooking)
 @receiver(post_delete, sender=ExternalBooking)
+@receiver(post_save, sender=QuarterBlock)
+@receiver(post_delete, sender=QuarterBlock)
 def _invalidate_occupancy_cache(sender, **kwargs):
     """Jede Buchungsänderung (anlegen/ändern/löschen, intern wie extern)
     invalidiert den geteilten Belegungs-Cache – garantiert über das Signal, egal

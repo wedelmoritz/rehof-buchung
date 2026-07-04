@@ -720,6 +720,39 @@ class CancellationLog(models.Model):
         return f"{self.quarter_name} {self.start}–{self.end} (storniert)"
 
 
+class QuarterBlock(models.Model):
+    """Sperrzeitraum je Quartier für **Reinigung/Reparatur** (#61/ADR 0086). Ein
+    Block macht das Quartier im Zeitraum [start, end) **nicht buchbar** (wie eine
+    Belegung – geprüft in `quarter_is_free`/`find_gaps`/Belegungs-Tage) und wird im
+    Belegungsplan angezeigt. Bewusst schlank: kein Mitglied, keine Rechnung."""
+    quarter = models.ForeignKey(
+        "Quarter", on_delete=models.CASCADE, related_name="blocks",
+        verbose_name="Quartier")
+    start = models.DateField("Von (Anreisesperre ab)")
+    end = models.DateField("Bis (exklusiv – erster wieder freier Tag)")
+    reason = models.CharField("Grund", max_length=200, blank=True,
+                              help_text="z. B. Renovierung, Wasserschaden, Grundreinigung.")
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Sperrzeit (Reinigung/Reparatur)"
+        verbose_name_plural = "Sperrzeiten (Reinigung/Reparatur)"
+        ordering = ["start", "quarter__sort_order"]
+        indexes = [models.Index(fields=["quarter", "start", "end"])]
+
+    @property
+    def nights(self) -> int:
+        return (self.end - self.start).days
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.start and self.end and self.end <= self.start:
+            raise ValidationError({"end": "Das Bis-Datum muss nach dem Von-Datum liegen."})
+
+    def __str__(self) -> str:
+        return f"{self.quarter} gesperrt {self.start}–{self.end}"
+
+
 class NightTransfer(models.Model):
     """Übertragung von Tagen an ein anderes Mitglied innerhalb eines Jahres.
     (Ein Übertrag ins Folgejahr ist bewusst NICHT vorgesehen.)"""

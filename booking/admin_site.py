@@ -29,7 +29,8 @@ SECTIONS: list[tuple[str, list[str]]] = [
         "booking.Membership", "booking.NightTransfer", "booking.DayPoolEntry",
     ]),
     ("Quartiere & Buchungssystem", [
-        "booking.Quarter", "booking.EquivalenceClass", "booking.BookingPolicy",
+        "booking.Quarter", "booking.QuarterBlock", "booking.EquivalenceClass",
+        "booking.BookingPolicy",
         "booking.Allocation", "booking.UpcomingAllocation",
         "booking.WaitlistEntry", "booking.SwapRequest",
         # Externe Gäste buchen ebenfalls Quartiere (inkl. ihrer Rechnungen):
