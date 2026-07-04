@@ -204,6 +204,24 @@ class InvoiceDashboardTests(TestCase):
         self.assertIn(self.confirmed_inv.number, alle)
         self.assertIn(self.overdue_inv.number, alle)
 
+    def test_externe_gaesterechnung_und_pdf_link(self):
+        """#56/#57: Externe Gäste-Rechnungen sind in der Verwaltung sicht- und
+        über den Extern-Filter gezielt auffindbar; je Rechnung gibt es einen
+        PDF-Link (für die Verwaltung auf ALLE Rechnungen)."""
+        from booking.models import Guest
+        guest = Guest.objects.create(name="Familie Berger", email="berger@example.org")
+        ginv = shop_svc.create_invoice_for_guest(guest, [
+            {"name": "Übernachtung", "quantity": Decimal("3"), "unit": "Nacht",
+             "unit_price": Decimal("80.00"), "vat_rate": 7}])
+        self.client.force_login(self.staff.user)
+        ext = self.client.get(reverse("verw_rechnungen") + "?inv=extern").content.decode()
+        self.assertIn("Familie Berger", ext)
+        self.assertIn(ginv.number, ext)
+        # Mitglieder-Rechnung taucht im Extern-Filter NICHT auf.
+        self.assertNotIn(self.overdue_inv.number, ext)
+        # PDF-Link je Rechnung (auf die Gäste-Rechnung).
+        self.assertIn(reverse("shop_invoice_pdf", args=[ginv.id]), ext)
+
     def test_ueberfaellige_per_knopf_erinnern(self):
         OutboxEmail.objects.all().delete()
         self.client.force_login(self.staff.user)

@@ -1323,6 +1323,10 @@ def verw_rechnungen(request):
     online_qs = (Invoice.objects.exclude(payment_method="")
                  .select_related("member", "guest").prefetch_related("items"))
     online_total_count = online_qs.count()
+    # Externe Gäste-Rechnungen sind bereits in open_invoices()/Invoice.objects
+    # enthalten (recipient_label unterscheidet); ein eigener Filter macht sie
+    # gezielt auffindbar (#56).
+    guest_count = Invoice.objects.filter(guest__isnull=False).count()
     inv_filter = request.GET.get("inv", "open")
     if inv_filter == "overdue":
         invoices_view = sorted(overdue, key=lambda i: (i.due_date or today, i.number))
@@ -1332,6 +1336,11 @@ def verw_rechnungen(request):
                              .prefetch_related("items").order_by("-paid_reported_at"))
     elif inv_filter == "online":
         invoices_view = list(online_qs.order_by("-paid_online_at"))
+    elif inv_filter == "extern":
+        invoices_view = list(Invoice.objects.filter(guest__isnull=False)
+                             .select_related("member", "guest")
+                             .prefetch_related("items")
+                             .order_by("-year", "-month", "number"))
     elif inv_filter == "all":
         invoices_view = list(Invoice.objects.select_related("member", "guest")
                              .prefetch_related("items")
@@ -1343,7 +1352,7 @@ def verw_rechnungen(request):
         "open_invoices": open_inv, "overdue": overdue,
         "invoices_view": invoices_view, "inv_filter": inv_filter,
         "inv_view_sum": sum((i.total_gross for i in invoices_view), Decimal(0)),
-        "online_total_count": online_total_count,
+        "online_total_count": online_total_count, "guest_count": guest_count,
         "shop_small_business": ShopConfig.get_solo().small_business,
     })
     return render(request, "booking/verw_rechnungen.html", ctx)

@@ -25,8 +25,12 @@
     <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
     <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=paid">Bezahlt gemeldet</a>
     <a class="chip {% if inv_filter == 'online' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=online">Online bezahlt ({{ online_total_count }})</a>
+    <a class="chip {% if inv_filter == 'extern' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=extern">Externe Gäste ({{ guest_count }})</a>
     <a class="chip {% if inv_filter == 'all' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=all">Alle</a>
   </div>
+  {% if inv_filter == 'extern' %}<p class="muted" style="margin:.2rem 0 .6rem">Rechnungen
+    <strong>externer Gäste</strong> (ohne Login, über den Magic-Link gebucht). Reinigungs-/
+    Endreinigungskosten von Mitgliedern stehen auf deren Hofladen-Rechnung.</p>{% endif %}
   {% if inv_filter == 'online' %}<p class="muted" style="margin:.2rem 0 .6rem">Per
     Zahldienst (Mollie) beglichene Rechnungen – Eingang ist bereits bestätigt,
     kein Kontoabgleich nötig.</p>{% endif %}
@@ -37,11 +41,12 @@
   {% if invoices_view %}
   <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>Nummer</th><th>Empfänger</th><th>Fällig</th><th>Brutto</th><th>Status</th><th>Erinnert</th></tr></thead>
+      <thead><tr><th>Nummer</th><th>Typ</th><th>Empfänger</th><th>Fällig</th><th>Brutto</th><th>Status</th><th>Erinnert</th><th>PDF</th></tr></thead>
       <tbody>
         {% for i in invoices_view %}
         <tr class="{% if i.is_overdue %}danger-row{% endif %}">
           <td>{% if is_admin %}<a href="/admin/shop/invoice/{{ i.id }}/change/">{{ i.number }}</a>{% else %}{{ i.number }}{% endif %}</td>
+          <td>{% if i.guest_id %}<span class="tag">extern</span>{% else %}<span class="tag ok">Mitglied</span>{% endif %}</td>
           <td>{{ i.recipient_label }}</td>
           <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
           <td>{{ i.total_gross }} €</td>
@@ -56,6 +61,7 @@
               <button class="btn small ghost" type="submit">erinnern</button>
             </form>
             {% endif %}</td>
+          <td><a class="btn small ghost" href="{% url 'shop_invoice_pdf' i.id %}" target="_blank" rel="noopener" title="Rechnung {{ i.number }} als PDF ansehen">PDF</a></td>
         </tr>
         {% endfor %}
       </tbody>
