@@ -682,7 +682,9 @@
         if (!form.hasAttribute("data-ajax") || !main.contains(form)) return;
         e.preventDefault();
         var q = new URLSearchParams(new FormData(form)).toString();
-        var base = (form.getAttribute("action") || window.location.pathname);
+        // Basis OHNE bestehende Query (sonst wird aus action="?" ein doppeltes
+        // „??" und der Server sieht die Felder nicht – z.B. Belegungsplan-Datum).
+        var base = (form.getAttribute("action") || window.location.pathname).split("?")[0];
         __nav(base + (q ? "?" + q : ""));
         return;
       }

@@ -63,7 +63,7 @@
     </div>
     {% if view_mode == 'timeline' %}
     <div class="plan-ctl">
-      <form method="get" action="?" data-ajax class="plan-from">
+      <form method="get" data-ajax class="plan-from">
         <label for="plan_from">Ab</label>
         <input type="date" id="plan_from" name="from" value="{{ timeline.anchor|date:'Y-m-d' }}" data-autosubmit>
         <input type="hidden" name="weeks" value="{{ weeks }}">
