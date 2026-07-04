@@ -90,6 +90,7 @@ config/                 # settings.py, urls.py, wsgi.py, asgi.py
 tests/                  # reine pytest-Suite (ohne Django/DB)
   test_lottery.py  test_availability.py  test_rules.py
   test_fairness.py  test_beds24.py  test_validation.py
+  test_templates.py  # wacht über geleakte mehrzeilige {# #}-Kommentare (s. Konventionen)
 ```
 
 Modelle in `models.py`: `EquivalenceClass`, `Quarter` (+ `QuarterPrice` =
@@ -430,7 +431,13 @@ Rechnungen, Profil, Hilfe, Verwaltung, Backend). Zwei Staff-Nav-Punkte,
 rollenabhängig (s. „Rollen Admin/Verwaltung“): **Verwaltung** (`/verwaltung/`,
 Dashboard – für Gruppe „Verwaltung“ **und** Admin) und **Backend** (`/admin/`,
 Django-Admin/Stammdaten – **nur Admin/Superuser**). Die Navigation erscheint für
-Mitglieder UND für Verwaltungs-/Admin-Konten (auch ohne Mitglieds-Profil). Das Layout ist responsiv
+Mitglieder UND für Verwaltungs-/Admin-Konten (auch ohne Mitglieds-Profil).
+**Rollen-rein (ADR 0084):** die mitglieds-eigenen Punkte (Buchen, Wunschliste, Meine
+Buchungen, Tage übertragen, Hofladen, Meine Rechnungen, Profil) erscheinen nur mit
+Buchungs-Profil (`{% if user.member %}`) – ein reines Verwaltungs-Konto sieht sonst
+tote Links (#48); es bekommt Übersicht · Gemeinschaft · Hilfe · Verwaltung (am Handy
+tritt „Verwaltung“ als Haupt-Tab an die Stelle der Mitglieds-Tabs). Das Verwaltungs-
+Icon ist ein Klemmbrett mit Haken (nicht mehr die Sonne, #43). Das Layout ist responsiv
 (Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
 **Kein seitliches Seiten-Scrollen am Handy:** `html`/`body` haben `overflow-x:clip`
@@ -627,7 +634,14 @@ HSTS-Default 30 Tage, WeasyPrint ohne Remote-Fetch, **verschlüsseltes Backup-Sk
 
 **Verwaltungs-Dashboard (`dashboard`, Rolle Verwaltung **oder** Admin,
 `/verwaltung/`):** operative
-Seite fürs kleine Team – Kennzahlen (inkl. KPI **„online bezahlt (Monat)“**),
+Seite fürs kleine Team. **Aufbau als Cockpit (ADR 0084):** Immer sichtbar oben –
+Freigabe-Anfragen, Kennzahlen, Statistik, Monatswahl; die vier langen operativen
+Abschnitte (**Reinigung · Buchungen · Rechnungen · Kontoabgleich**) sind **Tabs**
+(nur einer sichtbar, #59), **server-getrieben** über `?tab=`+`data-ajax` (kein
+Client-JS/State, CSP-konform; aktiver Tab bleibt über Monat-/Filter-Reload und
+POST-Aktionen erhalten). „Hofladen-Katalog pflegen"/„Beds24-Import" liegen in der
+Bereichsleiste (nicht mehr als loser Knopf oben rechts, #58). Inhalte – Kennzahlen
+(inkl. KPI **„online bezahlt (Monat)“**),
 **Statistik** (`services.dashboard_stats`: Anzahl **Mitglieder** und
 **Benutzerkonten**, **Auslastung** der Unterkünfte [gebuchte vs. mögliche
 Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis der
@@ -794,7 +808,7 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 80 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 82 passed
 PYTHONPATH=. python -m pytest tests/ -q
 
 # 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 328 passed (4 skips)

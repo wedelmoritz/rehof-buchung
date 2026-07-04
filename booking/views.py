@@ -1213,8 +1213,13 @@ def dashboard(request):
                         f"verbucht.")
                 except Exception as exc:  # noqa: BLE001 – Nutzerfehler freundlich melden
                     messages.error(request, f"Import nicht möglich: {exc}")
+        # Aktiven Abschnitt beibehalten, damit man nach einer Aktion (erinnern,
+        # senden, importieren) nicht auf den Standard-Tab zurückgeworfen wird (#59).
+        post_tab = request.POST.get("tab", "")
+        tab_qs = f"&tab={post_tab}" if post_tab in (
+            "reinigung", "buchungen", "rechnungen", "konto") else ""
         return redirect(f"{reverse('dashboard')}?year={year}&month={month}"
-                        + ("&only_cleaning=1" if only_cleaning else ""))
+                        + ("&only_cleaning=1" if only_cleaning else "") + tab_qs)
 
     arrivals = list(svc.arrivals_in_range(m_from, m_to))
     departures = list(svc.departures_in_range(m_from, m_to))
@@ -1259,9 +1264,15 @@ def dashboard(request):
     unmatched_count = BankTransaction.objects.filter(
         matched_invoice__isnull=True, amount__gt=0).count()
 
+    # Aktiver Abschnitts-Tab (#59) – server-getrieben, damit es nach Monat-/Filter-
+    # AJAX-Reload erhalten bleibt (kein Client-State/JS nötig).
+    active_tab = request.GET.get("tab") or request.POST.get("tab") or "reinigung"
+    if active_tab not in ("reinigung", "buchungen", "rechnungen", "konto"):
+        active_tab = "reinigung"
+
     months = [{"num": i, "name": svc.MONTHS_DE[i]} for i in range(1, 13)]
     return render(request, "booking/dashboard.html", {
-        "today": today, "year": year, "month": month,
+        "today": today, "year": year, "month": month, "active_tab": active_tab,
         "month_label": svc.month_label(year, month),
         "months": months, "years": list(range(today.year - 1, today.year + 3)),
         "arrivals": arrivals, "departures": departures,
