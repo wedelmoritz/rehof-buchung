@@ -1,0 +1,55 @@
+{% extends "booking/verw_base.html" %}
+{% block verw_title %}Auslastung · Verwaltung{% endblock %}
+{% block verw_h1 %}Auslastung &amp; Statistik{% endblock %}
+
+{% block verw_body %}
+{% include "booking/_verw_monthbar.html" %}
+
+<div class="card">
+  <h2 style="margin-top:0">Statistik</h2>
+  <div class="stat-grid">
+    <div class="stat-box">
+      <div class="stat-line"><span class="stat-num">{{ stats.n_members }}</span> Mitglieder</div>
+      <div class="stat-line"><span class="stat-num">{{ stats.n_users }}</span> Benutzerkonten</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-cap">Auslastung Unterkünfte</div>
+      <div class="stat-line"><span class="stat-num">{{ stats.occ_current.pct }} %</span>
+        {{ stats.occ_current.label }} <span class="muted">({{ stats.occ_current.booked }}/{{ stats.occ_current.possible }} Nächte)</span></div>
+      <div class="stat-line"><span class="stat-num">{{ stats.occ_next.pct }} %</span>
+        {{ stats.occ_next.label }} <span class="muted">({{ stats.occ_next.booked }}/{{ stats.occ_next.possible }} Nächte)</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-cap">Letzte Verlosung{% if stats.last_lottery %} · {{ stats.last_lottery.period }}{% endif %}</div>
+      {% if stats.last_lottery %}
+      <div class="stat-line"><span class="stat-num">{{ stats.last_lottery.fulfilled }}</span> Wünsche erfüllt</div>
+      <div class="stat-line"><span class="stat-num">{{ stats.last_lottery.unfulfilled }}</span> nicht erfüllt
+        <span class="muted">(von {{ stats.last_lottery.total }})</span></div>
+      {% else %}<div class="muted">Noch keine bestätigte Verlosung.</div>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if quarter_occupancy %}
+<div class="card">
+  <h2 style="margin-top:0">Auslastung je Unterkunft · {{ month_label }}</h2>
+  <p class="muted" style="margin:.2rem 0 .6rem">Gebuchte Nächte im Monat gegen die
+    möglichen. Wo eine <strong>Ziel-Auslastung</strong> hinterlegt ist (Quartier im
+    Backend), zeigt eine Ampel 🟢 ab Ziel · 🟡 bis 20&nbsp;%-Punkte darunter · 🔴 darunter.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Unterkunft</th><th>Gebucht</th><th>Auslastung</th><th>Ziel</th><th>Ampel</th></tr></thead>
+    <tbody>
+      {% for r in quarter_occupancy %}
+      <tr>
+        <td>{{ r.quarter.name }}</td>
+        <td>{{ r.booked }} / {{ r.days }} Nächte</td>
+        <td><div class="occbar"><span style="width:{{ r.pct }}%"></span></div> {{ r.pct }}&nbsp;%</td>
+        <td>{% if r.target %}{{ r.target }}&nbsp;%{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if r.level == 'good' %}<span class="amp" title="Ziel erreicht">🟢</span>{% elif r.level == 'warn' %}<span class="amp" title="knapp unter Ziel">🟡</span>{% elif r.level == 'bad' %}<span class="amp" title="deutlich unter Ziel">🔴</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}

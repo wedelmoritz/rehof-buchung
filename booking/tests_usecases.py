@@ -1386,7 +1386,8 @@ class EndreinigungFreigabeTests(UseCaseBase):
         admin = User.objects.create_superuser("chef", "chef@example.org", "pw12345678")
         self.client.force_login(admin)
         r = self.client.get(reverse("dashboard"))
-        self.assertContains(r, "Anfragen zur Freigabe")
+        # Handlungsbedarf-Dashboard (ADR 0085): Karte „Endreinigungs-Anfragen“.
+        self.assertContains(r, "Endreinigungs-Anfragen")
         self.assertContains(r, "Endreinigung")
         self.client.post(reverse("dashboard"),
                          {"action": "confirm_service", "request_id": sr.id})

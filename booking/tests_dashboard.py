@@ -195,11 +195,12 @@ class InvoiceDashboardTests(TestCase):
             self.assertIn("Familie Berger", r.content.decode("utf-8"))
 
     def test_rechnungsfilter(self):
+        # Rechnungslisten liegen jetzt auf der Unterseite verw_rechnungen (ADR 0085).
         self.client.force_login(self.staff.user)
-        over = self.client.get(reverse("dashboard") + "?inv=overdue").content.decode()
+        over = self.client.get(reverse("verw_rechnungen") + "?inv=overdue").content.decode()
         self.assertIn(self.overdue_inv.number, over)
         self.assertNotIn(self.confirmed_inv.number, over)
-        alle = self.client.get(reverse("dashboard") + "?inv=all").content.decode()
+        alle = self.client.get(reverse("verw_rechnungen") + "?inv=all").content.decode()
         self.assertIn(self.confirmed_inv.number, alle)
         self.assertIn(self.overdue_inv.number, alle)
 

@@ -438,7 +438,11 @@ Mitglieder UND für Verwaltungs-/Admin-Konten (auch ohne Mitglieds-Profil).
 Buchungen, Tage übertragen, Hofladen, Meine Rechnungen, Profil) erscheinen nur mit
 Buchungs-Profil (`{% if user.member %}`) – ein reines Verwaltungs-Konto sieht sonst
 tote Links (#48); es bekommt Übersicht · Gemeinschaft · Hilfe · Verwaltung (am Handy
-tritt „Verwaltung“ als Haupt-Tab an die Stelle der Mitglieds-Tabs). Das Verwaltungs-
+tritt „Verwaltung“ als Haupt-Tab an die Stelle der Mitglieds-Tabs). **Verwaltungs-
+Unterpunkte (ADR 0085):** unter „Verwaltung“ stehen eingerückte Unterpunkte
+(Buchungen · Reinigung · Rechnungen · Kontoabgleich · Auslastung · Hofladen-Katalog),
+die auf die echten Verwaltungs-Unterseiten führen (im eingeklappten Icon-Modus
+ausgeblendet, `.subnav`; am Handy im „Mehr“-Sheet). Das Verwaltungs-
 Icon ist ein Klemmbrett mit Haken (nicht mehr die Sonne, #43). Das Layout ist responsiv
 (Media-Query in `base.html`, Eingaben volle Breite, breite Datentabellen in
 `.table-wrap` → horizontal scrollbar statt überstehend, iOS-Safe-Area).
@@ -644,42 +648,60 @@ HSTS-Default 30 Tage, WeasyPrint ohne Remote-Fetch, **verschlüsseltes Backup-Sk
 
 **Verwaltungs-Dashboard (`dashboard`, Rolle Verwaltung **oder** Admin,
 `/verwaltung/`):** operative
-Seite fürs kleine Team. **Aufbau als Cockpit (ADR 0084):** Immer sichtbar oben –
-Freigabe-Anfragen, Kennzahlen, Statistik, Monatswahl; die vier langen operativen
-Abschnitte (**Reinigung · Buchungen · Rechnungen · Kontoabgleich**) sind **Tabs**
-(nur einer sichtbar, #59), **server-getrieben** über `?tab=`+`data-ajax` (kein
-Client-JS/State, CSP-konform; aktiver Tab bleibt über Monat-/Filter-Reload und
-POST-Aktionen erhalten). „Hofladen-Katalog pflegen"/„Beds24-Import" liegen in der
-Bereichsleiste (nicht mehr als loser Knopf oben rechts, #58). Inhalte – Kennzahlen
-(inkl. KPI **„online bezahlt (Monat)“**),
+Seite fürs kleine Team. **Aufbau als Handlungsbedarf-Cockpit mit echten Unterseiten
+(ADR 0085, ersetzt die Dashboard-Tabs aus ADR 0084):** `/verwaltung/` selbst ist die
+**„jetzt handeln"-Übersicht** – Kompakt-Kennzahlen (Monat, inkl. KPI **„online bezahlt"**)
++ drei Karten (offene **Endreinigungs-Anfragen** mit Inline-Bestätigen/Ablehnen,
+**überfällige Rechnungen**, **neue & geänderte Buchungen** der letzten 7 Tage via
+`services.recent_booking_activity` = neue `Allocation` + `CancellationLog`). Jede Karte
+verlinkt auf ihre **Unterseite**. Die vollen Listen/Aktionen liegen auf **eigenen
+gerouteten Unterseiten mit eigenem Menü-Eintrag** (Seitenleiste + „Mehr"-Sheet, für
+`is_verwaltung`, als eingerückte Unterpunkte unter „Verwaltung"):
+`verw_buchungen` (`/verwaltung/buchungen/`, anstehende Buchungen),
+`verw_reinigung` (`/verwaltung/reinigung/`, **Reinigung inkl. Endreinigung** – s.u.),
+`verw_rechnungen` (`/verwaltung/rechnungen/`, Rechnungen + Erinnerungen),
+`verw_konto` (`/verwaltung/kontoabgleich/`, Kontoabgleich),
+`verw_auslastung` (`/verwaltung/auslastung/`, Statistik + Auslastungs-Ampel),
+`dashboard_products` (`/verwaltung/produkte/`, Hofladen-Katalog). Gemeinsame Bausteine:
+`verw_base.html` (Layout + gesamtes CSS, Blöcke `verw_h1`/`verw_body`),
+`_verw_monthbar.html` (Monatswahl, GET+`data-ajax`) und der zentrale POST-Dispatcher
+`views._verw_post` (verarbeitet alle Aktionen, leitet auf die passende Unterseite
+zurück – Monat/Filter erhalten). Weiterhin **server-getrieben + CSP-treu** (GET-Nav
+via `data-ajax`, keine Client-Tabs). Inhalte der Unterseiten:
 **Statistik** (`services.dashboard_stats`: Anzahl **Mitglieder** und
 **Benutzerkonten**, **Auslastung** der Unterkünfte [gebuchte vs. mögliche
 Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis der
-**letzten bestätigten Verlosung** = erfüllte vs. nicht erfüllte Wünsche),
-**Auslastung je Unterkunft** (aufklappbar, `services.quarter_occupancy_ampel`:
+**letzten bestätigten Verlosung** = erfüllte vs. nicht erfüllte Wünsche) +
+**Auslastung je Unterkunft** (`services.quarter_occupancy_ampel`:
 gebuchte/mögliche Nächte im Monat + **statische Ziel-Ampel** gegen
 `Quarter.target_occupancy` – 🟢 ab Ziel · 🟡 bis 20 %-Punkte darunter · 🔴 darunter;
-#63/#64),
-**Anfragen zur Freigabe** (beim Buchen angefragte, bestätigungspflichtige Leistungen
-wie die **Endreinigung**, `services.pending_service_requests`; **Bestätigen** →
-Abrechnung + Reinigungsliste, **Ablehnen** → Mitglied benachrichtigt; #28/ADR 0081),
-**Reinigungsliste** (alle Abreisen des
-gewählten Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“),
-**anstehende Buchungen** und **offene/überfällige/online bezahlte Rechnungen**
-(Filter-Chip „Online bezahlt“ + Status-Spalte). Je Liste
+#63/#64) auf `verw_auslastung`;
+**Reinigung UND Endreinigung auf EINER Seite** (`verw_reinigung`, ADR 0085: kein
+getrennter Menüpunkt – nach **jeder** Abreise wird unbezahlt gereinigt, die gebuchte
+**bezahlpflichtige** Endreinigung ist ein Zusatz): **Reinigungsliste** (alle Abreisen
+des Monats = Reinigungstage, Spalte/Filter „Endreinigung gebucht“) + „Endreinigung
+freigeben" (beim Buchen angefragte, bestätigungspflichtige Leistungen,
+`services.pending_service_requests`; **Bestätigen** → Abrechnung + Reinigungsliste,
+**Ablehnen** → Mitglied benachrichtigt; #28/ADR 0081) samt „Nachträglich ändern" (#45)
+– als kompakte, umbrechende Karten (`.er-item`, **kein horizontaler Scroll**);
+**anstehende Buchungen** (`verw_buchungen`) und **offene/überfällige/online bezahlte
+Rechnungen** (`verw_rechnungen`, Filter-Chip „Online bezahlt“ + Status-Spalte). Je Liste
 **Export** als xlsx **und** CSV (`booking/exports.py`) und **Versand per Knopf**
 (Reinigungsliste ans Reinigungsteam, Buchungen an die Verwaltung,
 Zahlungserinnerung an überfällige – **alle** auf einmal ODER **je Rechnung**
 [`action=remind_one`]; es gibt **keinen automatischen Konto-Abruf**, Eingänge kommen
 über den Kontoabgleich, Erinnerungen stößt die BL manuell an, #36). Empfänger in `OpsConfig`
 (`email_admins`/`email_cleaning`; Reinigungsteam leer = Verwaltungs-Adresse).
-**Hofladen-Katalog im Dashboard pflegen** (`dashboard_products`,
+**Hofladen-Katalog** (`dashboard_products`,
 `/verwaltung/produkte/`): Produkte/Gruppen anlegen + ändern, Preise/aktiv – für
-die Verwaltung-Rolle ohne Backend. Backend-Deeplinks im Dashboard nur für Admins.
-Der **Beds24-Import** (`beds24_import`) ist im Dashboard verlinkt, aber **nur für
-Admins** sichtbar/erreichbar (legt Buchungen an).
+die Verwaltung-Rolle ohne Backend. Backend-Deeplinks in den Listen nur für Admins.
+Der **Beds24-Import** (`beds24_import`) ist **ins Backend gewandert** (ADR 0085): ein
+Kasten auf der Backend-Startseite (`custom_index.html`, nur Superuser + solange in den
+Betriebs-Einstellungen freigeschaltet), da es ein einmaliger, admin-seitiger
+Umzugs-Task ist (legt echte Buchungen an). URL/View unverändert.
 Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
-`departures_in_range`, `_annotate_cleaning`, `*_rows`, `*_text`).
+`departures_in_range`, `_annotate_cleaning`, `*_rows`, `*_text`,
+`recent_booking_activity`).
 
 ---
 

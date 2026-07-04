@@ -1,0 +1,78 @@
+{% extends "booking/verw_base.html" %}
+{% block verw_title %}Rechnungen · Verwaltung{% endblock %}
+{% block verw_h1 %}Rechnungen{% endblock %}
+
+{% block verw_body %}
+{% include "booking/_verw_monthbar.html" %}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Rechnungen</h2>
+    <span class="spacer"></span>
+    <span class="muted">{{ invoices_view|length }} angezeigt · {{ inv_view_sum }} €</span>
+  </div>
+  {% comment %}USt-Modus der Rechnungen – nur zur Anzeige (Transparenz); ändern nur im
+  Admin (rechtlich sensibel).{% endcomment %}
+  <p class="msg {% if shop_small_business %}warning{% else %}info{% endif %}" style="margin:.2rem 0 .6rem">
+    Umsatzsteuer-Modus der Rechnungen:
+    {% if shop_small_business %}<strong>Kleinunternehmer (§19 UStG)</strong> – Rechnungen
+      <strong>ohne</strong> MwSt-Ausweis.{% else %}<strong>Regelbesteuerung</strong> –
+      MwSt wird je Satz ausgewiesen.{% endif %}
+    {% if is_admin %}<a href="/admin/shop/shopconfig/">ändern →</a>{% else %}
+    <span class="muted">(Änderung nur durch Admin)</span>{% endif %}
+  </p>
+  <div class="chips">
+    <a class="chip {% if inv_filter == 'open' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
+    <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
+    <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=paid">Bezahlt gemeldet</a>
+    <a class="chip {% if inv_filter == 'online' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=online">Online bezahlt ({{ online_total_count }})</a>
+    <a class="chip {% if inv_filter == 'all' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=all">Alle</a>
+  </div>
+  {% if inv_filter == 'online' %}<p class="muted" style="margin:.2rem 0 .6rem">Per
+    Zahldienst (Mollie) beglichene Rechnungen – Eingang ist bereits bestätigt,
+    kein Kontoabgleich nötig.</p>{% endif %}
+  <p class="muted sm" style="margin:.2rem 0 .6rem">Es gibt <strong>keinen automatischen
+    Konto-Abruf</strong>: Zahlungseingänge kommen über den <strong>Kontoabgleich</strong>
+    rein. <strong>Zahlungserinnerungen löst ihr manuell aus</strong> – unten „Überfällige
+    anschreiben“ (alle) oder je Zeile „erinnern“.</p>
+  {% if invoices_view %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead><tr><th>Nummer</th><th>Empfänger</th><th>Fällig</th><th>Brutto</th><th>Status</th><th>Erinnert</th></tr></thead>
+      <tbody>
+        {% for i in invoices_view %}
+        <tr class="{% if i.is_overdue %}danger-row{% endif %}">
+          <td>{% if is_admin %}<a href="/admin/shop/invoice/{{ i.id }}/change/">{{ i.number }}</a>{% else %}{{ i.number }}{% endif %}</td>
+          <td>{{ i.recipient_label }}</td>
+          <td>{{ i.due_date|date:"d.m.Y"|default:"—" }}{% if i.is_overdue %} <span class="tag danger">überfällig</span>{% endif %}</td>
+          <td>{{ i.total_gross }} €</td>
+          <td>{% if i.paid_online %}<span class="tag" style="background:#e1efd6;color:#41663a">online ({{ i.payment_method }})</span>{% else %}{{ i.get_status_display }}{% endif %}</td>
+          <td>{% if i.reminded_at %}{{ i.reminded_at|date:"d.m.Y" }}{% else %}—{% endif %}
+            {% if i.is_overdue and i.status == 'open' %}
+            <form method="post" class="inline" data-confirm="Zahlungserinnerung zu {{ i.number }} an {{ i.recipient_label }} senden?">{% csrf_token %}
+              <input type="hidden" name="action" value="remind_one">
+              <input type="hidden" name="invoice_id" value="{{ i.id }}">
+              <input type="hidden" name="inv" value="{{ inv_filter }}">
+              <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+              <button class="btn small ghost" type="submit">erinnern</button>
+            </form>
+            {% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Keine Rechnungen in dieser Ansicht. 🎉</p>{% endif %}
+  <div class="actions">
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'xlsx' %}?status={{ inv_filter }}">Excel</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status={{ inv_filter }}">CSV</a>
+    {% if overdue %}
+    <form method="post" class="inline" data-confirm="Zahlungserinnerung an alle {{ overdue|length }} überfälligen Rechnungen senden?">{% csrf_token %}
+      <input type="hidden" name="action" value="remind_overdue">
+      <input type="hidden" name="inv" value="{{ inv_filter }}">
+      <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+      <button class="btn small" type="submit">Überfällige anschreiben &amp; erinnern ({{ overdue|length }})</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

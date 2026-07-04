@@ -95,9 +95,15 @@ class RehofAdminSite(_AdminBase):
         müssen (so sieht die Verwaltung sie sofort und kann sie schnell zuordnen)."""
         extra_context = extra_context or {}
         from . import services as svc
+        from .models import OpsConfig
         pending = list(svc.users_without_membership()[:50])
         extra_context["new_users"] = pending
         extra_context["new_users_count"] = len(pending)
+        # Beds24-Import ist ein einmaliger, admin-seitiger Umzugs-Task und lebt daher
+        # im Backend (nicht mehr im Verwaltungs-Dashboard). Nur für Superuser + solange
+        # in den Betriebs-Einstellungen freigeschaltet.
+        extra_context["beds24_import_enabled"] = (
+            request.user.is_superuser and OpsConfig.get_solo().beds24_import_enabled)
         return super().index(request, extra_context)
 
     def get_app_list(self, request, app_label=None):

@@ -1,0 +1,19 @@
+{% comment %}Monatswahl für die Verwaltungs-Unterseiten. Submit geht (ohne action)
+auf die aktuelle Seite; only_cleaning/inv bleiben erhalten, wo im Kontext gesetzt.{% endcomment %}
+<div class="card monthbar">
+  <form method="get" data-ajax class="inline-form">
+    <label>Monat
+      <select name="month" data-autosubmit>
+        {% for m in months %}<option value="{{ m.num }}" {% if m.num == month %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+      </select></label>
+    <label>Jahr
+      <select name="year" data-autosubmit>
+        {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select></label>
+    {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
+    {% if inv_filter %}<input type="hidden" name="inv" value="{{ inv_filter }}">{% endif %}
+    <noscript><button class="btn small" type="submit">Anzeigen</button></noscript>
+  </form>
+  <span class="spacer"></span>
+  {% if is_admin %}<a class="btn small ghost" href="/admin/">Backend (Admin)</a>{% endif %}
+</div>
