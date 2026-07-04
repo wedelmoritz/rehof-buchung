@@ -423,7 +423,8 @@
     <symbol id="ic-profile" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
     <symbol id="ic-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2-2.5 3.5"/><path d="M12 17h.01"/></symbol>
     <symbol id="ic-community" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M6 21v-7M12 21V4M18 21v-11"/></symbol>
-    <symbol id="ic-admin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9 19 19M19 5l-2.1 2.1M7.1 16.9 5 19"/></symbol>
+    {# Verwaltung: Klemmbrett mit Haken (Freigaben/Reinigung/Buchungen) statt Sonne (#43). #}
+    <symbol id="ic-admin" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.8h6V4M8.5 12.2l2.2 2.2 4.3-4.4"/></symbol>
     <symbol id="ic-backend" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
   </defs></svg>
 
@@ -437,14 +438,18 @@
     </div>
     <nav>
       <a href="{% url 'overview' %}" class="{% if url_name == 'overview' %}active{% endif %}" title="Übersicht"><svg class="nav-ic"><use href="#ic-overview"/></svg><span class="nav-label">Übersicht</span></a>
+      {# Mitglieds-eigene Punkte nur mit Buchungs-Profil zeigen – reine Verwaltungs-/
+         Admin-Konten liefen sonst ins Leere (#48). #}
+      {% if user.member %}
       <a href="{% url 'book' %}" class="{% if url_name == 'book' or url_name == 'book_confirm' %}active{% endif %}" title="Buchen"><svg class="nav-ic"><use href="#ic-book"/></svg><span class="nav-label">Buchen</span></a>
       <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}" title="Wunschliste"><svg class="nav-ic"><use href="#ic-wish"/></svg><span class="nav-label">Wunschliste</span></a>
       <a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}" title="Meine Buchungen"><svg class="nav-ic"><use href="#ic-mybookings"/></svg><span class="nav-label">Meine Buchungen</span></a>
       <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}" title="Tage übertragen"><svg class="nav-ic"><use href="#ic-transfer"/></svg><span class="nav-label">Tage übertragen</span></a>
       <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_checkout' %}active{% endif %}" title="Hofladen"><svg class="nav-ic"><use href="#ic-shop"/></svg><span class="nav-label">Hofladen</span></a>
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}" title="Meine Rechnungen"><svg class="nav-ic"><use href="#ic-invoices"/></svg><span class="nav-label">Meine Rechnungen</span></a>
+      {% endif %}
       <a href="{% url 'community' %}" class="{% if url_name == 'community' %}active{% endif %}" title="Gemeinschaft"><svg class="nav-ic"><use href="#ic-community"/></svg><span class="nav-label">Gemeinschaft</span></a>
-      <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}" title="Profil"><svg class="nav-ic"><use href="#ic-profile"/></svg><span class="nav-label">Profil</span></a>
+      {% if user.member %}<a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}" title="Profil"><svg class="nav-ic"><use href="#ic-profile"/></svg><span class="nav-label">Profil</span></a>{% endif %}
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}" title="Hilfe"><svg class="nav-ic"><use href="#ic-help"/></svg><span class="nav-label">Hilfe</span></a>
       {% if is_verwaltung %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}" title="Verwaltung"><svg class="nav-ic"><use href="#ic-admin"/></svg><span class="nav-label">Verwaltung</span></a>{% endif %}
       {% if is_admin %}<a href="/admin/" title="Backend (Stammdaten)"><svg class="nav-ic"><use href="#ic-backend"/></svg><span class="nav-label">Backend</span></a>{% endif %}
@@ -454,23 +459,30 @@
   {# Mobile: feste Tab-Leiste unten (4 Hauptpunkte) + „Mehr“ öffnet das Sheet #}
   <nav class="tabbar" aria-label="Hauptnavigation">
     <a href="{% url 'overview' %}" class="{% if url_name == 'overview' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-overview"/></svg><span>Übersicht</span></a>
+    {% if user.member %}
     <a href="{% url 'book' %}" class="{% if url_name == 'book' or url_name == 'book_confirm' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-book"/></svg><span>Buchen</span></a>
     <a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-mybookings"/></svg><span>Buchungen</span></a>
     <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_checkout' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-shop"/></svg><span>Hofladen</span></a>
-    <button type="button" id="moreBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="moreSheet" class="{% if url_name == 'wishlist' or url_name == 'transfer' or url_name == 'shop_invoices' or url_name == 'shop_invoice' or url_name == 'profile' or url_name == 'help' %}active{% endif %}"><svg class="more-ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg><span>Mehr</span></button>
+    {% elif is_verwaltung %}
+    {# Reines Verwaltungs-Konto: Dashboard als Haupt-Tab statt der Mitglieds-Punkte (#48). #}
+    <a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-admin"/></svg><span>Verwaltung</span></a>
+    {% endif %}
+    <button type="button" id="moreBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="moreSheet" class="{% if url_name == 'wishlist' or url_name == 'transfer' or url_name == 'shop_invoices' or url_name == 'shop_invoice' or url_name == 'profile' or url_name == 'help' or url_name == 'community' %}active{% endif %}"><svg class="more-ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg><span>Mehr</span></button>
   </nav>
   <div class="sheet-backdrop" id="sheetBackdrop"></div>
   <div class="sheet" id="moreSheet" role="dialog" aria-modal="true" aria-label="Weitere Navigation">
     <div class="sheet-handle"></div>
     <div class="sheet-title">Mehr</div>
     <div class="sheet-grid">
+      {% if user.member %}
       <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-wish"/></svg>Wunschliste</a>
       <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-transfer"/></svg>Tage übertragen</a>
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Meine Rechnungen</a>
+      {% endif %}
       <a href="{% url 'community' %}" class="{% if url_name == 'community' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-community"/></svg>Gemeinschaft</a>
-      <a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-profile"/></svg>Profil</a>
+      {% if user.member %}<a href="{% url 'profile' %}" class="{% if url_name == 'profile' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-profile"/></svg>Profil</a>{% endif %}
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-help"/></svg>Hilfe</a>
-      {% if is_verwaltung %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>{% endif %}
+      {% if is_verwaltung and user.member %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_products' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>{% endif %}
       {% if is_admin %}<a href="/admin/"><svg class="nav-ic"><use href="#ic-backend"/></svg>Backend</a>{% endif %}
     </div>
   </div>
