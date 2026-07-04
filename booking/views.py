@@ -14,7 +14,7 @@ from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -1300,6 +1300,30 @@ def dashboard(request):
         ],
         "er_lock_days": BookingPolicy.get_solo().er_decision_lock_days,
     })
+
+
+@login_required
+def plan_pdf(request):
+    """Belegungsplan als Druck-PDF (Querformat) – nur Verwaltung/BL (#39, ADR 0083).
+    Liest denselben Datums-Anker/Bereich wie der Plan (`from`/`weeks`)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from . import plan_pdf as pp
+    today = date.today()
+    anchor = _parse_date(request.GET.get("from")) or today
+    try:
+        weeks = int(request.GET.get("weeks", 2))
+    except (TypeError, ValueError):
+        weeks = 2
+    weeks = weeks if weeks in (1, 2, 4) else 2
+    if not pp.weasyprint_available():
+        return HttpResponse(
+            "PDF-Erzeugung ist auf diesem Server nicht verfügbar.", status=503)
+    data = pp.plan_pdf_bytes(anchor, weeks * 7, management=True)
+    resp = HttpResponse(data, content_type="application/pdf")
+    resp["Content-Disposition"] = (
+        f'inline; filename="belegungsplan-{anchor:%Y-%m-%d}-{weeks}w.pdf"')
+    return resp
 
 
 @login_required

@@ -42,4 +42,5 @@ urlpatterns = [
     path("verwaltung/beds24-import/", views.beds24_import, name="beds24_import"),
     path("verwaltung/export/<str:kind>.<str:fmt>", views.dashboard_export,
          name="dashboard_export"),
+    path("verwaltung/belegungsplan.pdf", views.plan_pdf, name="plan_pdf"),
 ]

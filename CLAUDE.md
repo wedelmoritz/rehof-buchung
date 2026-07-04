@@ -180,8 +180,10 @@ selben Tag treffen sich an der Tagesmitte statt sich zu überlappen (#40, keine
 Schein-Doppelbelegung). Kopf je Tag: Wochentag · Datum · **Zahl freier Unterkünfte**;
 heute markiert. **Rollen-abhängig** (`management=is_verwaltung`): die Verwaltung sieht
 externe Gäste mit Klartext-Name/Personen und im Tagesdetail Kontakt (#46b/#47),
-Mitglieder nur „extern"; Endreinigung als dezentes **🧹** (#46c). **Drucken** (nur
-Verwaltung, `@media print` + delegierter `data-print`-Handler, #39). **Ein** responsiver
+Mitglieder nur „extern"; Endreinigung als dezentes **🧹** (#46c). **Drucken als
+Querformat-PDF** (nur Verwaltung, `plan_pdf`/`booking/plan_pdf.py` via WeasyPrint:
+nacht-basiertes `colspan`-Raster + Listen Anreisen/Abreisen/Endreinigungen,
+`services.build_plan_print`; #39). **Ein** responsiver
 Plan (Media-Query vergrößert am Handy Zeilen/Tap-Flächen; `.tape` scrollt horizontal
 im eigenen Container). **Umschalter „Belegung / Kalender"** schaltet aufs Monatsraster
 (`?view=grid`). Klick auf Balken/Tag öffnet das **Tag-Detail im Kontext** – ein Panel

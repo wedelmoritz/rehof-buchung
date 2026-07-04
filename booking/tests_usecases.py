@@ -555,6 +555,52 @@ class BuchungsFlowTests(UseCaseBase):
         self.assertEqual([r["quarter"].id for r in stall["rows"]],
                          [self.k1.id, self.k2.id])
 
+    def test_plan_print_segmente_und_wechsel(self):
+        """#39-PDF: `build_plan_print` liefert Nacht-Segmente; ein Wechsel sind
+        benachbarte Belegungs-Segmente (kein Halbtag)."""
+        anchor = date(NEXT_YEAR, 6, 1)
+        # alice K1 [2.,5.) = Nächte 2,3,4 ; bob K1 [5.,8.) = Nächte 5,6,7 (Wechsel am 5.)
+        svc.book_spontaneous(self.alice, self.k1, date(NEXT_YEAR, 6, 2), date(NEXT_YEAR, 6, 5))
+        svc.book_spontaneous(self.bob, self.k1, date(NEXT_YEAR, 6, 5), date(NEXT_YEAR, 6, 8))
+        data = svc.build_plan_print(anchor, 14, management=True)
+        rows = [r for g in data["groups"] for r in g["rows"]]
+        segs = next(r for r in rows if r["quarter"].id == self.k1.id)["segments"]
+        book = [s for s in segs if s["kind"] == "book"]
+        self.assertEqual(len(book), 2)                       # zwei getrennte Balken
+        self.assertEqual(book[0]["who"], "alice")
+        self.assertEqual(book[0]["span"], 3)                 # 3 Nächte
+        self.assertEqual(book[1]["who"], "bob")
+        # Anreisen/Abreisen-Listen
+        self.assertTrue(any(a["quarter"] == "K1" and a["who"] == "alice"
+                            for a in data["arrivals"]))
+        self.assertTrue(any(d["quarter"] == "K1" and d["who"] == "bob"
+                            for d in data["departures"]))
+
+    def test_plan_print_html_und_pdf_endpoint(self):
+        """Das Druck-HTML baut ohne native Libs; der PDF-Endpoint ist verwaltungs-
+        geschützt (Mitglied → Redirect) und liefert PDF bzw. 503 ohne WeasyPrint."""
+        from booking import plan_pdf as pp
+        svc.book_spontaneous(self.alice, self.k1, date(NEXT_YEAR, 6, 2), date(NEXT_YEAR, 6, 5))
+        html = pp.plan_print_html(date(NEXT_YEAR, 6, 1), 14, management=True)
+        self.assertIn("Belegungsplan", html)
+        self.assertIn("K1", html)
+        self.assertIn("alice", html)
+        self.assertIn("Anreisen", html)
+        url = reverse("plan_pdf") + f"?from={date(NEXT_YEAR,6,1):%Y-%m-%d}&weeks=2"
+        # Mitglied ohne Verwaltungsrolle → weggeleitet
+        self.client.force_login(self.alice.user)
+        self.assertEqual(self.client.get(url).status_code, 302)
+        # Verwaltung → PDF (oder 503, falls WeasyPrint auf dieser Umgebung fehlt)
+        from booking.permissions import ensure_verwaltung_group
+        self.bob.user.groups.add(ensure_verwaltung_group())
+        self.client.force_login(self.bob.user)
+        r = self.client.get(url)
+        if pp.weasyprint_available():
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r["Content-Type"], "application/pdf")
+        else:
+            self.assertEqual(r.status_code, 503)
+
     def test_ampel_kalender_zeigt_belegung(self):
         quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
         d = date(NEXT_YEAR, 6, 15)
