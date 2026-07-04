@@ -80,6 +80,25 @@ class DashboardTests(TestCase):
         self.client.force_login(self.staff.user)
         self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)
 
+    # --- Mitgliederliste für die BL (#65) --------------------------------- #
+    def test_mitgliederliste_nur_staff_und_kontakt(self):
+        # Mitglied kommt nicht rein.
+        self.client.force_login(self.member.user)
+        self.assertEqual(self.client.get(reverse("verw_mitglieder")).status_code, 302)
+        # Verwaltung sieht Name + E-Mail; IBAN wird NICHT gelistet.
+        self.member.iban = "DE02120300000000202051"
+        self.member.city = "Musterstadt"
+        self.member.save(update_fields=["iban", "city"])
+        self.client.force_login(self.staff.user)
+        html = self.client.get(reverse("verw_mitglieder")).content.decode()
+        self.assertIn("Anna", html)
+        self.assertIn("anna@example.org", html)
+        self.assertNotIn(self.member.iban, html)
+        # Suche grenzt ein: Chefs E-Mail (nur im Tabellen-mailto) verschwindet.
+        only = self.client.get(reverse("verw_mitglieder") + "?q=Musterstadt").content.decode()
+        self.assertIn("anna@example.org", only)
+        self.assertNotIn("chef@example.org", only)
+
     # --- Export ------------------------------------------------------------ #
     def test_export_reinigung_csv_und_xlsx(self):
         self.client.force_login(self.staff.user)

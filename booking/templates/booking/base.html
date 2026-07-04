@@ -462,6 +462,7 @@
       <a href="{% url 'verw_rechnungen' %}" class="subnav {% if url_name == 'verw_rechnungen' %}active{% endif %}" title="Rechnungen"><span class="nav-label">Rechnungen</span></a>
       <a href="{% url 'verw_konto' %}" class="subnav {% if url_name == 'verw_konto' %}active{% endif %}" title="Kontoabgleich"><span class="nav-label">Kontoabgleich</span></a>
       <a href="{% url 'verw_auslastung' %}" class="subnav {% if url_name == 'verw_auslastung' %}active{% endif %}" title="Auslastung"><span class="nav-label">Auslastung</span></a>
+      <a href="{% url 'verw_mitglieder' %}" class="subnav {% if url_name == 'verw_mitglieder' %}active{% endif %}" title="Mitglieder"><span class="nav-label">Mitglieder</span></a>
       <a href="{% url 'dashboard_products' %}" class="subnav {% if url_name == 'dashboard_products' %}active{% endif %}" title="Hofladen-Katalog"><span class="nav-label">Hofladen-Katalog</span></a>
       {% endif %}
       {% if is_admin %}<a href="/admin/" title="Backend (Stammdaten)"><svg class="nav-ic"><use href="#ic-backend"/></svg><span class="nav-label">Backend</span></a>{% endif %}
@@ -501,6 +502,7 @@
       <a href="{% url 'verw_rechnungen' %}" class="{% if url_name == 'verw_rechnungen' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Rechnungen</a>
       <a href="{% url 'verw_konto' %}" class="{% if url_name == 'verw_konto' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Kontoabgleich</a>
       <a href="{% url 'verw_auslastung' %}" class="{% if url_name == 'verw_auslastung' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-community"/></svg>Auslastung</a>
+      <a href="{% url 'verw_mitglieder' %}" class="{% if url_name == 'verw_mitglieder' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-profile"/></svg>Mitglieder</a>
       <a href="{% url 'dashboard_products' %}" class="{% if url_name == 'dashboard_products' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-shop"/></svg>Hofladen-Katalog</a>
       {% endif %}
       {% if is_admin %}<a href="/admin/"><svg class="nav-ic"><use href="#ic-backend"/></svg>Backend</a>{% endif %}

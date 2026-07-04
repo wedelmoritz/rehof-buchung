@@ -1389,6 +1389,34 @@ def verw_auslastung(request):
 
 
 @login_required
+def verw_mitglieder(request):
+    """Unterseite: Mitgliederliste mit Kontaktdaten für Rückfragen der BL (#65).
+    Nur buchende Mitglieder (keine externen Gäste); IBAN bleibt der Backend-
+    Detailansicht vorbehalten (Datensparsamkeit)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from .models import Member
+    q = (request.GET.get("q") or "").strip()
+    members = (Member.objects.filter(is_external=False)
+               .select_related("user")
+               .prefetch_related("shares__membership")
+               .order_by("display_name"))
+    if q:
+        from django.db.models import Q
+        members = members.filter(
+            Q(display_name__icontains=q) | Q(legal_name__icontains=q)
+            | Q(user__email__icontains=q) | Q(user__username__icontains=q)
+            | Q(city__icontains=q))
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({"members": list(members), "q": q,
+                "member_count": len(members)})
+    return render(request, "booking/verw_mitglieder.html", ctx)
+
+
+@login_required
 def plan_pdf(request):
     """Belegungsplan als Druck-PDF (Querformat) – nur Verwaltung/BL (#39, ADR 0083).
     Liest denselben Datums-Anker/Bereich wie der Plan (`from`/`weeks`)."""
