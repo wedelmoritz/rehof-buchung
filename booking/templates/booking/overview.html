@@ -141,14 +141,32 @@
         <a class="ov-detail-close" data-ajax title="Schließen" aria-label="Detail schließen"
            href="?year={{ cal.year }}&month={{ cal.month }}{{ nav_qs }}">✕</a>
       </div>
-      <h3>Wer ist da</h3>
-      {% if detail.occupied %}
+      {% if detail.arrivals %}
+      <h3>⬇ Anreisen</h3>
       <ul class="ov-occ">
-        {% for o in detail.occupied %}
-        <li><strong>{{ o.quarter }}</strong> · {{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %} · {{ o.persons }}&nbsp;Pers.</li>
+        {% for o in detail.arrivals %}
+        <li><strong>{{ o.quarter }}</strong> · {{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %} · {{ o.persons }}&nbsp;Pers.{% if o.contact %} · <a href="mailto:{{ o.contact }}">{{ o.contact }}</a>{% endif %}</li>
         {% endfor %}
       </ul>
-      {% else %}<p class="muted">Niemand eingebucht.</p>{% endif %}
+      {% endif %}
+      {% if detail.departures %}
+      <h3>⬆ Abreisen</h3>
+      <ul class="ov-occ">
+        {% for o in detail.departures %}
+        <li><strong>{{ o.quarter }}</strong> · {{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %} · {{ o.persons }}&nbsp;Pers.{% if is_mgmt and o.has_cleaning %} · <span class="tag" title="Endreinigung gebucht">🧹 ER</span>{% endif %}{% if o.contact %} · <a href="mailto:{{ o.contact }}">{{ o.contact }}</a>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if detail.present %}
+      <h3>● Anwesend</h3>
+      <ul class="ov-occ">
+        {% for o in detail.present %}
+        <li><strong>{{ o.quarter }}</strong> · {{ o.who }}{% if o.mine %} <span class="tag mine">du</span>{% endif %} · {{ o.persons }}&nbsp;Pers.{% if o.contact %} · <a href="mailto:{{ o.contact }}">{{ o.contact }}</a>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if not detail.arrivals and not detail.departures and not detail.present %}
+      <p class="muted">Niemand eingebucht.</p>{% endif %}
       <h3>Noch frei</h3>
       {% if detail.free %}<p class="ov-free">{% for q in detail.free %}<span class="tag">{{ q }}</span> {% endfor %}</p>
       {% else %}<p class="muted">Keine freien Quartiere.</p>{% endif %}

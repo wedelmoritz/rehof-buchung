@@ -93,10 +93,13 @@ class QuarterPriceInline(admin.TabularInline):
 @admin.register(Quarter)
 class QuarterAdmin(admin.ModelAdmin):
     inlines = [QuarterPriceInline]
-    list_display = ("name", "eq_class", "size_sqm", "min_occupancy",
-                    "max_occupancy", "accessible", "active")
-    list_filter = ("eq_class", "active", "accessible")
-    list_editable = ("accessible",)
+    list_display = ("sort_order", "name", "building", "eq_class", "size_sqm",
+                    "min_occupancy", "max_occupancy", "target_occupancy",
+                    "accessible", "active")
+    list_display_links = ("name",)
+    list_filter = ("eq_class", "active", "accessible", "building")
+    list_editable = ("sort_order", "accessible")
+    ordering = ("sort_order", "name")
     search_fields = ("name",)
     fieldsets = (
         (None, {
@@ -108,12 +111,17 @@ class QuarterAdmin(admin.ModelAdmin):
         }),
         ("Belegung & Merkmale", {
             "fields": ("size_sqm", "min_occupancy", "max_occupancy", "accessible",
-                       "building", "prefer_for_groups"),
+                       "building", "sort_order", "target_occupancy",
+                       "prefer_for_groups"),
             "description": "Min./Max.-Personen steuern, welche Quartiere beim "
                            "Buchen je nach Personenzahl als passend angezeigt werden. "
-                           "„Gebäude“ gruppiert organisatorisch; „für Gruppen zuerst "
-                           "anbieten“ (z. B. Stallgebäude) reiht die Wohneinheit bei "
-                           "großen Gruppen nach oben (nur Reihenfolge, keine Sperre).",
+                           "„Gebäude“ gruppiert organisatorisch und bildet im "
+                           "Belegungsplan die Zeilen-Bänder; die <b>Reihenfolge</b> "
+                           "(kleiner = weiter oben) bringt den Plan in die gewohnte "
+                           "beds24-Sortierung. „Ziel-Auslastung“ (optional) schaltet "
+                           "im Dashboard die Ampel. „Für Gruppen zuerst anbieten“ "
+                           "(z. B. Stallgebäude) reiht die Wohneinheit bei großen "
+                           "Gruppen nach oben (nur Reihenfolge, keine Sperre).",
         }),
         ("Buchbarkeitszeitraum (jährlich, ohne Jahr – leer = ganzjährig)", {
             "fields": ("season_start_month", "season_start_day",

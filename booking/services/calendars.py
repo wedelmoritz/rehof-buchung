@@ -364,30 +364,56 @@ def wish_alternatives(period, member, wishes, *, max_shift: int = 2) -> dict:
     return out
 
 
-def day_detail(member, day: date) -> dict:
-    """Wer ist an `day` in welchem Quartier (mit Personenzahl) – und welche
-    Quartiere sind an dem Tag noch frei?"""
+def day_detail(member, day: date, management: bool = False) -> dict:
+    """Tagesdetail, klar getrennt nach **Anreise / Abreise / Anwesenheit** – der
+    Standard professioneller Buchungssysteme (Arrivals/Departures/Stayovers).
+
+    `management=True` (Verwaltung/BL, #47): bei externen Gästen zusätzlich
+    **Klartext-Name + Kontakt (E-Mail)** und je Abreise der Endreinigungs-Status
+    (#46b/#46c). Mitglieder sehen externe Gäste weiterhin nur als „extern".
+
+    Klassifikation je Buchung am Tag (Abreisetag = `end`, checkout-exklusiv):
+      • `start == day`  → **Anreise** (kommt an, ist die Nacht da)
+      • `end == day`    → **Abreise** (reist ab, war die Nacht davor da)
+      • sonst           → **anwesend** (bleibt). Eine Buchung ist an einem Tag
+        immer genau eines davon (mind. 1 Nacht).
+    `occupied` (Rückwärtskompatibilität) = Anreisen + Anwesende = wer die Nacht da
+    ist. Effizient: eine Query je Quelle über die Tageskante, kein N+1."""
+    from .dashboard import _annotate_cleaning
     nxt = day + timedelta(days=1)
-    occupied = [
-        {
-            "quarter": a.quarter.name,
-            "who": a.member.display_name,
-            "persons": a.persons,
-            "mine": bool(member) and a.member_id == member.id,
-        }
-        for a in Allocation.objects.select_related("quarter", "member")
-        .filter(start__lte=day, end__gt=day, provisional=False)
-        .order_by("quarter__name")
-    ]
-    occupied += [
-        {"quarter": b.quarter.name, "who": "extern", "persons": b.persons,
-         "mine": False, "external": True}
-        for b in ExternalBooking.objects.select_related("quarter")
-        .filter(status=ExternalBooking.CONFIRMED, start__lte=day, end__gt=day)
-        .order_by("quarter__name")
-    ]
+    own = member.id if member else None
+    arrivals, departures, present = [], [], []
+
+    allocs = _annotate_cleaning(
+        Allocation.objects.select_related("quarter", "member")
+        .filter(start__lte=day, end__gte=day, provisional=False)
+        .order_by("quarter__sort_order", "quarter__name"))
+    for a in allocs:
+        row = {"quarter": a.quarter.name, "who": a.member.display_name,
+               "persons": a.persons, "mine": a.member_id == own,
+               "external": False, "contact": "",
+               "has_cleaning": bool(getattr(a, "has_cleaning", False))}
+        (arrivals if a.start == day else
+         departures if a.end == day else present).append(row)
+
+    exts = (ExternalBooking.objects.select_related("quarter", "guest")
+            .filter(status=ExternalBooking.CONFIRMED, start__lte=day, end__gte=day)
+            .order_by("quarter__sort_order", "quarter__name"))
+    for b in exts:
+        who = b.guest.name if (management and b.guest_id) else "extern"
+        contact = b.guest.email if (management and b.guest_id) else ""
+        row = {"quarter": b.quarter.name, "who": who, "persons": b.persons,
+               "mine": False, "external": True, "contact": contact,
+               "has_cleaning": True}   # externe Buchung enthält die Endreinigung
+        (arrivals if b.start == day else
+         departures if b.end == day else present).append(row)
+
     free, _occ = split_quarters_for_range(day, nxt)
-    return {"day": day, "occupied": occupied, "free": [q.name for q in free]}
+    return {
+        "day": day, "arrivals": arrivals, "departures": departures,
+        "present": present, "occupied": arrivals + present,
+        "free": [q.name for q in free],
+    }
 
 
 def build_member_calendar(member: Member, year: int, month: int) -> dict:

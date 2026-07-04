@@ -636,6 +636,40 @@ class DetailUndWechselwunschTests(UseCaseBase):
         self.assertIn("K2", detail["free"])
         self.assertNotIn("K1", detail["free"])
 
+    def test_day_detail_trennt_anreise_abreise_anwesend(self):
+        """#47: An-/Abreise/Anwesenheit müssen klar getrennt sein. K1: Anreise,
+        K2: mitten drin (anwesend), K3: Abreise (end == day)."""
+        d = date(NEXT_YEAR, 4, 10)
+        svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))       # Anreise am d
+        svc.book_spontaneous(self.bob, self.k2, d - timedelta(days=2),
+                             d + timedelta(days=2))                                # anwesend am d
+        svc.book_spontaneous(self.carla, self.k3, d - timedelta(days=3), d)       # Abreise am d
+        det = svc.day_detail(self.bob, d)
+        self.assertEqual([o["quarter"] for o in det["arrivals"]], ["K1"])
+        self.assertEqual([o["quarter"] for o in det["present"]], ["K2"])
+        self.assertEqual([o["quarter"] for o in det["departures"]], ["K3"])
+        # occupied (rückwärtskompatibel) = Anreise + Anwesend, NICHT die Abreise
+        occ = [o["quarter"] for o in det["occupied"]]
+        self.assertIn("K1", occ)
+        self.assertIn("K2", occ)
+        self.assertNotIn("K3", occ)
+
+    def test_day_detail_extern_kontakt_nur_fuer_verwaltung(self):
+        """#46b: Externe erscheinen für Mitglieder als „extern"; die Verwaltung
+        sieht Klartext-Name + Kontakt."""
+        from .models import Guest, ExternalBooking
+        d = date(NEXT_YEAR, 4, 10)
+        g = Guest.objects.create(name="Familie Berger", email="berger@example.org")
+        ExternalBooking.objects.create(
+            guest=g, quarter=self.qa, start=d, end=d + timedelta(days=3),
+            persons=3, status=ExternalBooking.CONFIRMED)
+        member_view = svc.day_detail(self.bob, d, management=False)["arrivals"]
+        self.assertEqual(member_view[0]["who"], "extern")
+        self.assertEqual(member_view[0]["contact"], "")
+        mgmt_view = svc.day_detail(self.bob, d, management=True)["arrivals"]
+        self.assertEqual(mgmt_view[0]["who"], "Familie Berger")
+        self.assertEqual(mgmt_view[0]["contact"], "berger@example.org")
+
     def test_wechselwunsch_anlegen_und_beantworten(self):
         d = date(NEXT_YEAR, 4, 10)
         a, _ = svc.book_spontaneous(self.alice, self.k1, d, d + timedelta(days=3))

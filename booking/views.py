@@ -155,7 +155,9 @@ def overview(request):
                 bar["color"] = (timeline["extern_color"] if bar["external"]
                                 else color_map.get(bar["member_id"], "#d8cfc0"))
     sel_day = _parse_date(request.GET.get("day"))
-    detail = svc.day_detail(member, sel_day) if sel_day else None
+    from .permissions import is_verwaltung
+    is_mgmt = is_verwaltung(request.user)
+    detail = svc.day_detail(member, sel_day, management=is_mgmt) if sel_day else None
     open_period = BookingPeriod.objects.filter(
         status=BookingPeriod.WISHES_OPEN).first()
     return render(request, "booking/overview.html", {
@@ -168,6 +170,7 @@ def overview(request):
         "legend": legend,
         "sel_day": sel_day,
         "detail": detail,
+        "is_mgmt": is_mgmt,
         "nav_qs": "&view=grid" if view_mode == "grid" else "",
         "show_today": True,
         "agenda": svc.week_agenda(member, today, 7),
