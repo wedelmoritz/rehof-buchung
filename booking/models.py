@@ -1088,6 +1088,13 @@ class BookingPolicy(models.Model):
         help_text="Zweite, dringlichere Erinnerung so viele Tage vor dem Schluss. "
                   "Sollte kleiner als die erste sein. 0 = diese Stufe aus (ADR 0080).",
     )
+    er_decision_lock_days = models.PositiveSmallIntegerField(
+        "Endreinigung: Frist zum Revidieren (Tage vor Anreise)", default=7,
+        help_text="Die Betriebsleitung kann eine Endreinigungs-Entscheidung "
+                  "(bestätigt/abgelehnt) bis zu so viele Tage VOR der Anreise noch "
+                  "ändern; danach ist sie fest, damit sich das Mitglied darauf "
+                  "einstellen kann. 0 = jederzeit änderbar (kein Lock). ADR 0081.",
+    )
 
     class Meta:
         verbose_name = "Buchungsregeln"

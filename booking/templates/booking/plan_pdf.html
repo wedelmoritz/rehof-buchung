@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Belegungsplan {{ anchor|date:"Y-m-d" }}</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 9mm 8mm 12mm 8mm;
+    @bottom-right { content: "Seite " counter(page) " / " counter(pages); font: 8pt sans-serif; color: #777; }
+    @bottom-left { content: "Re:Hof · Belegungsplan"; font: 8pt sans-serif; color: #777; }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", "Helvetica", sans-serif; color: #1f1c19; font-size: 8.5pt; margin: 0; }
+  .rpt-head { display: flex; align-items: baseline; gap: 10mm; border-bottom: 1.5pt solid #be3e23; padding-bottom: 2mm; margin-bottom: 3mm; }
+  .rpt-head .ttl { font-size: 15pt; font-weight: 700; color: #9e3119; }
+  .rpt-head .sub { font-size: 10pt; font-weight: 600; }
+  .rpt-head .meta { margin-left: auto; font-size: 8pt; color: #777; }
+
+  table.plan { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.plan col.qn { width: 38mm; }
+  table.plan th, table.plan td { border: 0.5pt solid #d9d2c7; padding: 0; height: 6.6mm; overflow: hidden; }
+  table.plan thead th { background: #efeae3; font-weight: 600; text-align: center; vertical-align: middle; line-height: 1.05; padding: 0.4mm 0; }
+  table.plan thead th.we { background: #e6ded1; }
+  table.plan thead th .wd { font-size: 6pt; color: #8a8175; text-transform: uppercase; display: block; }
+  table.plan thead th.qn { text-align: left; padding-left: 1.6mm; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .3pt; color: #6b6259; }
+  table.plan td.qn { text-align: left; padding-left: 1.6mm; font-weight: 600; font-size: 7.4pt; white-space: nowrap; }
+  table.plan tr.grp td { background: #e3d9c9; font-weight: 700; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .4pt; color: #7a5a3e; padding: 0.6mm 1.6mm; height: auto; }
+  table.plan td.fr { background: #ffffff; }
+  table.plan td.bk { background: #ece4d6; border-left: 1.6pt solid #b06a48; font-size: 7.6pt; white-space: nowrap; padding: 0 1.2mm; }
+  table.plan td.bk.ext { background: #dedbd4; border-left: 1.6pt solid #7f8f8c; }
+  table.plan td.bk .nm { font-weight: 600; }
+  table.plan td.bk .pp { color: #6b6259; font-size: 6.8pt; }
+
+  .legend { margin: 2mm 0 4mm; font-size: 7.5pt; color: #6b6259; }
+  .legend span { margin-right: 6mm; }
+  .sw { display: inline-block; width: 8pt; height: 8pt; vertical-align: middle; margin-right: 2pt; border: 0.5pt solid #999; }
+  .sw.m { background: #ece4d6; border-left: 1.6pt solid #b06a48; }
+  .sw.e { background: #dedbd4; border-left: 1.6pt solid #7f8f8c; }
+
+  .lists { width: 100%; }
+  .lcol { display: inline-block; width: 32.6%; vertical-align: top; margin-right: 0.8%; }
+  .lcol:last-child { margin-right: 0; }
+  .lcol h2 { font-size: 9.5pt; margin: 0 0 1mm; color: #9e3119; border-bottom: 0.75pt solid #d9d2c7; padding-bottom: 0.6mm; }
+  table.lst { width: 100%; border-collapse: collapse; font-size: 7.6pt; }
+  table.lst th, table.lst td { border-bottom: 0.4pt solid #e4dfd8; padding: 0.7mm 1mm; text-align: left; vertical-align: top; }
+  table.lst th { font-size: 6.6pt; text-transform: uppercase; letter-spacing: .3pt; color: #8a8175; }
+  table.lst td.num { text-align: center; }
+  .empty { color: #999; font-style: italic; font-size: 7.6pt; padding: 1mm 0; }
+  h2.lists-head { font-size: 9.5pt; margin: 4mm 0 2mm; }
+</style>
+</head>
+<body>
+  <header class="rpt-head">
+    <div class="ttl">Belegungsplan</div>
+    <div class="sub">{{ anchor|date:"D, d.m.Y" }} – {{ win_last|date:"D, d.m.Y" }}
+      · {{ weeks }}&nbsp;Woche{{ weeks|pluralize:"n" }}</div>
+    <div class="meta">Erstellt {{ generated_on|date:"d.m.Y" }}</div>
+  </header>
+
+  <table class="plan">
+    <colgroup>
+      <col class="qn">
+      {% for d in days %}<col>{% endfor %}
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="qn">Unterkunft</th>
+        {% for d in days %}<th class="dh {% if d.is_weekend %}we{% endif %}"{% if d.holiday %} title="{{ d.holiday }}"{% endif %}><span class="wd">{{ d.wd }}</span>{{ d.day }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in groups %}
+      {% if g.building %}<tr class="grp"><td colspan="{{ days|length|add:1 }}">{{ g.building }}</td></tr>{% endif %}
+      {% for row in g.rows %}
+      <tr>
+        <td class="qn">{{ row.quarter.name }}</td>
+        {% for seg in row.segments %}{% if seg.kind == 'free' %}<td class="fr" colspan="{{ seg.span }}"></td>{% else %}<td class="bk{% if seg.external %} ext{% endif %}" colspan="{{ seg.span }}"><span class="nm">{{ seg.who }}</span>{% if not seg.external %} <span class="pp">{{ seg.persons }}P</span>{% endif %}{% if seg.has_cleaning %} <span class="er">ER</span>{% endif %}</td>{% endif %}{% endfor %}
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="legend">
+    <span><i class="sw m"></i>Mitglied</span>
+    <span><i class="sw e"></i>extern</span>
+    <span><b>ER</b> = Endreinigung gebucht</span>
+    <span>Jede Spalte = eine Nacht (Abreisetag ist die Anreise der nächsten Buchung)</span>
+  </p>
+
+  <h2 class="lists-head">Details für das Team</h2>
+  <div class="lists">
+    <div class="lcol">
+      <h2>Anreisen ({{ arrivals|length }})</h2>
+      {% if arrivals %}
+      <table class="lst">
+        <thead><tr><th>Tag</th><th>Unterkunft</th><th>Gast/Mitglied</th><th>P</th>{% if management %}<th>Kontakt</th>{% endif %}</tr></thead>
+        <tbody>{% for a in arrivals %}<tr><td>{{ a.date|date:"D d.m." }}</td><td>{{ a.quarter }}</td><td>{{ a.who }}{% if a.external %} · extern{% endif %}</td><td class="num">{{ a.persons }}</td>{% if management %}<td>{{ a.contact }}</td>{% endif %}</tr>{% endfor %}</tbody>
+      </table>
+      {% else %}<p class="empty">Keine Anreisen im Zeitraum.</p>{% endif %}
+    </div>
+    <div class="lcol">
+      <h2>Abreisen ({{ departures|length }})</h2>
+      {% if departures %}
+      <table class="lst">
+        <thead><tr><th>Tag</th><th>Unterkunft</th><th>Gast/Mitglied</th><th>P</th><th>ER</th></tr></thead>
+        <tbody>{% for a in departures %}<tr><td>{{ a.date|date:"D d.m." }}</td><td>{{ a.quarter }}</td><td>{{ a.who }}</td><td class="num">{{ a.persons }}</td><td class="num">{% if a.has_cleaning %}ER{% endif %}</td></tr>{% endfor %}</tbody>
+      </table>
+      {% else %}<p class="empty">Keine Abreisen im Zeitraum.</p>{% endif %}
+    </div>
+    <div class="lcol">
+      <h2>Endreinigungen ({{ cleaning|length }})</h2>
+      {% if cleaning %}
+      <table class="lst">
+        <thead><tr><th>Reinigung am</th><th>Unterkunft</th><th>nach</th></tr></thead>
+        <tbody>{% for a in cleaning %}<tr><td>{{ a.date|date:"D d.m.Y" }}</td><td>{{ a.quarter }}</td><td>{{ a.who }}</td></tr>{% endfor %}</tbody>
+      </table>
+      {% else %}<p class="empty">Keine gebuchten Endreinigungen im Zeitraum.</p>{% endif %}
+    </div>
+  </div>
+</body>
+</html>

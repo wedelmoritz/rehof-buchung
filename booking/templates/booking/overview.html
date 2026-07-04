@@ -79,7 +79,7 @@
         <a data-ajax title="Weiter" aria-label="Zeitraum weiter" href="?from={{ timeline.next|date:'Y-m-d' }}&weeks={{ weeks }}">›</a>
       </span>
       {% if is_mgmt %}
-      <button type="button" class="plan-print" data-print title="Belegungsplan drucken">🖨&nbsp;Drucken</button>
+      <a class="plan-print" href="{% url 'plan_pdf' %}?from={{ timeline.anchor|date:'Y-m-d' }}&weeks={{ weeks }}" target="_blank" rel="noopener" title="Belegungsplan als PDF (Querformat) – zum Drucken">🖨&nbsp;PDF drucken</a>
       {% endif %}
     </div>
     {% else %}
@@ -318,7 +318,7 @@
   .plan-ctl .rng a:hover, .plan-ctl .plan-step a:hover { background:#efe8db; color:var(--ink); }
   .plan-print { border:1px solid var(--accent); color:var(--accent-deep); background:var(--card);
     border-radius:9px; padding:.28rem .65rem; font:inherit; font-size:.82rem; font-weight:600;
-    cursor:pointer; }
+    cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; }
   .plan-print:hover { background:var(--accent-soft); }
 
   /* ---- Tape-Chart (Belegungsplan Option A, ADR 0083) ---- */

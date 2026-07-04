@@ -19,7 +19,7 @@ __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
     'wish_deconfliction', 'wish_alternatives',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
-    'build_occupancy_timeline', 'build_external_calendar', 'week_agenda',
+    'build_occupancy_timeline', 'build_plan_print', 'build_external_calendar', 'week_agenda',
 ]
 
 
@@ -640,6 +640,102 @@ def build_occupancy_timeline(member, anchor: date, span_days: int = 14,
         "today": today,
         "today_sub": (2 * today_idx + 2) if 0 <= today_idx < span_days else None,
         "any_external": any_external, "extern_color": EXTERN_COLOR,
+    }
+
+
+def build_plan_print(anchor: date, span_days: int, management: bool = True) -> dict:
+    """Datenaufbereitung fürs **Druck-PDF** des Belegungsplans (#39, Querformat).
+
+    Bewusst **nacht-basiert** (jede Zelle = eine Nacht): ein sauberer
+    Belegungswechsel sind damit **benachbarte Zellen** – kein Halbtags-Trick nötig,
+    und die Darstellung ist als **Tabelle mit colspan-Balken** robust für WeasyPrint.
+    Liefert zusätzlich die operativen Listen **Anreisen/Abreisen/Reinigung** für den
+    tabellarischen Teil. Eine Query je Quelle über das Fenster (kein N+1)."""
+    from .dashboard import _annotate_cleaning
+    win_end = anchor + timedelta(days=span_days)
+    hols = school_holidays_in_range(anchor, win_end)
+
+    days = []
+    for i in range(span_days):
+        d = anchor + timedelta(days=i)
+        days.append({
+            "idx": i, "date": d, "day": d.day, "wd": GERMAN_WEEKDAYS[d.weekday()],
+            "is_weekend": d.weekday() >= 5,
+            "holiday": next((h.name for h in hols if h.start <= d < h.end), None),
+        })
+
+    quarters = list(Quarter.objects.filter(active=True).order_by("sort_order", "name"))
+    allocs = list(_annotate_cleaning(
+        Allocation.objects.select_related("quarter", "member").filter(
+            start__lt=win_end, end__gt=anchor, provisional=False)).order_by("start"))
+    externals = list(ExternalBooking.objects.select_related("quarter", "guest").filter(
+        status=ExternalBooking.CONFIRMED, start__lt=win_end, end__gt=anchor
+    ).order_by("start"))
+
+    occ: dict[int, list] = {q.id: [None] * span_days for q in quarters}
+    arrivals, departures = [], []
+
+    def _mark(qid, start, end, ref):
+        row = occ.setdefault(qid, [None] * span_days)
+        for i in range(max((start - anchor).days, 0), min((end - anchor).days, span_days)):
+            row[i] = ref
+
+    for a in allocs:
+        cleaning = bool(getattr(a, "has_cleaning", False))
+        ref = {"who": a.member.display_name, "persons": a.persons,
+               "external": False, "has_cleaning": cleaning}
+        _mark(a.quarter_id, a.start, a.end, ref)
+        if anchor <= a.start < win_end:
+            arrivals.append({"date": a.start, "quarter": a.quarter.name,
+                             "who": a.member.display_name, "persons": a.persons,
+                             "external": False, "contact": ""})
+        if anchor <= a.end < win_end:
+            departures.append({"date": a.end, "quarter": a.quarter.name,
+                               "who": a.member.display_name, "persons": a.persons,
+                               "has_cleaning": cleaning})
+
+    for b in externals:
+        who = b.guest.name if (management and b.guest_id) else "extern"
+        ref = {"who": who, "persons": b.persons, "external": True,
+               "has_cleaning": False}
+        _mark(b.quarter_id, b.start, b.end, ref)
+        contact = b.guest.email if (management and b.guest_id) else ""
+        if anchor <= b.start < win_end:
+            arrivals.append({"date": b.start, "quarter": b.quarter.name, "who": who,
+                             "persons": b.persons, "external": True, "contact": contact})
+        if anchor <= b.end < win_end:
+            departures.append({"date": b.end, "quarter": b.quarter.name, "who": who,
+                               "persons": b.persons, "has_cleaning": False})
+
+    groups: list[dict] = []
+    for q in quarters:
+        row = occ[q.id]
+        segs, i = [], 0
+        while i < span_days:
+            ref = row[i]
+            j = i + 1
+            while j < span_days and row[j] is ref:   # gleiche Buchung (Objekt-Identität)
+                j += 1
+            if ref is None:
+                segs.append({"kind": "free", "span": j - i})
+            else:
+                segs.append({"kind": "book", "span": j - i, "who": ref["who"],
+                             "persons": ref["persons"], "external": ref["external"],
+                             "has_cleaning": ref["has_cleaning"]})
+            i = j
+        b = q.building or ""
+        if not groups or groups[-1]["building"] != b:
+            groups.append({"building": b, "rows": []})
+        groups[-1]["rows"].append({"quarter": q, "segments": segs})
+
+    arrivals.sort(key=lambda x: (x["date"], x["quarter"]))
+    departures.sort(key=lambda x: (x["date"], x["quarter"]))
+    cleaning = [d for d in departures if d["has_cleaning"]]
+    return {
+        "days": days, "groups": groups, "span_days": span_days,
+        "n_quarters": len(quarters), "anchor": anchor,
+        "win_last": win_end - timedelta(days=1), "weeks": span_days // 7,
+        "arrivals": arrivals, "departures": departures, "cleaning": cleaning,
     }
 
 

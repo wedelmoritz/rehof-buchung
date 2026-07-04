@@ -64,10 +64,17 @@ Balken. Ein Plan für **beide Rollen**; die Verwaltung bekommt Zusatzinfos
    Endreinigung als **dezentes 🧹-Symbol** am Balken/an der Abreise (#46c), keine
    laute Farbe. Pro Tag zeigt der Kopf die **Zahl freier Unterkünfte**.
 
-5. **Druck (#39):** CSS `@media print` isoliert den Plan (nur `.ov-plan`, volle
-   Breite, ohne App-Chrome/Detail-Panel; Farben mit `print-color-adjust:exact`).
-   Der **Drucken**-Knopf (nur Verwaltung) löst `window.print()` über den delegierten
-   `data-print`-Handler in `base.html` aus – CSP-konform, kein Inline-Handler.
+5. **Druck als PDF (#39):** Der **Drucken**-Knopf (nur Verwaltung) verlinkt auf
+   `plan_pdf` (`/verwaltung/belegungsplan.pdf?from=&weeks=`) und erzeugt ein
+   **Querformat-PDF** (A4 quer) via WeasyPrint – dieselbe Infrastruktur wie das
+   Rechnungs-PDF (`booking/plan_pdf.py`, HTML-Bau von Render getrennt, SSRF-sicherer
+   `_no_remote_fetcher`). Best Practice professioneller PMS: **Querformat-Raster +
+   operative Listen**. Das Druck-Raster ist bewusst **nacht-basiert**
+   (`services.build_plan_print`: jede Spalte = eine Nacht → ein Wechsel sind
+   benachbarte Zellen, robust als Tabelle mit `colspan`-Balken in WeasyPrint) und
+   wird ergänzt um tabellarische **Anreisen / Abreisen / Endreinigungen**. Emoji
+   werden im PDF durch font-sichere Kürzel ersetzt (DejaVu Sans). Das `@media print`
+   der Bildschirmseite bleibt als schlichter Fallback (Ctrl+P).
 
 6. **Ein responsiver Plan:** dieselbe Darstellung überall; eine Media-Query
    (`max-width:680px`) vergrößert am Handy Zeilenhöhe und Tap-Flächen. Der Plan

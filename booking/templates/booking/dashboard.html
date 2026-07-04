@@ -1,9 +1,7 @@
 {% extends "booking/base.html" %}
 {% block title %}Verwaltung{% endblock %}
 {% block content %}
-<div class="sec-head"><h1 style="margin:0">Verwaltung</h1><span class="spacer"></span>
-  {% if is_admin and beds24_enabled %}<a class="btn small ghost" href="{% url 'beds24_import' %}">Beds24-Import</a>{% endif %}
-  <a class="btn small" href="{% url 'dashboard_products' %}">Hofladen-Katalog pflegen</a></div>
+<div class="sec-head"><h1 style="margin:0">Verwaltung</h1></div>
 
 <details class="card help-note">
   <summary><strong>Was du hier tun kannst</strong></summary>
@@ -33,14 +31,6 @@
   </ul>
 </details>
 
-{# Schnell-Sprünge zu den Abschnitten (klebrig) – die Seite ist lang. #}
-<nav class="dash-jump" aria-label="Zu Abschnitt springen">
-  {% if service_requests %}<a href="#d-anfragen">Anfragen ({{ service_requests|length }})</a>{% endif %}
-  <a href="#d-reinigung">Reinigung</a>
-  <a href="#d-buchungen">Buchungen</a>
-  <a href="#d-rechnungen">Rechnungen</a>
-  <a href="#d-konto">Kontoabgleich</a>
-</nav>
 
 {# --- Dienstleistungs-Anfragen (z.B. Endreinigung) freigeben (#28/ADR 0081) --- #}
 {% if service_requests %}
@@ -81,6 +71,49 @@
     </tbody>
   </table></div>
 </div>
+{% endif %}
+
+{% comment %}Bereits entschiedene Endreinigungen, die sich noch REVIDIEREN lassen
+(#45/ADR 0081): bis zur Frist (Default 7 Tage vor Anreise) kann die BL einen
+Verklicker korrigieren. Danach ist die Entscheidung fest.{% endcomment %}
+{% if revisable_requests %}
+<details class="card">
+  <summary><strong>Endreinigung nachträglich ändern</strong> <span class="muted">({{ revisable_requests|length }} noch änderbar)</span></summary>
+  <p class="muted" style="margin:.4rem 0 .6rem">Eine bereits getroffene Entscheidung
+    lässt sich bis <strong>{{ er_lock_days }}&nbsp;Tage vor Anreise</strong> noch
+    korrigieren (danach fest, damit sich das Mitglied darauf einstellen kann). Das
+    Mitglied wird bei jeder Änderung benachrichtigt.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Leistung</th><th>Mitglied</th><th>Unterkunft</th><th>Anreise</th><th>Status</th><th>änderbar bis</th><th></th></tr></thead>
+    <tbody>
+      {% for r in revisable_requests %}
+      <tr>
+        <td>{{ r.sr.product.name }}</td>
+        <td>{{ r.sr.member.display_name }}</td>
+        <td>{{ r.sr.allocation.quarter.name }}</td>
+        <td>{{ r.sr.allocation.start|date:"d.m.Y" }}</td>
+        <td>{% if r.sr.status == 'confirmed' %}<span class="tag ok">bestätigt</span>{% else %}<span class="tag danger">abgelehnt</span>{% endif %}</td>
+        <td class="muted">{% if r.lock %}{{ r.lock|date:"d.m.Y" }}{% else %}jederzeit{% endif %}</td>
+        <td style="text-align:right">
+          {% if r.sr.status == 'confirmed' %}
+          <form method="post" class="inline" data-confirm="Endreinigung für {{ r.sr.member.display_name }} doch ABLEHNEN? Die noch nicht abgerechnete Position wird entfernt, das Mitglied benachrichtigt.">{% csrf_token %}
+            <input type="hidden" name="action" value="reject_service">
+            <input type="hidden" name="request_id" value="{{ r.sr.id }}">
+            <button class="btn small ghost danger" type="submit">Doch ablehnen</button>
+          </form>
+          {% else %}
+          <form method="post" class="inline" data-confirm="Endreinigung für {{ r.sr.member.display_name }} doch BESTÄTIGEN? Wird abgerechnet und in die Reinigungsliste eingetragen.">{% csrf_token %}
+            <input type="hidden" name="action" value="confirm_service">
+            <input type="hidden" name="request_id" value="{{ r.sr.id }}">
+            <button class="btn small" type="submit">Doch bestätigen</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</details>
 {% endif %}
 
 {# --- Kennzahlen ----------------------------------------------------------- #}
@@ -138,18 +171,36 @@
         {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
       </select></label>
     {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <input type="hidden" name="inv" value="{{ inv_filter }}">
     <noscript><button class="btn small" type="submit">Anzeigen</button></noscript>
   </form>
   <span class="spacer"></span>
-  <a class="btn small ghost" href="/admin/">Backend (Admin)</a>
+  {% if is_admin %}<a class="btn small ghost" href="/admin/">Backend (Admin)</a>{% endif %}
 </div>
 
+{% comment %}Abschnitts-Tabs (#59: EIN Bereich sichtbar statt langer Scroll).
+Server-getrieben über ?tab= und data-ajax (wie die Rechnungs-Filter): der Server
+rendert nur das aktive Panel sichtbar. Kein Client-JS/State – funktioniert damit
+auch nach Monat-/Filter-Reload und ist CSP-konform.{% endcomment %}
+<nav class="dash-tabs" role="tablist" aria-label="Bereich wählen">
+  <a class="dash-tab {% if active_tab == 'reinigung' %}on{% endif %}" role="tab" aria-selected="{% if active_tab == 'reinigung' %}true{% else %}false{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv={{ inv_filter }}{% if only_cleaning %}&only_cleaning=1{% endif %}&tab=reinigung">Reinigung</a>
+  <a class="dash-tab {% if active_tab == 'buchungen' %}on{% endif %}" role="tab" aria-selected="{% if active_tab == 'buchungen' %}true{% else %}false{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv={{ inv_filter }}&tab=buchungen">Buchungen</a>
+  <a class="dash-tab {% if active_tab == 'rechnungen' %}on{% endif %}" role="tab" aria-selected="{% if active_tab == 'rechnungen' %}true{% else %}false{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv={{ inv_filter }}&tab=rechnungen">Rechnungen{% if overdue %} <span class="tab-badge danger">{{ overdue|length }}</span>{% endif %}</a>
+  <a class="dash-tab {% if active_tab == 'konto' %}on{% endif %}" role="tab" aria-selected="{% if active_tab == 'konto' %}true{% else %}false{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv={{ inv_filter }}&tab=konto">Kontoabgleich{% if unmatched_count %} <span class="tab-badge">{{ unmatched_count }}</span>{% endif %}</a>
+  <span class="spacer"></span>
+  {% comment %}#58: Katalog-Pflege + Beds24 als konsistente Aktionen in der
+  Bereichsleiste, nicht mehr als loser Knopf oben rechts.{% endcomment %}
+  <a class="dash-tab link" href="{% url 'dashboard_products' %}">Hofladen-Katalog&nbsp;pflegen</a>
+  {% if is_admin and beds24_enabled %}<a class="dash-tab link" href="{% url 'beds24_import' %}">Beds24-Import</a>{% endif %}
+</nav>
+
 {# --- Reinigung ------------------------------------------------------------ #}
-<div class="card">
+<div class="card dash-panel" role="tabpanel" aria-label="Reinigung"{% if active_tab != 'reinigung' %} hidden{% endif %}>
   <div class="sec-head">
 <h2 style="margin:0" id="d-reinigung">Reinigung – {{ month_label }}</h2>
     <span class="spacer"></span>
-    <a class="btn small ghost" data-ajax href="?year={{ year }}&month={{ month }}{% if not only_cleaning %}&only_cleaning=1{% endif %}">
+    <a class="btn small ghost" data-ajax href="?year={{ year }}&month={{ month }}{% if not only_cleaning %}&only_cleaning=1{% endif %}&tab=reinigung">
       {% if only_cleaning %}Alle Abreisen zeigen{% else %}Nur mit Endreinigung{% endif %}</a>
   </div>
   <p class="muted" style="margin:.2rem 0 .7rem">Abreisetag = Reinigungstag. Liste fürs Reinigungsteam.</p>
@@ -176,6 +227,7 @@
     <a class="btn small ghost" href="{% url 'dashboard_export' 'reinigung' 'csv' %}?year={{ year }}&month={{ month }}{% if only_cleaning %}&only_cleaning=1{% endif %}">CSV</a>
     <form method="post" class="inline">{% csrf_token %}
       <input type="hidden" name="action" value="send_cleaning">
+      <input type="hidden" name="tab" value="reinigung">
       <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
       {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
       <button class="btn small" type="submit">Ans Reinigungsteam senden</button>
@@ -184,7 +236,7 @@
 </div>
 
 {# --- Anstehende Buchungen ------------------------------------------------- #}
-<div class="card">
+<div class="card dash-panel" role="tabpanel" aria-label="Anstehende Buchungen"{% if active_tab != 'buchungen' %} hidden{% endif %}>
   <h2 id="d-buchungen">Anstehende Buchungen – {{ month_label }}</h2>
   {% if arrivals %}
   <div class="table-wrap">
@@ -211,6 +263,7 @@
     <a class="btn small ghost" href="{% url 'dashboard_export' 'buchungen' 'csv' %}?year={{ year }}&month={{ month }}">CSV</a>
     <form method="post" class="inline">{% csrf_token %}
       <input type="hidden" name="action" value="send_upcoming">
+      <input type="hidden" name="tab" value="buchungen">
       <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
       <button class="btn small" type="submit">An Verwaltung senden</button>
     </form>
@@ -218,7 +271,7 @@
 </div>
 
 {# --- Rechnungen ----------------------------------------------------------- #}
-<div class="card">
+<div class="card dash-panel" role="tabpanel" aria-label="Rechnungen"{% if active_tab != 'rechnungen' %} hidden{% endif %}>
   <div class="sec-head">
     <h2 style="margin:0" id="d-rechnungen">Rechnungen</h2>
     <span class="spacer"></span>
@@ -234,11 +287,11 @@
     <span class="muted">(Änderung nur durch Admin)</span>{% endif %}
   </p>
   <div class="chips">
-    <a class="chip {% if inv_filter == 'open' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=open">Offen ({{ open_invoices|length }})</a>
-    <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=overdue">Überfällig ({{ overdue|length }})</a>
-    <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=paid">Bezahlt gemeldet</a>
-    <a class="chip {% if inv_filter == 'online' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=online">Online bezahlt ({{ online_total_count }})</a>
-    <a class="chip {% if inv_filter == 'all' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=all">Alle</a>
+    <a class="chip {% if inv_filter == 'open' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=open&tab=rechnungen">Offen ({{ open_invoices|length }})</a>
+    <a class="chip {% if inv_filter == 'overdue' %}on danger{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=overdue&tab=rechnungen">Überfällig ({{ overdue|length }})</a>
+    <a class="chip {% if inv_filter == 'paid' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=paid&tab=rechnungen">Bezahlt gemeldet</a>
+    <a class="chip {% if inv_filter == 'online' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=online&tab=rechnungen">Online bezahlt ({{ online_total_count }})</a>
+    <a class="chip {% if inv_filter == 'all' %}on{% endif %}" data-ajax href="?year={{ year }}&month={{ month }}&inv=all&tab=rechnungen">Alle</a>
   </div>
   {% if inv_filter == 'online' %}<p class="muted" style="margin:.2rem 0 .6rem">Per
     Zahldienst (Mollie) beglichene Rechnungen – Eingang ist bereits bestätigt,
@@ -264,6 +317,7 @@
             {% if i.is_overdue and i.status == 'open' %}
             <form method="post" class="inline" data-confirm="Zahlungserinnerung zu {{ i.number }} an {{ i.recipient_label }} senden?">{% csrf_token %}
               <input type="hidden" name="action" value="remind_one">
+              <input type="hidden" name="tab" value="rechnungen">
               <input type="hidden" name="invoice_id" value="{{ i.id }}">
               <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
               <button class="btn small ghost" type="submit">erinnern</button>
@@ -281,6 +335,7 @@
     {% if overdue %}
     <form method="post" class="inline" data-confirm="Zahlungserinnerung an alle {{ overdue|length }} überfälligen Rechnungen senden?">{% csrf_token %}
       <input type="hidden" name="action" value="remind_overdue">
+      <input type="hidden" name="tab" value="rechnungen">
       <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
       <button class="btn small" type="submit">Überfällige anschreiben &amp; erinnern ({{ overdue|length }})</button>
     </form>
@@ -289,7 +344,7 @@
 </div>
 
 {# --- Kontoabgleich (Zahlungseingänge importieren) ------------------------- #}
-<div class="card">
+<div class="card dash-panel" role="tabpanel" aria-label="Kontoabgleich"{% if active_tab != 'konto' %} hidden{% endif %}>
   <div class="sec-head">
     <h2 style="margin:0" id="d-konto">Kontoabgleich</h2>
     <span class="spacer"></span>
@@ -301,6 +356,7 @@
     bleiben offen (im Backend zuzuordnen).</p>
   <form method="post" enctype="multipart/form-data" class="import-form">{% csrf_token %}
     <input type="hidden" name="action" value="import_bank">
+    <input type="hidden" name="tab" value="konto">
     <span class="filefield">
       <input type="file" id="kontoauszug" name="statement" accept=".csv,.xml,.txt" required
              class="filehidden" data-filename-target="kontoauszug-name">
@@ -363,15 +419,31 @@
   /* Am Handy klebt der Header (sticky, top:0) – die Sprung-Leiste klebt direkt
      DARUNTER (Safe-Area-bewusst) und scrollt EINZEILIG horizontal statt auf zwei
      Zeilen umzubrechen (b). */
+  /* Abschnitts-Tabs: klebrig oben, EIN Panel sichtbar (#59). Mobil horizontal
+     scrollbar, damit alle Bereiche erreichbar bleiben. */
+  .dash-tabs { position:sticky; top:56px; z-index:5; display:flex; gap:.4rem;
+    flex-wrap:wrap; align-items:center; margin:0 0 1rem; padding:.5rem .2rem;
+    background:color-mix(in srgb,var(--bg) 90%,transparent); }
   @media (max-width:680px){
-    .dash-jump { position:sticky; top:calc(48px + env(safe-area-inset-top));
-      flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;
-      margin:0 -1rem 1rem; padding:.5rem 1rem; box-shadow:0 1px 0 var(--line); }
-    .dash-jump a { flex:0 0 auto; white-space:nowrap; }
+    .dash-tabs { top:calc(48px + env(safe-area-inset-top)); flex-wrap:nowrap;
+      overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -1rem 1rem;
+      padding:.5rem 1rem; box-shadow:0 1px 0 var(--line); }
+    .dash-tabs .dash-tab { flex:0 0 auto; white-space:nowrap; }
+    .dash-tabs .spacer { display:none; }
   }
-  .dash-jump a { font-size:.82rem; font-weight:600; text-decoration:none; color:var(--accent-deep);
-    padding:.3rem .7rem; border:1px solid var(--line); border-radius:999px; background:var(--card); }
-  .dash-jump a:hover { background:var(--accent-soft); }
+  .dash-tab { font:inherit; font-size:.85rem; font-weight:600; text-decoration:none;
+    color:var(--muted); padding:.36rem .8rem; border:1px solid var(--line);
+    border-radius:999px; background:var(--card); cursor:pointer; display:inline-flex;
+    align-items:center; gap:.35rem; }
+  .dash-tab:hover { color:var(--ink); background:var(--accent-soft); }
+  .dash-tab.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .dash-tab.link { color:var(--accent-deep); border-style:dashed; }
+  .dash-tab.link:hover { background:var(--accent-soft); color:var(--accent-deep); }
+  .tab-badge { font-size:.66rem; font-weight:800; background:var(--line); color:var(--muted);
+    border-radius:999px; padding:.02rem .4rem; min-width:1.1em; text-align:center; }
+  .dash-tab.on .tab-badge { background:rgba(255,255,255,.28); color:#fff; }
+  .tab-badge.danger { background:rgba(179,38,30,.14); color:#b3261e; }
+  .dash-panel[hidden] { display:none; }
   h2[id]{ scroll-margin-top:60px; }
   /* Gestylter, deutscher Datei-Upload (statt nacktem „Choose File") */
   .filefield { display:inline-flex; align-items:center; gap:.5rem; }

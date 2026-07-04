@@ -555,6 +555,52 @@ class BuchungsFlowTests(UseCaseBase):
         self.assertEqual([r["quarter"].id for r in stall["rows"]],
                          [self.k1.id, self.k2.id])
 
+    def test_plan_print_segmente_und_wechsel(self):
+        """#39-PDF: `build_plan_print` liefert Nacht-Segmente; ein Wechsel sind
+        benachbarte Belegungs-Segmente (kein Halbtag)."""
+        anchor = date(NEXT_YEAR, 6, 1)
+        # alice K1 [2.,5.) = Nächte 2,3,4 ; bob K1 [5.,8.) = Nächte 5,6,7 (Wechsel am 5.)
+        svc.book_spontaneous(self.alice, self.k1, date(NEXT_YEAR, 6, 2), date(NEXT_YEAR, 6, 5))
+        svc.book_spontaneous(self.bob, self.k1, date(NEXT_YEAR, 6, 5), date(NEXT_YEAR, 6, 8))
+        data = svc.build_plan_print(anchor, 14, management=True)
+        rows = [r for g in data["groups"] for r in g["rows"]]
+        segs = next(r for r in rows if r["quarter"].id == self.k1.id)["segments"]
+        book = [s for s in segs if s["kind"] == "book"]
+        self.assertEqual(len(book), 2)                       # zwei getrennte Balken
+        self.assertEqual(book[0]["who"], "alice")
+        self.assertEqual(book[0]["span"], 3)                 # 3 Nächte
+        self.assertEqual(book[1]["who"], "bob")
+        # Anreisen/Abreisen-Listen
+        self.assertTrue(any(a["quarter"] == "K1" and a["who"] == "alice"
+                            for a in data["arrivals"]))
+        self.assertTrue(any(d["quarter"] == "K1" and d["who"] == "bob"
+                            for d in data["departures"]))
+
+    def test_plan_print_html_und_pdf_endpoint(self):
+        """Das Druck-HTML baut ohne native Libs; der PDF-Endpoint ist verwaltungs-
+        geschützt (Mitglied → Redirect) und liefert PDF bzw. 503 ohne WeasyPrint."""
+        from booking import plan_pdf as pp
+        svc.book_spontaneous(self.alice, self.k1, date(NEXT_YEAR, 6, 2), date(NEXT_YEAR, 6, 5))
+        html = pp.plan_print_html(date(NEXT_YEAR, 6, 1), 14, management=True)
+        self.assertIn("Belegungsplan", html)
+        self.assertIn("K1", html)
+        self.assertIn("alice", html)
+        self.assertIn("Anreisen", html)
+        url = reverse("plan_pdf") + f"?from={date(NEXT_YEAR,6,1):%Y-%m-%d}&weeks=2"
+        # Mitglied ohne Verwaltungsrolle → weggeleitet
+        self.client.force_login(self.alice.user)
+        self.assertEqual(self.client.get(url).status_code, 302)
+        # Verwaltung → PDF (oder 503, falls WeasyPrint auf dieser Umgebung fehlt)
+        from booking.permissions import ensure_verwaltung_group
+        self.bob.user.groups.add(ensure_verwaltung_group())
+        self.client.force_login(self.bob.user)
+        r = self.client.get(url)
+        if pp.weasyprint_available():
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r["Content-Type"], "application/pdf")
+        else:
+            self.assertEqual(r.status_code, 503)
+
     def test_ampel_kalender_zeigt_belegung(self):
         quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
         d = date(NEXT_YEAR, 6, 15)
@@ -1255,10 +1301,56 @@ class EndreinigungFreigabeTests(UseCaseBase):
             LineItem.objects.filter(product=self.clean, allocation=a).count(), 1)
         self.assertTrue(
             self.alice.notifications.filter(message__icontains="bestätigt").exists())
-        # Zweite Bestätigung ist idempotent (keine Doppel-Abrechnung)
+        # Zweite Bestätigung ist idempotent (Erfolg, keine Doppel-Abrechnung)
         ok2, _ = shop_svc.confirm_service_request(sr)
-        self.assertFalse(ok2)
+        self.assertTrue(ok2)
         self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 1)
+
+    def test_endreinigung_revidierbar_bis_frist(self):
+        """#45: Eine Entscheidung ist bis zur Frist (7 Tage vor Anreise) änderbar.
+        bestätigt → abgelehnt entfernt die noch nicht abgerechnete Position;
+        abgelehnt → bestätigt legt sie neu an."""
+        from shop.models import LineItem
+        from shop import services as shop_svc
+        a, _ = svc.book_spontaneous(self.alice, self.k1, self.s, self.e, persons=2)
+        sr, _ = shop_svc.request_service(self.alice, self.clean, a, self.e)
+        shop_svc.confirm_service_request(sr)
+        self.assertEqual(LineItem.objects.filter(allocation=a).count(), 1)
+        # Verklickt → doch ablehnen: Position verschwindet wieder
+        ok, err = shop_svc.reject_service_request(sr)
+        self.assertTrue(ok, err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "rejected")
+        self.assertIsNone(sr.line_item_id)
+        self.assertEqual(LineItem.objects.filter(allocation=a).count(), 0)
+        # Doch wieder bestätigen: Position ist neu da
+        ok, err = shop_svc.confirm_service_request(sr)
+        self.assertTrue(ok, err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "confirmed")
+        self.assertEqual(LineItem.objects.filter(allocation=a).count(), 1)
+
+    def test_endreinigung_frist_sperrt_revidieren_erlaubt_erstentscheidung(self):
+        """#45: Nach der Frist (Anreise sehr bald) ist eine getroffene Entscheidung
+        FEST – aber eine noch offene darf erstmalig entschieden werden."""
+        from shop import services as shop_svc
+        from booking.models import BookingPolicy
+        self.open_full_year_window(date.today().year)
+        soon_s = date.today() + timedelta(days=3)   # innerhalb der 7-Tage-Frist
+        soon_e = soon_s + timedelta(days=3)
+        a, err = svc.book_spontaneous(self.alice, self.k1, soon_s, soon_e, persons=2)
+        self.assertIsNotNone(a, err)
+        sr, _ = shop_svc.request_service(self.alice, self.clean, a, soon_e)
+        self.assertTrue(shop_svc.service_request_locked(sr))
+        # Erstentscheidung trotz Frist möglich
+        ok, err = shop_svc.confirm_service_request(sr)
+        self.assertTrue(ok, err)
+        # Revidieren nach der Frist NICHT mehr möglich
+        ok, err = shop_svc.reject_service_request(sr)
+        self.assertFalse(ok)
+        self.assertIn("Frist", err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "confirmed")
 
     def test_ablehnen_keine_rechnung_und_benachrichtigt(self):
         from shop.models import LineItem

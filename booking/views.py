@@ -14,7 +14,7 @@ from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -1131,7 +1131,7 @@ def dashboard(request):
 
     from shop import services as shop_svc
     from shop.models import Invoice, ShopConfig
-    from .models import OpsConfig
+    from .models import OpsConfig, BookingPolicy
     from decimal import Decimal
 
     today = date.today()
@@ -1213,8 +1213,13 @@ def dashboard(request):
                         f"verbucht.")
                 except Exception as exc:  # noqa: BLE001 – Nutzerfehler freundlich melden
                     messages.error(request, f"Import nicht möglich: {exc}")
+        # Aktiven Abschnitt beibehalten, damit man nach einer Aktion (erinnern,
+        # senden, importieren) nicht auf den Standard-Tab zurückgeworfen wird (#59).
+        post_tab = request.POST.get("tab", "")
+        tab_qs = f"&tab={post_tab}" if post_tab in (
+            "reinigung", "buchungen", "rechnungen", "konto") else ""
         return redirect(f"{reverse('dashboard')}?year={year}&month={month}"
-                        + ("&only_cleaning=1" if only_cleaning else ""))
+                        + ("&only_cleaning=1" if only_cleaning else "") + tab_qs)
 
     arrivals = list(svc.arrivals_in_range(m_from, m_to))
     departures = list(svc.departures_in_range(m_from, m_to))
@@ -1259,9 +1264,15 @@ def dashboard(request):
     unmatched_count = BankTransaction.objects.filter(
         matched_invoice__isnull=True, amount__gt=0).count()
 
+    # Aktiver Abschnitts-Tab (#59) – server-getrieben, damit es nach Monat-/Filter-
+    # AJAX-Reload erhalten bleibt (kein Client-State/JS nötig).
+    active_tab = request.GET.get("tab") or request.POST.get("tab") or "reinigung"
+    if active_tab not in ("reinigung", "buchungen", "rechnungen", "konto"):
+        active_tab = "reinigung"
+
     months = [{"num": i, "name": svc.MONTHS_DE[i]} for i in range(1, 13)]
     return render(request, "booking/dashboard.html", {
-        "today": today, "year": year, "month": month,
+        "today": today, "year": year, "month": month, "active_tab": active_tab,
         "month_label": svc.month_label(year, month),
         "months": months, "years": list(range(today.year - 1, today.year + 3)),
         "arrivals": arrivals, "departures": departures,
@@ -1282,7 +1293,37 @@ def dashboard(request):
         "shop_small_business": ShopConfig.get_solo().small_business,
         # Offene Dienstleistungs-Anfragen (z.B. Endreinigung) zur Freigabe (#28).
         "service_requests": list(shop_svc.pending_service_requests()),
+        # Bereits entschiedene ER-Anfragen, die sich noch revidieren lassen (#45).
+        "revisable_requests": [
+            {"sr": sr, "lock": shop_svc.service_request_lock_date(sr)}
+            for sr in shop_svc.revisable_service_requests()
+        ],
+        "er_lock_days": BookingPolicy.get_solo().er_decision_lock_days,
     })
+
+
+@login_required
+def plan_pdf(request):
+    """Belegungsplan als Druck-PDF (Querformat) – nur Verwaltung/BL (#39, ADR 0083).
+    Liest denselben Datums-Anker/Bereich wie der Plan (`from`/`weeks`)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from . import plan_pdf as pp
+    today = date.today()
+    anchor = _parse_date(request.GET.get("from")) or today
+    try:
+        weeks = int(request.GET.get("weeks", 2))
+    except (TypeError, ValueError):
+        weeks = 2
+    weeks = weeks if weeks in (1, 2, 4) else 2
+    if not pp.weasyprint_available():
+        return HttpResponse(
+            "PDF-Erzeugung ist auf diesem Server nicht verfügbar.", status=503)
+    data = pp.plan_pdf_bytes(anchor, weeks * 7, management=True)
+    resp = HttpResponse(data, content_type="application/pdf")
+    resp["Content-Disposition"] = (
+        f'inline; filename="belegungsplan-{anchor:%Y-%m-%d}-{weeks}w.pdf"')
+    return resp
 
 
 @login_required

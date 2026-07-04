@@ -438,8 +438,8 @@
     </div>
     <nav>
       <a href="{% url 'overview' %}" class="{% if url_name == 'overview' %}active{% endif %}" title="Übersicht"><svg class="nav-ic"><use href="#ic-overview"/></svg><span class="nav-label">Übersicht</span></a>
-      {# Mitglieds-eigene Punkte nur mit Buchungs-Profil zeigen – reine Verwaltungs-/
-         Admin-Konten liefen sonst ins Leere (#48). #}
+      {% comment %}Mitglieds-eigene Punkte nur mit Buchungs-Profil zeigen – reine
+      Verwaltungs-/Admin-Konten liefen sonst ins Leere (#48).{% endcomment %}
       {% if user.member %}
       <a href="{% url 'book' %}" class="{% if url_name == 'book' or url_name == 'book_confirm' %}active{% endif %}" title="Buchen"><svg class="nav-ic"><use href="#ic-book"/></svg><span class="nav-label">Buchen</span></a>
       <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}" title="Wunschliste"><svg class="nav-ic"><use href="#ic-wish"/></svg><span class="nav-label">Wunschliste</span></a>
