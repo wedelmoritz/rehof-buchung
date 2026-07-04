@@ -178,6 +178,22 @@ class InvoiceDashboardTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("text/csv", r["Content-Type"])
 
+    def test_export_mit_gaesterechnung_ohne_500(self):
+        """Regression #52: Eine Gäste-Rechnung (member=None) darf den Export nicht
+        mit AttributeError (500) sprengen – `recipient_label`/`inv.iban` sind
+        empfänger-neutral."""
+        from booking.models import Guest
+        guest = Guest.objects.create(name="Familie Berger", email="berger@example.org")
+        shop_svc.create_invoice_for_guest(guest, [
+            {"name": "Übernachtung", "quantity": Decimal("3"), "unit": "Nacht",
+             "unit_price": Decimal("80.00"), "vat_rate": 7}])
+        self.client.force_login(self.staff.user)
+        for status in ("open", "all"):
+            u = reverse("dashboard_export", args=["rechnungen", "csv"]) + f"?status={status}"
+            r = self.client.get(u)
+            self.assertEqual(r.status_code, 200, f"Export {status} sollte 200 sein")
+            self.assertIn("Familie Berger", r.content.decode("utf-8"))
+
     def test_rechnungsfilter(self):
         self.client.force_login(self.staff.user)
         over = self.client.get(reverse("dashboard") + "?inv=overdue").content.decode()

@@ -495,8 +495,9 @@ class ShareInline(admin.TabularInline):
 
 @admin.register(Membership)
 class MembershipAdmin(VersionAdmin):
-    list_display = ("__str__", "eg_number", "kind", "annual_night_budget",
-                    "allocated_display", "is_tandem_display", "created_on")
+    list_display = ("__str__", "eg_number", "mitglieder_kurz", "kind",
+                    "annual_night_budget", "allocated_display", "is_tandem_display",
+                    "created_on")
     list_filter = ("kind",)
     search_fields = ("eg_number", "label", "shares__member__display_name")
     inlines = [ShareInline]
@@ -526,9 +527,19 @@ class MembershipAdmin(VersionAdmin):
     def get_queryset(self, request):
         # N+1 vermeiden: Anteile je Zeile vorladen + Anzahl annotieren, statt pro
         # Zeile allocated_budget (Summe) und is_tandem (count) einzeln abzufragen.
+        # `shares__member` deckt zusätzlich die Spalte „Mitglied(er)“ ab (#77).
         from django.db.models import Count
         return (super().get_queryset(request)
-                .prefetch_related("shares").annotate(_n_shares=Count("shares")))
+                .prefetch_related("shares__member")
+                .annotate(_n_shares=Count("shares")))
+
+    @admin.display(description="Mitglied(er)")
+    def mitglieder_kurz(self, obj):
+        """Zeigt am Anteil die zugeordneten Konten – damit ist die Kopplung
+        Konto ↔ Anteil auf BEIDEN Listen sichtbar und man muss sich nicht auf
+        gleich lautende Namen verlassen (#77)."""
+        names = [s.member.display_name for s in obj.shares.all() if s.member_id]
+        return ", ".join(names) if names else "—"
 
     @admin.display(description="vergeben / frei")
     def allocated_display(self, obj):

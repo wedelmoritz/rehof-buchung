@@ -119,15 +119,24 @@ def parse_csv(data: bytes) -> list[ParsedTxn]:
     rows = [r for r in reader if any(c.strip() for c in r)]
     if not rows:
         return []
-    header = rows[0]
-    idx = {k: _pick(header, keys) for k, keys in _COL.items()}
-    if idx["amount"] is None or idx["date"] is None:
+    # Viele deutsche Bank-Exporte (Sparkasse/DKB/…) stellen dem eigentlichen
+    # Header eine Metadaten-Präambel voran („Konto:“, „Zeitraum:“ …). Deshalb NICHT
+    # blind rows[0] als Header nehmen, sondern die erste Zeile suchen, in der sowohl
+    # Datum- als auch Betrag-Spalte erkannt werden (#53). Nur die ersten Zeilen
+    # prüfen – der Header steht immer weit oben.
+    header_i, idx = None, {}
+    for i, row in enumerate(rows[:25]):
+        cand = {k: _pick(row, keys) for k, keys in _COL.items()}
+        if cand["amount"] is not None and cand["date"] is not None:
+            header_i, idx = i, cand
+            break
+    if header_i is None:
         raise ValueError(
             "CSV nicht erkannt: Spalten für Datum/Betrag fehlen. Bitte einen "
             "CSV-Export mit Spalten wie „Buchungstag“ und „Betrag“ verwenden.")
 
     out: list[ParsedTxn] = []
-    for row in rows[1:]:
+    for row in rows[header_i + 1:]:
         def cell(key):
             i = idx[key]
             return row[i] if i is not None and i < len(row) else ""

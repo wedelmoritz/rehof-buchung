@@ -455,20 +455,26 @@ def remind_overdue(qs=None) -> int:
 # --------------------------------------------------------------------------- #
 
 INVOICE_COLUMNS = [
-    "Nummer", "Mitglied", "Jahr", "Monat", "Status", "Erstellt", "Fällig am",
-    "Netto", "MwSt", "Brutto", "Überfällig", "Zuletzt erinnert", "IBAN-Mitglied",
+    "Nummer", "Empfänger", "Typ", "Jahr", "Monat", "Status", "Erstellt",
+    "Fällig am", "Netto", "MwSt", "Brutto", "Überfällig", "Zuletzt erinnert",
+    "IBAN",
 ]
 
 
 def invoice_export_rows(qs):
-    for inv in qs.select_related("member"):
+    # `select_related("member", "guest")` deckt BEIDE Empfänger-Typen ab – eine
+    # Rechnung gehört einem Mitglied ODER einem externen Gast (member=None).
+    # `recipient_label`/`inv.iban` (Rechnungs-Snapshot) sind für beide sicher; ein
+    # direkter `inv.member.…`-Zugriff crasht sonst bei Gäste-Rechnungen (#52).
+    for inv in qs.select_related("member", "guest"):
         yield [
-            inv.number, inv.member.display_name, inv.year, inv.month,
-            inv.get_status_display(),
+            inv.number, inv.recipient_label,
+            "Gast" if inv.guest_id else "Mitglied",
+            inv.year, inv.month, inv.get_status_display(),
             inv.created_at.date().isoformat(),
             inv.due_date.isoformat() if inv.due_date else "",
             float(inv.total_net), float(inv.total_vat), float(inv.total_gross),
             "ja" if inv.is_overdue else "nein",
             inv.reminded_at.date().isoformat() if inv.reminded_at else "",
-            inv.member.iban,
+            inv.iban,
         ]
