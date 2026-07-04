@@ -541,64 +541,104 @@ def build_community_calendar(member, year, month) -> dict:
     }
 
 
-def build_occupancy_timeline(member, year, month) -> dict:
-    """Belegungs-Zeitstrahl: pro Quartier EINE Zeile, jede Buchung als Balken über
-    die Tage des Monats (Anreise→Abreise). Beantwortet „von wann bis wann ist wer
-    in welcher Unterkunft" auf einen Blick. Nutzt dieselben Daten wie die
-    Monatsmatrix (keine zusätzlichen Buchungs-Queries pro Tag)."""
-    days_in_month = _calendar.monthrange(year, month)[1]
-    m_first = date(year, month, 1)
-    m_end = m_first + timedelta(days=days_in_month)   # exklusiv
+GERMAN_WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+ALLOWED_TIMELINE_SPANS = (7, 14, 28)
+
+
+def build_occupancy_timeline(member, anchor: date, span_days: int = 14,
+                             management: bool = False) -> dict:
+    """Belegungsplan als **Tape-Chart** (Industriestandard, an beds24 angelehnt,
+    ADR 0083): Unterkünfte als Zeilen (nach `sort_order`, in Gebäude-Bänder
+    gruppiert, #38/#42), eine **durchgehende Datumsachse** ab `anchor` über
+    `span_days` Tage (#41 – kein Monatsraster mehr), Buchungen als Balken.
+
+    **Wechseltag als Halbtag (#40):** je Tag ZWEI Sub-Spalten. Ein Balken beginnt
+    an der PM-Kante des Anreisetags und endet an der AM-Kante des Abreisetags –
+    Ab- und Anreise am selben Tag treffen sich so an der Tagesmitte statt sich zu
+    überlappen (keine Schein-Doppelbelegung). Grid-Linien 1..(2·span_days+1).
+
+    `management=True` (Verwaltung/BL, #46b): externe Gäste mit Klartext-Name +
+    Personen; Mitglieder sehen nur „extern". Der Endreinigungs-Status je
+    Mitglieder-Buchung (🧹, #46c) kommt über die `has_cleaning`-Annotation.
+
+    Eine Query je Quelle (Allocation/ExternalBooking) über das Fenster – kein N+1.
+    """
+    from .dashboard import _annotate_cleaning
+    span_days = span_days if span_days in ALLOWED_TIMELINE_SPANS else 14
+    win_end = anchor + timedelta(days=span_days)      # exklusiv
     today = date.today()
-    hols = school_holidays_in_range(m_first, m_end)
+    hols = school_holidays_in_range(anchor, win_end)
+    own_id = member.id if member else None
 
     days = []
-    for i in range(days_in_month):
-        d = m_first + timedelta(days=i)
+    for i in range(span_days):
+        d = anchor + timedelta(days=i)
         days.append({
-            "date": d, "day": d.day, "is_today": d == today,
-            "is_weekend": d.weekday() >= 5,
+            "idx": i, "date": d, "day": d.day, "wd": GERMAN_WEEKDAYS[d.weekday()],
+            "is_today": d == today, "is_weekend": d.weekday() >= 5,
+            "first_of_month": d.day == 1,
             "holiday": next((h.name for h in hols if h.start <= d < h.end), None),
         })
 
-    allocs = list(Allocation.objects.select_related("quarter", "member").filter(
-        start__lt=m_end, end__gt=m_first, provisional=False).order_by("start"))
-    externals = list(ExternalBooking.objects.select_related("quarter").filter(
-        status=ExternalBooking.CONFIRMED, start__lt=m_end, end__gt=m_first
+    quarters = list(Quarter.objects.filter(active=True).order_by("sort_order", "name"))
+    allocs = list(_annotate_cleaning(
+        Allocation.objects.select_related("quarter", "member").filter(
+            start__lt=win_end, end__gt=anchor, provisional=False)).order_by("start"))
+    externals = list(ExternalBooking.objects.select_related("quarter", "guest").filter(
+        status=ExternalBooking.CONFIRMED, start__lt=win_end, end__gt=anchor
     ).order_by("start"))
-    own_id = member.id if member else None
-    quarters = list(Quarter.objects.order_by("name"))
+
     by_q: dict[int, list] = {q.id: [] for q in quarters}
+    occ_sets = [set() for _ in range(span_days)]   # belegte Quartiere je Tag → frei-Zahl
     any_external = False
 
-    def add_bar(qid, start, end, who, member_id, persons, external, mine):
-        cs = max(start, m_first)
-        ce = min(end, m_end)
-        span = (ce - cs).days
-        if span <= 0:
+    def add_bar(qid, start, end, who, member_id, persons, external, mine, cleaning):
+        a = (start - anchor).days                  # Anreise-Offset (kann < 0 sein)
+        c = (end - anchor).days                    # Abreise-Offset (kann > span sein)
+        for i in range(max(a, 0), min(c, span_days)):   # Anwesenheitstage
+            occ_sets[i].add(qid)
+        open_l, open_r = a < 0, c > span_days
+        col_start = 1 if open_l else 2 * a + 2     # PM-Kante des Anreisetags
+        col_end = (2 * span_days + 1) if open_r else 2 * c + 1   # AM-Kante Abreisetag
+        if col_end <= col_start:
             return
         by_q.setdefault(qid, []).append({
             "who": who, "member_id": member_id, "persons": persons,
-            "external": external, "mine": mine,
-            "col": (cs - m_first).days + 1, "span": span,   # 1-basierter Tag
-            "start": cs, "end": ce,
+            "external": external, "mine": mine, "has_cleaning": cleaning,
+            "col_start": col_start, "col_end": col_end,
+            "open_left": open_l, "open_right": open_r, "start": start, "end": end,
         })
 
     for a in allocs:
         add_bar(a.quarter_id, a.start, a.end, a.member.display_name, a.member_id,
-                a.persons, False, a.member_id == own_id)
+                a.persons, False, a.member_id == own_id,
+                bool(getattr(a, "has_cleaning", False)))
     for b in externals:
         any_external = True
-        add_bar(b.quarter_id, b.start, b.end, "extern", None, b.persons, True, False)
+        who = b.guest.name if (management and b.guest_id) else "extern"
+        add_bar(b.quarter_id, b.start, b.end, who, None, b.persons, True, False, False)
 
-    rows = [{"quarter": q, "bars": by_q.get(q.id, [])} for q in quarters]
-    prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
-    next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+    for d in days:
+        d["free"] = len(quarters) - len(occ_sets[d["idx"]])
+
+    # Gebäude-Bänder: fortlaufende Läufe gleichen `building` (nach sort_order), #42.
+    groups: list[dict] = []
+    for q in quarters:
+        b = q.building or ""
+        if not groups or groups[-1]["building"] != b:
+            groups.append({"building": b, "rows": []})
+        groups[-1]["rows"].append({"quarter": q, "bars": by_q.get(q.id, [])})
+
+    today_idx = (today - anchor).days
     return {
-        "days": days, "rows": rows, "days_in_month": days_in_month,
-        "label": f"{GERMAN_MONTHS[month]} {year}", "year": year, "month": month,
-        "prev": {"year": prev_month[0], "month": prev_month[1]},
-        "next": {"year": next_month[0], "month": next_month[1]},
+        "days": days, "groups": groups, "span_days": span_days,
+        "n_sub": span_days * 2, "n_quarters": len(quarters),
+        "anchor": anchor, "win_last": win_end - timedelta(days=1),
+        "prev": anchor - timedelta(days=span_days),
+        "next": anchor + timedelta(days=span_days),
+        "weeks": span_days // 7,
+        "today": today,
+        "today_sub": (2 * today_idx + 2) if 0 <= today_idx < span_days else None,
         "any_external": any_external, "extern_color": EXTERN_COLOR,
     }
 

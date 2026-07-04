@@ -56,44 +56,74 @@
 <div class="card ov-plan">
   <div class="ov-plan-head">
     <div class="view-toggle" role="tablist" aria-label="Ansicht wählen">
-      <a class="vt {% if view_mode == 'timeline' %}on{% endif %}" role="tab" title="Zeitstrahl je Unterkunft" aria-selected="{% if view_mode == 'timeline' %}true{% else %}false{% endif %}"
-         href="?year={{ cal.year }}&month={{ cal.month }}">Belegung</a>
-      <a class="vt {% if view_mode == 'grid' %}on{% endif %}" role="tab" title="Monatsraster" aria-selected="{% if view_mode == 'grid' %}true{% else %}false{% endif %}"
+      <a class="vt {% if view_mode == 'timeline' %}on{% endif %}" role="tab" data-ajax title="Belegungsplan je Unterkunft" aria-selected="{% if view_mode == 'timeline' %}true{% else %}false{% endif %}"
+         href="?from={{ timeline.anchor|date:'Y-m-d' }}&weeks={{ weeks }}">Belegung</a>
+      <a class="vt {% if view_mode == 'grid' %}on{% endif %}" role="tab" data-ajax title="Monatsraster" aria-selected="{% if view_mode == 'grid' %}true{% else %}false{% endif %}"
          href="?year={{ cal.year }}&month={{ cal.month }}&view=grid">Kalender</a>
     </div>
+    {% if view_mode == 'timeline' %}
+    <div class="plan-ctl">
+      <form method="get" action="?" data-ajax class="plan-from">
+        <label for="plan_from">Ab</label>
+        <input type="date" id="plan_from" name="from" value="{{ timeline.anchor|date:'Y-m-d' }}" data-autosubmit>
+        <input type="hidden" name="weeks" value="{{ weeks }}">
+      </form>
+      <span class="rng" role="group" aria-label="Zeitraum">
+        <a data-ajax class="{% if weeks == 1 %}on{% endif %}" href="?from={{ timeline.anchor|date:'Y-m-d' }}&weeks=1">1&nbsp;Wo</a>
+        <a data-ajax class="{% if weeks == 2 %}on{% endif %}" href="?from={{ timeline.anchor|date:'Y-m-d' }}&weeks=2">2&nbsp;Wo</a>
+        <a data-ajax class="{% if weeks == 4 %}on{% endif %}" href="?from={{ timeline.anchor|date:'Y-m-d' }}&weeks=4">4&nbsp;Wo</a>
+      </span>
+      <span class="plan-step">
+        <a data-ajax title="Zurück" aria-label="Zeitraum zurück" href="?from={{ timeline.prev|date:'Y-m-d' }}&weeks={{ weeks }}">‹</a>
+        <a data-ajax href="?weeks={{ weeks }}">Heute</a>
+        <a data-ajax title="Weiter" aria-label="Zeitraum weiter" href="?from={{ timeline.next|date:'Y-m-d' }}&weeks={{ weeks }}">›</a>
+      </span>
+      {% if is_mgmt %}
+      <button type="button" class="plan-print" data-print title="Belegungsplan drucken">🖨&nbsp;Drucken</button>
+      {% endif %}
+    </div>
+    {% else %}
     {% include "booking/_calnav.html" %}
+    {% endif %}
   </div>
 
   <div class="ov-grid {% if sel_day %}has-detail{% endif %}">
     <div class="ov-main">
       {% if view_mode == 'timeline' %}
-      <div class="occ" tabindex="0" aria-label="Belegungs-Zeitstrahl pro Unterkunft">
-        <div class="occ-table" style="--days:{{ timeline.days_in_month }}">
-          <div class="occ-row occ-header">
-            <div class="occ-qname"></div>
-            <div class="occ-track">
+      <div class="tape" tabindex="0" aria-label="Belegungsplan je Unterkunft">
+        <div class="tape-inner" style="--sub:{{ timeline.n_sub }}">
+          <div class="tape-head">
+            <div class="tape-qname tape-qhead">Unterkunft</div>
+            <div class="tape-track">
               {% for d in timeline.days %}
-              <div class="occ-day {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %} {% if d.holiday %}hol{% endif %}"
-                   style="grid-column:{{ forloop.counter }};grid-row:1"{% if d.holiday %} title="{{ d.holiday }}"{% endif %}>{{ d.day }}</div>
+              <div class="tape-dh {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %} {% if d.holiday %}hol{% endif %} {% if d.first_of_month %}mstart{% endif %}"
+                   style="grid-column:{{ d.idx|add:d.idx|add:1 }} / span 2;grid-row:1"{% if d.holiday %} title="{{ d.holiday }}"{% endif %}>
+                <span class="wd">{{ d.wd }}</span><span class="dn">{{ d.day }}</span><span class="fr" title="freie Unterkünfte">{{ d.free }}</span>
+              </div>
               {% endfor %}
             </div>
           </div>
-          {% for row in timeline.rows %}
-          <div class="occ-row">
-            <div class="occ-qname" title="{{ row.quarter.name }}">{{ row.quarter.name }}</div>
-            <div class="occ-track">
+          {% for g in timeline.groups %}
+          {% if g.building %}<div class="tape-grp"><span>{{ g.building }}</span></div>{% endif %}
+          {% for row in g.rows %}
+          <div class="tape-row">
+            <div class="tape-qname" title="{{ row.quarter.name }}"><span class="dot" style="background:{{ row.quarter.accessible|yesno:'var(--sage),transparent' }}"></span>{{ row.quarter.name }}</div>
+            <div class="tape-track">
               {% for d in timeline.days %}
-              <div class="occ-cell {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %}"
-                   style="grid-column:{{ forloop.counter }};grid-row:1"></div>
+              <div class="tape-cell {% if d.is_weekend %}we{% endif %} {% if d.is_today %}today{% endif %}"
+                   style="grid-column:{{ d.idx|add:d.idx|add:1 }} / span 2;grid-row:1"></div>
               {% endfor %}
               {% for b in row.bars %}
-              <a class="occ-bar {% if b.mine %}mine{% endif %}" data-ajax
-                 style="grid-column:{{ b.col }} / span {{ b.span }};grid-row:1;background:{{ b.color }}"
-                 href="?year={{ cal.year }}&month={{ cal.month }}&day={{ b.start|date:'Y-m-d' }}#tag"
-                 title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if not b.external %} · {{ b.persons }} Pers.{% endif %}">{{ b.who }}{% if not b.external %} ({{ b.persons }}){% endif %}</a>
+              <a class="bar {% if b.mine %}mine{% endif %}{% if b.external %} ext{% endif %}{% if b.open_left %} ol{% endif %}{% if b.open_right %} or{% endif %}" data-ajax
+                 style="grid-column:{{ b.col_start }} / {{ b.col_end }};grid-row:1;background:{{ b.color }}"
+                 href="?{{ plan_qs }}&day={{ b.start|date:'Y-m-d' }}#tag"
+                 title="{{ row.quarter.name }} · {{ b.who }} · {{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}{% if not b.external %} · {{ b.persons }} Pers.{% endif %}{% if b.has_cleaning %} · Endreinigung{% endif %}">
+                <span class="bw">{{ b.who }}</span>{% if b.persons %}<span class="bp">{{ b.persons }}</span>{% endif %}{% if b.has_cleaning %}<span class="ber" aria-label="Endreinigung">🧹</span>{% endif %}
+              </a>
               {% endfor %}
             </div>
           </div>
+          {% endfor %}
           {% endfor %}
         </div>
       </div>
@@ -139,7 +169,7 @@
       <div class="ov-detail-head">
         <h2>{{ sel_day|date:"D, d.m.Y" }}</h2>
         <a class="ov-detail-close" data-ajax title="Schließen" aria-label="Detail schließen"
-           href="?year={{ cal.year }}&month={{ cal.month }}{{ nav_qs }}">✕</a>
+           href="?{{ plan_qs }}">✕</a>
       </div>
       {% if detail.arrivals %}
       <h3>⬇ Anreisen</h3>
@@ -271,27 +301,88 @@
   .view-toggle .vt.on { background:#fff; color:var(--ink); font-weight:600;
     box-shadow:0 1px 3px rgba(0,0,0,.08); }
 
-  .occ { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .occ-table { min-width:680px; }
-  .occ-row { display:flex; align-items:stretch; gap:2px; }
-  .occ-qname { flex:0 0 8.5rem; position:sticky; left:0; z-index:3; background:var(--card);
-    font-size:.74rem; font-weight:600; display:flex; align-items:center; padding:2px 6px;
+  /* ---- Belegungsplan-Steuerleiste (Datum + Bereich + Schritt + Druck) ---- */
+  .plan-ctl { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .55rem;
+    margin-left:auto; }
+  .plan-from { display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line);
+    border-radius:9px; background:var(--card); padding:.2rem .5rem; }
+  .plan-from label { color:var(--muted); font-size:.82rem; }
+  .plan-from input[type=date] { border:0; background:transparent; font:inherit; font-size:.85rem;
+    color:var(--ink); width:auto; min-width:0; padding:.1rem 0; }
+  .plan-ctl .rng, .plan-ctl .plan-step { display:inline-flex; border:1px solid var(--line);
+    border-radius:9px; overflow:hidden; background:var(--card); }
+  .plan-ctl .rng a, .plan-ctl .plan-step a { padding:.28rem .6rem; font-size:.82rem;
+    color:var(--muted); text-decoration:none; border-right:1px solid var(--line); }
+  .plan-ctl .rng a:last-child, .plan-ctl .plan-step a:last-child { border-right:0; }
+  .plan-ctl .rng a.on { background:var(--accent-soft); color:var(--accent-deep); font-weight:600; }
+  .plan-ctl .rng a:hover, .plan-ctl .plan-step a:hover { background:#efe8db; color:var(--ink); }
+  .plan-print { border:1px solid var(--accent); color:var(--accent-deep); background:var(--card);
+    border-radius:9px; padding:.28rem .65rem; font:inherit; font-size:.82rem; font-weight:600;
+    cursor:pointer; }
+  .plan-print:hover { background:var(--accent-soft); }
+
+  /* ---- Tape-Chart (Belegungsplan Option A, ADR 0083) ---- */
+  .tape { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line);
+    border-radius:12px; background:var(--card); }
+  .tape-inner { --qw:9.5rem; --subw:15px;
+    min-width:calc(var(--qw) + var(--sub) * var(--subw)); }
+  .tape-head, .tape-row { display:grid; grid-template-columns:var(--qw) minmax(0,1fr); }
+  .tape-head { border-bottom:1px solid var(--line); }
+  .tape-track { display:grid; grid-template-columns:repeat(var(--sub),minmax(var(--subw),1fr));
+    position:relative; }
+  .tape-qname { position:sticky; left:0; z-index:3; background:var(--card);
+    border-right:1px solid var(--line); font-size:.8rem; font-weight:600; color:var(--ink);
+    display:flex; align-items:center; gap:.3rem; padding:0 .5rem; min-height:32px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .occ-track { flex:1 1 auto; display:grid;
-    grid-template-columns:repeat(var(--days),minmax(0,1fr)); grid-auto-rows:minmax(28px,auto); }
-  .occ-cell { border-right:1px solid #efe9dd; min-height:28px; }
-  .occ-cell.we { background:#f3eee4; }
-  .occ-cell.today { box-shadow: inset 0 0 0 2px rgba(176,106,72,.4); }
-  .occ-header .occ-qname { background:transparent; }
-  .occ-day { text-align:center; font-size:.6rem; color:var(--muted); padding:2px 0; }
-  .occ-day.we { background:#f3eee4; }
-  .occ-day.today { color:var(--accent-deep); font-weight:700; }
-  .occ-day.hol { color:#a06a3a; }
-  .occ-bar { align-self:center; height:calc(100% - 4px); margin:2px 0; border-radius:6px;
-    font-size:.64rem; line-height:1.6; padding:0 6px; overflow:hidden; white-space:nowrap;
-    text-overflow:ellipsis; color:#332c25; text-decoration:none; display:flex; align-items:center;
-    box-shadow:0 1px 2px rgba(0,0,0,.08); }
-  .occ-bar.mine { box-shadow: inset 0 0 0 2px var(--accent-deep); font-weight:600; }
-  .occ-bar:hover { filter:brightness(1.04); }
+  .tape-qname .dot { width:7px; height:7px; border-radius:2px; flex:0 0 auto; }
+  .tape-qhead { font-size:.68rem; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--muted); font-weight:700; align-items:flex-end; padding-bottom:.25rem; }
+  .tape-dh { text-align:center; padding:.15rem 0 .2rem; border-left:1px solid #f1ece2;
+    font-size:.72rem; display:flex; flex-direction:column; align-items:center; line-height:1.15; }
+  .tape-dh .wd { font-size:.58rem; color:#a49b8d; text-transform:uppercase; }
+  .tape-dh .dn { font-weight:600; color:#4a443c; font-variant-numeric:tabular-nums; }
+  .tape-dh .fr { font-size:.56rem; color:var(--good); font-weight:700; }
+  .tape-dh.we { background:#f5f0e8; }
+  .tape-dh.today .dn { color:#fff; background:var(--accent); border-radius:5px; padding:0 .28rem; }
+  .tape-dh.hol .dn { color:#a06a3a; }
+  .tape-dh.mstart { border-left:2px solid var(--line); }
+  .tape-grp { position:sticky; left:0; background:#efe8db; border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line); padding:.16rem .6rem; font-size:.68rem; font-weight:800;
+    letter-spacing:.05em; text-transform:uppercase; color:#7a5a3e; }
+  .tape-row { border-bottom:1px solid #f1ece2; }
+  .tape-cell { border-left:1px solid #f4efe8; min-height:32px; }
+  .tape-cell.we { background:#faf6ef; }
+  .tape-cell.today { background:rgba(190,62,35,.06); }
+  .bar { grid-row:1; align-self:center; height:26px; border-radius:7px; display:flex;
+    align-items:center; gap:.25rem; padding:0 .45rem; font-size:.72rem; color:#332c25;
+    text-decoration:none; overflow:hidden; white-space:nowrap; z-index:2;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.05); }
+  .bar .bw { overflow:hidden; text-overflow:ellipsis; }
+  .bar .bp { font-weight:700; opacity:.65; font-size:.66rem; }
+  .bar .ber { margin-left:auto; font-size:.68rem; }
+  .bar.mine { box-shadow:inset 0 0 0 2px var(--accent-deep); font-weight:600; }
+  .bar.ext { color:#4c5854; }
+  .bar.ol { border-top-left-radius:0; border-bottom-left-radius:0; }
+  .bar.or { border-top-right-radius:0; border-bottom-right-radius:0; }
+  .bar:hover { filter:brightness(1.04); }
+  /* Handy: etwas höhere Zeilen + größere Trefferflächen (ein Plan, responsiv). */
+  @media (max-width:680px){
+    .tape-inner { --qw:7rem; --subw:17px; }
+    .tape-qname { min-height:38px; font-size:.76rem; }
+    .tape-cell { min-height:38px; }
+    .bar { height:30px; font-size:.74rem; }
+    .plan-ctl { width:100%; margin-left:0; }
+  }
+  /* Drucklayout (nur Verwaltung nutzt den Knopf): nur der Plan, volle Breite. */
+  @media print {
+    body * { visibility:hidden !important; }
+    .ov-plan, .ov-plan * { visibility:visible !important; }
+    .ov-plan { position:absolute; left:0; top:0; width:100%; border:0; box-shadow:none; }
+    .plan-ctl, .view-toggle, .ov-detail, .ov-detail-close { display:none !important; }
+    .tape { overflow:visible !important; border:0; }
+    .tape-inner { min-width:0 !important; }
+    .bar { box-shadow:inset 0 0 0 1px #999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .tape-dh.we, .tape-cell.we, .tape-grp { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
 </style>
 {% endblock %}

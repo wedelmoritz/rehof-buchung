@@ -617,6 +617,11 @@
       var b = e.target.closest ? e.target.closest("[data-reload]") : null;
       if (b) { e.preventDefault(); location.reload(); }
     }, false);
+    // Buttons mit data-print (z.B. Belegungsplan drucken) – CSP-konform statt onclick.
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-print]") : null;
+      if (b) { e.preventDefault(); window.print(); }
+    }, false);
   })();
 
   // AJAX-Formulare: POST ohne Neuladen, Scrollposition halten, Meldung als Toast.

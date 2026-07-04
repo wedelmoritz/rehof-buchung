@@ -515,13 +515,45 @@ class BuchungsFlowTests(UseCaseBase):
         e = date(NEXT_YEAR, 6, 8)
         b, err = svc.book_spontaneous(self.alice, self.k1, s, e, persons=2)
         self.assertIsNotNone(b, err)
-        tl = svc.build_occupancy_timeline(self.alice, NEXT_YEAR, 6)
-        row = next(r for r in tl["rows"] if r["quarter"].id == self.k1.id)
+        # Tape-Chart ab s über 2 Wochen: Halbtags-Balken (col_start = PM-Kante des
+        # Anreisetags = 2*0+2 = 2; col_end = AM-Kante des Abreisetags = 2*3+1 = 7).
+        tl = svc.build_occupancy_timeline(self.alice, s, 14)
+        rows = [r for g in tl["groups"] for r in g["rows"]]
+        row = next(r for r in rows if r["quarter"].id == self.k1.id)
         self.assertEqual(len(row["bars"]), 1)
         bar = row["bars"][0]
-        self.assertEqual(bar["col"], 5)     # 5. Tag des Monats
-        self.assertEqual(bar["span"], 3)    # 3 Nächte
+        self.assertEqual(bar["col_start"], 2)
+        self.assertEqual(bar["col_end"], 7)
         self.assertTrue(bar["mine"])
+        self.assertFalse(bar["open_left"])
+        self.assertFalse(bar["open_right"])
+
+    def test_belegungs_timeline_wechseltag_kein_overlap(self):
+        """#40: sauberer Belegungswechsel – A reist am selben Tag ab, an dem B
+        anreist. Die Balken dürfen sich NICHT überlappen (halbe Tage)."""
+        d = date(NEXT_YEAR, 6, 10)
+        svc.book_spontaneous(self.alice, self.k1, d - timedelta(days=3), d)   # Abreise d
+        svc.book_spontaneous(self.bob, self.k1, d, d + timedelta(days=3))     # Anreise d
+        tl = svc.build_occupancy_timeline(self.alice, d - timedelta(days=3), 14)
+        rows = [r for g in tl["groups"] for r in g["rows"]]
+        bars = sorted((next(r for r in rows if r["quarter"].id == self.k1.id))["bars"],
+                      key=lambda x: x["col_start"])
+        self.assertEqual(len(bars), 2)
+        # A endet an der AM-Kante, B beginnt an der PM-Kante desselben Tages → col_end(A) <= col_start(B)
+        self.assertLessEqual(bars[0]["col_end"], bars[1]["col_start"])
+
+    def test_belegungs_timeline_gebaeude_gruppen(self):
+        """#38/#42: Zeilen nach sort_order, in Gebäude-Bänder gruppiert."""
+        self.k1.building = "Stallgebäude"; self.k1.sort_order = 1; self.k1.save()
+        self.k2.building = "Stallgebäude"; self.k2.sort_order = 2; self.k2.save()
+        self.qa.building = "Hofgebäude"; self.qa.sort_order = 3; self.qa.save()
+        tl = svc.build_occupancy_timeline(self.alice, date(NEXT_YEAR, 6, 1), 7)
+        buildings = [g["building"] for g in tl["groups"] if g["building"]]
+        self.assertIn("Stallgebäude", buildings)
+        self.assertIn("Hofgebäude", buildings)
+        stall = next(g for g in tl["groups"] if g["building"] == "Stallgebäude")
+        self.assertEqual([r["quarter"].id for r in stall["rows"]],
+                         [self.k1.id, self.k2.id])
 
     def test_ampel_kalender_zeigt_belegung(self):
         quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
