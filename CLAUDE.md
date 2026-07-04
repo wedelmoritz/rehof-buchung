@@ -494,7 +494,15 @@ Dashboard **bestätigt** (`confirm_service_request` → `purchase_service` + Rei
 liste) oder **ablehnt** (`reject_service_request`); beide idempotent, benachrichtigen
 das Mitglied. Das Mitglied sieht den Status („angefragt/bestätigt/abgelehnt“) in
 **„Meine Buchungen“** (`Allocation.service_requests`, prefetch). Sofort-Kauf bleibt für
-DLs ohne `needs_approval` (z.B. Sauna).
+DLs ohne `needs_approval` (z.B. Sauna). **Entscheidung revidierbar bis zur Frist
+(#45/ADR 0081-Nachtrag):** bestätigt ⇄ abgelehnt bleibt änderbar bis
+`BookingPolicy.er_decision_lock_days` (Default **7 Tage vor Anreise**; 0 = jederzeit)
+– danach fest; die Frist sperrt nur das **Revidieren**, eine noch offene Anfrage darf
+weiter erstmalig entschieden werden (serverseitig `services.service_request_locked`).
+Beim Zurücknehmen einer Bestätigung entfällt die **noch nicht abgerechnete** Position
+(bereits fakturiert → nicht mehr revidierbar). Das Dashboard bündelt änderbare
+Entscheidungen im eingeklappten Bereich **„Endreinigung nachträglich ändern"**
+(`services.revisable_service_requests`, „änderbar bis <Datum>").
 **Offene Posten:** `Invoice.due_date` (aus `ShopConfig.payment_term_days`) +
 `is_overdue`; **Zahlungserinnerung** idempotent über `services.send_payment_reminder`
 / `remind_overdue` (Aktion im Admin + Dashboard, „zuletzt erinnert am“).

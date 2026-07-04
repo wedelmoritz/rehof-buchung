@@ -1255,10 +1255,56 @@ class EndreinigungFreigabeTests(UseCaseBase):
             LineItem.objects.filter(product=self.clean, allocation=a).count(), 1)
         self.assertTrue(
             self.alice.notifications.filter(message__icontains="bestätigt").exists())
-        # Zweite Bestätigung ist idempotent (keine Doppel-Abrechnung)
+        # Zweite Bestätigung ist idempotent (Erfolg, keine Doppel-Abrechnung)
         ok2, _ = shop_svc.confirm_service_request(sr)
-        self.assertFalse(ok2)
+        self.assertTrue(ok2)
         self.assertEqual(LineItem.objects.filter(product=self.clean).count(), 1)
+
+    def test_endreinigung_revidierbar_bis_frist(self):
+        """#45: Eine Entscheidung ist bis zur Frist (7 Tage vor Anreise) änderbar.
+        bestätigt → abgelehnt entfernt die noch nicht abgerechnete Position;
+        abgelehnt → bestätigt legt sie neu an."""
+        from shop.models import LineItem
+        from shop import services as shop_svc
+        a, _ = svc.book_spontaneous(self.alice, self.k1, self.s, self.e, persons=2)
+        sr, _ = shop_svc.request_service(self.alice, self.clean, a, self.e)
+        shop_svc.confirm_service_request(sr)
+        self.assertEqual(LineItem.objects.filter(allocation=a).count(), 1)
+        # Verklickt → doch ablehnen: Position verschwindet wieder
+        ok, err = shop_svc.reject_service_request(sr)
+        self.assertTrue(ok, err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "rejected")
+        self.assertIsNone(sr.line_item_id)
+        self.assertEqual(LineItem.objects.filter(allocation=a).count(), 0)
+        # Doch wieder bestätigen: Position ist neu da
+        ok, err = shop_svc.confirm_service_request(sr)
+        self.assertTrue(ok, err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "confirmed")
+        self.assertEqual(LineItem.objects.filter(allocation=a).count(), 1)
+
+    def test_endreinigung_frist_sperrt_revidieren_erlaubt_erstentscheidung(self):
+        """#45: Nach der Frist (Anreise sehr bald) ist eine getroffene Entscheidung
+        FEST – aber eine noch offene darf erstmalig entschieden werden."""
+        from shop import services as shop_svc
+        from booking.models import BookingPolicy
+        self.open_full_year_window(date.today().year)
+        soon_s = date.today() + timedelta(days=3)   # innerhalb der 7-Tage-Frist
+        soon_e = soon_s + timedelta(days=3)
+        a, err = svc.book_spontaneous(self.alice, self.k1, soon_s, soon_e, persons=2)
+        self.assertIsNotNone(a, err)
+        sr, _ = shop_svc.request_service(self.alice, self.clean, a, soon_e)
+        self.assertTrue(shop_svc.service_request_locked(sr))
+        # Erstentscheidung trotz Frist möglich
+        ok, err = shop_svc.confirm_service_request(sr)
+        self.assertTrue(ok, err)
+        # Revidieren nach der Frist NICHT mehr möglich
+        ok, err = shop_svc.reject_service_request(sr)
+        self.assertFalse(ok)
+        self.assertIn("Frist", err)
+        sr.refresh_from_db()
+        self.assertEqual(sr.status, "confirmed")
 
     def test_ablehnen_keine_rechnung_und_benachrichtigt(self):
         from shop.models import LineItem

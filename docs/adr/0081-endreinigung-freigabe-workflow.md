@@ -61,6 +61,27 @@ Die **Freigabe** liegt bewusst im **Verwaltungs-Dashboard** (Tagesgeschäft der 
 kein Backend nötig). Der `ServiceRequestAdmin` im Django-Admin ist nur **Nachschau**
 (kein Anlegen, kein Bestätigen dort).
 
+## Nachtrag: Entscheidung revidierbar bis zur Frist (#45)
+
+Aus dem Praxis-Feedback: die BL kann sich verklicken oder später doch Kapazität
+haben. Deshalb ist die Freigabe-Entscheidung **nicht mehr terminal**, sondern
+**revidierbar** – aber nur bis zu einer **konfigurierbaren Frist**
+(`BookingPolicy.er_decision_lock_days`, Default **7 Tage vor Anreise**; 0 = jederzeit).
+
+- `confirm_service_request`/`reject_service_request` erlauben den Wechsel
+  **bestätigt ⇄ abgelehnt** (idempotent, benachrichtigen das Mitglied bei jeder
+  Änderung). Beim Zurücknehmen einer Bestätigung wird die **noch nicht abgerechnete**
+  Rechnungs-Position (`line_item` + ggf. leerer `Purchase`) entfernt; ist sie bereits
+  **fakturiert**, ist keine Ablehnung mehr möglich.
+- Die **Frist sperrt nur das Revidieren** einer bereits getroffenen Entscheidung –
+  eine noch **offene** (angefragte) Anfrage darf die BL weiterhin **erstmalig**
+  entscheiden. Durchgesetzt **serverseitig** (`service_request_locked`).
+- Das Dashboard zeigt bereits entschiedene, noch änderbare Anfragen in einem
+  eigenen, eingeklappten Bereich **„Endreinigung nachträglich ändern"** mit
+  „änderbar bis <Datum>" und „Doch bestätigen/ablehnen"-Knopf
+  (`revisable_service_requests`). Konfigurierbar am `BookingPolicy` (Abschnitt
+  „Endreinigung", Migration 0051).
+
 ## Konsequenzen
 
 **Positiv** – entspricht dem realen Ablauf; klare Rückmeldung ans Mitglied; keine

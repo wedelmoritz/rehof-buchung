@@ -1131,7 +1131,7 @@ def dashboard(request):
 
     from shop import services as shop_svc
     from shop.models import Invoice, ShopConfig
-    from .models import OpsConfig
+    from .models import OpsConfig, BookingPolicy
     from decimal import Decimal
 
     today = date.today()
@@ -1293,6 +1293,12 @@ def dashboard(request):
         "shop_small_business": ShopConfig.get_solo().small_business,
         # Offene Dienstleistungs-Anfragen (z.B. Endreinigung) zur Freigabe (#28).
         "service_requests": list(shop_svc.pending_service_requests()),
+        # Bereits entschiedene ER-Anfragen, die sich noch revidieren lassen (#45).
+        "revisable_requests": [
+            {"sr": sr, "lock": shop_svc.service_request_lock_date(sr)}
+            for sr in shop_svc.revisable_service_requests()
+        ],
+        "er_lock_days": BookingPolicy.get_solo().er_decision_lock_days,
     })
 
 

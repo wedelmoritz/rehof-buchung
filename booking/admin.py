@@ -1018,6 +1018,15 @@ class BookingPolicyAdmin(admin.ModelAdmin):
                 "erinnert, die noch nichts eingereicht haben – zweistufig (die zweite "
                 "Zahl sollte kleiner sein), je 0 = diese Stufe aus."),
         }),
+        ("Endreinigung", {
+            "fields": ("er_decision_lock_days",),
+            "description": (
+                "<b>Frist zum Revidieren</b>: Die Betriebsleitung kann eine "
+                "Endreinigungs-Entscheidung (bestätigt/abgelehnt) im Dashboard bis zu "
+                "so viele Tage <i>vor der Anreise</i> noch ändern; danach ist sie fest, "
+                "damit sich das Mitglied darauf einstellen kann. 0 = jederzeit änderbar "
+                "(ADR 0081/#45)."),
+        }),
     )
 
     def has_add_permission(self, request):

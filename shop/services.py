@@ -187,14 +187,39 @@ def _notify_member_service(sr, confirmed: bool) -> None:
 
 
 @transaction.atomic
+def service_request_lock_date(sr):
+    """Datum, ab dem eine ER-Entscheidung NICHT mehr geändert werden darf
+    (Anreise − `er_decision_lock_days`), oder None wenn kein Lock (Frist 0). #45."""
+    from booking.models import BookingPolicy
+    from datetime import timedelta
+    days = BookingPolicy.get_solo().er_decision_lock_days
+    if not days:
+        return None
+    return sr.allocation.start - timedelta(days=days)
+
+
+def service_request_locked(sr) -> bool:
+    """Ist die ER-Entscheidung fixiert (Frist erreicht/überschritten)? #45."""
+    lock = service_request_lock_date(sr)
+    return lock is not None and date.today() >= lock
+
+
+@transaction.atomic
 def confirm_service_request(sr, by_user=None) -> tuple[bool, str | None]:
     """Betriebsleitung bestätigt eine Anfrage → es entsteht die Rechnungs-Position
-    (`purchase_service`), das Mitglied wird benachrichtigt. Idempotent."""
+    (`purchase_service`). **Revidierbar** (auch aus „abgelehnt“) bis zur Frist
+    `er_decision_lock_days` vor Anreise (#45). Idempotent."""
     from .models import ServiceRequest
-    if sr.status != ServiceRequest.REQUESTED:
-        return False, "Diese Anfrage ist bereits entschieden."
     if sr.product is None:
         return False, "Dienstleistung nicht mehr vorhanden."
+    if sr.status == ServiceRequest.CONFIRMED and sr.line_item_id:
+        return True, None  # schon bestätigt – nichts zu tun
+    # Die Frist sperrt nur das REVIDIEREN einer bereits getroffenen Entscheidung –
+    # eine noch offene (angefragte) darf die BL weiterhin erstmalig entscheiden (#45).
+    if sr.status == ServiceRequest.REJECTED and service_request_locked(sr):
+        lock = service_request_lock_date(sr)
+        return False, (f"Frist abgelaufen – seit {lock:%d.%m.%Y} ist die "
+                       f"Entscheidung fest (Anreise {sr.allocation.start:%d.%m.%Y}).")
     item, err = purchase_service(sr.member, sr.product, 1,
                                  service_date=sr.service_date,
                                  allocation=sr.allocation)
@@ -202,25 +227,47 @@ def confirm_service_request(sr, by_user=None) -> tuple[bool, str | None]:
         return False, err
     sr.status = ServiceRequest.CONFIRMED
     sr.line_item = item
+    sr.note = ""
     sr.decided_at = timezone.now()
     sr.decided_by = by_user
-    sr.save(update_fields=["status", "line_item", "decided_at", "decided_by"])
+    sr.save(update_fields=["status", "line_item", "note", "decided_at", "decided_by"])
     _notify_member_service(sr, confirmed=True)
     return True, None
 
 
 @transaction.atomic
 def reject_service_request(sr, by_user=None, reason: str = "") -> tuple[bool, str | None]:
-    """Betriebsleitung lehnt eine Anfrage ab → keine Abrechnung, Mitglied wird
-    (mit optionalem Grund) benachrichtigt. Idempotent."""
+    """Betriebsleitung lehnt ab → keine Abrechnung. **Revidierbar** (auch aus
+    „bestätigt“ – die noch nicht abgerechnete Position wird dann entfernt) bis zur
+    Frist `er_decision_lock_days` vor Anreise (#45). Idempotent."""
     from .models import ServiceRequest
-    if sr.status != ServiceRequest.REQUESTED:
-        return False, "Diese Anfrage ist bereits entschieden."
+    if sr.status == ServiceRequest.REJECTED:
+        if reason and reason[:255] != sr.note:
+            sr.note = reason[:255]
+            sr.save(update_fields=["note"])
+        return True, None  # schon abgelehnt
+    # Frist sperrt nur das Revidieren einer bereits BESTÄTIGTEN Entscheidung (#45).
+    if sr.status == ServiceRequest.CONFIRMED and service_request_locked(sr):
+        lock = service_request_lock_date(sr)
+        return False, (f"Frist abgelaufen – seit {lock:%d.%m.%Y} ist die "
+                       f"Entscheidung fest (Anreise {sr.allocation.start:%d.%m.%Y}).")
+    # War die Anfrage bestätigt, die zugehörige Position aber noch NICHT abgerechnet,
+    # wird sie zurückgenommen. Bereits fakturiert → nicht mehr revidierbar.
+    if sr.line_item_id:
+        li = sr.line_item
+        if li.invoice_id:
+            return False, ("Die Endreinigung ist bereits abgerechnet – sie kann "
+                           "nicht mehr abgelehnt werden.")
+        purchase = li.purchase
+        li.delete()
+        if purchase and not purchase.items.exists():
+            purchase.delete()
+        sr.line_item = None
     sr.status = ServiceRequest.REJECTED
     sr.note = (reason or "")[:255]
     sr.decided_at = timezone.now()
     sr.decided_by = by_user
-    sr.save(update_fields=["status", "note", "decided_at", "decided_by"])
+    sr.save(update_fields=["status", "line_item", "note", "decided_at", "decided_by"])
     _notify_member_service(sr, confirmed=False)
     return True, None
 
@@ -232,6 +279,20 @@ def pending_service_requests():
             .select_related("member", "product", "allocation",
                             "allocation__quarter")
             .order_by("service_date"))
+
+
+def revisable_service_requests():
+    """Bereits entschiedene ER-Anfragen, die sich noch revidieren lassen (Anreise in
+    der Zukunft und Frist noch nicht erreicht) – fürs Dashboard, damit die BL einen
+    Verklicker korrigieren kann (#45). Die Frist-Prüfung erfolgt final serverseitig
+    in confirm/reject; hier nur die Vorauswahl fürs UI."""
+    from .models import ServiceRequest
+    qs = (ServiceRequest.objects
+          .filter(status__in=[ServiceRequest.CONFIRMED, ServiceRequest.REJECTED],
+                  allocation__start__gte=date.today())
+          .select_related("member", "product", "allocation", "allocation__quarter")
+          .order_by("allocation__start"))
+    return [sr for sr in qs if not service_request_locked(sr)]
 
 
 def unbilled_purchases(member):

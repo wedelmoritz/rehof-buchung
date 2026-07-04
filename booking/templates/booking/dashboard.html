@@ -73,6 +73,49 @@
 </div>
 {% endif %}
 
+{% comment %}Bereits entschiedene Endreinigungen, die sich noch REVIDIEREN lassen
+(#45/ADR 0081): bis zur Frist (Default 7 Tage vor Anreise) kann die BL einen
+Verklicker korrigieren. Danach ist die Entscheidung fest.{% endcomment %}
+{% if revisable_requests %}
+<details class="card">
+  <summary><strong>Endreinigung nachträglich ändern</strong> <span class="muted">({{ revisable_requests|length }} noch änderbar)</span></summary>
+  <p class="muted" style="margin:.4rem 0 .6rem">Eine bereits getroffene Entscheidung
+    lässt sich bis <strong>{{ er_lock_days }}&nbsp;Tage vor Anreise</strong> noch
+    korrigieren (danach fest, damit sich das Mitglied darauf einstellen kann). Das
+    Mitglied wird bei jeder Änderung benachrichtigt.</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>Leistung</th><th>Mitglied</th><th>Unterkunft</th><th>Anreise</th><th>Status</th><th>änderbar bis</th><th></th></tr></thead>
+    <tbody>
+      {% for r in revisable_requests %}
+      <tr>
+        <td>{{ r.sr.product.name }}</td>
+        <td>{{ r.sr.member.display_name }}</td>
+        <td>{{ r.sr.allocation.quarter.name }}</td>
+        <td>{{ r.sr.allocation.start|date:"d.m.Y" }}</td>
+        <td>{% if r.sr.status == 'confirmed' %}<span class="tag ok">bestätigt</span>{% else %}<span class="tag danger">abgelehnt</span>{% endif %}</td>
+        <td class="muted">{% if r.lock %}{{ r.lock|date:"d.m.Y" }}{% else %}jederzeit{% endif %}</td>
+        <td style="text-align:right">
+          {% if r.sr.status == 'confirmed' %}
+          <form method="post" class="inline" data-confirm="Endreinigung für {{ r.sr.member.display_name }} doch ABLEHNEN? Die noch nicht abgerechnete Position wird entfernt, das Mitglied benachrichtigt.">{% csrf_token %}
+            <input type="hidden" name="action" value="reject_service">
+            <input type="hidden" name="request_id" value="{{ r.sr.id }}">
+            <button class="btn small ghost danger" type="submit">Doch ablehnen</button>
+          </form>
+          {% else %}
+          <form method="post" class="inline" data-confirm="Endreinigung für {{ r.sr.member.display_name }} doch BESTÄTIGEN? Wird abgerechnet und in die Reinigungsliste eingetragen.">{% csrf_token %}
+            <input type="hidden" name="action" value="confirm_service">
+            <input type="hidden" name="request_id" value="{{ r.sr.id }}">
+            <button class="btn small" type="submit">Doch bestätigen</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</details>
+{% endif %}
+
 {# --- Kennzahlen ----------------------------------------------------------- #}
 <div class="kpis">
   <div class="card kpi"><span class="num">{{ arrivals|length }}</span>
