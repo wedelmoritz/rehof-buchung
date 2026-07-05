@@ -87,26 +87,44 @@
     <a class="hb-more" href="{% url 'verw_rechnungen' %}?inv=overdue">Rechnungen öffnen →</a>
   </div>
 
-  {# Neue / geänderte Buchungen #}
-  <div class="card pad hb-card">
+  {# Neue / geänderte Buchungen – volle Breite, mehr Spalten #}
+  <div class="card pad hb-card hb-wide">
     <div class="hb-head"><h2>Neue &amp; geänderte Buchungen</h2>
       <span class="hb-count">{{ activity.count }}</span>
       <span class="meta">letzte {{ activity.days }} Tage</span></div>
     {% if activity.new or activity.cancelled %}
-    <ul class="hb-list">
-      {% for a in activity.new %}
-      <li><span class="tag ok">neu</span>
-        <span class="who">{{ a.member.display_name }}</span>
-        <span class="meta">{{ a.quarter.name }} · {{ a.start|date:"d.m." }}–{{ a.end|date:"d.m." }}</span>
-        <span class="right meta">{{ a.created_at|date:"d.m." }}</span></li>
-      {% endfor %}
-      {% for c in activity.cancelled %}
-      <li><span class="tag danger">storno</span>
-        <span class="who">{{ c.member.display_name }}</span>
-        <span class="meta">{{ c.quarter_name }} · {{ c.start|date:"d.m." }}–{{ c.end|date:"d.m." }}</span>
-        <span class="right meta">{{ c.cancelled_at|date:"d.m." }}</span></li>
-      {% endfor %}
-    </ul>
+    <div class="table-wrap">
+      <table class="hb-table">
+        <thead><tr><th>Status</th><th>Mitglied</th><th>Quartier</th><th>Zeitraum</th>
+          <th>Nächte</th><th>Pers.</th><th>Quelle</th><th>am</th></tr></thead>
+        <tbody>
+        {% for a in activity.new %}
+        <tr>
+          <td><span class="tag ok">neu</span></td>
+          <td>{{ a.member.display_name }}</td>
+          <td>{{ a.quarter.name }}</td>
+          <td>{{ a.start|date:"d.m.y" }}–{{ a.end|date:"d.m.y" }}</td>
+          <td>{{ a.nights }}</td>
+          <td>{{ a.persons }}</td>
+          <td>{{ a.get_source_display }}{% if a.by_management %} · Verw.{% endif %}</td>
+          <td class="meta">{{ a.created_at|date:"d.m." }}</td>
+        </tr>
+        {% endfor %}
+        {% for c in activity.cancelled %}
+        <tr>
+          <td><span class="tag danger">storno</span></td>
+          <td>{{ c.member.display_name }}</td>
+          <td>{{ c.quarter_name }}</td>
+          <td>{{ c.start|date:"d.m.y" }}–{{ c.end|date:"d.m.y" }}</td>
+          <td>{{ c.nights }}</td>
+          <td>{{ c.persons }}</td>
+          <td>{{ c.source|default:"—" }}</td>
+          <td class="meta">{{ c.cancelled_at|date:"d.m." }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}<p class="hb-empty">Nichts Neues in den letzten {{ activity.days }} Tagen.</p>{% endif %}
     <a class="hb-more" href="{% url 'verw_buchungen' %}">Buchungen öffnen →</a>
   </div>

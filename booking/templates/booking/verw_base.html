@@ -59,8 +59,18 @@
   .occbar span { display:block; height:100%; background:var(--sage-deep); border-radius:999px; }
   .amp { font-size:1rem; }
   /* Handlungsbedarf-Dashboard: Aktions-Kacheln */
-  .hb-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr)); gap:1rem; }
+  /* Zwei schmale Karten nebeneinander, die dritte (Buchungs-Aktivität) spannt die
+     volle Breite → mehr Platz für mehr Spalten. Am Handy alles einspaltig. */
+  .hb-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; align-items:start; }
+  .hb-wide { grid-column:1 / -1; }
+  @media (max-width:720px){ .hb-grid { grid-template-columns:1fr; } }
   .hb-card { display:flex; flex-direction:column; }
+  /* Breite Aktivitäts-Tabelle in der vollbreiten Karte */
+  .hb-table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  .hb-table th { text-align:left; font-size:.72rem; text-transform:uppercase;
+    letter-spacing:.03em; color:var(--muted); font-weight:700; padding:.3rem .5rem; }
+  .hb-table td { padding:.34rem .5rem; border-top:1px solid var(--line); }
+  .hb-table tr:first-child td { border-top:0; }
   .hb-head { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
   .hb-head h2 { margin:0; font-size:1.05rem; }
   .hb-count { font-weight:800; font-size:.78rem; border-radius:999px; padding:.06rem .5rem;
