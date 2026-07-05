@@ -149,13 +149,13 @@ def overview(request):
     view_mode = "grid" if request.GET.get("view") == "grid" else "timeline"
 
     # Jedem vorkommenden Mitglied eine feste Pastellfarbe geben (Gemeinschaftsaspekt).
+    # Nur zum Einfärben der Balken – KEINE separate Legende mehr (der Name steht auf
+    # dem Balken + Tooltip + Klick fürs Tagesdetail; die Legende war redundant).
     color_map: dict[int, str] = {}
-    legend: list[dict] = []
 
     def _assign(mid, who, mine):
         if mid not in color_map:
             color_map[mid] = MEMBER_COLORS[len(color_map) % len(MEMBER_COLORS)]
-            legend.append({"name": who, "color": color_map[mid], "mine": mine})
         return color_map[mid]
 
     # Tape-Chart-Achse: Startdatum (Default heute) + Bereich 1/2/4 Wochen (#41).
@@ -200,7 +200,6 @@ def overview(request):
         "view_mode": view_mode,
         "today": today,
         "year": today.year,
-        "legend": legend,
         "sel_day": sel_day,
         "detail": detail,
         "is_mgmt": is_mgmt,

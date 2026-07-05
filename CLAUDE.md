@@ -205,7 +205,8 @@ Einreiche-Frist** `BookingPeriod.submission_deadline`; wer noch **nichts eingere
 hat, sieht stattdessen einen **Warn-Chip** „Noch keine Wünsche eingereicht · bis …",
 ADR 0080) + eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
 **„Diese Woche"-Agenda** (`services.week_agenda`: je Tag An-/Abreisen + freie
-Quartiere, mobil der Schnell-Überblick). **Held ist der Belegungsplan als
+Quartiere, mobil der Schnell-Überblick) – **standardmäßig eingeklappt** (`<details>`),
+damit der Belegungsplan weiter oben steht (ADR 0098). **Held ist der Belegungsplan als
 Tape-Chart** (`services.build_occupancy_timeline`, Option A, ADR 0083): Unterkünfte
 als Zeilen – nach `Quarter.sort_order` (beds24-Reihenfolge, #38) in **Gebäude-Bänder**
 gruppiert (statt Zebra, #42) –, durchgehende **Datumsachse ab wählbarem Startdatum**
@@ -225,8 +226,10 @@ im eigenen Container). **Umschalter „Belegung / Kalender"** schaltet aufs Mona
 (`?view=grid`). Klick auf Balken/Tag öffnet das **Tag-Detail im Kontext** – ein Panel
 **rechts** neben dem Plan (Desktop, sticky) bzw. **darunter** am Handy (`day_detail`,
 klar getrennt nach **Anreise / Abreise / Anwesenheit** = Arrivals/Departures/Stayovers;
-noch frei · „An diesem Tag buchen"). **Eine** kombinierte Legende (Personen + heute +
-Ferien)), `book` (Ampel-Kalender → Personen/
+noch frei · „An diesem Tag buchen"). **Keine Legende** mehr (ADR 0098: der Name steht
+auf dem Balken + Tooltip + Klick fürs Tagesdetail; Ferien via Tages-Tooltip – die
+Legende war redundant. Die Balken-Farbe bleibt rein dekorativ/Gemeinschaftsaspekt,
+`color_map` in `views.overview`)), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
 eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
 für den Zeitraum **nicht buchbare** Unterkünfte (Saison/nicht freigeschaltet)

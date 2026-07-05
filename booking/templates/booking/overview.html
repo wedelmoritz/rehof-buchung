@@ -36,9 +36,10 @@
 </details>
 {% endif %}
 
-{# --- Diese Woche: kompakte Agenda (schneller Wochenblick) --- #}
-<div class="card ov-week">
-  <h2>Diese Woche</h2>
+{% comment %}Diese Woche als standardmäßig EINGEKLAPPTE Agenda (schneller Wochenblick,
+eine Zeile) – so steht der Belegungsplan weiter oben; ein Tap zeigt die Details.{% endcomment %}
+<details class="card ov-week">
+  <summary><strong>Diese Woche</strong> <span class="ov-week-hint muted">An-&nbsp;&amp;&nbsp;Abreisen, freie Unterkünfte</span></summary>
   <ul class="agenda">
     {% for d in agenda %}{% if d.arrivals or d.departures or d.is_today %}
     <li class="ag-row {% if d.is_today %}today{% endif %}">
@@ -53,7 +54,7 @@
     {% endif %}{% endfor %}
     {% if not agenda %}<li class="muted">Diese Woche keine Belegung.</li>{% endif %}
   </ul>
-</div>
+</details>
 
 {# --- Plan (Belegung = Standard / Kalender) + Tagesdetail im Kontext --- #}
 <div class="card ov-plan">
@@ -158,13 +159,6 @@
       </table>
       {% endif %}
 
-      {# EINE kompakte Legende: Personen + heute/Ferien + extern #}
-      <div class="who-legend">
-        {% for m in legend %}<span class="who-item {% if m.mine %}mine{% endif %}"><i class="sw" style="background:{{ m.color }}"></i>{{ m.name }}{% if m.mine %} (du){% endif %}</span>{% endfor %}
-        {% if cal.any_external %}<span class="who-item"><i class="sw" style="background:{{ cal.extern_color }}"></i>extern</span>{% endif %}
-        <span class="who-item"><i class="sw today"></i>heute</span>
-        <span class="who-item"><i class="sw holiday"></i>Ferien</span>
-      </div>
     </div>
 
     {% if sel_day %}
@@ -236,9 +230,15 @@
   .notif-detail { color:var(--ink); font-size:.92rem; margin:.15rem 0 .1rem;
     white-space:normal; overflow-wrap:anywhere; }
 
-  /* Diese-Woche-Agenda */
+  /* Diese-Woche-Agenda (standardmäßig eingeklappt; Plan steht dadurch weiter oben) */
   .ov-week { margin-bottom:1rem; }
-  .ov-week h2 { margin-top:0; }
+  .ov-week > summary { cursor:pointer; list-style:none; display:flex; gap:.5rem;
+    align-items:baseline; font-size:1.05rem; }
+  .ov-week > summary::-webkit-details-marker { display:none; }
+  .ov-week > summary::before { content:"▸"; color:var(--muted); font-size:.9em; }
+  .ov-week[open] > summary::before { content:"▾"; }
+  .ov-week[open] > summary { margin-bottom:.55rem; }
+  .ov-week-hint { font-weight:400; font-size:.82rem; }
   .agenda { list-style:none; margin:0; padding:0; }
   .ag-row { display:flex; gap:.7rem; align-items:baseline; flex-wrap:wrap;
     padding:.45rem 0; border-bottom:1px solid var(--line); }
@@ -292,13 +292,6 @@
   td.sel-day { outline:2px solid var(--accent-deep); outline-offset:-2px; }
   .d-book.person { display:block; color:#23201d; }
   .d-book.person.mine { box-shadow: inset 0 0 0 2px var(--accent-deep); font-weight:600; }
-  .who-legend { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin-top:.6rem;
-    font-size:.8rem; color:var(--muted); }
-  .who-item { display:inline-flex; align-items:center; }
-  .who-item .sw { width:13px; height:13px; border-radius:4px; margin-right:5px; }
-  .who-item.mine { color:var(--ink); font-weight:600; }
-  .who-legend .sw.today { background:#fff; box-shadow:inset 0 0 0 2px var(--accent); }
-  .who-legend .sw.holiday { background:var(--warn-soft); }
 
   .view-toggle { display:inline-flex; gap:2px; background:#efe8db; border-radius:10px;
     padding:2px; }
