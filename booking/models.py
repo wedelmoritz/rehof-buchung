@@ -221,6 +221,9 @@ class Member(models.Model):
                   "Die reine Anzeige „wer ist zur gleichen Zeit da“ bleibt.")
     # Profil-/Rechnungsdaten (vom Nutzer selbst pflegbar; nur eigene Sicht)
     legal_name = models.CharField("Vollständiger Name", max_length=160, blank=True)
+    phone = models.CharField(
+        "Telefon", max_length=40, blank=True,
+        help_text="Für Rückfragen der Betriebsleitung (im Profil selbst änderbar).")
     street = models.CharField("Straße & Nr.", max_length=160, blank=True)
     zip_code = models.CharField("PLZ", max_length=10, blank=True)
     city = models.CharField("Ort", max_length=120, blank=True)

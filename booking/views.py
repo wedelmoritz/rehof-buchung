@@ -1489,7 +1489,7 @@ def verw_mitglieder(request):
         members = members.filter(
             Q(display_name__icontains=q) | Q(legal_name__icontains=q)
             | Q(user__email__icontains=q) | Q(user__username__icontains=q)
-            | Q(city__icontains=q))
+            | Q(city__icontains=q) | Q(phone__icontains=q))
     today = date.today()
     ny, nm = svc.next_month(today)
     year, month = _month_from_request(request, today, ny, nm)

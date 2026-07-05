@@ -27,13 +27,14 @@
   {% if members %}
   <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>Name</th><th>E-Mail</th><th>Anschrift</th><th>Anteil(e)</th><th>Tage/Jahr</th></tr></thead>
+      <thead><tr><th>Name</th><th>E-Mail</th><th>Telefon</th><th>Anschrift</th><th>Anteil(e)</th><th>Tage/Jahr</th></tr></thead>
       <tbody>
         {% for m in members %}
         <tr>
           <td>{% if is_admin %}<a href="/admin/auth/user/{{ m.user_id }}/change/">{{ m.display_name }}</a>{% else %}{{ m.display_name }}{% endif %}
             {% if m.legal_name and m.legal_name != m.display_name %}<br><span class="muted">{{ m.legal_name }}</span>{% endif %}</td>
           <td>{% if m.user.email %}<a href="mailto:{{ m.user.email }}">{{ m.user.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if m.phone %}<a href="tel:{{ m.phone }}">{{ m.phone }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
           <td>{% if m.street or m.city %}{{ m.street }}{% if m.street and m.city %}, {% endif %}{{ m.zip_code }} {{ m.city }}{% else %}<span class="muted">—</span>{% endif %}</td>
           <td>{% for s in m.shares.all %}{{ s.membership.eg_number|default:s.membership.label }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">—</span>{% endfor %}</td>
           <td>{{ m.annual_night_budget }}</td>
@@ -43,8 +44,7 @@
     </table>
   </div>
   {% else %}<p class="muted">Keine Mitglieder gefunden{% if q %} zu „{{ q }}“{% endif %}.</p>{% endif %}
-  <p class="muted sm" style="margin:.7rem 0 0">Hinweis: Eine <strong>Telefonnummer</strong>
-    wird derzeit nicht erfasst. Falls gewünscht, kann ein Telefonfeld im Profil ergänzt
-    werden (kurze Rücksprache).</p>
+  <p class="muted sm" style="margin:.7rem 0 0">Telefon und weitere Kontaktdaten pflegt
+    das Mitglied selbst im Profil.</p>
 </div>
 {% endblock %}

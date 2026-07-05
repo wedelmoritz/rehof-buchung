@@ -285,8 +285,9 @@ eine `OutboxEmail` in die Warteschlange, die das Kommando `send_outbox` (vom
 für Massenmails. Provider-neutral über `EMAIL_*`/`PUBLIC_BASE_URL` (ohne
 `EMAIL_HOST` → Konsole). Ereignisse: Losergebnis, Wartelisten-Platz frei,
 Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
-Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
-das Mitglied selbst unter `profile`. Eigene Karte **„Benachrichtigungen“** bündelt
+Profil-/Rechnungsdaten (Name, **Telefon**, Anschrift, IBAN) pflegt
+das Mitglied selbst unter `profile` (Telefon = Kontakt für die BL, sichtbar in
+Verwaltung→Mitglieder). Eigene Karte **„Benachrichtigungen“** bündelt
 die Kanäle: **In-App** (immer), **E-Mail** (`email_opt_in`, Aktion `notify_prefs` –
 getrennt aus der Profil-Form gelöst; dieselbe Aktion speichert auch
 `accept_swap_requests` = Tausch-Anfragen erlauben/abschalten, #8/ADR 0078) und

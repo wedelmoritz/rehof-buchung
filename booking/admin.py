@@ -222,8 +222,8 @@ class MemberProfileInline(admin.StackedInline):
                 "Anteil weitere Nutzer ergänzt. Der Ausgleichsfaktor (Karma) wird von "
                 "der Losung automatisch gepflegt – im Normalfall nicht ändern."),
         }),
-        ("Rechnungsdaten (Hofladen)", {
-            "fields": ("legal_name", "street", "zip_code", "city", "iban"),
+        ("Kontakt & Rechnungsdaten (Hofladen)", {
+            "fields": ("phone", "legal_name", "street", "zip_code", "city", "iban"),
         }),
         ("Hofladen-Terminal vor Ort", {
             "fields": ("terminal_enabled",),
