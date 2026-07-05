@@ -372,7 +372,10 @@
   /* Handy: etwas höhere Zeilen + größere Trefferflächen (ein Plan, responsiv). */
   @media (max-width:680px){
     .tape-inner { --qw:7rem; --subw:17px; }
-    .tape-qname { min-height:38px; font-size:.76rem; }
+    /* Lange Unterkunftsnamen am Handy auf 2 Zeilen umbrechen statt abschneiden (B6). */
+    .tape-qname { min-height:38px; font-size:.76rem; white-space:normal;
+      line-height:1.12; overflow:hidden; text-overflow:clip;
+      display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
     .tape-cell { min-height:38px; }
     .bar { height:30px; font-size:.74rem; }
     .plan-ctl { width:100%; margin-left:0; }

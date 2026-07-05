@@ -91,6 +91,15 @@ class Quarter(models.Model):
         return bool(self.season_start_month and self.season_start_day
                     and self.season_end_month and self.season_end_day)
 
+    @property
+    def season_label(self) -> str:
+        """Menschenlesbarer Saison-Zeitraum ohne Jahr (z. B. „01.05.–30.09.“).
+        Leer, wenn das Quartier ganzjährig buchbar ist."""
+        if not self.has_season:
+            return ""
+        return (f"{self.season_start_day:02d}.{self.season_start_month:02d}."
+                f"–{self.season_end_day:02d}.{self.season_end_month:02d}.")
+
     def bookable_on(self, day) -> bool:
         """Ist das Quartier am `day` grundsätzlich (saisonal) buchbar?
         Ohne gesetzte Saison: ganzjährig. Die Saison gilt jedes Jahr;

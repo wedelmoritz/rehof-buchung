@@ -51,6 +51,7 @@ __all__ = [
     'season_min_nights', 'min_nights_for_range', 'external_min_nights',
     'wish_rule_error', '_active_windows', '_in_season_range',
     'range_is_released', 'find_bookable_gaps', 'split_quarters_for_range',
+    'unavailable_quarters_for_range',
     '_occupied_days_by_quarter', '_beds24_member_candidates',
     '_beds24_quarter_candidates', 'beds24_stage', 'beds24_create_member',
     'beds24_apply', 'run_data_retention', 'anonymize_member',

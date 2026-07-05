@@ -211,6 +211,10 @@ noch frei · „An diesem Tag buchen"). **Eine** kombinierte Legende (Personen +
 Ferien)), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
 eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
+für den Zeitraum **nicht buchbare** Unterkünfte (Saison/nicht freigeschaltet)
+erscheinen **ausgegraut mit Grund** statt zu verschwinden [`services.
+unavailable_quarters_for_range` + `Quarter.season_label`, „Nur saisonal buchbar
+(<von>–<bis>)"; B6/ADR 0092];
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
 je eigen markiert [Fähnchen „Anreise“/„Abreise“], das gewählte Band ist deutlich,
 sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf – ebenso in

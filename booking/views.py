@@ -439,7 +439,7 @@ def book(request):
 
     eff_start = sel_start if member else None    # für die Auswahl-Leiste
     eff_end = None
-    suitable, maybe_unsuitable, occ_quarters = [], [], []
+    suitable, maybe_unsuitable, occ_quarters, unavail_quarters = [], [], [], []
     range_min_nights = 0
     too_short = False
     not_enough_days = False
@@ -459,6 +459,8 @@ def book(request):
         high_demand = svc.high_demand_periods(eff_start, eff_end)
         is_group = svc.is_group_booking(persons)
         free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
+        # Nicht-buchbare Quartiere (Saison/nicht freigeschaltet) ausgegraut zeigen (B6).
+        unavail_quarters = svc.unavailable_quarters_for_range(eff_start, eff_end)
         # Termin-/Regel-/Budget-Grund ist quartiers-unabhängig → einmal berechnen,
         # plus die Variante ohne Mindestnächte/Vorausfrist für Lückenfüller (ADR 0075).
         reason = svc.schedule_blocker(member, eff_start, eff_end)
@@ -528,6 +530,7 @@ def book(request):
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,
         "occ_quarters": occ_quarters,
+        "unavail_quarters": unavail_quarters,
         "high_demand": high_demand,
         "is_group": is_group,
         "has_group_pref": has_group_pref,
