@@ -63,8 +63,12 @@
      volle Breite → mehr Platz für mehr Spalten. Am Handy alles einspaltig. */
   .hb-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; align-items:start; }
   .hb-wide { grid-column:1 / -1; }
-  @media (max-width:720px){ .hb-grid { grid-template-columns:1fr; } }
-  .hb-card { display:flex; flex-direction:column; }
+  @media (max-width:720px){ .hb-grid { grid-template-columns:minmax(0,1fr); } }
+  /* min-width:0 lässt die Karte (Grid-/Flex-Item) UNTER die Tabellenbreite schrumpfen,
+     damit die breite Tabelle in ihrem .table-wrap horizontal scrollt statt die Seite
+     zu dehnen (mobil). */
+  .hb-card { display:flex; flex-direction:column; min-width:0; }
+  .hb-card .table-wrap { max-width:100%; }
   /* Breite Aktivitäts-Tabelle in der vollbreiten Karte */
   .hb-table { width:100%; border-collapse:collapse; font-size:.9rem; }
   .hb-table th { text-align:left; font-size:.72rem; text-transform:uppercase;
