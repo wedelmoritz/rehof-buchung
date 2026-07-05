@@ -1109,6 +1109,16 @@ class OpsConfig(models.Model):
         help_text="Der Beds24-Migrations-Assistent wird i. d. R. nur EINMALIG "
                   "gebraucht. Nach dem Umzug hier ausschalten, dann ist er im "
                   "Dashboard ausgeblendet und gesperrt.")
+    # Kontaktformular-Routing (ADR 0091): welche Kategorie an welche Adresse. Leer =
+    # Verwaltungs-Adressen. Idealerweise Rollen-Aliase (bl@… / dev@…).
+    contact_email_bl = models.CharField(
+        "Kontakt – Buchung/Reinigung/Allgemein", max_length=400, blank=True,
+        help_text="Empfänger für Kontakt-Anliegen zu Buchung, Endreinigung, "
+                  "allgemeine Fragen. Leer = Verwaltungs-Adressen.")
+    contact_email_tech = models.CharField(
+        "Kontakt – App-Problem/Bug", max_length=400, blank=True,
+        help_text="Empfänger für technische Probleme (Bug/App). Leer = "
+                  "Verwaltungs-Adressen.")
 
     class Meta:
         verbose_name = "Betriebs-Einstellungen"
@@ -1131,6 +1141,11 @@ class OpsConfig(models.Model):
 
     def cleaning_list(self) -> list[str]:
         return self._parse(self.cleaning_emails) or self.admin_list()
+
+    def contact_list(self, category: str) -> list[str]:
+        """Empfänger fürs Kontaktformular je Kategorie (leer = Verwaltung)."""
+        raw = self.contact_email_tech if category == "bug" else self.contact_email_bl
+        return self._parse(raw) or self.admin_list()
 
 
 class TerminalConfig(models.Model):
@@ -1182,6 +1197,7 @@ class OutboxEmail(models.Model):
     subject = models.CharField("Betreff", max_length=200)
     body = models.TextField("Text")
     html_body = models.TextField("HTML", blank=True)
+    reply_to = models.EmailField("Antwort an", blank=True)
     member = models.ForeignKey(
         Member, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="emails", verbose_name="Mitglied")

@@ -16,6 +16,7 @@
   <a href="#hofladen">Hofladen &amp; Zahlung</a>
   <a href="#tage">Tage übertragen</a>
   <a href="#profil">Profil &amp; App</a>
+  <a href="#kontakt">Kontakt</a>
 </nav>
 
 <div class="card">
@@ -445,8 +446,33 @@
   </ul>
 </div>
 
+<div class="card" id="kontakt">
+  <h2>Kontakt zur Betriebsleitung</h2>
+  <p class="muted" style="margin:.2rem 0 .8rem">Frage, Anliegen oder ein Problem mit der App?
+    Schreib uns direkt – wir antworten an deine im <a href="{% url 'profile' %}">Profil</a>
+    hinterlegte E-Mail-Adresse.</p>
+  <form method="post" action="{% url 'contact_send' %}" class="contact-form">
+    {% csrf_token %}
+    <label for="c-cat">Worum geht es?</label>
+    <select name="category" id="c-cat">
+      {% for value, label in contact_categories %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <label for="c-msg">Deine Nachricht</label>
+    <textarea name="message" id="c-msg" rows="5" maxlength="4000"
+              placeholder="Beschreibe dein Anliegen möglichst konkret …" required></textarea>
+    <div><button type="submit" class="btn">Nachricht senden</button></div>
+  </form>
+</div>
+
 <style>
   .lead { font-size:1.05rem; color:var(--muted); margin:-.3rem 0 1rem; }
+  .contact-form { display:grid; gap:.35rem; max-width:560px; }
+  .contact-form label { font-weight:600; font-size:.9rem; margin-top:.4rem; }
+  .contact-form select, .contact-form textarea { width:100%; font:inherit;
+    padding:.5rem .6rem; border:1px solid var(--line); border-radius:8px; background:var(--card); }
+  .contact-form textarea { resize:vertical; }
   .toc-chips { display:flex; flex-wrap:wrap; gap:.4rem; }
   .toc-chips a { display:inline-block; padding:.32rem .7rem; border-radius:999px;
     background:var(--accent-soft); color:var(--accent-deep); text-decoration:none;

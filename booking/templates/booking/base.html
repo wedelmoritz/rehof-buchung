@@ -549,7 +549,7 @@
   <a href="{% url 'imprint' %}">Impressum</a>
   {% if footer.has_privacy %}<span class="sep">·</span><a href="{% url 'privacy' %}">Datenschutz</a>{% endif %}
   {% if footer.has_terms %}<span class="sep">·</span><a href="{% url 'terms' %}">AGB</a>{% endif %}
-  {% if footer.contact_email %}<span class="sep">·</span><a href="mailto:{{ footer.contact_email }}">Kontakt</a>{% endif %}
+  {% if user.is_authenticated %}<span class="sep">·</span><a href="{% url 'help' %}#kontakt">Kontakt</a>{% elif footer.contact_email %}<span class="sep">·</span><a href="mailto:{{ footer.contact_email }}">Kontakt</a>{% endif %}
 </footer>
 
 <script nonce="{{ request.csp_nonce }}">

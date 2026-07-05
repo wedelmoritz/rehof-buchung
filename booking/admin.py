@@ -1047,6 +1047,11 @@ class OpsConfigAdmin(admin.ModelAdmin):
             "fields": ("admin_emails", "cleaning_emails"),
             "description": "Komma-getrennte E-Mail-Adressen. „Reinigungsteam“ "
                            "leer = es gilt die Verwaltungs-Adresse."}),
+        ("Empfänger des Kontaktformulars", {
+            "fields": ("contact_email_bl", "contact_email_tech"),
+            "description": "Wohin die Anliegen aus dem App-Kontaktformular (Hilfe-"
+                           "Seite) gehen – am besten Rollen-Aliase (z. B. bl@… / "
+                           "dev@…). Leer = Verwaltungs-Adressen."}),
         ("Automatische Monats-Mail", {
             "fields": ("notify_day",),
             "description": "An diesem Tag des Monats geht die Übersicht der "

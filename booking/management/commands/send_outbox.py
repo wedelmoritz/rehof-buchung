@@ -29,7 +29,8 @@ class Command(BaseCommand):
         for em in pending:
             try:
                 msg = EmailMultiAlternatives(
-                    em.subject, em.body, settings.DEFAULT_FROM_EMAIL, [em.to_email])
+                    em.subject, em.body, settings.DEFAULT_FROM_EMAIL, [em.to_email],
+                    reply_to=[em.reply_to] if em.reply_to else None)
                 if em.html_body:
                     msg.attach_alternative(em.html_body, "text/html")
                 if em.attachment:

@@ -315,7 +315,13 @@ Einladung **und** „Passwort vergessen": Standard-Django-Reset-Views/-Namen
 `registration/`-Templates); „Passwort vergessen" ist auf der Anmeldeseite verlinkt.
 Die frühere `membership_number` (Mitgliedsnummer) wurde als ungenutzt **entfernt**
 (Datensparsamkeit; sie floss nirgends in Rechnung/Export/PDF). Eine `help`-Seite erklärt Abläufe und die
-Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
+Auslosung im Detail (verlinkt aus Übersicht/Wunschliste); unten trägt sie ein
+**In-App-Kontaktformular** (`#kontakt`, `contact_send`, ADR 0091): eingeloggte
+Mitglieder schicken Kategorie + Freitext an die passende Rollen-Adresse
+(`services.send_contact_message` → `OpsConfig.contact_list`: `bug`→technisch, sonst
+BL; leer = Verwaltung), **literal** verschickt (kein Template-Engine → SSTI-frei,
+`strip_controls`), **Reply-To = Absender** (`OutboxEmail.reply_to`), rate-limitiert;
+der Fuß-Link „Kontakt" führt eingeloggte Nutzer dorthin. **Fairness-Nachweis**
 (`lottery_fairness`, `/losung-fairness/`, login-pflichtig, von der Hilfe verlinkt):
 zeigt per **Monte-Carlo-Simulation** (reine Logik `booking/fairness.py` auf dem
 puren `lottery`-Modul) mit **Inline-SVG-Grafen**, dass gleich gestellte Mitglieder

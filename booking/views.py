@@ -922,7 +922,26 @@ def help_page(request):
     return render(request, "booking/help.html", {
         "member": _current_member(request),
         "p": svc.booking_policy_summary(),
+        "contact_categories": svc.CONTACT_CATEGORIES,
     })
+
+
+@login_required
+@require_POST
+@ratelimit(key="user", rate="5/h", method="POST", block=True)
+def contact_send(request):
+    """Kontaktformular (ADR 0091): ein eingeloggtes Mitglied schickt eine Nachricht
+    an die passende Rollen-Adresse. Der Text wird literal verschickt (keine SSTI),
+    Reply-To ist die eigene Adresse. Rate-limitiert gegen Missbrauch."""
+    category = request.POST.get("category", "general")
+    message = request.POST.get("message", "")
+    mail = svc.send_contact_message(request.user, category, message)
+    if mail is None:
+        messages.error(request, "Bitte gib eine Nachricht ein.")
+    else:
+        messages.success(
+            request, "Danke! Deine Nachricht ist unterwegs – wir melden uns bei dir.")
+    return redirect(reverse("help") + "#kontakt")
 
 
 @login_required

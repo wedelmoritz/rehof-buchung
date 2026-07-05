@@ -23,6 +23,7 @@ urlpatterns = [
     path("terminal/daten/", views.terminal_data, name="terminal_data"),
     path("terminal/sync/", views.terminal_sync, name="terminal_sync"),
     path("hilfe/", views.help_page, name="help"),
+    path("kontakt/senden/", views.contact_send, name="contact_send"),
     path("losung-fairness/", views.lottery_fairness, name="lottery_fairness"),
     path("gemeinschaft/", views.community, name="community"),
     path("registrieren/", views.register, name="register"),

@@ -168,3 +168,52 @@ class RundnachrichtTests(TestCase):
         csv = self.client.get(reverse("verw_rundnachricht") + "?export=all_members")
         self.assertIn("text/csv", csv["Content-Type"])
         self.assertIn("ida@example.org", csv.content.decode("utf-8"))
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                   RATELIMIT_ENABLE=False)
+class ContactFormTests(TestCase):
+    def setUp(self):
+        OpsConfig.objects.all().delete()
+        OpsConfig.objects.create(admin_emails="office@example.org",
+                                 contact_email_bl="bl@example.org",
+                                 contact_email_tech="dev@example.org")
+        self.u = User.objects.create_user("nina", "nina@example.org", "x" * 12)
+        Member.objects.create(user=self.u, display_name="Nina")
+
+    def test_routing_je_kategorie(self):
+        OutboxEmail.objects.all().delete()
+        svc.send_contact_message(self.u, "booking", "Frage zur Buchung")
+        self.assertTrue(OutboxEmail.objects.filter(to_email="bl@example.org").exists())
+        svc.send_contact_message(self.u, "bug", "App hängt")
+        self.assertTrue(OutboxEmail.objects.filter(to_email="dev@example.org").exists())
+
+    def test_reply_to_ist_absender(self):
+        OutboxEmail.objects.all().delete()
+        svc.send_contact_message(self.u, "general", "Hallo")
+        em = OutboxEmail.objects.filter(to_email="bl@example.org").first()
+        self.assertIsNotNone(em)
+        self.assertEqual(em.reply_to, "nina@example.org")
+
+    def test_ssti_frei_und_header_sicher(self):
+        # $-Ausdruck + Zeilenumbruch im Text: literal übernommen, kein Header-Leak.
+        OutboxEmail.objects.all().delete()
+        svc.send_contact_message(self.u, "general", "Wert=$geheim\nZeile2")
+        em = OutboxEmail.objects.filter(to_email="bl@example.org").first()
+        self.assertIn("Wert=$geheim", em.body)
+        self.assertIn("\n", em.body)                 # Body darf Umbrüche haben
+        self.assertNotIn("\n", em.subject)           # Betreff NICHT
+
+    def test_leere_nachricht_kein_versand(self):
+        OutboxEmail.objects.all().delete()
+        self.assertIsNone(svc.send_contact_message(self.u, "general", "   "))
+        self.assertFalse(OutboxEmail.objects.exists())
+
+    def test_view_sendet_und_leitet_um(self):
+        OutboxEmail.objects.all().delete()
+        self.client.force_login(self.u)
+        r = self.client.post(reverse("contact_send"),
+                             {"category": "cleaning", "message": "Reinigung fehlt"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("#kontakt", r["Location"])
+        self.assertTrue(OutboxEmail.objects.filter(to_email="bl@example.org").exists())
