@@ -20,8 +20,9 @@ from .dashboard import *  # noqa: F401,F403
 from .external_ops import *  # noqa: F401,F403
 from .terminal_ops import *  # noqa: F401,F403
 from .helptexts import *  # noqa: F401,F403
+from .blocks import *  # noqa: F401,F403
 
-from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops, helptexts  # noqa: F401
+from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops, helptexts, blocks  # noqa: F401
 
 # Parität zur alten `services.py`: dort waren die importierten Modelle und die
 # reinen Logik-Module als Modul-Attribute erreichbar (z.B. `svc.ExternalConfig`,
@@ -89,4 +90,9 @@ __all__ = [
     'terminal_token_ok', 'terminal_payload', 'terminal_record',
     # Ausgelagerte Hilfetexte (ADR 0093)
     'HELP_SECTION_KEYS', 'help_sections',
+    # Sperrzeit-Konflikte / Umbuchung / Ausgleich (ADR 0097)
+    'block_min_notice_days', 'max_compensation_days', 'block_conflicts',
+    'block_within_notice', 'suggest_block_window', 'relocation_options',
+    'create_quarter_block', 'propose_relocation', 'respond_relocation',
+    'cancel_with_apology', 'pending_relocation_requests',
 ]

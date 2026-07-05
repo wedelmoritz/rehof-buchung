@@ -257,14 +257,18 @@ def _month_occupancy(year: int, month: int) -> dict:
     days = _calendar.monthrange(year, month)[1]
     m_first = date(year, month, 1)
     m_end = m_first + timedelta(days=days)
-    n_quarters = Quarter.objects.count()
+    # Camping-/Gemeinschaftsflächen zählen nicht in die Quote (count_in_occupancy=False,
+    # ADR 0096) – weder in der Kapazität noch in den gebuchten Nächten.
+    n_quarters = Quarter.objects.filter(count_in_occupancy=True).count()
     possible = n_quarters * days
     booked = 0
     for a in Allocation.objects.filter(start__lt=m_end, end__gt=m_first,
-                                       provisional=False):
+                                       provisional=False,
+                                       quarter__count_in_occupancy=True):
         booked += (min(a.end, m_end) - max(a.start, m_first)).days
     for b in ExternalBooking.objects.filter(
-            status=ExternalBooking.CONFIRMED, start__lt=m_end, end__gt=m_first):
+            status=ExternalBooking.CONFIRMED, start__lt=m_end, end__gt=m_first,
+            quarter__count_in_occupancy=True):
         booked += (min(b.end, m_end) - max(b.start, m_first)).days
     pct = round(100 * booked / possible) if possible else 0
     return {"year": year, "month": month, "label": month_label(year, month),
@@ -295,7 +299,10 @@ def quarter_occupancy_ampel(year: int, month: int) -> list[dict]:
     days = _calendar.monthrange(year, month)[1]
     m_first = date(year, month, 1)
     m_end = m_first + timedelta(days=days)
-    quarters = list(Quarter.objects.filter(active=True).order_by("sort_order", "name"))
+    # Nur Einheiten, die in die Quote zählen (Camping/Gemeinschaft ausgenommen,
+    # ADR 0096) – sie haben keine sinnvolle Ziel-Ampel.
+    quarters = list(Quarter.objects.filter(active=True, count_in_occupancy=True)
+                    .order_by("sort_order", "name"))
     booked = {q.id: 0 for q in quarters}
     for a in Allocation.objects.filter(start__lt=m_end, end__gt=m_first,
                                        provisional=False):
@@ -333,7 +340,9 @@ def year_occupancy_curve(year: int) -> dict:
     Gäste) und verteilt die Nächte in Python auf die Monate – **zwei** Abfragen (plus
     Quarter-Count) statt 24 Einzel-Monatsabfragen. Je Monat: `pct` (gebuchte/mögliche
     Unterkunfts-Nächte), `booked`, `possible`, `label`."""
-    n_quarters = Quarter.objects.count()
+    # Camping-/Gemeinschaftsflächen (count_in_occupancy=False, ADR 0096) zählen weder
+    # in die Kapazität noch in die gebuchten Nächte.
+    n_quarters = Quarter.objects.filter(count_in_occupancy=True).count()
     y_first, y_end = date(year, 1, 1), date(year + 1, 1, 1)
     days_in = [_calendar.monthrange(year, m)[1] for m in range(1, 13)]
     m_starts = [date(year, m, 1) for m in range(1, 13)]
@@ -348,11 +357,13 @@ def year_occupancy_curve(year: int) -> dict:
                 booked[i] += (hi - lo).days
 
     for s, e in Allocation.objects.filter(
-            start__lt=y_end, end__gt=y_first, provisional=False
+            start__lt=y_end, end__gt=y_first, provisional=False,
+            quarter__count_in_occupancy=True
     ).values_list("start", "end"):
         _spread(s, e)
     for s, e in ExternalBooking.objects.filter(
-            status=ExternalBooking.CONFIRMED, start__lt=y_end, end__gt=y_first
+            status=ExternalBooking.CONFIRMED, start__lt=y_end, end__gt=y_first,
+            quarter__count_in_occupancy=True
     ).values_list("start", "end"):
         _spread(s, e)
 

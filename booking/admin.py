@@ -14,12 +14,12 @@ from django.utils.safestring import mark_safe
 
 from .models import (
     Allocation, Beds24Import, Beds24ImportRow, BookingPeriod, BookingPolicy,
-    EquivalenceClass, ExternalBooking,
+    CompensationGrant, EquivalenceClass, ExternalBooking,
     ExternalConfig, FairnessSimConfig, ForfeitedNights, Guest, LotteryRun,
     Member, Membership,
     NightTransfer, DayPoolEntry,
     Notification, NotificationSetting, OpsConfig, OutboxEmail, PendingUser,
-    Quarter, QuarterBlock, QuarterPrice, Rolle, SchoolHoliday,
+    Quarter, QuarterBlock, QuarterPrice, RelocationRequest, Rolle, SchoolHoliday,
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
@@ -96,9 +96,10 @@ class QuarterAdmin(admin.ModelAdmin):
     inlines = [QuarterPriceInline]
     list_display = ("sort_order", "name", "building", "eq_class", "size_sqm",
                     "min_occupancy", "max_occupancy", "target_occupancy",
-                    "accessible", "active")
+                    "count_in_occupancy", "accessible", "active")
     list_display_links = ("name",)
-    list_filter = ("eq_class", "active", "accessible", "building")
+    list_filter = ("eq_class", "active", "accessible", "building",
+                   "count_in_occupancy")
     list_editable = ("sort_order", "accessible")
     ordering = ("sort_order", "name")
     search_fields = ("name",)
@@ -113,14 +114,17 @@ class QuarterAdmin(admin.ModelAdmin):
         ("Belegung & Merkmale", {
             "fields": ("size_sqm", "min_occupancy", "max_occupancy", "accessible",
                        "building", "sort_order", "target_occupancy",
-                       "prefer_for_groups"),
+                       "count_in_occupancy", "prefer_for_groups"),
             "description": "Min./Max.-Personen steuern, welche Quartiere beim "
                            "Buchen je nach Personenzahl als passend angezeigt werden. "
                            "„Gebäude“ gruppiert organisatorisch und bildet im "
                            "Belegungsplan die Zeilen-Bänder; die <b>Reihenfolge</b> "
                            "(kleiner = weiter oben) bringt den Plan in die gewohnte "
                            "beds24-Sortierung. „Ziel-Auslastung“ (optional) schaltet "
-                           "im Dashboard die Ampel. „Für Gruppen zuerst anbieten“ "
+                           "im Dashboard die Ampel. <b>„In Auslastungs-Quote "
+                           "einbeziehen“</b> aus = diese Fläche zählt NICHT in die "
+                           "Auslastungs-Statistik (z. B. Camping-/Gemeinschaftsflächen) "
+                           "– buchbar bleibt sie trotzdem. „Für Gruppen zuerst anbieten“ "
                            "(z. B. Stallgebäude) reiht die Wohneinheit bei großen "
                            "Gruppen nach oben (nur Reihenfolge, keine Sperre).",
         }),
@@ -149,6 +153,27 @@ class QuarterBlockAdmin(admin.ModelAdmin):
     list_filter = ("quarter",)
     date_hierarchy = "start"
     search_fields = ("quarter__name", "reason")
+
+
+@admin.register(RelocationRequest)
+class RelocationRequestAdmin(admin.ModelAdmin):
+    """Umbuchungs-Anfragen bei dringender Sperrung (ADR 0097). Pflege im Dashboard
+    (Sperrzeiten); hier nur Einsicht."""
+    list_display = ("member", "from_quarter", "to_quarter", "undersized",
+                    "status", "created_at", "responded_at")
+    list_filter = ("status", "undersized")
+    search_fields = ("member__display_name",)
+    autocomplete_fields = ("member", "allocation", "from_quarter", "to_quarter")
+
+
+@admin.register(CompensationGrant)
+class CompensationGrantAdmin(admin.ModelAdmin):
+    """Gewährte Ausgleichs-Tage (ADR 0097) – Transparenz. Fließen additiv ins
+    Jahreskontingent des Mitglieds."""
+    list_display = ("member", "year", "days", "reason", "created_by", "created_at")
+    list_filter = ("year",)
+    search_fields = ("member__display_name", "reason")
+    autocomplete_fields = ("member",)
 
 
 # --------------------------------------------------------------------------- #
@@ -1241,6 +1266,18 @@ class BookingPolicyAdmin(admin.ModelAdmin):
                 "so viele Tage <i>vor der Anreise</i> noch ändern; danach ist sie fest, "
                 "damit sich das Mitglied darauf einstellen kann. 0 = jederzeit änderbar "
                 "(ADR 0081/#45)."),
+        }),
+        ("Kurzfristigkeit & Sperrzeiten", {
+            "fields": ("short_notice_days", "block_min_notice_days",
+                       "max_compensation_days"),
+            "description": (
+                "<b>Kurzfrist-Grenze Storno/Verkürzen</b>: näher als so viele Tage vor "
+                "Anreise verfallen storniert/verkürzte Tage (ADR 0088). "
+                "<b>Sperrzeit-Vorlauf</b>: eine Sperrzeit über eine Buchung ist regulär "
+                "nur mit diesem Vorlauf möglich – darunter greift der dringende "
+                "Umbuchungs-Workflow. <b>Max. Ausgleichs-Tage</b>: bei dringender "
+                "Sperrung ohne Ersatz-Unterkunft darf die BL bis zu so viele Tage "
+                "gutschreiben (ADR 0097)."),
         }),
     )
 

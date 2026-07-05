@@ -133,7 +133,16 @@ Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 
 Buchbarkeit wie eine Belegung [in `quarter_is_free`/`find_gaps`/Belegungs-Tage],
 Pflege auf der **eigenen** Verwaltungs-Unterseite `verw_sperrzeiten`
 (`/verwaltung/sperrzeiten/`) + Backend, Anzeige als schraffierter Balken im
-Belegungsplan; #61/ADR 0086),
+Belegungsplan; #61/ADR 0086; **Konflikt-Workflow ADR 0097**: eine Sperrzeit über einer
+Buchung wird **standardmäßig abgelehnt** mit Meldung + betroffenen Mitgliedern +
+Vorschlag der nächsten freien Zeit [`services/blocks.py`]; unter
+`BookingPolicy.block_min_notice_days` [14] greift der **dringende** Weg [WARNUNG,
+`force`]: Buchungen kommen unter „Umbuchung nötig", die BL schlägt eine freie
+Ersatz-Unterkunft vor [`RelocationRequest`, Mitglied nimmt in „Meine Buchungen" an=
+sofort-Umzug / ab] oder **storniert mit Entschuldigung** [`cancel_with_apology`: Tage
+zurück ohne Verfall + bis zu `max_compensation_days` `CompensationGrant`-Ausgleichstage
+ins `effective_annual_budget`]),
+`RelocationRequest`/`CompensationGrant` (ADR 0097, s. `QuarterBlock`),
 `Notification` (In-App-Benachrichtigung), `NotificationSetting` (Betriebs-
 Einstellung je Benachrichtigungs-Ereignis: an/aus, Empfänger, Frequenz, PDF, Vorlauf –
 Vorlagen im Code-Katalog `booking/notify_catalog.py`, ADR 0089; Dispatcher
@@ -734,7 +743,10 @@ Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis d
 **Auslastung je Unterkunft** (`services.quarter_occupancy_ampel`:
 gebuchte/mögliche Nächte im Monat + **statische Ziel-Ampel** gegen
 `Quarter.target_occupancy` – 🟢 ab Ziel · 🟡 bis 20 %-Punkte darunter · 🔴 darunter;
-#63/#64) auf `verw_auslastung`;
+#63/#64) auf `verw_auslastung`. **`Quarter.count_in_occupancy`** (Default an, ADR 0096):
+aus = die Einheit zählt **nicht** in die Auslastungs-Quote (Camping-/Gemeinschafts-
+flächen) – gilt für Gemeinschafts-Balkendiagramm, Dashboard-Kennzahl und Ziel-Ampel;
+buchbar/im Plan bleibt sie. Migration setzt Bestand mit Ziel-Auslastung 0 % darauf;
 **Reinigung UND Endreinigung auf EINER Seite** (`verw_reinigung`, ADR 0085: kein
 getrennter Menüpunkt – nach **jeder** Abreise wird unbezahlt gereinigt, die gebuchte
 **bezahlpflichtige** Endreinigung ist ein Zusatz): **Reinigungsliste** (alle Abreisen

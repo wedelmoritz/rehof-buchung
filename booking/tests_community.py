@@ -64,6 +64,30 @@ class YearOccupancyCurveTests(TestCase):
         self.assertEqual(curve["peak"], maerz["pct"])
         self.assertIn("avg", curve)
 
+    def test_ausgeschlossene_flaeche_zaehlt_nicht(self):
+        """count_in_occupancy=False (Camping/Gemeinschaft, ADR 0096): weder Kapazität
+        noch gebuchte Nächte fließen in die Quote ein."""
+        year = date.today().year
+        cls = EquivalenceClass.objects.create(name="K")
+        q = Quarter.objects.create(name="Wohnung", eq_class=cls,
+                                   min_occupancy=1, max_occupancy=4)
+        camp = Quarter.objects.create(name="Camping", eq_class=cls,
+                                      min_occupancy=1, max_occupancy=9,
+                                      count_in_occupancy=False)
+        u = User.objects.create_user("occ2", password="pw12345")
+        m = Member.objects.create(user=u, display_name="Occ2")
+        ms = Membership.objects.create(eg_number="EG-occ2", label="occ2",
+                                       annual_night_budget=50, wish_night_budget=25)
+        Share.objects.create(membership=ms, member=m, night_budget=50,
+                             wish_night_budget=25)
+        # Buchung auf der ausgeschlossenen Camping-Fläche darf die Quote NICHT heben.
+        Allocation.objects.create(member=m, quarter=camp, start=date(year, 3, 5),
+                                  end=date(year, 3, 15), persons=2, membership=ms)
+        curve = svc.year_occupancy_curve(year)
+        self.assertEqual(curve["points"][2]["booked"], 0)   # März: nichts gezählt
+        # Kapazität = nur die 1 einbezogene Wohnung × Tage (nicht 2).
+        self.assertEqual(curve["points"][2]["possible"], 31)
+
 
 class CommunityViewTests(TestCase):
     def setUp(self):
