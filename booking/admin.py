@@ -18,8 +18,8 @@ from .models import (
     ExternalConfig, FairnessSimConfig, ForfeitedNights, Guest, LotteryRun,
     Member, Membership,
     NightTransfer, DayPoolEntry,
-    Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterBlock,
-    QuarterPrice, Rolle, SchoolHoliday,
+    Notification, NotificationSetting, OpsConfig, OutboxEmail, PendingUser,
+    Quarter, QuarterBlock, QuarterPrice, Rolle, SchoolHoliday,
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
@@ -995,6 +995,38 @@ class NotificationAdmin(admin.ModelAdmin):
     search_fields = ("member__display_name", "message")
     date_hierarchy = "created_at"
     list_select_related = ("member",)
+
+
+@admin.register(NotificationSetting)
+class NotificationSettingAdmin(admin.ModelAdmin):
+    """**Katalog aller automatischen Benachrichtigungen** (ADR 0089, #85): welche
+    Meldungen das System verschickt und deren Betriebs-Parameter (an/aus, Empfänger,
+    Frequenz/Tag, PDF-Anhang, Vorlauf). Die **Texte/Vorlagen** stehen versioniert im
+    Code (`booking/notify_catalog.py`) – Änderungswünsche an die Entwicklung."""
+    list_display = ("beschreibung", "event_key", "enabled", "frequency",
+                    "weekday", "day_of_month", "attach_pdf", "lead_days",
+                    "last_run_on")
+    list_editable = ("enabled", "frequency", "weekday", "day_of_month",
+                     "attach_pdf", "lead_days")
+    readonly_fields = ("event_key", "last_run_on")
+    ordering = ("event_key",)
+
+    @admin.display(description="Benachrichtigung")
+    def beschreibung(self, obj):
+        return obj.label()
+
+    def has_add_permission(self, request):
+        return False        # Ereignisse kommen aus dem Katalog, nicht per Hand
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        # Alle Katalog-Ereignisse lazy anlegen, damit die Liste vollständig ist.
+        from .notify_catalog import EVENTS
+        for key in EVENTS:
+            NotificationSetting.for_event(key)
+        return super().changelist_view(request, extra_context)
 
 
 @admin.register(SwapRequest)

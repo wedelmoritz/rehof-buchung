@@ -12,8 +12,48 @@ __all__ = [
     'unread_notifications', 'mark_notifications_read', 'absolute_url',
     'queue_email', 'email_member', 'queue_email_many', 'email_admins',
     'email_cleaning', 'send_web_push', 'send_account_invite',
-    'notify_admins_new_user',
+    'notify_admins_new_user', 'dispatch_event',
 ]
+
+
+def dispatch_event(event_key: str, context: dict | None = None, *, member=None,
+                   recipients=None, attachment: bytes | None = None,
+                   attachment_name: str = "", url: str = ""):
+    """Zentrale Benachrichtigungs-Naht (ADR 0089): rendert die Vorlage aus dem
+    Katalog **sicher** und verschickt sie gemäß der Backend-`NotificationSetting`
+    (an/aus, Empfänger). ``member``-Ereignisse gehen als In-App + Mail (Opt-in) ans
+    Mitglied; ``ops``/``cleaning``/``broadcast`` als Mail an die Empfängerliste
+    (optional mit PDF-Anhang). Gibt die eingereihte(n) Mail(s) zurück (oder None)."""
+    from ..models import Notification, NotificationSetting, OpsConfig
+    from ..notify_catalog import EVENTS, render
+    ev = EVENTS.get(event_key)
+    if ev is None:
+        return None
+    setting = NotificationSetting.for_event(event_key)
+    if not setting.enabled:
+        return None
+    subject, body = render(event_key, context or {})
+    audience = ev["audience"]
+
+    if audience == "member":
+        if member is None:
+            return None
+        Notification.objects.create(member=member, message=subject[:255],
+                                    detail=body, url=url)
+        return email_member(member, subject, body, attachment=attachment,
+                            attachment_name=attachment_name,
+                            attachment_mime="application/pdf" if attachment else
+                            "application/octet-stream")
+    # ops / cleaning / broadcast → E-Mail an die Empfängerliste
+    if recipients is None:
+        recipients = (OpsConfig.get_solo().cleaning_list()
+                      if audience == "cleaning" else setting.recipient_list())
+    if attachment:
+        return [queue_email(to, subject, body, attachment=attachment,
+                            attachment_name=attachment_name,
+                            attachment_mime="application/pdf")
+                for to in recipients if to]
+    return queue_email_many(recipients, subject, body)
 
 def unread_notifications(member):
     return list(member.notifications.filter(read=False)) if member else []

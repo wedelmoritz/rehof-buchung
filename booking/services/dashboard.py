@@ -20,7 +20,8 @@ __all__ = [
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
     'onboard_as_member', 'onboard_as_terminal', 'deactivate_account',
-    'ensure_personal_membership',
+    'ensure_personal_membership', 'run_scheduled_notifications',
+    'send_status_warnings',
 ]
 
 
@@ -476,3 +477,46 @@ def notify_admins_upcoming(force: bool = False) -> int:
     cfg.last_admin_notice = today
     cfg.save(update_fields=["last_admin_notice"])
     return len(recipients)
+
+
+# --------------------------------------------------------------------------- #
+# Benachrichtigungs-Framework: geplante (regelmäßige) Verwaltungs-Meldungen
+# (ADR 0089). Ein Einstiegspunkt für den Scheduler; jede Meldung prüft ihre
+# eigene Frequenz/Idempotenz über die NotificationSetting.
+# --------------------------------------------------------------------------- #
+
+def send_status_warnings(today=None) -> int:
+    """Vorwarnung an die Verwaltung: Konten, bei denen in den nächsten
+    `lead_days` ein Statuswechsel (passiv/ausgeschieden) greift (ADR 0087/0089).
+    Läuft nur, wenn die NotificationSetting es heute vorsieht (Frequenz/Idempotenz)."""
+    from django.db.models import Q
+    from ..models import NotificationSetting
+    from .notify import dispatch_event
+    today = today or date.today()
+    setting = NotificationSetting.for_event("member_status_upcoming")
+    if not setting.due_today(today):
+        return 0
+    horizon = today + timedelta(days=setting.lead_days)
+    rows: list[str] = []
+    for m in (Member.objects.select_related("user").filter(
+            Q(passive_from__gte=today, passive_from__lte=horizon)
+            | Q(excluded_from__gte=today, excluded_from__lte=horizon))
+            .order_by("display_name")):
+        if m.passive_from and today <= m.passive_from <= horizon:
+            rows.append(f"- {m.display_name}: passiv ab {m.passive_from:%d.%m.%Y}")
+        if m.excluded_from and today <= m.excluded_from <= horizon:
+            rows.append(f"- {m.display_name}: ausgeschieden ab {m.excluded_from:%d.%m.%Y}")
+    if rows:
+        dispatch_event("member_status_upcoming",
+                       {"lead_days": setting.lead_days, "list": "\n".join(rows)})
+    setting.last_run_on = today
+    setting.save(update_fields=["last_run_on"])
+    return len(rows)
+
+
+def run_scheduled_notifications(today=None) -> dict:
+    """Zentraler Scheduler-Einstiegspunkt für die geplanten Benachrichtigungen
+    (ADR 0089). Erweiterbar: neue geplante Meldung = neue Zeile hier. Gibt je
+    Meldung die Anzahl der betroffenen Einträge zurück."""
+    today = today or date.today()
+    return {"status_warnings": send_status_warnings(today)}

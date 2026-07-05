@@ -988,6 +988,82 @@ class Notification(models.Model):
         return f"{self.member}: {self.message}"
 
 
+class NotificationSetting(models.Model):
+    """Betriebs-Einstellung je Benachrichtigungs-Ereignis (ADR 0089): an/aus,
+    Empfänger, Frequenz/Tag, PDF-Anhang, Vorlauf. Die **Vorlagen** (Text) stehen im
+    Code-Katalog (`booking/notify_catalog.py`); hier nur die im Backend änderbaren
+    Betriebs-Parameter. Wird je Ereignis **lazy** mit den Katalog-Defaults angelegt."""
+    IMMEDIATE, EVENT, DAILY, WEEKLY, MONTHLY = (
+        "immediate", "event", "daily", "weekly", "monthly")
+    FREQUENCY = [(IMMEDIATE, "sofort (bei jedem Ereignis)"),
+                 (EVENT, "ereignisbezogen (mit Vorlauf)"),
+                 (DAILY, "täglich"), (WEEKLY, "wöchentlich"), (MONTHLY, "monatlich")]
+
+    event_key = models.CharField("Ereignis", max_length=60, unique=True)
+    enabled = models.BooleanField("Aktiv", default=True)
+    recipients = models.CharField(
+        "Empfänger (kommagetrennt, leer = Verwaltungs-Adressen)", max_length=400,
+        blank=True)
+    frequency = models.CharField("Frequenz", max_length=10, choices=FREQUENCY,
+                                 default=WEEKLY)
+    weekday = models.PositiveSmallIntegerField(
+        "Wochentag (0=Mo … 6=So, bei wöchentlich)", default=0)
+    day_of_month = models.PositiveSmallIntegerField(
+        "Tag im Monat (bei monatlich)", default=1)
+    attach_pdf = models.BooleanField("PDF anhängen (wo verfügbar)", default=False)
+    lead_days = models.PositiveSmallIntegerField("Vorlauf (Tage)", default=7)
+    last_run_on = models.DateField("Zuletzt gelaufen am", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Benachrichtigungs-Einstellung"
+        verbose_name_plural = "Benachrichtigungs-Einstellungen"
+        ordering = ["event_key"]
+
+    @classmethod
+    def for_event(cls, key: str) -> "NotificationSetting":
+        """Einstellung zum Ereignis holen/anlegen (Defaults aus dem Katalog)."""
+        from .notify_catalog import EVENTS
+        obj = cls.objects.filter(event_key=key).first()
+        if obj is not None:
+            return obj
+        d = (EVENTS.get(key) or {}).get("defaults", {})
+        return cls.objects.create(
+            event_key=key,
+            frequency=d.get("frequency", cls.WEEKLY),
+            weekday=d.get("weekday", 0),
+            day_of_month=d.get("day_of_month", 1),
+            attach_pdf=d.get("attach_pdf", False),
+            lead_days=d.get("lead_days", 7))
+
+    def recipient_list(self) -> list[str]:
+        """Empfänger-Adressen: explizit gesetzte, sonst die Verwaltungs-Adressen."""
+        raw = [e.strip() for e in (self.recipients or "").split(",") if e.strip()]
+        if raw:
+            return raw
+        return OpsConfig.get_solo().admin_list()
+
+    def due_today(self, today) -> bool:
+        """Ist eine geplante Benachrichtigung heute fällig (Frequenz + Idempotenz)?"""
+        if not self.enabled:
+            return False
+        if self.last_run_on == today:
+            return False
+        if self.frequency == self.DAILY:
+            return True
+        if self.frequency == self.WEEKLY:
+            return today.weekday() == self.weekday
+        if self.frequency == self.MONTHLY:
+            return today.day == self.day_of_month
+        return False   # immediate/event laufen nicht über den Zeitplan
+
+    def label(self) -> str:
+        from .notify_catalog import EVENTS
+        return (EVENTS.get(self.event_key) or {}).get("label", self.event_key)
+
+    def __str__(self) -> str:
+        return self.label()
+
+
 class PushSubscription(models.Model):
     """Web-Push-Abo eines Mitglieds (ein Eintrag je Browser/Gerät). Speichert den
     vom Browser gelieferten Endpoint + Schlüssel; der Versand läuft über

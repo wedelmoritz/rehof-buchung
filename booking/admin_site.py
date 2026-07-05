@@ -50,6 +50,7 @@ SECTIONS: list[tuple[str, list[str]]] = [
     ("Administratives & Logs", [
         # Übergreifende Einstellungen (gelten für Hofladen UND externe Gäste):
         "shop.ShopConfig", "booking.OpsConfig", "booking.TerminalConfig",
+        "booking.NotificationSetting",
         "booking.Notification", "booking.OutboxEmail", "booking.Beds24Import",
         # Backend-2FA: die TOTP-Geräte (Zwei-Faktor) wohnen hier (ADR 0061).
         "otp_totp.TOTPDevice",

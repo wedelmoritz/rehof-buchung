@@ -125,7 +125,11 @@ Buchbarkeit wie eine Belegung [in `quarter_is_free`/`find_gaps`/Belegungs-Tage],
 Pflege auf der **eigenen** Verwaltungs-Unterseite `verw_sperrzeiten`
 (`/verwaltung/sperrzeiten/`) + Backend, Anzeige als schraffierter Balken im
 Belegungsplan; #61/ADR 0086),
-`Notification` (In-App-Benachrichtigung), `OutboxEmail`
+`Notification` (In-App-Benachrichtigung), `NotificationSetting` (Betriebs-
+Einstellung je Benachrichtigungs-Ereignis: an/aus, Empfänger, Frequenz, PDF, Vorlauf –
+Vorlagen im Code-Katalog `booking/notify_catalog.py`, ADR 0089; Dispatcher
+`services.dispatch_event`, geplanter Lauf `run_scheduled_notifications`/Kommando
+`send_notifications`; Backend-Liste = Katalog-Überblick #85), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
