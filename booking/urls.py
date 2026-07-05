@@ -45,6 +45,7 @@ urlpatterns = [
     path("verwaltung/kontoabgleich/", views.verw_konto, name="verw_konto"),
     path("verwaltung/auslastung/", views.verw_auslastung, name="verw_auslastung"),
     path("verwaltung/mitglieder/", views.verw_mitglieder, name="verw_mitglieder"),
+    path("verwaltung/rundnachricht/", views.verw_rundnachricht, name="verw_rundnachricht"),
     path("verwaltung/produkte/", views.dashboard_products, name="dashboard_products"),
     path("verwaltung/beds24-import/", views.beds24_import, name="beds24_import"),
     path("verwaltung/export/<str:kind>.<str:fmt>", views.dashboard_export,

@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from booking.models import (
     Member, NotificationSetting, Notification, OpsConfig, OutboxEmail,
@@ -126,3 +127,44 @@ class BLNotificationTests(TestCase):
         p.refresh_from_db()
         self.assertIsNotNone(p.bl_reminder_at)
         self.assertEqual(svc.send_lottery_reminder(today), 0)   # nicht doppelt
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class RundnachrichtTests(TestCase):
+    def _member(self, name, passive=False):
+        u = User.objects.create_user(name, f"{name.lower()}@example.org", "x" * 12)
+        m = Member.objects.create(user=u, display_name=name)
+        if passive:
+            m.passive_from = date.today() - timedelta(days=1)
+            m.save(update_fields=["passive_from"])
+        return m
+
+    def test_broadcast_aktive_vs_alle(self):
+        from booking.models import Notification
+        a = self._member("Aktiv")
+        p = self._member("Passiv", passive=True)
+        # Aktive: nur an aktive Mitglieder
+        res = svc.broadcast_message("active_members", "Hallo", "Text")
+        self.assertEqual(res["inapp"], 1)
+        self.assertTrue(Notification.objects.filter(member=a).exists())
+        self.assertFalse(Notification.objects.filter(member=p).exists())
+        # Alle: inkl. passive
+        res2 = svc.broadcast_message("all_members", "Hallo2", "Text2")
+        self.assertEqual(res2["inapp"], 2)
+
+    def test_rollen_export(self):
+        self._member("Ida")
+        rows = svc.role_recipients("all_members")
+        self.assertIn(("Ida", "ida@example.org"), rows)
+
+    def test_rundnachricht_seite_und_export(self):
+        from booking.permissions import ensure_verwaltung_group
+        su = User.objects.create_user("chef", "chef@example.org", "x" * 12)
+        su.groups.add(ensure_verwaltung_group())
+        self._member("Ida")
+        self.client.force_login(su)
+        r = self.client.get(reverse("verw_rundnachricht"))
+        self.assertEqual(r.status_code, 200)
+        csv = self.client.get(reverse("verw_rundnachricht") + "?export=all_members")
+        self.assertIn("text/csv", csv["Content-Type"])
+        self.assertIn("ida@example.org", csv.content.decode("utf-8"))

@@ -23,7 +23,87 @@ __all__ = [
     'ensure_personal_membership', 'run_scheduled_notifications',
     'send_status_warnings', 'send_bookings_overview', 'send_occupancy_overview',
     'send_overdue_overview', 'send_lottery_reminder', 'notify_booking_activity',
+    'BROADCAST_AUDIENCES', 'broadcast_message', 'role_recipients',
 ]
+
+# Zielgruppen für Rundnachrichten/Export (ADR 0090). „members"-Gruppen bekommen
+# In-App + Mail (Opt-in) + Push; „bl"/„admins" bekommen Mail (+ In-App, falls sie
+# ein Mitglieds-Profil haben).
+BROADCAST_AUDIENCES = [
+    ("active_members", "Alle aktiven Mitglieder"),
+    ("all_members", "Alle Mitglieder (inkl. passive)"),
+    ("bl", "Alle in der Rolle Verwaltung"),
+    ("admins", "Alle Admins"),
+]
+
+
+def _audience_members(audience):
+    from ..models import Member
+    qs = Member.objects.filter(is_external=False).select_related("user")
+    if audience == "all_members":
+        return list(qs)
+    if audience == "active_members":
+        return [m for m in qs if m.can_book]
+    return []
+
+
+def _audience_users(audience):
+    from django.contrib.auth.models import User
+    from django.db.models import Q
+    from ..permissions import VERWALTUNG_GROUP
+    if audience == "bl":
+        return list(User.objects.filter(is_active=True).filter(
+            Q(groups__name=VERWALTUNG_GROUP) | Q(is_superuser=True)).distinct())
+    if audience == "admins":
+        return list(User.objects.filter(is_active=True, is_superuser=True))
+    return []
+
+
+def broadcast_message(audience: str, subject: str, body: str) -> dict:
+    """Rundnachricht an eine **Rolle** (ADR 0090): Mitglieder-Zielgruppen bekommen
+    In-App-Benachrichtigung + E-Mail (Opt-in) + Push; „bl"/„admins" E-Mail (+ In-App,
+    falls Mitglieds-Profil). Nur von Admin/Verwaltung aufzurufen (View prüft das)."""
+    from ..models import Notification
+    from ..validation import strip_controls
+    from .notify import email_member, queue_email, send_web_push
+    subject = strip_controls(subject, max_len=160)
+    body = strip_controls(body, max_len=4000)
+    n_inapp = n_mail = 0
+    full_subject = f"Re:Hof: {subject}"
+    if audience in ("active_members", "all_members"):
+        for m in _audience_members(audience):
+            Notification.objects.create(member=m, message=subject[:255], detail=body)
+            n_inapp += 1
+            if email_member(m, full_subject, body):
+                n_mail += 1
+            send_web_push(m, subject, body)
+    else:
+        for u in _audience_users(audience):
+            m = getattr(u, "member", None)
+            if m is not None:
+                Notification.objects.create(member=m, message=subject[:255], detail=body)
+                n_inapp += 1
+            if (getattr(u, "email", "") or "").strip():
+                queue_email(u.email, full_subject, body)
+                n_mail += 1
+    return {"inapp": n_inapp, "mail": n_mail}
+
+
+def role_recipients(audience: str) -> list[tuple[str, str]]:
+    """(Name, E-Mail) je Rolle – für den Export in externe Verteilerlisten (ADR 0090,
+    Punkt 5b): die App führt die Mitgliedschaft, die Liste lebt beim Mailprovider."""
+    rows: list[tuple[str, str]] = []
+    if audience in ("active_members", "all_members"):
+        for m in _audience_members(audience):
+            email = (getattr(m.user, "email", "") or "").strip()
+            if email:
+                rows.append((m.display_name, email))
+    else:
+        for u in _audience_users(audience):
+            email = (getattr(u, "email", "") or "").strip()
+            if email:
+                rows.append((u.get_full_name() or u.username, email))
+    return rows
 
 
 def onboard_as_member(user, *, display_name, night_budget, wish_night_budget,

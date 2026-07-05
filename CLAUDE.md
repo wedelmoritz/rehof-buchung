@@ -695,6 +695,9 @@ eigene Seite, nicht mehr unter Reinigung),
 `verw_konto` (`/verwaltung/kontoabgleich/`, Kontoabgleich),
 `verw_auslastung` (`/verwaltung/auslastung/`, Statistik + Auslastungs-Ampel),
 `verw_mitglieder` (`/verwaltung/mitglieder/`, Mitgliederliste mit Kontakt #65),
+`verw_rundnachricht` (`/verwaltung/rundnachricht/`, **Rundnachricht** an eine Rolle
+[In-App+Mail+Push, `services.broadcast_message`] + **Rollen-Empfänger-Export** als CSV
+für externe Verteilerlisten [`services.role_recipients`], ADR 0090),
 `dashboard_products` (`/verwaltung/produkte/`, Hofladen-Katalog). Gemeinsame Bausteine:
 `verw_base.html` (Layout + gesamtes CSS, Blöcke `verw_h1`/`verw_body`),
 `_verw_monthbar.html` (Monatswahl, GET+`data-ajax`) und der zentrale POST-Dispatcher

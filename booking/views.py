@@ -1503,6 +1503,47 @@ def verw_mitglieder(request):
 
 
 @login_required
+def verw_rundnachricht(request):
+    """Unterseite: **Rundnachricht** an eine Rolle (In-App + Mail + Push) und
+    **Rollen-Export** (CSV für externe Verteilerlisten) – ADR 0090/B4."""
+    if not _staff_required(request):
+        return redirect("overview")
+    import csv as _csv
+    # Export je Rolle als CSV (für externe Verteilerlisten).
+    exp = request.GET.get("export")
+    if exp:
+        rows = svc.role_recipients(exp)
+        resp = HttpResponse(content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="empfaenger-{exp}.csv"'
+        resp.write("﻿")     # BOM für Excel
+        w = _csv.writer(resp, delimiter=";")
+        w.writerow(["Name", "E-Mail"])
+        for name, email in rows:
+            w.writerow([name, email])
+        return resp
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    if request.method == "POST" and request.POST.get("action") == "broadcast":
+        audience = request.POST.get("audience", "")
+        subject = (request.POST.get("subject") or "").strip()
+        body = (request.POST.get("body") or "").strip()
+        valid_aud = {a for a, _ in svc.BROADCAST_AUDIENCES}
+        if audience not in valid_aud or not subject or not body:
+            messages.error(request, "Bitte Zielgruppe, Betreff und Text angeben.")
+        else:
+            res = svc.broadcast_message(audience, subject, body)
+            messages.success(request, f"Rundnachricht gesendet: {res['inapp']} In-App, "
+                             f"{res['mail']} E-Mail(s).")
+        return redirect(f"{reverse('verw_rundnachricht')}?year={year}&month={month}")
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx["audiences"] = [
+        {"key": a, "label": lbl, "count": len(svc.role_recipients(a))}
+        for a, lbl in svc.BROADCAST_AUDIENCES]
+    return render(request, "booking/verw_rundnachricht.html", ctx)
+
+
+@login_required
 def plan_pdf(request):
     """Belegungsplan als Druck-PDF (Querformat) – nur Verwaltung/BL (#39, ADR 0083).
     Liest denselben Datums-Anker/Bereich wie der Plan (`from`/`weeks`)."""
