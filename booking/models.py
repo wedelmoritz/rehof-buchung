@@ -560,6 +560,14 @@ class Allocation(models.Model):
     companions = models.CharField(
         "Begleitung", max_length=255, blank=True,
         help_text="Mit wem reise ich an (frei eintragbar).")
+    special_requests = models.CharField(
+        "Besonderheiten", max_length=255, blank=True,
+        help_text="Optional: Hund, Kinder, Zustellbett o. Ä. – für die "
+                  "Vorbereitung durch das Team (#62/#68).")
+    internal_note = models.CharField(
+        "Interne Notiz (nur Team/BL)", max_length=500, blank=True,
+        help_text="Nur für Betriebsleitung/Team – wird dem Mitglied NICHT "
+                  "angezeigt (#84).")
     source = models.CharField("Quelle", max_length=12, choices=SOURCE)
     period = models.ForeignKey(
         BookingPeriod, on_delete=models.SET_NULL, null=True, blank=True,
@@ -718,6 +726,39 @@ class CancellationLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.quarter_name} {self.start}–{self.end} (storniert)"
+
+
+class QuarterBlock(models.Model):
+    """Sperrzeitraum je Quartier für **Reinigung/Reparatur** (#61/ADR 0086). Ein
+    Block macht das Quartier im Zeitraum [start, end) **nicht buchbar** (wie eine
+    Belegung – geprüft in `quarter_is_free`/`find_gaps`/Belegungs-Tage) und wird im
+    Belegungsplan angezeigt. Bewusst schlank: kein Mitglied, keine Rechnung."""
+    quarter = models.ForeignKey(
+        "Quarter", on_delete=models.CASCADE, related_name="blocks",
+        verbose_name="Quartier")
+    start = models.DateField("Von (Anreisesperre ab)")
+    end = models.DateField("Bis (exklusiv – erster wieder freier Tag)")
+    reason = models.CharField("Grund", max_length=200, blank=True,
+                              help_text="z. B. Renovierung, Wasserschaden, Grundreinigung.")
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Sperrzeit (Reinigung/Reparatur)"
+        verbose_name_plural = "Sperrzeiten (Reinigung/Reparatur)"
+        ordering = ["start", "quarter__sort_order"]
+        indexes = [models.Index(fields=["quarter", "start", "end"])]
+
+    @property
+    def nights(self) -> int:
+        return (self.end - self.start).days
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.start and self.end and self.end <= self.start:
+            raise ValidationError({"end": "Das Bis-Datum muss nach dem Von-Datum liegen."})
+
+    def __str__(self) -> str:
+        return f"{self.quarter} gesperrt {self.start}–{self.end}"
 
 
 class NightTransfer(models.Model):

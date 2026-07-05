@@ -74,6 +74,13 @@
         <input type="text" id="id_companions" name="companions" maxlength="255"
                placeholder="z. B. Familie Muster, 2 Kinder">
       </div>
+      <div class="field" style="flex:1 1 16rem">
+        <label for="id_special">Besonderheiten (optional)</label>
+        <input type="text" id="id_special" name="special_requests" maxlength="255"
+               placeholder="z. B. Hund, Kleinkind, Zustellbett">
+        <p class="muted" style="font-size:.85rem;margin:.3rem 0 0">Hilft dem Team
+          bei der Vorbereitung – keine Garantie auf Zusatzausstattung.</p>
+      </div>
     </div>
     {% if memberships|length > 1 %}
     <div class="form-row">

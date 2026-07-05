@@ -80,6 +80,25 @@ class DashboardTests(TestCase):
         self.client.force_login(self.staff.user)
         self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)
 
+    # --- Mitgliederliste für die BL (#65) --------------------------------- #
+    def test_mitgliederliste_nur_staff_und_kontakt(self):
+        # Mitglied kommt nicht rein.
+        self.client.force_login(self.member.user)
+        self.assertEqual(self.client.get(reverse("verw_mitglieder")).status_code, 302)
+        # Verwaltung sieht Name + E-Mail; IBAN wird NICHT gelistet.
+        self.member.iban = "DE02120300000000202051"
+        self.member.city = "Musterstadt"
+        self.member.save(update_fields=["iban", "city"])
+        self.client.force_login(self.staff.user)
+        html = self.client.get(reverse("verw_mitglieder")).content.decode()
+        self.assertIn("Anna", html)
+        self.assertIn("anna@example.org", html)
+        self.assertNotIn(self.member.iban, html)
+        # Suche grenzt ein: Chefs E-Mail (nur im Tabellen-mailto) verschwindet.
+        only = self.client.get(reverse("verw_mitglieder") + "?q=Musterstadt").content.decode()
+        self.assertIn("anna@example.org", only)
+        self.assertNotIn("chef@example.org", only)
+
     # --- Export ------------------------------------------------------------ #
     def test_export_reinigung_csv_und_xlsx(self):
         self.client.force_login(self.staff.user)
@@ -148,6 +167,26 @@ class InvoiceReminderTests(TestCase):
         self.inv.save(update_fields=["due_date"])
         self.assertEqual(shop_svc.remind_overdue(), 1)
 
+    def test_mahnstufe_eskaliert_und_respektiert_abstand(self):
+        """#54: jede Erinnerung zählt die Mahnstufe hoch; ein zweites Mahnen ist
+        erst nach dem Mindestabstand möglich (kein sofortiges Doppel-Mahnen)."""
+        from django.utils import timezone
+        self.inv.due_date = date.today() - timedelta(days=1)
+        self.inv.save(update_fields=["due_date"])
+        self.assertTrue(shop_svc.send_payment_reminder(self.inv))
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.reminder_count, 1)
+        # sofort erneut: gesperrt durch Mindestabstand
+        self.assertFalse(shop_svc.reminder_due(self.inv))
+        self.assertFalse(shop_svc.send_payment_reminder(self.inv))
+        # nach Ablauf des Abstands (8 Tage) eskaliert auf Stufe 2
+        self.inv.reminded_at = timezone.now() - timedelta(days=8)
+        self.inv.save(update_fields=["reminded_at"])
+        self.assertTrue(shop_svc.reminder_due(self.inv))
+        self.assertTrue(shop_svc.send_payment_reminder(self.inv))
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.reminder_count, 2)
+
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class InvoiceDashboardTests(TestCase):
@@ -195,13 +234,32 @@ class InvoiceDashboardTests(TestCase):
             self.assertIn("Familie Berger", r.content.decode("utf-8"))
 
     def test_rechnungsfilter(self):
+        # Rechnungslisten liegen jetzt auf der Unterseite verw_rechnungen (ADR 0085).
         self.client.force_login(self.staff.user)
-        over = self.client.get(reverse("dashboard") + "?inv=overdue").content.decode()
+        over = self.client.get(reverse("verw_rechnungen") + "?inv=overdue").content.decode()
         self.assertIn(self.overdue_inv.number, over)
         self.assertNotIn(self.confirmed_inv.number, over)
-        alle = self.client.get(reverse("dashboard") + "?inv=all").content.decode()
+        alle = self.client.get(reverse("verw_rechnungen") + "?inv=all").content.decode()
         self.assertIn(self.confirmed_inv.number, alle)
         self.assertIn(self.overdue_inv.number, alle)
+
+    def test_externe_gaesterechnung_und_pdf_link(self):
+        """#56/#57: Externe Gäste-Rechnungen sind in der Verwaltung sicht- und
+        über den Extern-Filter gezielt auffindbar; je Rechnung gibt es einen
+        PDF-Link (für die Verwaltung auf ALLE Rechnungen)."""
+        from booking.models import Guest
+        guest = Guest.objects.create(name="Familie Berger", email="berger@example.org")
+        ginv = shop_svc.create_invoice_for_guest(guest, [
+            {"name": "Übernachtung", "quantity": Decimal("3"), "unit": "Nacht",
+             "unit_price": Decimal("80.00"), "vat_rate": 7}])
+        self.client.force_login(self.staff.user)
+        ext = self.client.get(reverse("verw_rechnungen") + "?inv=extern").content.decode()
+        self.assertIn("Familie Berger", ext)
+        self.assertIn(ginv.number, ext)
+        # Mitglieder-Rechnung taucht im Extern-Filter NICHT auf.
+        self.assertNotIn(self.overdue_inv.number, ext)
+        # PDF-Link je Rechnung (auf die Gäste-Rechnung).
+        self.assertIn(reverse("shop_invoice_pdf", args=[ginv.id]), ext)
 
     def test_ueberfaellige_per_knopf_erinnern(self):
         OutboxEmail.objects.all().delete()
@@ -239,7 +297,11 @@ class InvoiceDashboardTests(TestCase):
         self.client.force_login(self.staff.user)
         with CaptureQueriesContext(connection) as ctx:
             self.client.get(reverse("dashboard") + "?inv=all")
-        self.assertLess(len(ctx.captured_queries), 40,
+        # Budget großzügig: der Wächter zielt auf das NICHT-Skalieren mit der Zahl
+        # der Rechnungen (kein per-Rechnung-Query). Die Auslastungs-Ampel je Quartier
+        # (#63) fügt eine KONSTANTE Zahl Queries hinzu (Quartiere/Belegung des Monats,
+        # unabhängig von der Rechnungszahl).
+        self.assertLess(len(ctx.captured_queries), 45,
                         f"zu viele Queries: {len(ctx.captured_queries)}")
 
 

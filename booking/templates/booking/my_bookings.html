@@ -68,6 +68,7 @@
         {% if a.waiters %}<span class="tag mine">{{ a.waiters|length }} wartet</span>{% endif %}
         <div class="muted">{{ a.start }} – {{ a.end }} · {{ a.nights }} Nächte · {{ a.persons }} Pers. ·
           <abbr title="So ist die Buchung entstanden: Spontanbuchung = selbst gebucht · Losung = über das Losverfahren · Import = aus dem Altsystem übernommen." style="text-decoration:underline dotted">{{ a.get_source_display }}</abbr></div>
+        {% if a.special_requests %}<div class="muted">🛎 Besonderheiten: {{ a.special_requests }}</div>{% endif %}
         {% for sr in a.service_reqs %}
           {% if sr.status == 'requested' %}
           <div class="svc-status" title="Deine Anfrage wurde an die Betriebsleitung übermittelt und wartet auf Bestätigung.">🕓 {{ sr.product.name }}: <strong>angefragt</strong> · an Betriebsleitung übermittelt</div>

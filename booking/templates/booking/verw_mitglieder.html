@@ -1,0 +1,50 @@
+{% extends "booking/verw_base.html" %}
+{% block verw_title %}Mitglieder · Verwaltung{% endblock %}
+{% block verw_h1 %}Mitglieder &amp; Kontakt{% endblock %}
+
+{% block verw_body %}
+<div class="card monthbar">
+  <form method="get" data-ajax class="inline-form" style="flex:1 1 auto">
+    <label style="flex:1 1 16rem">Suchen
+      <input type="search" name="q" value="{{ q }}" placeholder="Name, E-Mail, Ort …"
+             style="padding:.45rem .6rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); width:100%">
+    </label>
+    <button class="btn small" type="submit">Suchen</button>
+  </form>
+  <span class="spacer"></span>
+  {% if is_admin %}<a class="btn small ghost" href="/admin/auth/user/">Backend (Benutzer)</a>{% endif %}
+</div>
+
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Buchende Mitglieder</h2>
+    <span class="spacer"></span>
+    <span class="muted">{{ member_count }} angezeigt</span>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Kontaktdaten für Rückfragen der
+    Betriebsleitung. IBAN und weitere Rechnungsdetails stehen aus Datenschutzgründen
+    nur in der Backend-Einzelansicht{% if not is_admin %} (Admin){% endif %}.</p>
+  {% if members %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead><tr><th>Name</th><th>E-Mail</th><th>Anschrift</th><th>Anteil(e)</th><th>Tage/Jahr</th></tr></thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td>{% if is_admin %}<a href="/admin/auth/user/{{ m.user_id }}/change/">{{ m.display_name }}</a>{% else %}{{ m.display_name }}{% endif %}
+            {% if m.legal_name and m.legal_name != m.display_name %}<br><span class="muted">{{ m.legal_name }}</span>{% endif %}</td>
+          <td>{% if m.user.email %}<a href="mailto:{{ m.user.email }}">{{ m.user.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if m.street or m.city %}{{ m.street }}{% if m.street and m.city %}, {% endif %}{{ m.zip_code }} {{ m.city }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% for s in m.shares.all %}{{ s.membership.eg_number|default:s.membership.label }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">—</span>{% endfor %}</td>
+          <td>{{ m.annual_night_budget }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Keine Mitglieder gefunden{% if q %} zu „{{ q }}“{% endif %}.</p>{% endif %}
+  <p class="muted sm" style="margin:.7rem 0 0">Hinweis: Eine <strong>Telefonnummer</strong>
+    wird derzeit nicht erfasst. Falls gewünscht, kann ein Telefonfeld im Profil ergänzt
+    werden (kurze Rücksprache).</p>
+</div>
+{% endblock %}

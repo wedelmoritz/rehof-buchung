@@ -31,6 +31,18 @@ Nur sichtbar, wenn es solche Konten gibt – so fällt es sofort auf.{% endcomme
   </div>
 </details>
 {% endif %}
+{% comment %}Beds24-Import: einmaliger Umzugs-Task (bestehende Beds24-Buchungen per CSV
+übernehmen). Legt echte Buchungen an → nur für Admins und nur solange in den
+Betriebs-Einstellungen freigeschaltet (ADR 0056/Umzug).{% endcomment %}
+{% if beds24_import_enabled %}
+<div class="module rehof-beds24" id="rehof-beds24">
+  <p class="rehof-b24-line">
+    <strong>Beds24-Umzug:</strong> bestehende Beds24-Buchungen per CSV-Upload
+    übernehmen (einmaliger Task beim Umzug).
+    <a class="rehof-b24-go" href="{% url 'beds24_import' %}">Import-Assistent öffnen →</a>
+  </p>
+</div>
+{% endif %}
 <details class="module rehof-intro" id="rehof-intro">
   <summary>Was kannst du hier tun? <span class="rehof-toggle">(ein-/ausklappen)</span></summary>
   <div class="rehof-intro-body">
@@ -171,5 +183,11 @@ Struktur (Suche/Bereiche oben, Inhalt darunter) auf allen Seiten gleich.{% endco
   .rehof-nu-name { font-weight: 700; }
   .rehof-nu-meta { color: var(--body-quiet-color); font-size: 12px; }
   .rehof-nu-go { margin-left: auto; font-weight: 700; white-space: nowrap; }
+
+  /* Beds24-Umzug – schlanke Zeile, gleiche Formsprache wie „Neue Benutzer“. */
+  .rehof-beds24 { margin: 0 0 18px; padding: 11px 16px; border-radius: 12px;
+    border: 1px solid #e4dfd8; border-left: 4px solid var(--secondary); }
+  .rehof-beds24 .rehof-b24-line { margin: 0; }
+  .rehof-beds24 .rehof-b24-go { margin-left: 8px; font-weight: 700; white-space: nowrap; }
 </style>
 {% endblock %}

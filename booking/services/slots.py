@@ -11,11 +11,11 @@ from .. import lottery as L
 from .. import rules as R
 from ..models import (
     Allocation, BookingPeriod, BookingPolicy, ExternalBooking,
-    ExternalConfig, Member, Quarter, SchoolHoliday, SeasonRule,
+    ExternalConfig, Member, Quarter, QuarterBlock, SchoolHoliday, SeasonRule,
 )
 
 __all__ = [
-    '_quarters_payload', '_external_blocking_qs', 'quarter_is_free',
+    '_quarters_payload', '_external_blocking_qs', '_block_qs', 'quarter_is_free',
     'find_gaps', '_materialized_seasons', 'check_booking_rules',
     'schedule_blocker', 'season_min_nights', 'min_nights_for_range',
     'external_min_nights', 'wish_rule_error', '_active_windows',
@@ -41,11 +41,20 @@ def _external_blocking_qs(quarter: Quarter, start: date, end: date):
         start__lt=end, end__gt=start)
 
 
+def _block_qs(quarter: Quarter, start: date, end: date):
+    """Sperrzeiten (Reinigung/Reparatur), die [start, end) für `quarter` blockieren (#61)."""
+    return QuarterBlock.objects.filter(
+        quarter=quarter, start__lt=end, end__gt=start)
+
+
 def quarter_is_free(quarter: Quarter, start: date, end: date) -> bool:
     """Prüft, ob ein Quartier im Zeitraum [start, end) komplett frei ist –
-    berücksichtigt Mitglieder-Zuteilungen UND bestätigte externe Buchungen."""
+    berücksichtigt Mitglieder-Zuteilungen, bestätigte externe Buchungen UND
+    Sperrzeiten (Reinigung/Reparatur, #61)."""
     if Allocation.objects.filter(
             quarter=quarter, start__lt=end, end__gt=start).exists():
+        return False
+    if _block_qs(quarter, start, end).exists():
         return False
     return not _external_blocking_qs(quarter, start, end).exists()
 
@@ -60,6 +69,8 @@ def find_gaps(
             quarter=quarter, start__lt=window_end, end__gt=window_start)]
     intervals += [(b.start, b.end)
                   for b in _external_blocking_qs(quarter, window_start, window_end)]
+    intervals += [(b.start, b.end)
+                  for b in _block_qs(quarter, window_start, window_end)]
     intervals.sort()
     gaps: list[tuple[date, date]] = []
     cursor = window_start
@@ -575,6 +586,8 @@ def find_bookable_gaps(
             quarter=quarter, start__lt=window_end, end__gt=window_start)]
     intervals += [(b.start, b.end)
                   for b in _external_blocking_qs(quarter, window_start, window_end)]
+    intervals += [(b.start, b.end)
+                  for b in _block_qs(quarter, window_start, window_end)]
     for i_start, i_end in intervals:
         d = max(i_start, window_start)
         upper = min(i_end, window_end)
@@ -639,6 +652,8 @@ def _compute_occupied(first: date, last: date) -> dict[str, set[date]]:
             for a in Allocation.objects.filter(start__lte=last, end__gt=first)]
     rows += [(b.quarter_id, b.start, b.end) for b in ExternalBooking.objects.filter(
         status=ExternalBooking.CONFIRMED, start__lte=last, end__gt=first)]
+    rows += [(b.quarter_id, b.start, b.end) for b in QuarterBlock.objects.filter(
+        start__lte=last, end__gt=first)]
     for qid, s, e in rows:
         d = max(s, first)
         upper = min(e, last + timedelta(days=1))

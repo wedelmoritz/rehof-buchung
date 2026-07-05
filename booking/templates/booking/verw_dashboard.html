@@ -1,0 +1,115 @@
+{% extends "booking/verw_base.html" %}
+{% block verw_title %}Verwaltung{% endblock %}
+{% block verw_h1 %}Verwaltung{% endblock %}
+{% block verw_head_actions %}
+  {% if is_admin %}<a class="btn small ghost" href="/admin/">Backend</a>{% endif %}
+{% endblock %}
+
+{% block verw_body %}
+<details class="card help-note">
+  <summary><strong>Was du hier tun kannst</strong></summary>
+  <ul>
+    <li>Diese Startseite fasst <strong>was jetzt zu tun ist</strong> zusammen: offene
+      Endreinigungs-Anfragen, überfällige Rechnungen und neu reingekommene/geänderte
+      Buchungen.</li>
+    <li>Die <strong>vollen Listen und Aktionen</strong> liegen auf den eigenen
+      Menüpunkten links: <strong>Buchungen</strong>, <strong>Reinigung</strong>
+      (inkl. Endreinigung freigeben), <strong>Rechnungen</strong>,
+      <strong>Kontoabgleich</strong>, <strong>Auslastung</strong>,
+      <strong>Hofladen-Katalog</strong>.</li>
+    <li><em>Buchungen ändern und die Losung starten</em> macht die
+      <strong>Admin-Rolle</strong> im Backend; hier siehst du Buchungen/Losung nur lesend.</li>
+  </ul>
+</details>
+
+{# --- Kompakte Kennzahlen (Monat) --- #}
+<div class="kpis">
+  <div class="card kpi"><span class="num">{{ kpi.arrivals }}</span>
+    <span class="lbl">Anreisen<br>{{ month_label }}</span></div>
+  <div class="card kpi"><span class="num">{{ kpi.cleaning }}</span>
+    <span class="lbl">Endreinigungen<br>{{ month_label }}</span></div>
+  <div class="card kpi"><span class="num">{{ kpi.open }}</span>
+    <span class="lbl">offene Rechnungen<br>{{ kpi.open_sum }} €</span></div>
+  <div class="card kpi {% if kpi.overdue %}danger{% endif %}"><span class="num">{{ kpi.overdue }}</span>
+    <span class="lbl">überfällig</span></div>
+  <div class="card kpi"><span class="num">{{ kpi.online }}</span>
+    <span class="lbl">online bezahlt<br>{{ month_label }}</span></div>
+</div>
+
+<h2 style="margin:.4rem 0 .6rem">Jetzt handeln</h2>
+<div class="hb-grid">
+
+  {# Endreinigungs-Anfragen #}
+  <div class="card pad hb-card">
+    <div class="hb-head"><h2>Endreinigungs-Anfragen</h2>
+      <span class="hb-count {% if service_requests %}warn{% endif %}">{{ service_requests|length }}</span></div>
+    {% if service_requests %}
+    <ul class="hb-list">
+      {% for sr in service_requests %}
+      <li>
+        <span class="who">{{ sr.member.display_name }}</span>
+        <span class="meta">{{ sr.allocation.quarter.name }} · {{ sr.service_date|date:"d.m." }}</span>
+        <span class="right hb-actrow">
+          <form method="post" class="inline" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} bestätigen? Wird abgerechnet und in die Reinigungsliste eingetragen.">{% csrf_token %}
+            <input type="hidden" name="action" value="confirm_service">
+            <input type="hidden" name="request_id" value="{{ sr.id }}">
+            <input type="hidden" name="next" value="dashboard">
+            <button class="btn small" type="submit">✓</button>
+          </form>
+          <form method="post" class="inline" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} ablehnen?">{% csrf_token %}
+            <input type="hidden" name="action" value="reject_service">
+            <input type="hidden" name="request_id" value="{{ sr.id }}">
+            <input type="hidden" name="next" value="dashboard">
+            <button class="btn small ghost danger" type="submit">✕</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="hb-empty">Keine offenen Anfragen. 🎉</p>{% endif %}
+    <a class="hb-more" href="{% url 'verw_reinigung' %}">Reinigung öffnen →</a>
+  </div>
+
+  {# Überfällige Rechnungen #}
+  <div class="card pad hb-card">
+    <div class="hb-head"><h2>Überfällige Rechnungen</h2>
+      <span class="hb-count {% if overdue_count %}bad{% endif %}">{{ overdue_count }}</span></div>
+    {% if overdue %}
+    <ul class="hb-list">
+      {% for i in overdue %}
+      <li><span class="who">{{ i.number }}</span>
+        <span class="meta">{{ i.recipient_label }}</span>
+        <span class="right">{{ i.total_gross }} €{% if i.due_date %} · fällig {{ i.due_date|date:"d.m." }}{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+    {% if overdue_count > 8 %}<p class="meta" style="margin:.4rem 0 0">… und {{ overdue_count|add:"-8" }} weitere</p>{% endif %}
+    {% else %}<p class="hb-empty">Keine überfälligen Rechnungen. 🎉</p>{% endif %}
+    <a class="hb-more" href="{% url 'verw_rechnungen' %}?inv=overdue">Rechnungen öffnen →</a>
+  </div>
+
+  {# Neue / geänderte Buchungen #}
+  <div class="card pad hb-card">
+    <div class="hb-head"><h2>Neue &amp; geänderte Buchungen</h2>
+      <span class="hb-count">{{ activity.count }}</span>
+      <span class="meta">letzte {{ activity.days }} Tage</span></div>
+    {% if activity.new or activity.cancelled %}
+    <ul class="hb-list">
+      {% for a in activity.new %}
+      <li><span class="tag ok">neu</span>
+        <span class="who">{{ a.member.display_name }}</span>
+        <span class="meta">{{ a.quarter.name }} · {{ a.start|date:"d.m." }}–{{ a.end|date:"d.m." }}</span>
+        <span class="right meta">{{ a.created_at|date:"d.m." }}</span></li>
+      {% endfor %}
+      {% for c in activity.cancelled %}
+      <li><span class="tag danger">storno</span>
+        <span class="who">{{ c.member.display_name }}</span>
+        <span class="meta">{{ c.quarter_name }} · {{ c.start|date:"d.m." }}–{{ c.end|date:"d.m." }}</span>
+        <span class="right meta">{{ c.cancelled_at|date:"d.m." }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="hb-empty">Nichts Neues in den letzten {{ activity.days }} Tagen.</p>{% endif %}
+    <a class="hb-more" href="{% url 'verw_buchungen' %}">Buchungen öffnen →</a>
+  </div>
+
+</div>
+{% endblock %}

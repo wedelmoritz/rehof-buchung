@@ -1,0 +1,179 @@
+{% extends "booking/verw_base.html" %}
+{% block verw_title %}Reinigung · Verwaltung{% endblock %}
+{% block verw_h1 %}Reinigung{% endblock %}
+
+{% block verw_body %}
+{% include "booking/_verw_monthbar.html" %}
+
+{# --- Reinigungsliste: alle Abreisen = Reinigungstage --- #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Reinigungsliste – {{ month_label }}</h2>
+    <span class="spacer"></span>
+    <a class="btn small ghost" data-ajax href="?year={{ year }}&month={{ month }}{% if not only_cleaning %}&only_cleaning=1{% endif %}">
+      {% if only_cleaning %}Alle Abreisen zeigen{% else %}Nur mit gebuchter Endreinigung{% endif %}</a>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Nach <strong>jeder Abreise</strong> wird
+    gereinigt (Abreisetag = Reinigungstag). „Endreinigung gebucht“ heißt nur, dass das
+    Mitglied die <strong>bezahlpflichtige</strong> Endreinigung dazugebucht hat – gereinigt
+    wird ohnehin überall.</p>
+  {% if cleaning_view %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead><tr><th>Reinigung am</th><th>Quartier</th><th>Mitglied</th><th>Pers.</th><th>Endreinigung gebucht</th></tr></thead>
+      <tbody>
+        {% for a in cleaning_view %}
+        <tr class="{% if a.has_cleaning %}hl{% endif %}">
+          <td>{{ a.end|date:"D d.m.Y" }}</td>
+          <td>{{ a.quarter.name }}</td>
+          <td>{{ a.member.display_name }}</td>
+          <td>{{ a.persons }}</td>
+          <td>{% if a.has_cleaning %}<span class="tag ok">gebucht</span>{% else %}<span class="tag">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Keine Abreisen in diesem Monat.</p>{% endif %}
+  <div class="actions">
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'reinigung' 'xlsx' %}?year={{ year }}&month={{ month }}{% if only_cleaning %}&only_cleaning=1{% endif %}">Excel</a>
+    <a class="btn small ghost" href="{% url 'dashboard_export' 'reinigung' 'csv' %}?year={{ year }}&month={{ month }}{% if only_cleaning %}&only_cleaning=1{% endif %}">CSV</a>
+    <form method="post" class="inline">{% csrf_token %}
+      <input type="hidden" name="action" value="send_cleaning">
+      <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+      {% if only_cleaning %}<input type="hidden" name="only_cleaning" value="1">{% endif %}
+      <button class="btn small" type="submit">Ans Reinigungsteam senden</button>
+    </form>
+  </div>
+</div>
+
+{# --- Gebuchte (bezahlpflichtige) Endreinigung: freigeben (#28) --- #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Endreinigung freigeben</h2>
+    <span class="spacer"></span>
+    <span class="tag {% if service_requests %}warn{% endif %}">{{ service_requests|length }} offen</span>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Beim Buchen <strong>dazugebuchte</strong>
+    Endreinigungen. <strong>Bestätigen</strong> legt die Rechnungs-Position an;
+    <strong>Ablehnen</strong> informiert das Mitglied.</p>
+  {% if service_requests %}
+  <ul class="er-list">
+    {% for sr in service_requests %}
+    <li class="er-item">
+      <div class="er-main"><strong>{{ sr.member.display_name }}</strong>
+        <span class="muted">· {{ sr.allocation.quarter.name }} · Anreise {{ sr.allocation.start|date:"d.m.Y" }}</span></div>
+      <div class="er-meta muted">angefragt {{ sr.requested_at|date:"d.m.Y" }}</div>
+      <div class="er-act">
+        <form method="post" class="inline" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} bestätigen? Wird abgerechnet und in die Reinigungsliste eingetragen.">{% csrf_token %}
+          <input type="hidden" name="action" value="confirm_service">
+          <input type="hidden" name="request_id" value="{{ sr.id }}">
+          <button class="btn small" type="submit">Bestätigen</button>
+        </form>
+        <form method="post" class="inline" data-confirm="{{ sr.product.name }} für {{ sr.member.display_name }} ablehnen? Das Mitglied wird benachrichtigt.">{% csrf_token %}
+          <input type="hidden" name="action" value="reject_service">
+          <input type="hidden" name="request_id" value="{{ sr.id }}">
+          <button class="btn small ghost danger" type="submit">Ablehnen</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Keine offenen Anfragen. 🎉</p>{% endif %}
+
+  {% if revisable_requests %}
+  <h3 style="margin:1rem 0 .3rem">Nachträglich ändern</h3>
+  <p class="muted sm" style="margin:0 0 .5rem">Eine getroffene Entscheidung ist bis
+    <strong>{{ er_lock_days }}&nbsp;Tage vor Anreise</strong> noch korrigierbar.</p>
+  <ul class="er-list">
+    {% for r in revisable_requests %}
+    <li class="er-item">
+      <div class="er-main"><strong>{{ r.sr.member.display_name }}</strong>
+        <span class="muted">· {{ r.sr.allocation.quarter.name }} · Anreise {{ r.sr.allocation.start|date:"d.m.Y" }}</span></div>
+      <div class="er-meta">
+        {% if r.sr.status == 'confirmed' %}<span class="tag ok">bestätigt</span>{% else %}<span class="tag danger">abgelehnt</span>{% endif %}
+        <span class="muted">· bis {% if r.lock %}{{ r.lock|date:"d.m.Y" }}{% else %}jederzeit{% endif %}</span>
+      </div>
+      <div class="er-act">
+        {% if r.sr.status == 'confirmed' %}
+        <form method="post" class="inline" data-confirm="Endreinigung für {{ r.sr.member.display_name }} doch ABLEHNEN? Die noch nicht abgerechnete Position wird entfernt, das Mitglied benachrichtigt.">{% csrf_token %}
+          <input type="hidden" name="action" value="reject_service">
+          <input type="hidden" name="request_id" value="{{ r.sr.id }}">
+          <button class="btn small ghost danger" type="submit">Doch ablehnen</button>
+        </form>
+        {% else %}
+        <form method="post" class="inline" data-confirm="Endreinigung für {{ r.sr.member.display_name }} doch BESTÄTIGEN? Wird abgerechnet und in die Reinigungsliste eingetragen.">{% csrf_token %}
+          <input type="hidden" name="action" value="confirm_service">
+          <input type="hidden" name="request_id" value="{{ r.sr.id }}">
+          <button class="btn small" type="submit">Doch bestätigen</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+
+{# --- Sperrzeiten (Reinigung/Reparatur) je Quartier (#61) --- #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Sperrzeiten (Reinigung/Reparatur)</h2>
+    <span class="spacer"></span>
+    <span class="tag">{{ blocks|length }} aktuell/künftig</span>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Ein Sperrzeitraum macht ein Quartier
+    <strong>nicht buchbar</strong> (z. B. Renovierung, Grundreinigung, Wasserschaden) und
+    erscheint im Belegungsplan. „Bis" ist der <strong>erste wieder freie Tag</strong>.</p>
+  <form method="post" class="import-form" style="align-items:flex-end">{% csrf_token %}
+    <input type="hidden" name="action" value="add_block">
+    <label>Quartier
+      <select name="quarter" required>
+        <option value="">– wählen –</option>
+        {% for q in quarters %}<option value="{{ q.id }}">{{ q.name }}</option>{% endfor %}
+      </select></label>
+    <label>Von
+      <input type="date" name="start" required></label>
+    <label>Bis (frei ab)
+      <input type="date" name="end" required></label>
+    <label style="flex:1 1 12rem">Grund (optional)
+      <input type="text" name="reason" maxlength="200" placeholder="z. B. Renovierung"
+             style="padding:.4rem .55rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); width:100%"></label>
+    <button class="btn small" type="submit">Sperren</button>
+  </form>
+  {% if blocks %}
+  <div class="table-wrap" style="margin-top:.7rem">
+    <table class="grid">
+      <thead><tr><th>Quartier</th><th>Von</th><th>Bis (frei ab)</th><th>Nächte</th><th>Grund</th><th></th></tr></thead>
+      <tbody>
+        {% for b in blocks %}
+        <tr>
+          <td>{{ b.quarter.name }}</td>
+          <td>{{ b.start|date:"D d.m.Y" }}</td>
+          <td>{{ b.end|date:"D d.m.Y" }}</td>
+          <td>{{ b.nights }}</td>
+          <td>{{ b.reason|default:"—" }}</td>
+          <td><form method="post" class="inline" data-confirm="Sperrzeit für {{ b.quarter.name }} ({{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}) aufheben?">{% csrf_token %}
+            <input type="hidden" name="action" value="delete_block">
+            <input type="hidden" name="block_id" value="{{ b.id }}">
+            <button class="btn small ghost danger" type="submit">aufheben</button>
+          </form></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted" style="margin-top:.5rem">Derzeit keine Sperrzeiten.</p>{% endif %}
+</div>
+
+<style>
+  .er-list { list-style:none; margin:0; padding:0; }
+  .er-item { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem 1rem;
+    padding:.6rem 0; border-bottom:1px solid var(--line); }
+  .er-item:last-child { border-bottom:0; }
+  .er-main { flex:1 1 15rem; min-width:0; }
+  .er-meta { flex:0 1 auto; font-size:.86rem; }
+  .er-act { margin-left:auto; display:flex; gap:.4rem; flex-wrap:wrap; }
+  @media (max-width:560px){ .er-act { margin-left:0; flex-basis:100%; } }
+</style>
+{% endblock %}

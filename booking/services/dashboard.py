@@ -15,7 +15,7 @@ from .notify import absolute_url, queue_email_many
 __all__ = [
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
     '_month_occupancy', 'year_occupancy_curve',
-    'dashboard_stats', 'karma_distribution', 'community_stats', 'arrivals_in_range',
+    'dashboard_stats', 'quarter_occupancy_ampel', 'recent_booking_activity', 'karma_distribution', 'community_stats', 'arrivals_in_range',
     'departures_in_range', 'BOOKING_COLUMNS', 'booking_rows',
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
@@ -185,6 +185,54 @@ def _month_occupancy(year: int, month: int) -> dict:
     pct = round(100 * booked / possible) if possible else 0
     return {"year": year, "month": month, "label": month_label(year, month),
             "booked": booked, "possible": possible, "pct": pct}
+
+
+def recent_booking_activity(days: int = 7) -> dict:
+    """„Was ist reingekommen / hat sich geändert" fürs Handlungsbedarf-Dashboard:
+    zuletzt angelegte Buchungen (`Allocation.created_at`) + zuletzt stornierte
+    (`CancellationLog`) der letzten `days` Tage. Wenige, mit select_related."""
+    from django.utils import timezone
+    from ..models import CancellationLog
+    since = timezone.now() - timedelta(days=days)
+    new = list(Allocation.objects.filter(created_at__gte=since, provisional=False)
+               .select_related("quarter", "member").order_by("-created_at")[:12])
+    cancelled = list(CancellationLog.objects.select_related("member")
+                     .filter(cancelled_at__gte=since).order_by("-cancelled_at")[:12])
+    return {"new": new, "cancelled": cancelled, "days": days,
+            "count": len(new) + len(cancelled)}
+
+
+def quarter_occupancy_ampel(year: int, month: int) -> list[dict]:
+    """Auslastung **je Unterkunft** im Monat (gebuchte Nächte / Tage) + statische
+    **Ampel** gegen die optionale Ziel-Auslastung `Quarter.target_occupancy`
+    (#63/#64): 🟢 ab Ziel, 🟡 bis 20 Prozentpunkte darunter, 🔴 darunter; ohne Ziel
+    keine Ampel. Eine Query je Quelle über den Monat, dann in Python je Quartier
+    gruppiert (kein N+1)."""
+    days = _calendar.monthrange(year, month)[1]
+    m_first = date(year, month, 1)
+    m_end = m_first + timedelta(days=days)
+    quarters = list(Quarter.objects.filter(active=True).order_by("sort_order", "name"))
+    booked = {q.id: 0 for q in quarters}
+    for a in Allocation.objects.filter(start__lt=m_end, end__gt=m_first,
+                                       provisional=False):
+        if a.quarter_id in booked:
+            booked[a.quarter_id] += (min(a.end, m_end) - max(a.start, m_first)).days
+    for b in ExternalBooking.objects.filter(
+            status=ExternalBooking.CONFIRMED, start__lt=m_end, end__gt=m_first):
+        if b.quarter_id in booked:
+            booked[b.quarter_id] += (min(b.end, m_end) - max(b.start, m_first)).days
+    rows = []
+    for q in quarters:
+        bn = booked[q.id]
+        pct = round(100 * bn / days) if days else 0
+        target = q.target_occupancy
+        level = None
+        if target:
+            level = "good" if pct >= target else (
+                "warn" if pct >= target - 20 else "bad")
+        rows.append({"quarter": q, "booked": bn, "days": days, "pct": pct,
+                     "target": target, "level": level})
+    return rows
 
 
 _MONTHS_DE_ABBR = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug",

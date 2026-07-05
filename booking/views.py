@@ -293,9 +293,11 @@ def book_confirm(request):
 
     if request.method == "POST" and request.POST.get("action") == "confirm":
         companions = request.POST.get("companions", "").strip()
+        special = request.POST.get("special_requests", "").strip()
         alloc, err = svc.book_spontaneous(
             member, quarter, start, end, persons, companions=companions,
-            membership_id=request.POST.get("membership") or None)
+            membership_id=request.POST.get("membership") or None,
+            special_requests=special)
         if not alloc:
             messages.error(request, err or "Buchung nicht möglich.")
         else:
@@ -1121,126 +1123,256 @@ def _staff_required(request):
 
 
 @login_required
-def dashboard(request):
-    """Operatives Verwaltungs-Dashboard für das (kleine) Team: was steht an, was
-    muss geputzt werden, welche Rechnungen sind offen/überfällig – mit Export
-    und Versand per Knopfdruck. Nur für Verwaltungs-/Superuser."""
-    if not _staff_required(request):
-        messages.error(request, "Dieser Bereich ist der Verwaltung vorbehalten.")
-        return redirect("overview")
+# --------------------------------------------------------------------------- #
+# Verwaltung: Handlungsbedarf-Dashboard + eigene Unterseiten (ADR 0085).
+# Statt Tabs auf einer langen Seite ist jede Sektion eine echte Seite (eigener
+# Menü-Eintrag); das Dashboard fasst nur „jetzt handeln" zusammen.
+# --------------------------------------------------------------------------- #
 
-    from shop import services as shop_svc
-    from shop.models import Invoice, ShopConfig
-    from .models import OpsConfig, BookingPolicy
-    from decimal import Decimal
-
+def _verw_month(request):
     today = date.today()
     ny, nm = svc.next_month(today)
     year, month = _month_from_request(request, today, ny, nm)
     m_from, m_to = svc.month_bounds(year, month)
     only_cleaning = (request.GET.get("only_cleaning") == "1"
                      or request.POST.get("only_cleaning") == "1")
+    return today, year, month, m_from, m_to, only_cleaning
 
-    # Aktionen (POST): Listen versenden bzw. überfällige erinnern.
+
+def _verw_nav_ctx(request, today, year, month):
+    """Gemeinsamer Kontext für Monatswahl + Backend-Deeplink."""
+    from .models import OpsConfig
+    return {
+        "today": today, "year": year, "month": month,
+        "month_label": svc.month_label(year, month),
+        "months": [{"num": i, "name": svc.MONTHS_DE[i]} for i in range(1, 13)],
+        "years": list(range(today.year - 1, today.year + 3)),
+        "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
+    }
+
+
+def _verw_post(request, year, month, m_from, m_to, only_cleaning):
+    """Zentrale POST-Verarbeitung aller Verwaltungs-Aktionen; leitet danach auf die
+    passende Unterseite zurück (Monat/Filter erhalten)."""
+    from shop import services as shop_svc
+    from shop.models import Invoice
+    action = request.POST.get("action")
+    target, extra = "dashboard", ""
+    if action == "send_cleaning":
+        deps = list(svc.departures_in_range(m_from, m_to))
+        body = (f"Reinigungsliste {svc.month_label(year, month)}\n"
+                f"(Abreisetag = Reinigungstag)\n\n"
+                f"{svc.cleaning_text(deps, only_cleaning=only_cleaning)}\n")
+        recips = svc.email_cleaning(f"Re:Hof – Reinigungsliste {month:02d}/{year}", body)
+        messages.success(request, f"Reinigungsliste an {len(recips)} Empfänger gesendet."
+                         if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
+        target = "verw_reinigung"
+    elif action == "send_upcoming":
+        allocs = list(svc.arrivals_in_range(m_from, m_to))
+        body = (f"Anstehende Buchungen {svc.month_label(year, month)}\n\n"
+                f"{svc.bookings_text(allocs)}\n")
+        recips = svc.email_admins(f"Re:Hof – Buchungen {month:02d}/{year}", body)
+        messages.success(request, f"Übersicht an {len(recips)} Empfänger gesendet."
+                         if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
+        target = "verw_buchungen"
+    elif action == "remind_overdue":
+        n = shop_svc.remind_overdue()
+        messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
+        target, extra = "verw_rechnungen", f"&inv={request.POST.get('inv', 'overdue')}"
+    elif action == "remind_one":
+        inv = Invoice.objects.filter(id=request.POST.get("invoice_id")).first()
+        if inv and shop_svc.send_payment_reminder(inv):
+            messages.success(request, f"{inv.reminder_count}. Zahlungserinnerung zu "
+                             f"{inv.number} verschickt.")
+        elif inv and not shop_svc.reminder_due(inv):
+            messages.info(request, f"Zu {inv.number} wurde erst kürzlich erinnert – "
+                          "eine erneute Mahnung ist erst nach dem eingestellten "
+                          "Mindestabstand möglich.")
+        else:
+            messages.info(request, "Erinnerung nicht möglich (Rechnung/Status?).")
+        target, extra = "verw_rechnungen", f"&inv={request.POST.get('inv', 'overdue')}"
+    elif action in ("confirm_service", "reject_service"):
+        from shop.models import ServiceRequest
+        sr = ServiceRequest.objects.filter(
+            id=request.POST.get("request_id")).select_related(
+            "member", "product", "allocation").first()
+        if not sr:
+            messages.error(request, "Anfrage nicht gefunden.")
+        elif action == "confirm_service":
+            ok, err = shop_svc.confirm_service_request(sr, by_user=request.user)
+            messages.success(request, f"Bestätigt: {sr.product.name} für "
+                             f"{sr.member.display_name}.") if ok \
+                else messages.error(request, err or "Nicht möglich.")
+        else:
+            ok, err = shop_svc.reject_service_request(
+                sr, by_user=request.user, reason=request.POST.get("reason", ""))
+            messages.success(request, f"Abgelehnt: {sr.product.name} für "
+                             f"{sr.member.display_name}.") if ok \
+                else messages.error(request, err or "Nicht möglich.")
+        # Von der Dashboard-Schnellfreigabe zurück aufs Dashboard, sonst zur Reinigung.
+        nxt = request.POST.get("next", "")
+        target = nxt if nxt in ("dashboard", "verw_reinigung") else "verw_reinigung"
+    elif action == "set_note":
+        from .models import Allocation
+        from . import validation as V
+        a = Allocation.objects.filter(id=request.POST.get("alloc_id")).first()
+        if a:
+            a.internal_note = V.strip_controls(request.POST.get("internal_note", ""),
+                                               max_len=500)
+            a.save(update_fields=["internal_note"])
+            messages.success(request, "Interne Notiz gespeichert.")
+        target = "verw_buchungen"
+    elif action == "add_block":
+        from .models import Quarter, QuarterBlock
+        q = Quarter.objects.filter(id=request.POST.get("quarter")).first()
+        s = _parse_date(request.POST.get("start"))
+        e = _parse_date(request.POST.get("end"))
+        if not q or not s or not e:
+            messages.error(request, "Bitte Quartier, Von- und Bis-Datum angeben.")
+        elif e <= s:
+            messages.error(request, "Das Bis-Datum muss nach dem Von-Datum liegen.")
+        else:
+            from . import validation as V
+            QuarterBlock.objects.create(
+                quarter=q, start=s, end=e,
+                reason=V.strip_controls(request.POST.get("reason", ""), max_len=200))
+            messages.success(request, f"{q.name} vom {s:%d.%m.%Y} bis {e:%d.%m.%Y} "
+                             "gesperrt (nicht mehr buchbar).")
+        target = "verw_reinigung"
+    elif action == "delete_block":
+        from .models import QuarterBlock
+        b = QuarterBlock.objects.filter(id=request.POST.get("block_id")).first()
+        if b:
+            name = b.quarter.name
+            b.delete()
+            messages.success(request, f"Sperrzeit für {name} aufgehoben.")
+        target = "verw_reinigung"
+    elif action == "import_bank":
+        from shop import reconcile
+        f = request.FILES.get("statement")
+        fmt = request.POST.get("fmt", "csv")
+        if not f:
+            messages.error(request, "Bitte eine Datei auswählen.")
+        elif f.size and f.size > MAX_UPLOAD_BYTES:
+            messages.error(request, "Datei zu groß (max. 10 MB).")
+        else:
+            try:
+                batch = reconcile.import_bank_statement(f.read(), fmt, f.name)
+                messages.success(request, f"Kontoauszug „{batch.filename}“: "
+                                 f"{batch.n_imported} neue Eingänge übernommen, "
+                                 f"{batch.n_matched} Rechnung(en) automatisch als "
+                                 f"bezahlt verbucht.")
+            except Exception as exc:  # noqa: BLE001 – Nutzerfehler freundlich melden
+                messages.error(request, f"Import nicht möglich: {exc}")
+        target = "verw_konto"
+    return redirect(f"{reverse(target)}?year={year}&month={month}"
+                    + ("&only_cleaning=1" if only_cleaning else "") + extra)
+
+
+@login_required
+def dashboard(request):
+    """Handlungsbedarf-Übersicht der Verwaltung: was ist reingekommen / muss jetzt
+    getan werden (Endreinigungs-Anfragen, überfällige Rechnungen, neue/geänderte
+    Buchungen, Kennzahlen). Die vollen Listen liegen auf den Unterseiten."""
+    if not _staff_required(request):
+        messages.error(request, "Dieser Bereich ist der Verwaltung vorbehalten.")
+        return redirect("overview")
+    from shop import services as shop_svc
+    from shop.models import Invoice
+    from decimal import Decimal
+    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
-        action = request.POST.get("action")
-        if action == "send_cleaning":
-            deps = list(svc.departures_in_range(m_from, m_to))
-            text = svc.cleaning_text(deps, only_cleaning=only_cleaning)
-            body = (f"Reinigungsliste {svc.month_label(year, month)}\n"
-                    f"(Abreisetag = Reinigungstag)\n\n{text}\n")
-            recips = svc.email_cleaning(
-                f"Re:Hof – Reinigungsliste {month:02d}/{year}", body)
-            messages.success(
-                request, f"Reinigungsliste an {len(recips)} Empfänger gesendet."
-                if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
-        elif action == "send_upcoming":
-            allocs = list(svc.arrivals_in_range(m_from, m_to))
-            body = (f"Anstehende Buchungen {svc.month_label(year, month)}\n\n"
-                    f"{svc.bookings_text(allocs)}\n")
-            recips = svc.email_admins(
-                f"Re:Hof – Buchungen {month:02d}/{year}", body)
-            messages.success(
-                request, f"Übersicht an {len(recips)} Empfänger gesendet."
-                if recips else "Keine Empfänger hinterlegt (Betriebs-Einstellungen).")
-        elif action == "remind_overdue":
-            n = shop_svc.remind_overdue()
-            messages.success(request, f"{n} Zahlungserinnerung(en) verschickt.")
-        elif action == "remind_one":
-            # Einzelne überfällige Rechnung erinnern (#36) – manueller Anstoß durch
-            # die BL (es gibt keinen automatischen Konto-Abruf).
-            inv = Invoice.objects.filter(id=request.POST.get("invoice_id")).first()
-            if inv and shop_svc.send_payment_reminder(inv):
-                messages.success(request,
-                                 f"Zahlungserinnerung zu {inv.number} verschickt.")
-            else:
-                messages.info(request, "Erinnerung nicht möglich (Rechnung/Adresse?).")
-        elif action in ("confirm_service", "reject_service"):
-            # Dienstleistungs-Anfrage (z.B. Endreinigung) bestätigen/ablehnen (#28).
-            from shop.models import ServiceRequest
-            sr = ServiceRequest.objects.filter(
-                id=request.POST.get("request_id")).select_related(
-                "member", "product", "allocation").first()
-            if not sr:
-                messages.error(request, "Anfrage nicht gefunden.")
-            elif action == "confirm_service":
-                ok, err = shop_svc.confirm_service_request(sr, by_user=request.user)
-                messages.success(request, f"Bestätigt: {sr.product.name} für "
-                                 f"{sr.member.display_name}.") if ok \
-                    else messages.error(request, err or "Nicht möglich.")
-            else:
-                ok, err = shop_svc.reject_service_request(
-                    sr, by_user=request.user,
-                    reason=request.POST.get("reason", ""))
-                messages.success(request, f"Abgelehnt: {sr.product.name} für "
-                                 f"{sr.member.display_name}.") if ok \
-                    else messages.error(request, err or "Nicht möglich.")
-        elif action == "import_bank":
-            from shop import reconcile
-            f = request.FILES.get("statement")
-            fmt = request.POST.get("fmt", "csv")
-            if not f:
-                messages.error(request, "Bitte eine Datei auswählen.")
-            elif f.size and f.size > MAX_UPLOAD_BYTES:
-                messages.error(request, "Datei zu groß (max. 10 MB).")
-            else:
-                try:
-                    batch = reconcile.import_bank_statement(f.read(), fmt, f.name)
-                    messages.success(
-                        request, f"Kontoauszug „{batch.filename}“: "
-                        f"{batch.n_imported} neue Eingänge übernommen, "
-                        f"{batch.n_matched} Rechnung(en) automatisch als bezahlt "
-                        f"verbucht.")
-                except Exception as exc:  # noqa: BLE001 – Nutzerfehler freundlich melden
-                    messages.error(request, f"Import nicht möglich: {exc}")
-        # Aktiven Abschnitt beibehalten, damit man nach einer Aktion (erinnern,
-        # senden, importieren) nicht auf den Standard-Tab zurückgeworfen wird (#59).
-        post_tab = request.POST.get("tab", "")
-        tab_qs = f"&tab={post_tab}" if post_tab in (
-            "reinigung", "buchungen", "rechnungen", "konto") else ""
-        return redirect(f"{reverse('dashboard')}?year={year}&month={month}"
-                        + ("&only_cleaning=1" if only_cleaning else "") + tab_qs)
+        return _verw_post(request, year, month, m_from, m_to, only_cleaning)
 
+    open_inv = list(shop_svc.open_invoices())
+    overdue = sorted((i for i in open_inv if i.is_overdue),
+                     key=lambda i: (i.due_date or today, i.number))
     arrivals = list(svc.arrivals_in_range(m_from, m_to))
-    departures = list(svc.departures_in_range(m_from, m_to))
-    cleaning = [a for a in departures if getattr(a, "has_cleaning", False)]
-    cleaning_view = cleaning if only_cleaning else departures
-
-    open_inv = list(shop_svc.open_invoices().order_by("due_date", "number"))
-    overdue = [i for i in open_inv if i.is_overdue]
-    open_sum = sum((i.total_gross for i in open_inv), Decimal(0))
-    overdue_sum = sum((i.total_gross for i in overdue), Decimal(0))
-
-    # Online (Mollie) bezahlte Rechnungen – fürs Dashboard separat ausweisbar.
-    online_qs = (Invoice.objects.exclude(payment_method="")
-                 .select_related("member", "guest").prefetch_related("items"))
-    online_total_count = online_qs.count()
+    n_cleaning = sum(1 for a in svc.departures_in_range(m_from, m_to)
+                     if getattr(a, "has_cleaning", False))
+    online_qs = Invoice.objects.exclude(payment_method="")
     online_month = [i for i in online_qs
                     if i.paid_online_at and i.paid_online_at.year == year
                     and i.paid_online_at.month == month]
-    online_sum = sum((i.total_gross for i in online_month), Decimal(0))
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({
+        "service_requests": list(shop_svc.pending_service_requests()),
+        "overdue": overdue[:8], "overdue_count": len(overdue),
+        "overdue_sum": sum((i.total_gross for i in overdue), Decimal(0)),
+        "activity": svc.recent_booking_activity(7),
+        "kpi": {"arrivals": len(arrivals), "cleaning": n_cleaning,
+                "open": len(open_inv),
+                "open_sum": sum((i.total_gross for i in open_inv), Decimal(0)),
+                "overdue": len(overdue), "online": len(online_month)},
+    })
+    return render(request, "booking/verw_dashboard.html", ctx)
 
-    # Rechnungssicht: filterbar (offen / überfällig / bezahlt gemeldet / online / alle).
+
+@login_required
+def verw_buchungen(request):
+    """Unterseite: anstehende Buchungen des Monats (Ansehen/Export/Versand)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
+    if request.method == "POST":
+        return _verw_post(request, year, month, m_from, m_to, only_cleaning)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx["arrivals"] = list(svc.arrivals_in_range(m_from, m_to))
+    return render(request, "booking/verw_buchungen.html", ctx)
+
+
+@login_required
+def verw_reinigung(request):
+    """Unterseite: **Reinigung** – alle Abreisen (= Reinigungstage) UND die
+    bezahlpflichtige Endreinigung (Freigabe #28 + Revidieren #45) auf EINER Seite.
+    Kein getrennter Menüpunkt: die normale Reinigung nach jeder Abreise und die
+    gebuchte Endreinigung gehören zusammen."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from shop import services as shop_svc
+    from .models import BookingPolicy, Quarter, QuarterBlock
+    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
+    if request.method == "POST":
+        return _verw_post(request, year, month, m_from, m_to, only_cleaning)
+    departures = list(svc.departures_in_range(m_from, m_to))
+    cleaning = [a for a in departures if getattr(a, "has_cleaning", False)]
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({
+        "cleaning_view": cleaning if only_cleaning else departures,
+        "only_cleaning": only_cleaning, "n_cleaning": len(cleaning),
+        "service_requests": list(shop_svc.pending_service_requests()),
+        "revisable_requests": [
+            {"sr": sr, "lock": shop_svc.service_request_lock_date(sr)}
+            for sr in shop_svc.revisable_service_requests()],
+        "er_lock_days": BookingPolicy.get_solo().er_decision_lock_days,
+        # Sperrzeiten (Reinigung/Reparatur, #61): aktuelle + künftige verwalten.
+        "quarters": list(Quarter.objects.filter(active=True).order_by("sort_order", "name")),
+        "blocks": list(QuarterBlock.objects.filter(end__gte=today)
+                       .select_related("quarter").order_by("start", "quarter__sort_order")),
+    })
+    return render(request, "booking/verw_reinigung.html", ctx)
+
+
+@login_required
+def verw_rechnungen(request):
+    """Unterseite: Rechnungen (filterbar) + Zahlungserinnerungen."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from shop import services as shop_svc
+    from shop.models import Invoice, ShopConfig
+    from decimal import Decimal
+    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
+    if request.method == "POST":
+        return _verw_post(request, year, month, m_from, m_to, only_cleaning)
+    open_inv = list(shop_svc.open_invoices().order_by("due_date", "number"))
+    overdue = [i for i in open_inv if i.is_overdue]
+    online_qs = (Invoice.objects.exclude(payment_method="")
+                 .select_related("member", "guest").prefetch_related("items"))
+    online_total_count = online_qs.count()
+    # Externe Gäste-Rechnungen sind bereits in open_invoices()/Invoice.objects
+    # enthalten (recipient_label unterscheidet); ein eigener Filter macht sie
+    # gezielt auffindbar (#56).
+    guest_count = Invoice.objects.filter(guest__isnull=False).count()
     inv_filter = request.GET.get("inv", "open")
     if inv_filter == "overdue":
         invoices_view = sorted(overdue, key=lambda i: (i.due_date or today, i.number))
@@ -1250,56 +1382,84 @@ def dashboard(request):
                              .prefetch_related("items").order_by("-paid_reported_at"))
     elif inv_filter == "online":
         invoices_view = list(online_qs.order_by("-paid_online_at"))
+    elif inv_filter == "extern":
+        invoices_view = list(Invoice.objects.filter(guest__isnull=False)
+                             .select_related("member", "guest")
+                             .prefetch_related("items")
+                             .order_by("-year", "-month", "number"))
     elif inv_filter == "all":
         invoices_view = list(Invoice.objects.select_related("member", "guest")
                              .prefetch_related("items")
                              .order_by("-year", "-month", "number"))
     else:
-        inv_filter = "open"
-        invoices_view = open_inv
-    inv_view_sum = sum((i.total_gross for i in invoices_view), Decimal(0))
-
-    from shop.models import BankImport, BankTransaction
-    recent_imports = list(BankImport.objects.all()[:5])
-    unmatched_count = BankTransaction.objects.filter(
-        matched_invoice__isnull=True, amount__gt=0).count()
-
-    # Aktiver Abschnitts-Tab (#59) – server-getrieben, damit es nach Monat-/Filter-
-    # AJAX-Reload erhalten bleibt (kein Client-State/JS nötig).
-    active_tab = request.GET.get("tab") or request.POST.get("tab") or "reinigung"
-    if active_tab not in ("reinigung", "buchungen", "rechnungen", "konto"):
-        active_tab = "reinigung"
-
-    months = [{"num": i, "name": svc.MONTHS_DE[i]} for i in range(1, 13)]
-    return render(request, "booking/dashboard.html", {
-        "today": today, "year": year, "month": month, "active_tab": active_tab,
-        "month_label": svc.month_label(year, month),
-        "months": months, "years": list(range(today.year - 1, today.year + 3)),
-        "arrivals": arrivals, "departures": departures,
-        "cleaning_view": cleaning_view, "only_cleaning": only_cleaning,
-        "n_cleaning": len(cleaning),
+        inv_filter, invoices_view = "open", open_inv
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({
         "open_invoices": open_inv, "overdue": overdue,
-        "open_sum": open_sum, "overdue_sum": overdue_sum,
         "invoices_view": invoices_view, "inv_filter": inv_filter,
-        "inv_view_sum": inv_view_sum,
-        "online_total_count": online_total_count, "online_sum": online_sum,
-        "online_count": len(online_month),
-        "recent_imports": recent_imports, "unmatched_count": unmatched_count,
-        "beds24_enabled": OpsConfig.get_solo().beds24_import_enabled,
-        "stats": svc.dashboard_stats(),
-        # USt-Modus der Rechnungen nur ZUR ANZEIGE (Transparenz für die BL, die kein
-        # Backend hat, #27). Geändert wird der Schalter bewusst nur im Admin
-        # (rechtlich sensibel, Go-Live-Setup) – Deep-Link nur für Admins.
+        "inv_view_sum": sum((i.total_gross for i in invoices_view), Decimal(0)),
+        "online_total_count": online_total_count, "guest_count": guest_count,
         "shop_small_business": ShopConfig.get_solo().small_business,
-        # Offene Dienstleistungs-Anfragen (z.B. Endreinigung) zur Freigabe (#28).
-        "service_requests": list(shop_svc.pending_service_requests()),
-        # Bereits entschiedene ER-Anfragen, die sich noch revidieren lassen (#45).
-        "revisable_requests": [
-            {"sr": sr, "lock": shop_svc.service_request_lock_date(sr)}
-            for sr in shop_svc.revisable_service_requests()
-        ],
-        "er_lock_days": BookingPolicy.get_solo().er_decision_lock_days,
     })
+    return render(request, "booking/verw_rechnungen.html", ctx)
+
+
+@login_required
+def verw_konto(request):
+    """Unterseite: Kontoabgleich (Zahlungseingänge importieren)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from shop.models import BankImport, BankTransaction
+    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
+    if request.method == "POST":
+        return _verw_post(request, year, month, m_from, m_to, only_cleaning)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({
+        "recent_imports": list(BankImport.objects.all()[:8]),
+        "unmatched_count": BankTransaction.objects.filter(
+            matched_invoice__isnull=True, amount__gt=0).count(),
+    })
+    return render(request, "booking/verw_konto.html", ctx)
+
+
+@login_required
+def verw_auslastung(request):
+    """Unterseite: Statistik + Auslastung je Unterkunft (Ziel-Ampel)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({"stats": svc.dashboard_stats(),
+                "quarter_occupancy": svc.quarter_occupancy_ampel(year, month)})
+    return render(request, "booking/verw_auslastung.html", ctx)
+
+
+@login_required
+def verw_mitglieder(request):
+    """Unterseite: Mitgliederliste mit Kontaktdaten für Rückfragen der BL (#65).
+    Nur buchende Mitglieder (keine externen Gäste); IBAN bleibt der Backend-
+    Detailansicht vorbehalten (Datensparsamkeit)."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from .models import Member
+    q = (request.GET.get("q") or "").strip()
+    members = (Member.objects.filter(is_external=False)
+               .select_related("user")
+               .prefetch_related("shares__membership")
+               .order_by("display_name"))
+    if q:
+        from django.db.models import Q
+        members = members.filter(
+            Q(display_name__icontains=q) | Q(legal_name__icontains=q)
+            | Q(user__email__icontains=q) | Q(user__username__icontains=q)
+            | Q(city__icontains=q))
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({"members": list(members), "q": q,
+                "member_count": len(members)})
+    return render(request, "booking/verw_mitglieder.html", ctx)
 
 
 @login_required

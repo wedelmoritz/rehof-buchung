@@ -17,8 +17,8 @@ from .models import (
     EquivalenceClass, ExternalBooking,
     ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
     NightTransfer, DayPoolEntry,
-    Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterPrice,
-    SchoolHoliday,
+    Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterBlock,
+    QuarterPrice, SchoolHoliday,
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
@@ -137,6 +137,17 @@ class QuarterAdmin(admin.ModelAdmin):
                            "saisonale Abweichungen unten als <b>Saisonpreise</b>.",
         }),
     )
+
+
+@admin.register(QuarterBlock)
+class QuarterBlockAdmin(admin.ModelAdmin):
+    """Sperrzeiten (Reinigung/Reparatur) je Quartier – blockieren die Buchbarkeit
+    im Zeitraum und erscheinen im Belegungsplan (#61). Die Verwaltung pflegt sie
+    komfortabler im Dashboard (Reinigung); hier für den Admin."""
+    list_display = ("quarter", "start", "end", "nights", "reason", "created_at")
+    list_filter = ("quarter",)
+    date_hierarchy = "start"
+    search_fields = ("quarter__name", "reason")
 
 
 # --------------------------------------------------------------------------- #

@@ -601,6 +601,19 @@ class BuchungsFlowTests(UseCaseBase):
         else:
             self.assertEqual(r.status_code, 503)
 
+    def test_zielauslastung_ampel_je_quartier(self):
+        """#63/#64: Auslastung je Unterkunft + statische Ziel-Ampel."""
+        self.k1.target_occupancy = 50; self.k1.sort_order = 1; self.k1.save()
+        self.k2.target_occupancy = 50; self.k2.sort_order = 2; self.k2.save()
+        # k1 gut ausgelastet (16 Nächte im Juni ≈ 53 %), k2 leer, k3 ohne Ziel
+        svc.book_spontaneous(self.alice, self.k1,
+                             date(NEXT_YEAR, 6, 1), date(NEXT_YEAR, 6, 17))
+        rows = {r["quarter"].id: r for r in svc.quarter_occupancy_ampel(NEXT_YEAR, 6)}
+        self.assertEqual(rows[self.k1.id]["booked"], 16)
+        self.assertEqual(rows[self.k1.id]["level"], "good")     # >= Ziel
+        self.assertEqual(rows[self.k2.id]["level"], "bad")      # 0 % << Ziel
+        self.assertIsNone(rows[self.k3.id]["level"])            # kein Ziel → keine Ampel
+
     def test_ampel_kalender_zeigt_belegung(self):
         quarters = [self.k1, self.k2, self.k3, self.qa, self.qb]
         d = date(NEXT_YEAR, 6, 15)
@@ -1373,7 +1386,8 @@ class EndreinigungFreigabeTests(UseCaseBase):
         admin = User.objects.create_superuser("chef", "chef@example.org", "pw12345678")
         self.client.force_login(admin)
         r = self.client.get(reverse("dashboard"))
-        self.assertContains(r, "Anfragen zur Freigabe")
+        # Handlungsbedarf-Dashboard (ADR 0085): Karte „Endreinigungs-Anfragen“.
+        self.assertContains(r, "Endreinigungs-Anfragen")
         self.assertContains(r, "Endreinigung")
         self.client.post(reverse("dashboard"),
                          {"action": "confirm_service", "request_id": sr.id})
@@ -2332,3 +2346,87 @@ class BelegungsCacheTests(UseCaseBase):
             self.assertEqual(
                 sum(len(v) for v in slots._occupied_days_by_quarter(first, last).values()), 3)
         cache.clear()
+
+
+class SperrzeitenTests(UseCaseBase):
+    """Sperrzeiten (Reinigung/Reparatur) blockieren die Buchbarkeit wie eine
+    Belegung und lassen sich von der Verwaltung pflegen (#61/ADR 0086)."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+        self.s = date(NEXT_YEAR, 7, 10)
+        self.e = date(NEXT_YEAR, 7, 14)
+
+    def test_block_sperrt_verfuegbarkeit_und_buchung(self):
+        from booking.models import QuarterBlock
+        # Ohne Sperre buchbar
+        self.assertTrue(svc.quarter_is_free(self.k1, self.s, self.e))
+        QuarterBlock.objects.create(quarter=self.k1, start=self.s, end=self.e,
+                                    reason="Renovierung")
+        # Jetzt gesperrt: quarter_is_free False, Buchung abgelehnt, nicht in freien.
+        self.assertFalse(svc.quarter_is_free(self.k1, self.s, self.e))
+        a, err = svc.book_spontaneous(self.alice, self.k1, self.s, self.e)
+        self.assertIsNone(a)
+        self.assertIsNotNone(err)
+        free = svc.free_quarters_for(self.s, self.e, persons=2)
+        self.assertNotIn(self.k1, free)
+        # Überlappender Rand blockiert ebenfalls; klar getrennter Zeitraum ist frei.
+        self.assertFalse(svc.quarter_is_free(self.k1, self.s - timedelta(days=1), self.s + timedelta(days=1)))
+        self.assertTrue(svc.quarter_is_free(self.k1, self.e, self.e + timedelta(days=3)))
+
+    def test_verwaltung_kann_sperrzeit_anlegen_und_aufheben(self):
+        from booking.models import QuarterBlock
+        staff = make_member("chefin")
+        from booking.permissions import ensure_verwaltung_group
+        staff.user.groups.add(ensure_verwaltung_group())
+        self.client.force_login(staff.user)
+        self.client.post(reverse("verw_reinigung"), {
+            "action": "add_block", "quarter": self.k1.id,
+            "start": self.s.isoformat(), "end": self.e.isoformat(),
+            "reason": "Wasserschaden"})
+        blk = QuarterBlock.objects.get(quarter=self.k1)
+        self.assertEqual(blk.reason, "Wasserschaden")
+        self.assertFalse(svc.quarter_is_free(self.k1, self.s, self.e))
+        # Aufheben gibt wieder frei.
+        self.client.post(reverse("verw_reinigung"), {
+            "action": "delete_block", "block_id": blk.id})
+        self.assertFalse(QuarterBlock.objects.filter(id=blk.id).exists())
+        self.assertTrue(svc.quarter_is_free(self.k1, self.s, self.e))
+
+
+class SonderwuenscheTests(UseCaseBase):
+    """Besonderheiten (Hund/Kinder/Zustellbett) je Buchung + interne Notiz der BL
+    (#62/#68/#84)."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_full_year_window(NEXT_YEAR)
+        self.s = date(NEXT_YEAR, 8, 5)
+        self.e = date(NEXT_YEAR, 8, 8)
+
+    def test_besonderheiten_gespeichert_und_dem_mitglied_sichtbar(self):
+        a, err = svc.book_spontaneous(self.alice, self.k1, self.s, self.e,
+                                      persons=2, special_requests="Hund + Kleinkind")
+        self.assertIsNotNone(a)
+        self.assertEqual(a.special_requests, "Hund + Kleinkind")
+        self.client.force_login(self.alice.user)
+        html = self.client.get(reverse("my_bookings")).content.decode()
+        self.assertIn("Hund + Kleinkind", html)
+
+    def test_bl_interne_notiz_setzen_nicht_fuer_mitglied(self):
+        a, _ = svc.book_spontaneous(self.alice, self.k1, self.s, self.e, persons=2)
+        staff = make_member("chefin2")
+        from booking.permissions import ensure_verwaltung_group
+        staff.user.groups.add(ensure_verwaltung_group())
+        self.client.force_login(staff.user)
+        self.client.post(reverse("verw_buchungen"), {
+            "action": "set_note", "alloc_id": a.id,
+            "internal_note": "Schlüssel liegt beim Nachbarn",
+            "year": self.s.year, "month": self.s.month})
+        a.refresh_from_db()
+        self.assertEqual(a.internal_note, "Schlüssel liegt beim Nachbarn")
+        # Interne Notiz taucht in „Meine Buchungen" des Mitglieds NICHT auf.
+        self.client.force_login(self.alice.user)
+        html = self.client.get(reverse("my_bookings")).content.decode()
+        self.assertNotIn("Schlüssel liegt beim Nachbarn", html)

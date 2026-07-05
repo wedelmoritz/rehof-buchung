@@ -9,7 +9,8 @@ from collections import defaultdict
 from datetime import date, timedelta
 from .. import availability as A
 from ..models import (
-    Allocation, ExternalBooking, ExternalConfig, Member, Quarter, Wish,
+    Allocation, ExternalBooking, ExternalConfig, Member, Quarter, QuarterBlock,
+    Wish,
 )
 from .dates import EXTERN_COLOR, GERMAN_MONTHS, next_month, school_holidays_in_range
 from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter,
@@ -587,24 +588,33 @@ def build_occupancy_timeline(member, anchor: date, span_days: int = 14,
     externals = list(ExternalBooking.objects.select_related("quarter", "guest").filter(
         status=ExternalBooking.CONFIRMED, start__lt=win_end, end__gt=anchor
     ).order_by("start"))
+    blocks = list(QuarterBlock.objects.filter(
+        start__lt=win_end, end__gt=anchor).order_by("start"))
 
     by_q: dict[int, list] = {q.id: [] for q in quarters}
     occ_sets = [set() for _ in range(span_days)]   # belegte Quartiere je Tag → frei-Zahl
     any_external = False
 
-    def add_bar(qid, start, end, who, member_id, persons, external, mine, cleaning):
+    def add_bar(qid, start, end, who, member_id, persons, external, mine, cleaning,
+                blocked=False):
         a = (start - anchor).days                  # Anreise-Offset (kann < 0 sein)
         c = (end - anchor).days                    # Abreise-Offset (kann > span sein)
         for i in range(max(a, 0), min(c, span_days)):   # Anwesenheitstage
             occ_sets[i].add(qid)
         open_l, open_r = a < 0, c > span_days
-        col_start = 1 if open_l else 2 * a + 2     # PM-Kante des Anreisetags
-        col_end = (2 * span_days + 1) if open_r else 2 * c + 1   # AM-Kante Abreisetag
+        # Sperrzeiten belegen ganze Tage (keine Halbtag-Wechsellogik).
+        if blocked:
+            col_start = 1 if open_l else 2 * a + 1
+            col_end = (2 * span_days + 1) if open_r else 2 * c + 1
+        else:
+            col_start = 1 if open_l else 2 * a + 2     # PM-Kante des Anreisetags
+            col_end = (2 * span_days + 1) if open_r else 2 * c + 1   # AM-Kante Abreisetag
         if col_end <= col_start:
             return
         by_q.setdefault(qid, []).append({
             "who": who, "member_id": member_id, "persons": persons,
             "external": external, "mine": mine, "has_cleaning": cleaning,
+            "blocked": blocked,
             "col_start": col_start, "col_end": col_end,
             "open_left": open_l, "open_right": open_r, "start": start, "end": end,
         })
@@ -617,6 +627,10 @@ def build_occupancy_timeline(member, anchor: date, span_days: int = 14,
         any_external = True
         who = b.guest.name if (management and b.guest_id) else "extern"
         add_bar(b.quarter_id, b.start, b.end, who, None, b.persons, True, False, False)
+    for b in blocks:
+        who = ("🔧 " + b.reason) if b.reason else "🔧 gesperrt"
+        add_bar(b.quarter_id, b.start, b.end, who, None, 0, False, False, False,
+                blocked=True)
 
     for d in days:
         d["free"] = len(quarters) - len(occ_sets[d["idx"]])
@@ -634,8 +648,10 @@ def build_occupancy_timeline(member, anchor: date, span_days: int = 14,
         "days": days, "groups": groups, "span_days": span_days,
         "n_sub": span_days * 2, "n_quarters": len(quarters),
         "anchor": anchor, "win_last": win_end - timedelta(days=1),
-        "prev": anchor - timedelta(days=span_days),
-        "next": anchor + timedelta(days=span_days),
+        # Pfeiltasten springen bewusst genau EINE Woche (nicht das ganze Fenster),
+        # freie Startwahl geht übers Datumsfeld (#Feedback BL).
+        "prev": anchor - timedelta(days=7),
+        "next": anchor + timedelta(days=7),
         "weeks": span_days // 7,
         "today": today,
         "today_sub": (2 * today_idx + 2) if 0 <= today_idx < span_days else None,
