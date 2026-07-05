@@ -826,10 +826,37 @@ class AllocationAdmin(admin.ModelAdmin):
     ordering = ("-start",)
     autocomplete_fields = ("membership",)
     list_select_related = ("quarter", "member", "membership")
+    readonly_fields = ("created_by", "created_at")
 
     @admin.display(description="Nächte")
     def nights_display(self, obj):
         return obj.nights
+
+    def save_model(self, request, obj, form, change):
+        """Audit + Benachrichtigung (ADR 0094): legt die Verwaltung eine Buchung im
+        Namen eines aktiven Mitglieds an oder ändert sie, wird `created_by` gesetzt
+        und das Mitglied informiert („für dich angelegt/geändert“). Nur echte
+        Feldänderungen lösen die Mail aus (kein Rauschen bei ungeänderten Saves)."""
+        from . import services as svc
+        obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+        # Losungs-/Extern-Buchungen nicht doppelt melden (die haben eigene Nähte).
+        if obj.source in ("lottery", "external"):
+            return
+        if change and not getattr(form, "changed_data", None):
+            return
+        svc.notify_member_of_staff_booking(obj, "change" if change else "new")
+
+    def delete_model(self, request, obj):
+        from . import services as svc
+        svc.notify_member_of_staff_booking(obj, "cancel")
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        from . import services as svc
+        for obj in queryset:
+            svc.notify_member_of_staff_booking(obj, "cancel")
+        super().delete_queryset(request, queryset)
 
 
 @admin.action(description="Excel-Export der ausgewählten Buchungen")

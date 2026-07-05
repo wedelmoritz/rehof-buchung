@@ -643,6 +643,11 @@ class Allocation(models.Model):
     # aber für Mitglieder unsichtbar, bis die Losung bestätigt wird.
     provisional = models.BooleanField("Vorläufig (unbestätigt)", default=False)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    # Audit: wer die Buchung im Backend angelegt/zuletzt geändert hat (ADR 0094).
+    # Leer, wenn das Mitglied selbst über die App gebucht hat.
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Angelegt/geändert von (Verwaltung)")
 
     class Meta:
         verbose_name = "Zuteilung"
@@ -659,6 +664,12 @@ class Allocation(models.Model):
     @property
     def nights(self) -> int:
         return (self.end - self.start).days
+
+    @property
+    def by_management(self) -> bool:
+        """True, wenn ein Verwaltungs-/Admin-Konto die Buchung im Backend angelegt
+        hat (nicht das Mitglied selbst) – für den Hinweis in „Meine Buchungen“."""
+        return bool(self.created_by_id and self.created_by_id != self.member.user_id)
 
     def clean(self):
         """Domänenregeln auch bei manueller Pflege erzwingen (Django-Admin nutzt

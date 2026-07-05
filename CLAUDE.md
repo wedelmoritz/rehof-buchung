@@ -111,7 +111,11 @@ buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitte
 `special_requests` = optionale **Besonderheiten** beim Buchen [Hund/Kinder/
 Zustellbett, dem Mitglied sichtbar] + `internal_note` = **interne Team-/BL-Notiz**
 [nur Verwaltung, editierbar auf `verw_buchungen`, dem Mitglied NIE gezeigt];
-#62/#68/#84),
+#62/#68/#84; `created_by` = **Audit** wer die Buchung im Backend anlegte/änderte,
+Property `by_management`; legt/ändert/storniert die Verwaltung eine Buchung im Backend,
+wird das Mitglied benachrichtigt [`services.notify_member_of_staff_booking` via
+`AllocationAdmin.save_model`/`delete_model`] und in „Meine Buchungen" als „von der
+Verwaltung angelegt" markiert – ADR 0094/#50),
 `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =

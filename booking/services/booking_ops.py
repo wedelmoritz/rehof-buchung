@@ -24,8 +24,30 @@ __all__ = [
     'concurrent_split', 'create_swap_request', 'respond_swap_request',
     'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
     'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
-    'short_notice_days', 'is_short_notice',
+    'short_notice_days', 'is_short_notice', 'notify_member_of_staff_booking',
 ]
+
+
+def notify_member_of_staff_booking(alloc: Allocation, action: str) -> None:
+    """Benachrichtigt das Mitglied, wenn die **Verwaltung** eine Buchung in seinem
+    Namen im Backend **angelegt/geändert/storniert** hat (ADR 0094). In-App-
+    `Notification` + E-Mail (Opt-in). `action` ∈ {new, change, cancel}. Idempotenz
+    ist Sache des Aufrufers (Admin-Hook nur bei echter Änderung)."""
+    member = getattr(alloc, "member", None)
+    if member is None:
+        return
+    verb = {"new": "für dich angelegt", "change": "für dich geändert",
+            "cancel": "für dich storniert"}.get(action, "für dich geändert")
+    zeitraum = f"{alloc.start:%d.%m.%Y}–{alloc.end:%d.%m.%Y}"
+    msg = f"Die Verwaltung hat eine Buchung {verb}: {alloc.quarter.name}, {zeitraum}."
+    url = "" if action == "cancel" else "/meine-buchungen/"
+    Notification.objects.create(member=member, message=msg[:255], url=url)
+    email_member(
+        member, "Re:Hof: Buchung durch die Verwaltung",
+        f"Hallo {member.display_name},\n\n{msg}\n\n"
+        + ("" if action == "cancel" else
+           "Du findest sie unter „Meine Buchungen“ in der App.\n\n")
+        + "Bei Fragen wende dich bitte an die Betriebsleitung.\n\nViele Grüße\nRe:Hof")
 
 @transaction.atomic
 def book_spontaneous(

@@ -71,6 +71,7 @@ __all__ = [
     'concurrent_split', 'create_swap_request', 'respond_swap_request',
     'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
     'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
+    'notify_member_of_staff_booking',
     'POOL_ELIGIBLE_REMAINING', 'POOL_WITHDRAW_CAP_PER_YEAR',
     'pool_balance', 'pool_status', 'pool_donate', 'pool_withdraw',
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
