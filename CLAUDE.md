@@ -348,15 +348,15 @@ Konfiguriert/gestartet im Backend am Singleton `FairnessSimConfig`
 (Admin-Knopf „Simulation jetzt berechnen", Ergebnis als JSON gespeichert);
 Service `services.run_fairness_simulation`. **Gemeinschafts-Spiegel** (`community`,
 `/gemeinschaft/`, login-pflichtig, ADR 0063): aggregierte, anonyme Transparenz –
-Auslastung (**monatliche Inline-SVG-Kurve** übers Kalenderjahr
-`services.year_occupancy_curve` – 12 Monatspunkte mit Wert je Monat als Hover-Titel;
-löst die frühere Quartals-Kurve + separate Monatsliste ab, ADR 0074/0076/0079;
-effizient: alle Belegungen des Jahres einmal geladen, 2 Abfragen statt 24;
-**SVG-Text: `font-size` als CSS-LONGHAND mit `px`** (`.occ-*{font-size:9px}`, wie die
-Fairness-Grafik) – NICHT als `font`-Kurzform (ignoriert Safari) und NICHT als
-einheitenloses Präsentationsattribut (dann berechnen WebKit/Gecko die Glyphenbreite
-falsch → nur der ERSTE Buchstabe je Label sichtbar; ADR 0079-Nachtrag/Fix),
-Los-Ergebnis-
+Auslastung (**monatliches HTML/CSS-Balkendiagramm** übers Kalenderjahr
+`services.year_occupancy_curve` – 12 Monatsbalken mit Wert je Monat + Hover-Titel;
+löst die frühere Quartals-Kurve/Monatsliste UND die SVG-Kurve ab, ADR 0074/0076/0079/
+**0095**; effizient: alle Belegungen des Jahres einmal geladen, 3 Abfragen statt 24;
+**bewusst KEIN SVG** – reine `<div>`-Balken (`height:<pct>%`) rendern auf allen Engines
+identisch/lesbar; die SVG-Varianten waren auf iOS/macOS-Safari unlesbar (nur erster
+Buchstabe / Labels ganz weg). Vor dem Ausliefern per Headless-Chromium-Screenshot
+(Desktop+Mobil) verifiziert; Konvention: Frontend-Diagramme als HTML/CSS-Balken, SVG
+nur für echte Kurven/Flächen und dann Text möglichst NICHT im SVG), Los-Ergebnis-
 Historie, **Karma-Verteilung** (`services.community_stats`/`karma_distribution`) als
 schlanke **CSS-Balken**/SVG (kein JS); in der Sekundär-Nav („Gemeinschaft"). Den
 **eigenen** Ausgleichsfaktor zeigt eine Karte auf der **Wunschliste** (Karma-

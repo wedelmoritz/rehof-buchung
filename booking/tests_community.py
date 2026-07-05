@@ -50,7 +50,7 @@ class YearOccupancyCurveTests(TestCase):
         # 10 Nächte im März belegen (März hat 31 Tage → 10/31 der möglichen Nächte).
         Allocation.objects.create(member=m, quarter=q, start=date(year, 3, 5),
                                   end=date(year, 3, 15), persons=2, membership=ms)
-        # Geometrie: konstant wenige Abfragen unabhängig von der Belegungszahl.
+        # Konstant wenige Abfragen unabhängig von der Belegungszahl.
         with self.assertNumQueries(3):   # Quarter.count + Allocation + External
             curve = svc.year_occupancy_curve(year)
         self.assertEqual(len(curve["points"]), 12)
@@ -58,9 +58,11 @@ class YearOccupancyCurveTests(TestCase):
         self.assertEqual(maerz["label"], "Mär")
         self.assertEqual(maerz["booked"], 10)
         self.assertEqual(maerz["pct"], round(100 * 10 / 31))
-        # Januar ohne Belegung → 0 %, Punkt auf der Nulllinie.
+        # Januar ohne Belegung → 0 %.
         self.assertEqual(curve["points"][0]["pct"], 0)
-        self.assertEqual(curve["points"][0]["y"], curve["base_y"])
+        # Aggregat-Kennzahlen fürs Balkendiagramm.
+        self.assertEqual(curve["peak"], maerz["pct"])
+        self.assertIn("avg", curve)
 
 
 class CommunityViewTests(TestCase):

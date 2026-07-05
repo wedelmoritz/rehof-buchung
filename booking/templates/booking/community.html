@@ -10,32 +10,36 @@
 <div class="card">
   <h2 style="margin-top:0">Auslastung der Quartiere</h2>
   {% with occ=stats.occ_curve %}
-  <p class="sm muted" style="margin:0 0 .3rem">Jahr {{ occ.year }}, monatlich –
+  <p class="sm muted" style="margin:0 0 .3rem">Jahr {{ occ.year }}, je Monat –
     gebuchte gegen mögliche Unterkunfts-Nächte (Mitglieder + bestätigte externe
-    Gäste). Genauer Wert je Monat beim Überfahren/Antippen des Punktes.</p>
-  {% comment %}Beschriftungen bewusst als HTML (absolut positioniert über der SVG),
-  NICHT als SVG-<text> – letzteres rendert iOS/macOS-Safari unzuverlässig
-  (nur der erste Buchstabe). Die SVG trägt nur noch Linien/Fläche/Punkte.{% endcomment %}
-  <figure class="occ-fig">
-    <div class="occ-wrap">
-      <svg class="occ-chart" viewBox="0 0 360 160" role="img"
-           aria-label="Auslastung je Monat {{ occ.year }}: {% for p in occ.points %}{{ p.label }} {{ p.pct }} Prozent{% if not forloop.last %}, {% endif %}{% endfor %}.">
-        <line class="occ-grid" x1="40" y1="18" x2="344" y2="18"/>
-        <line class="occ-grid dash" x1="40" y1="72" x2="344" y2="72"/>
-        <line class="occ-axis" x1="40" y1="126" x2="344" y2="126"/>
-        <polygon class="occ-area" points="{{ occ.area }}"/>
-        <polyline class="occ-line" points="{{ occ.line }}"/>
-        {% for p in occ.points %}
-        <circle class="occ-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="2.6"><title>{{ p.label }}: {{ p.pct }} % ({{ p.booked }} von {{ p.possible }} Nächten)</title></circle>
-        {% endfor %}
-      </svg>
-      {% for a in occ.axis %}
-      <span class="occ-ax" style="top:{{ a.top }}%">{{ a.label }}</span>
-      {% endfor %}
-      {% for p in occ.points %}
-      <span class="occ-val" style="left:{{ p.xpct }}%; top:{{ p.vypct }}%">{{ p.pct }}%</span>
-      <span class="occ-m" style="left:{{ p.xpct }}%">{{ p.label }}</span>
-      {% endfor %}
+    Gäste). Schnitt {{ occ.avg }} %, Spitze {{ occ.peak }} %. Genauer Wert je Monat
+    beim Überfahren/Antippen des Balkens.</p>
+  {% comment %}Reines HTML/CSS-Balkendiagramm (kein SVG) – rendert auf allen Engines
+  identisch/lesbar. Frühere SVG-Varianten waren auf Safari unzuverlässig (ADR 0095).{% endcomment %}
+  <figure class="occ" role="img"
+          aria-label="Auslastung je Monat {{ occ.year }}: {% for p in occ.points %}{{ p.label }} {{ p.pct }} Prozent{% if not forloop.last %}, {% endif %}{% endfor %}.">
+    <div class="occ-chart">
+      <div class="occ-yaxis" aria-hidden="true">
+        <span style="top:0%">100 %</span>
+        <span style="top:50%">50 %</span>
+        <span style="top:100%">0 %</span>
+      </div>
+      <div class="occ-plot">
+        <div class="occ-gl" style="top:0"></div>
+        <div class="occ-gl" style="top:50%"></div>
+        <div class="occ-gl base" style="top:100%"></div>
+        <div class="occ-bars">
+          {% for p in occ.points %}
+          <div class="occ-col" title="{{ p.label }}: {{ p.pct }} % ({{ p.booked }} von {{ p.possible }} Nächten)">
+            <span class="occ-pct">{{ p.pct }}%</span>
+            <div class="occ-bar" style="height:{{ p.pct }}%"></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="occ-months" aria-hidden="true">
+      {% for p in occ.points %}<span>{{ p.label }}</span>{% endfor %}
     </div>
   </figure>
   {% endwith %}
@@ -81,26 +85,33 @@
   .mbar-fill.sage { background:var(--sage); }
   .mbar-val { flex:0 0 3.4rem; text-align:right; font-variant-numeric:tabular-nums;
     font-size:.9rem; }
-  .occ-fig { margin:.2rem 0; }
-  /* Beschriftungen als HTML über der SVG (Safari-sicher): der Wrapper hat exakt
-     das viewBox-Seitenverhältnis (360:160), sodass left/top in % linear auf die
-     SVG-Koordinaten abbilden. */
-  .occ-wrap { position:relative; width:100%; max-width:560px; }
-  .occ-chart { display:block; width:100%; height:auto; }
-  .occ-grid { stroke:var(--line); stroke-width:1; }
-  .occ-grid.dash { stroke-dasharray:3 3; }
-  .occ-axis { stroke:var(--muted); stroke-width:1; }
-  .occ-area { fill:var(--accent-soft); stroke:none; }
-  .occ-line { fill:none; stroke:var(--accent); stroke-width:2.2;
-    stroke-linejoin:round; stroke-linecap:round; }
-  .occ-dot { fill:var(--accent); }
-  .occ-wrap > span { position:absolute; font-family:system-ui,sans-serif;
-    line-height:1; white-space:nowrap; pointer-events:none; }
-  .occ-val { transform:translate(-50%,-50%); color:var(--accent-deep);
-    font-size:.5rem; font-weight:700; font-variant-numeric:tabular-nums; }
-  .occ-m { top:92.5%; transform:translate(-50%,-50%); color:var(--ink);
-    font-size:.56rem; font-weight:600; }
-  .occ-ax { left:9.5%; transform:translate(-100%,-50%); color:var(--muted);
-    font-size:.56rem; }
+  /* Auslastung als reines HTML/CSS-Balkendiagramm (ADR 0095) – kein SVG, daher
+     engine-neutral (Chromium/WebKit/Gecko identisch, keine SVG-Text-Fallstricke). */
+  .occ { --plot-h:150px; margin:.2rem 0 0; padding-top:1.15rem; max-width:600px; }
+  .occ-chart { display:grid; grid-template-columns:2.6rem 1fr; gap:.4rem; }
+  .occ-yaxis { position:relative; height:var(--plot-h); }
+  .occ-yaxis span { position:absolute; right:0; transform:translateY(-50%);
+    font-size:.68rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .occ-plot { position:relative; height:var(--plot-h); }
+  .occ-gl { position:absolute; left:0; right:0; border-top:1px dashed var(--line); }
+  .occ-gl.base { border-top:1px solid var(--muted); }
+  .occ-bars { position:absolute; inset:0; display:flex; align-items:flex-end;
+    gap:clamp(3px,1.2%,10px); }
+  .occ-col { position:relative; flex:1 1 0; height:100%; display:flex;
+    align-items:flex-end; justify-content:center; }
+  .occ-bar { width:100%; max-width:26px; min-height:2px; border-radius:4px 4px 0 0;
+    background:linear-gradient(var(--accent),var(--accent-deep)); }
+  .occ-pct { position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+    margin-bottom:2px; font-size:.6rem; font-weight:700; color:var(--accent-deep);
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .occ-months { display:flex; gap:clamp(3px,1.2%,10px); margin:.25rem 0 0 3rem; }
+  .occ-months span { flex:1 1 0; text-align:center; font-size:.66rem; color:var(--muted); }
+  /* Schmale Screens: 12 Prozent-Labels würden überlappen → ausblenden; Balkenhöhe,
+     Gitterlinien und Hover-/Tap-Titel liefern den Wert weiter. */
+  @media (max-width:560px){
+    .occ-pct { display:none; }
+    .occ-months { margin-left:2.9rem; }
+    .occ-months span { font-size:.6rem; }
+  }
 </style>
 {% endblock %}

@@ -324,22 +324,15 @@ _MONTHS_DE_ABBR = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug",
 
 
 def year_occupancy_curve(year: int) -> dict:
-    """Auslastung **je Monat** des Kalenderjahres `year` als fertige Geometrie für
-    eine Inline-SVG-Kurve (Gemeinschafts-Spiegel, ADR 0079). Ersetzt die frühere
-    Quartals-Kurve + separate Monatsliste durch EINE monatliche Kurve – so ist die
-    Auslastung übers Jahr feiner ablesbar (Wert je Monat als Hover-Titel), ohne
-    zusätzlichen aufklappbaren Detail-Block.
+    """Auslastung **je Monat** des Kalenderjahres `year` (Gemeinschafts-Spiegel,
+    ADR 0079/0095). Liefert 12 Monatswerte für ein **reines HTML/CSS-Balkendiagramm**
+    (kein SVG) – das rendert auf ALLEN Engines identisch und lesbar (Safari-Historie
+    mit SVG-`<text>`: ADR 0095).
 
     Effizient: lädt die Belegungen des Jahres EINMAL (Mitglieder + bestätigte externe
-    Gäste) und verteilt die Nächte in Python auf die Monate – zwei Abfragen statt 24
-    Einzel-Monatsabfragen. Prozentwerte werden gleich in SVG-Koordinaten umgerechnet,
-    damit das Template ohne Mathematik/JS zeichnet (CSP-konform).
-
-    Geometrie passend zu `viewBox 0 0 360 160`: linke Achse bei x=40, Nulllinie
-    (0&nbsp;%) bei y=126, 100&nbsp;% bei y=18, Monats-Beschriftung bei y=148."""
-    PAD_L, RIGHT, BASE_Y, TOP_Y = 40.0, 344.0, 126.0, 18.0
-    STEP = (RIGHT - PAD_L) / 11.0               # 12 Monatspunkte, 11 Abstände
-    SPAN_Y = BASE_Y - TOP_Y                     # Höhe für 100 %
+    Gäste) und verteilt die Nächte in Python auf die Monate – **zwei** Abfragen (plus
+    Quarter-Count) statt 24 Einzel-Monatsabfragen. Je Monat: `pct` (gebuchte/mögliche
+    Unterkunfts-Nächte), `booked`, `possible`, `label`."""
     n_quarters = Quarter.objects.count()
     y_first, y_end = date(year, 1, 1), date(year + 1, 1, 1)
     days_in = [_calendar.monthrange(year, m)[1] for m in range(1, 13)]
@@ -367,29 +360,11 @@ def year_occupancy_curve(year: int) -> dict:
     for i in range(12):
         possible = n_quarters * days_in[i]
         pct = round(100 * booked[i] / possible) if possible else 0
-        x = round(PAD_L + i * STEP, 1)
-        y = round(BASE_Y - SPAN_Y * pct / 100.0, 1)
-        # Wert-Label immer ÜBER dem Punkt (nie unter, damit es die Monatsleiste
-        # nicht überlagert); am oberen Rand leicht eingeklemmt.
-        vy = round(max(9.0, y - 6.5), 1)
-        # Zusätzlich als **Prozent** der viewBox (360×160): so lassen sich die
-        # Beschriftungen als HTML (statt SVG-Text) exakt über den Punkten platzieren
-        # – SVG-`<text>` wird auf iOS/macOS-Safari unzuverlässig gerendert (ADR 0079-
-        # Nachtrag: nur der erste Buchstabe). HTML-Text ist davon unberührt.
         points.append({"label": _MONTHS_DE_ABBR[i + 1], "pct": pct,
-                       "booked": booked[i], "possible": possible,
-                       "x": x, "y": y, "vy": vy,
-                       "xpct": round(x / 3.6, 2), "vypct": round(vy / 1.6, 2)})
-    line = " ".join(f"{p['x']},{p['y']}" for p in points)
-    area = (f"{points[0]['x']},{BASE_Y} " + line +
-            f" {points[-1]['x']},{BASE_Y}")
-    # Y-Achsen-Beschriftungen (0/50/100 %) ebenfalls als HTML-Prozentpositionen.
-    axis = [{"label": "100 %", "top": round(TOP_Y / 1.6, 2)},
-            {"label": "50 %", "top": round(((TOP_Y + BASE_Y) / 2) / 1.6, 2)},
-            {"label": "0 %", "top": round(BASE_Y / 1.6, 2)}]
-    return {"year": year, "points": points, "line": line, "area": area,
-            "base_y": BASE_Y, "axis": axis,
-            "plot_left_pct": round(PAD_L / 3.6, 2)}
+                       "booked": booked[i], "possible": possible})
+    peak = max((p["pct"] for p in points), default=0)
+    avg = round(sum(p["pct"] for p in points) / 12) if points else 0
+    return {"year": year, "points": points, "peak": peak, "avg": avg}
 
 
 def dashboard_stats() -> dict:
