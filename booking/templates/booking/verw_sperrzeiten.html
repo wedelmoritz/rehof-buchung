@@ -40,11 +40,24 @@
           <td>{{ b.end|date:"D d.m.Y" }}</td>
           <td>{{ b.nights }}</td>
           <td>{{ b.reason|default:"—" }}</td>
-          <td><form method="post" class="inline" data-confirm="Sperrzeit für {{ b.quarter.name }} ({{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}) aufheben?">{% csrf_token %}
-            <input type="hidden" name="action" value="delete_block">
-            <input type="hidden" name="block_id" value="{{ b.id }}">
-            <button class="btn small ghost danger" type="submit">aufheben</button>
-          </form></td>
+          <td class="block-actions">
+            <details class="block-edit">
+              <summary class="btn small ghost">ändern</summary>
+              <form method="post" class="edit-block-form">{% csrf_token %}
+                <input type="hidden" name="action" value="edit_block">
+                <input type="hidden" name="block_id" value="{{ b.id }}">
+                <label>Von <input type="date" name="start" value="{{ b.start|date:'Y-m-d' }}" required></label>
+                <label>Bis (frei ab) <input type="date" name="end" value="{{ b.end|date:'Y-m-d' }}" required></label>
+                <label>Grund <input type="text" name="reason" maxlength="200" value="{{ b.reason }}"></label>
+                <button class="btn small" type="submit">Speichern</button>
+              </form>
+            </details>
+            <form method="post" class="inline" data-confirm="Sperrzeit für {{ b.quarter.name }} ({{ b.start|date:'d.m.' }}–{{ b.end|date:'d.m.' }}) aufheben?">{% csrf_token %}
+              <input type="hidden" name="action" value="delete_block">
+              <input type="hidden" name="block_id" value="{{ b.id }}">
+              <button class="btn small ghost danger" type="submit">aufheben</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -52,4 +65,18 @@
   </div>
   {% else %}<p class="muted" style="margin-top:.5rem">Derzeit keine Sperrzeiten.</p>{% endif %}
 </div>
+
+<style>
+  .block-actions { white-space:nowrap; }
+  .block-edit { display:inline-block; vertical-align:middle; }
+  .block-edit > summary { display:inline-block; cursor:pointer; list-style:none; margin-right:.3rem; }
+  .block-edit > summary::-webkit-details-marker { display:none; }
+  .edit-block-form { display:flex; flex-wrap:wrap; gap:.5rem; align-items:flex-end;
+    margin:.5rem 0 .2rem; padding:.6rem; border:1px solid var(--line); border-radius:9px;
+    background:var(--bg); }
+  .edit-block-form label { display:flex; flex-direction:column; font-size:.8rem;
+    color:var(--muted); gap:.15rem; }
+  .edit-block-form input { padding:.4rem .55rem; border-radius:8px; border:1px solid var(--line);
+    background:#fff; font:inherit; color:var(--ink); }
+</style>
 {% endblock %}

@@ -939,9 +939,15 @@ def contact_send(request):
     Reply-To ist die eigene Adresse. Rate-limitiert gegen Missbrauch."""
     category = request.POST.get("category", "general")
     message = request.POST.get("message", "")
+    if not (message or "").strip():
+        messages.error(request, "Bitte gib eine Nachricht ein.")
+        return redirect(reverse("help") + "#kontakt")
     mail = svc.send_contact_message(request.user, category, message)
     if mail is None:
-        messages.error(request, "Bitte gib eine Nachricht ein.")
+        # Nachricht war vorhanden, aber es ist keine Empfänger-Adresse hinterlegt.
+        messages.error(
+            request, "Im Moment ist keine Kontaktadresse hinterlegt. Bitte wende "
+            "dich direkt an die Betriebsleitung.")
     else:
         messages.success(
             request, "Danke! Deine Nachricht ist unterwegs – wir melden uns bei dir.")
@@ -1285,6 +1291,25 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
                 reason=V.strip_controls(request.POST.get("reason", ""), max_len=200))
             messages.success(request, f"{q.name} vom {s:%d.%m.%Y} bis {e:%d.%m.%Y} "
                              "gesperrt (nicht mehr buchbar).")
+        target = "verw_sperrzeiten"
+    elif action == "edit_block":
+        from .models import QuarterBlock
+        from . import validation as V
+        b = QuarterBlock.objects.filter(id=request.POST.get("block_id")).first()
+        s = _parse_date(request.POST.get("start"))
+        e = _parse_date(request.POST.get("end"))
+        if not b:
+            messages.error(request, "Sperrzeit nicht gefunden.")
+        elif not s or not e:
+            messages.error(request, "Bitte Von- und Bis-Datum angeben.")
+        elif e <= s:
+            messages.error(request, "Das Bis-Datum muss nach dem Von-Datum liegen.")
+        else:
+            b.start, b.end = s, e
+            b.reason = V.strip_controls(request.POST.get("reason", ""), max_len=200)
+            b.save(update_fields=["start", "end", "reason"])
+            messages.success(request, f"Sperrzeit für {b.quarter.name} geändert "
+                             f"({s:%d.%m.%Y}–{e:%d.%m.%Y}).")
         target = "verw_sperrzeiten"
     elif action == "delete_block":
         from .models import QuarterBlock

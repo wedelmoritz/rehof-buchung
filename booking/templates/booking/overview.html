@@ -22,8 +22,11 @@
   <summary>🔔 {{ notifications|length }} neue Nachricht{{ notifications|length|pluralize:"en" }}</summary>
   <ul>
     {% for n in notifications %}
-    <li>{% if n.url %}<a href="{{ n.url }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
-      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span></li>
+    <li>
+      {% if n.url %}<a href="{{ n.url }}"><strong>{{ n.message }}</strong></a>{% else %}<strong>{{ n.message }}</strong>{% endif %}
+      <span class="muted">· {{ n.created_at|date:"d.m. H:i" }}</span>
+      {% if n.detail %}<div class="notif-detail">{{ n.detail|linebreaksbr }}</div>{% endif %}
+    </li>
     {% endfor %}
   </ul>
   <form method="post" class="inline">{% csrf_token %}
@@ -229,6 +232,9 @@
   .ov-notif > summary::before { content:"▸ "; color:var(--muted); }
   .ov-notif[open] > summary::before { content:"▾ "; }
   .ov-notif ul { margin:.6rem 0; }
+  .ov-notif li { margin:.35rem 0; }
+  .notif-detail { color:var(--ink); font-size:.92rem; margin:.15rem 0 .1rem;
+    white-space:normal; overflow-wrap:anywhere; }
 
   /* Diese-Woche-Agenda */
   .ov-week { margin-bottom:1rem; }

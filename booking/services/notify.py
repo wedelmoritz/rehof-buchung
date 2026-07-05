@@ -43,6 +43,14 @@ def send_contact_message(user, category: str, message: str) -> "OutboxEmail | No
         return None
     recipients = OpsConfig.get_solo().contact_list(category)
     if not recipients:
+        # Kein Empfänger im Backend hinterlegt → Notnagel aus den Settings, damit
+        # eine Kontakt-Nachricht nicht still verloren geht (die BL sollte dennoch
+        # eine echte Adresse in den Betriebs-Einstellungen setzen).
+        from django.conf import settings
+        admins = [a[1] for a in getattr(settings, "ADMINS", []) if a and len(a) > 1 and a[1]]
+        default_from = (getattr(settings, "DEFAULT_FROM_EMAIL", "") or "").strip()
+        recipients = admins or ([default_from] if "@" in default_from else [])
+    if not recipients:
         return None
     label = _CONTACT_LABELS[category]
     name = (user.get_full_name() or user.get_username() or "").strip()
