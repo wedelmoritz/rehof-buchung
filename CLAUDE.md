@@ -320,8 +320,10 @@ Auslastung (**monatliche Inline-SVG-Kurve** übers Kalenderjahr
 `services.year_occupancy_curve` – 12 Monatspunkte mit Wert je Monat als Hover-Titel;
 löst die frühere Quartals-Kurve + separate Monatsliste ab, ADR 0074/0076/0079;
 effizient: alle Belegungen des Jahres einmal geladen, 2 Abfragen statt 24;
-**SVG-Text-Größe als Präsentationsattribut** `font-size` statt CSS-`font`-Kurzform,
-weil Safari die Kurzform auf SVG-Text ignoriert – ADR 0079-Nachtrag),
+**SVG-Text: `font-size` als CSS-LONGHAND mit `px`** (`.occ-*{font-size:9px}`, wie die
+Fairness-Grafik) – NICHT als `font`-Kurzform (ignoriert Safari) und NICHT als
+einheitenloses Präsentationsattribut (dann berechnen WebKit/Gecko die Glyphenbreite
+falsch → nur der ERSTE Buchstabe je Label sichtbar; ADR 0079-Nachtrag/Fix),
 Los-Ergebnis-
 Historie, **Karma-Verteilung** (`services.community_stats`/`karma_distribution`) als
 schlanke **CSS-Balken**/SVG (kein JS); in der Sekundär-Nav („Gemeinschaft"). Den

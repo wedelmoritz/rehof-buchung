@@ -1,9 +1,18 @@
 """Haupt-URL-Konfiguration."""
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
+from django.shortcuts import redirect
+from django.templatetags.static import static as static_url
 from django.urls import include, path, reverse_lazy
 from django.views.generic import TemplateView
 from django_ratelimit.decorators import ratelimit
+
+
+def _favicon(request):
+    """Root-`/favicon.ico` (Safari fragt es bei harten Navigationen automatisch ab)
+    auf die – ggf. gehashte – statische Datei umleiten, damit durchgängig das neue
+    Re:-Icon erscheint."""
+    return redirect(static_url("booking/icons/favicon.ico"))
 
 
 def _rl_post(view, rate):
@@ -13,6 +22,7 @@ def _rl_post(view, rate):
 
 
 urlpatterns = [
+    path("favicon.ico", _favicon, name="favicon"),
     path("admin/", admin.site.urls),
     path("login/", auth_views.LoginView.as_view(
         template_name="registration/login.html"), name="login"),
