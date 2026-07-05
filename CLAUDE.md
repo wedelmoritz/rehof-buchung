@@ -210,6 +210,8 @@ damit der Belegungsplan weiter oben steht (ADR 0098). **Held ist der Belegungspl
 Tape-Chart** (`services.build_occupancy_timeline`, Option A, ADR 0083): Unterkünfte
 als Zeilen – nach `Quarter.sort_order` (beds24-Reihenfolge, #38) in **Gebäude-Bänder**
 gruppiert (statt Zebra, #42) –, durchgehende **Datumsachse ab wählbarem Startdatum**
+(Default: **Vortag** `heute−1`, damit der Belegungs-Übergang gestern→heute sofort
+sichtbar ist; „Heute"/kein `from` nutzen ebenfalls den Vortag)
 über **1/2/4 Wochen** (`from`/`weeks`, #41; nicht mehr monatsgebunden), Buchungen als
 Balken. Ein **Belegungswechsel** wird als **Halbtag** gerendert (Balken beginnen an
 der PM-Kante des Anreise-, enden an der AM-Kante des Abreisetags) – Ab-/Anreise am
