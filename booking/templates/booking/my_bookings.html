@@ -80,19 +80,7 @@
           {% endif %}
         {% endfor %}
       </div>
-      <form method="post" style="margin-left:auto"
-            {% if a.short_notice %}data-confirm="ACHTUNG – kurzfristige Stornierung: {{ a.quarter.name }} {{ a.start }}–{{ a.end }} stornieren? Weil die Anreise nah ist, VERFALLEN diese Tage aus deinem Kontingent – zurück bekommst du sie nur, soweit ein anderes Mitglied den Zeitraum neu bucht. Bitte mach den frei werdenden Zeitraum publik, damit ihn jemand übernimmt. Trotzdem stornieren?"{% else %}data-confirm="{{ a.quarter.name }} vom {{ a.start }} bis {{ a.end }} wirklich stornieren? Das gibt den Zeitraum und deine Tage wieder frei."{% endif %}>{% csrf_token %}
-        <input type="hidden" name="action" value="cancel">
-        <input type="hidden" name="allocation_id" value="{{ a.id }}">
-        <button class="btn ghost small danger" type="submit">stornieren</button>
-      </form>
     </div>
-    {% if a.short_notice %}
-    <p class="msg warning" style="margin:.4rem 0 0; font-size:.85rem">⚠️ <strong>Kurzfristig:</strong>
-      Bei Storno oder Verkürzung verfallen die Tage, falls kein anderes Mitglied den
-      Zeitraum neu bucht. Bitte selbst Werbung machen – alle Mitglieder werden zusätzlich
-      in der App informiert.</p>
-    {% endif %}
 
     <details class="booking-more">
       <summary class="more-sum">Details &amp; Aktionen
@@ -125,7 +113,7 @@
     </details>
 
     <details class="adjust">
-      <summary>Buchung ändern (Unterkunft · Zeitraum · Personen)</summary>
+      <summary>Buchung ändern &amp; stornieren (Unterkunft · Zeitraum · Personen)</summary>
       <p class="muted hint">Du kannst die <strong>Unterkunft</strong> wechseln (es
         werden nur freie angeboten), den <strong>Zeitraum</strong> verlängern/verkürzen
         und die <strong>Personenzahl</strong> anpassen. Verlängern/Wechseln geht spontan,
@@ -145,6 +133,21 @@
         <label>Personen <input type="number" name="new_persons" value="{{ a.persons }}" min="1" max="12" style="width:4.2rem"></label>
         <button class="btn small" type="submit">Übernehmen</button>
       </form>
+      {% if a.short_notice %}
+      <p class="msg warning" style="margin:.7rem 0 .2rem; font-size:.85rem">⚠️ <strong>Kurzfristig:</strong>
+        Bei Storno oder Verkürzung verfallen die Tage, falls kein anderes Mitglied den
+        Zeitraum neu bucht. Bitte selbst Werbung machen – alle Mitglieder werden zusätzlich
+        in der App informiert.</p>
+      {% endif %}
+      <div class="cancel-row">
+        <span class="muted">Buchung nicht mehr gewünscht?</span>
+        <form method="post"
+              {% if a.short_notice %}data-confirm="ACHTUNG – kurzfristige Stornierung: {{ a.quarter.name }} {{ a.start }}–{{ a.end }} stornieren? Weil die Anreise nah ist, VERFALLEN diese Tage aus deinem Kontingent – zurück bekommst du sie nur, soweit ein anderes Mitglied den Zeitraum neu bucht. Bitte mach den frei werdenden Zeitraum publik, damit ihn jemand übernimmt. Trotzdem stornieren?"{% else %}data-confirm="{{ a.quarter.name }} vom {{ a.start }} bis {{ a.end }} wirklich stornieren? Das gibt den Zeitraum und deine Tage wieder frei."{% endif %}>{% csrf_token %}
+          <input type="hidden" name="action" value="cancel">
+          <input type="hidden" name="allocation_id" value="{{ a.id }}">
+          <button class="btn ghost small danger" type="submit">stornieren</button>
+        </form>
+      </div>
     </details>
 
     <details class="swap">
@@ -293,5 +296,8 @@
   .concurrent .hint, .adjust .hint, .swap .hint { font-size:.82rem; margin:.2rem 0 .4rem; }
   .adjust-row { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; margin:.3rem 0; }
   .adjust-row label { display:flex; align-items:center; gap:.4rem; color:var(--muted); font-size:.88rem; }
+  .cancel-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+    margin-top:.7rem; padding-top:.6rem; border-top:1px dashed var(--line);
+    font-size:.88rem; }
 </style>
 {% endblock %}

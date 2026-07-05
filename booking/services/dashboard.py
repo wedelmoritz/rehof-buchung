@@ -65,18 +65,20 @@ def broadcast_message(audience: str, subject: str, body: str) -> dict:
     falls Mitglieds-Profil). Nur von Admin/Verwaltung aufzurufen (View prüft das)."""
     from ..models import Notification
     from ..validation import strip_controls
-    from .notify import email_member, queue_email, send_web_push
+    from .notify import email_member, queue_email
     subject = strip_controls(subject, max_len=160)
     body = strip_controls(body, max_len=4000)
     n_inapp = n_mail = 0
     full_subject = f"Re:Hof: {subject}"
     if audience in ("active_members", "all_members"):
         for m in _audience_members(audience):
+            # Push kommt automatisch über das Notification-post_save-Signal
+            # (Betreff als Titel, Text als Inhalt) – NICHT zusätzlich hier senden,
+            # sonst gäbe es zwei Push-Nachrichten je Empfänger.
             Notification.objects.create(member=m, message=subject[:255], detail=body)
             n_inapp += 1
             if email_member(m, full_subject, body):
                 n_mail += 1
-            send_web_push(m, subject, body)
     else:
         for u in _audience_users(audience):
             m = getattr(u, "member", None)
@@ -370,14 +372,24 @@ def year_occupancy_curve(year: int) -> dict:
         # Wert-Label immer ÜBER dem Punkt (nie unter, damit es die Monatsleiste
         # nicht überlagert); am oberen Rand leicht eingeklemmt.
         vy = round(max(9.0, y - 6.5), 1)
+        # Zusätzlich als **Prozent** der viewBox (360×160): so lassen sich die
+        # Beschriftungen als HTML (statt SVG-Text) exakt über den Punkten platzieren
+        # – SVG-`<text>` wird auf iOS/macOS-Safari unzuverlässig gerendert (ADR 0079-
+        # Nachtrag: nur der erste Buchstabe). HTML-Text ist davon unberührt.
         points.append({"label": _MONTHS_DE_ABBR[i + 1], "pct": pct,
                        "booked": booked[i], "possible": possible,
-                       "x": x, "y": y, "vy": vy})
+                       "x": x, "y": y, "vy": vy,
+                       "xpct": round(x / 3.6, 2), "vypct": round(vy / 1.6, 2)})
     line = " ".join(f"{p['x']},{p['y']}" for p in points)
     area = (f"{points[0]['x']},{BASE_Y} " + line +
             f" {points[-1]['x']},{BASE_Y}")
+    # Y-Achsen-Beschriftungen (0/50/100 %) ebenfalls als HTML-Prozentpositionen.
+    axis = [{"label": "100 %", "top": round(TOP_Y / 1.6, 2)},
+            {"label": "50 %", "top": round(((TOP_Y + BASE_Y) / 2) / 1.6, 2)},
+            {"label": "0 %", "top": round(BASE_Y / 1.6, 2)}]
     return {"year": year, "points": points, "line": line, "area": area,
-            "base_y": BASE_Y}
+            "base_y": BASE_Y, "axis": axis,
+            "plot_left_pct": round(PAD_L / 3.6, 2)}
 
 
 def dashboard_stats() -> dict:

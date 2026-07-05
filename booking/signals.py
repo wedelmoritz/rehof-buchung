@@ -71,9 +71,12 @@ def notification_web_push(sender, instance: Notification, created: bool, **kwarg
 
     def _deliver():
         from .services import send_web_push
+        # Titel = kurze Nachricht (Betreff), Text = Detail (die eigentliche
+        # Nachricht). So gibt es GENAU EINE Push je Benachrichtigung mit Betreff
+        # UND Inhalt (keine getrennte Betreff-/Text-Push mehr).
         send_web_push(
-            instance.member, "Re:Hof",
-            instance.message, instance.url or "/")
+            instance.member, instance.message or "Re:Hof",
+            instance.detail or instance.message or "", instance.url or "/")
 
     transaction.on_commit(_deliver)
 
