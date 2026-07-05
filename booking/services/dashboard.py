@@ -21,7 +21,8 @@ __all__ = [
     'notify_admins_upcoming', 'users_without_membership',
     'onboard_as_member', 'onboard_as_terminal', 'deactivate_account',
     'ensure_personal_membership', 'run_scheduled_notifications',
-    'send_status_warnings',
+    'send_status_warnings', 'send_bookings_overview', 'send_occupancy_overview',
+    'send_overdue_overview', 'send_lottery_reminder', 'notify_booking_activity',
 ]
 
 
@@ -514,9 +515,128 @@ def send_status_warnings(today=None) -> int:
     return len(rows)
 
 
+def send_bookings_overview(today=None) -> int:
+    """Regelmäßige Buchungsübersicht (An-/Abreisen inkl. Endreinigungen) an die
+    Verwaltung – mit **Plan-PDF** als Anhang, sofern WeasyPrint verfügbar (ADR 0089/
+    B3). Fasst den aktuellen + kommenden Monat zusammen."""
+    from ..models import NotificationSetting
+    from .notify import dispatch_event
+    today = today or date.today()
+    setting = NotificationSetting.for_event("bookings_overview")
+    if not setting.due_today(today):
+        return 0
+    m_from, _ = month_bounds(today.year, today.month)
+    ny, nm = next_month(today)
+    _, m_to = month_bounds(ny, nm)
+    allocs = list(arrivals_in_range(m_from, m_to))
+    body = bookings_text(allocs)
+    pdf, name = None, ""
+    if setting.attach_pdf:
+        try:
+            from .. import plan_pdf as pp
+            if pp.weasyprint_available():
+                pdf = pp.plan_pdf_bytes(today, 28, management=True)
+                name = f"belegungsplan-{today:%Y-%m-%d}.pdf"
+        except Exception:      # PDF ist Kür – Mail geht auch ohne
+            pdf, name = None, ""
+    dispatch_event("bookings_overview",
+                   {"month": f"{today.month:02d}–{nm:02d}/{today.year}", "body": body},
+                   attachment=pdf, attachment_name=name)
+    setting.last_run_on = today
+    setting.save(update_fields=["last_run_on"])
+    return len(allocs)
+
+
+def send_occupancy_overview(today=None) -> int:
+    """Regelmäßige Auslastungs-Übersicht je Unterkunft (mit Ziel-Ampel) an die
+    Verwaltung (ADR 0089/B3)."""
+    from ..models import NotificationSetting
+    from .notify import dispatch_event
+    today = today or date.today()
+    setting = NotificationSetting.for_event("occupancy_overview")
+    if not setting.due_today(today):
+        return 0
+    rows = quarter_occupancy_ampel(today.year, today.month)
+    amp = {"good": "🟢", "warn": "🟡", "bad": "🔴"}
+    lines = [f"- {r['quarter'].name}: {r['booked']}/{r['days']} Nächte "
+             f"({r['pct']} %) {amp.get(r['level'], '')}"
+             + (f" · Ziel {r['target']} %" if r.get("target") else "")
+             for r in rows]
+    dispatch_event("occupancy_overview",
+                   {"month": month_label(today.year, today.month),
+                    "body": "\n".join(lines) or "—"})
+    setting.last_run_on = today
+    setting.save(update_fields=["last_run_on"])
+    return len(rows)
+
+
+def send_overdue_overview(today=None) -> int:
+    """Regelmäßige Übersicht überfälliger Rechnungen an die Verwaltung (ADR 0089/B3)."""
+    from ..models import NotificationSetting
+    from .notify import dispatch_event
+    from shop import services as shop_svc
+    today = today or date.today()
+    setting = NotificationSetting.for_event("overdue_overview")
+    if not setting.due_today(today):
+        return 0
+    overdue = list(shop_svc.overdue_invoices().order_by("due_date", "number"))
+    lines = [f"- {i.number}: {i.recipient_label} · {i.total_gross} € · fällig "
+             f"{i.due_date:%d.%m.%Y}" for i in overdue]
+    dispatch_event("overdue_overview", {"body": "\n".join(lines) or "keine 🎉"})
+    setting.last_run_on = today
+    setting.save(update_fields=["last_run_on"])
+    return len(overdue)
+
+
+def send_lottery_reminder(today=None) -> int:
+    """Erinnert die Verwaltung, wenn eine Losung in ≤ `lead_days` ansteht – einmal je
+    Periode (ADR 0089/B3)."""
+    from ..models import BookingPeriod, NotificationSetting
+    from .notify import dispatch_event
+    today = today or date.today()
+    setting = NotificationSetting.for_event("lottery_reminder")
+    if not setting.enabled:
+        return 0
+    horizon = today + timedelta(days=setting.lead_days)
+    n = 0
+    for p in BookingPeriod.objects.filter(
+            draw_at__isnull=False, draw_at__date__gte=today,
+            draw_at__date__lte=horizon, bl_reminder_at__isnull=True):
+        draw_d = p.draw_at.date()
+        dispatch_event("lottery_reminder", {
+            "period": str(p), "lead_days": (draw_d - today).days,
+            "draw": f"{draw_d:%d.%m.%Y}"})
+        p.bl_reminder_at = today
+        p.save(update_fields=["bl_reminder_at"])
+        n += 1
+    return n
+
+
+def notify_booking_activity(alloc, *, action: str) -> None:
+    """Sofort-Meldung mit Dringlichkeit an die Verwaltung bei **kurzfristigen**
+    Buchungen/Stornos (Anreise ≤ short_notice_days, ADR 0089/B3). Länger entfernte
+    Vorgänge landen im wöchentlichen Digest (send_bookings_overview)."""
+    from .booking_ops import is_short_notice
+    from .notify import dispatch_event
+    if not is_short_notice(alloc.start):
+        return
+    verb = {"new": "Neue Buchung", "cancel": "Stornierung"}.get(action, action)
+    what = (f"{verb}: {alloc.quarter.name if alloc.quarter_id else '—'} "
+            f"{alloc.start:%d.%m.}–{alloc.end:%d.%m.} · {alloc.member.display_name}")
+    detail = (f"{alloc.persons} Pers. · Quelle {alloc.get_source_display()}"
+              if action == "new" else "Zeitraum wird wieder frei.")
+    dispatch_event("booking_activity_urgent", {"what": what, "detail": detail})
+
+
 def run_scheduled_notifications(today=None) -> dict:
     """Zentraler Scheduler-Einstiegspunkt für die geplanten Benachrichtigungen
     (ADR 0089). Erweiterbar: neue geplante Meldung = neue Zeile hier. Gibt je
     Meldung die Anzahl der betroffenen Einträge zurück."""
     today = today or date.today()
-    return {"status_warnings": send_status_warnings(today)}
+    return {
+        "status_warnings": send_status_warnings(today),
+        "bookings_overview": send_bookings_overview(today),
+        "occupancy_overview": send_occupancy_overview(today),
+        "overdue_overview": send_overdue_overview(today),
+        "lottery_reminder": send_lottery_reminder(today),
+    }

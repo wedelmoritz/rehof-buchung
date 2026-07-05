@@ -599,6 +599,13 @@ Erinnerung** vor der Losung an Mitglieder ohne eingereichten Wunsch;
 `services.send_wish_reminders`, idempotent je Stufe über
 `BookingPeriod.wish_reminder1_at/2_at`; Vorlauf konfigurierbar
 `BookingPolicy.wish_reminder_lead1/2`, Default 7/2 Tage, ADR 0080),
+`apply_member_status` (täglich, Ausscheide-Übergänge Login-Aus, ADR 0087),
+`send_notifications` (täglich, **geplante Verwaltungs-Benachrichtigungen** über das
+Framework `services.run_scheduled_notifications`, ADR 0089: Status-Vorwarnung,
+Buchungsübersicht+Plan-PDF, Auslastung+Ampel, überfällige Rechnungen, Los-Erinnerung –
+je Ereignis Frequenz/Empfänger/an-aus im Backend `NotificationSetting`; Buchung/Storno
+**≤ short_notice_days sofort** an die Verwaltung `notify_booking_activity`, sonst im
+Digest),
 `cleanup_data` (täglich, **DSGVO-Aufräumen**).
 **DSGVO/Datensparsamkeit (ADR 0043):** `cleanup_data` (Service
 `services.run_data_retention`, idempotent, im `run_scheduler` täglich) löscht/

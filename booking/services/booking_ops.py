@@ -108,6 +108,9 @@ def book_spontaneous(
         companions=V.strip_controls(companions, max_len=255),
         special_requests=V.strip_controls(special_requests, max_len=255),
     )
+    # Sofort-Meldung an die Verwaltung bei kurzfristiger Buchung (ADR 0089/B3).
+    from .dashboard import notify_booking_activity
+    notify_booking_activity(alloc, action="new")
     return alloc, None
 
 
@@ -415,6 +418,9 @@ def cancel_allocation(member: Member, allocation_id) -> tuple[bool, str | None]:
         return False, "Vergangene Buchungen können nicht storniert werden."
     quarter, start, end = a.quarter, a.start, a.end
     short = is_short_notice(start)
+    # Sofort-Meldung an die Verwaltung bei kurzfristigem Storno (vor dem Löschen).
+    from .dashboard import notify_booking_activity
+    notify_booking_activity(a, action="cancel")
     # Schlanken Storno-Nachweis anlegen, BEVOR die Buchung gelöscht wird (#30) –
     # damit das Mitglied in „Meine Buchungen“ sieht, dass sie wirklich raus ist.
     from ..models import CancellationLog, ForfeitedNights

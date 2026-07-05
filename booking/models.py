@@ -496,6 +496,8 @@ class BookingPeriod(models.Model):
         "1. Wunsch-Erinnerung versendet am", null=True, blank=True)
     wish_reminder2_at = models.DateTimeField(
         "2. Wunsch-Erinnerung versendet am", null=True, blank=True)
+    bl_reminder_at = models.DateField(
+        "Verwaltungs-Erinnerung (Losung steht an) am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Buchungsperiode (Jahr)"
