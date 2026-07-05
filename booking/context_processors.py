@@ -5,7 +5,17 @@ from .permissions import is_admin, is_verwaltung
 
 def roles(request):
     user = getattr(request, "user", None)
-    return {"is_admin": is_admin(user), "is_verwaltung": is_verwaltung(user)}
+    member = getattr(user, "member", None) if user is not None else None
+    # Mitgliedsstatus für die rollen-reine Navigation (ADR 0087): passive Mitglieder
+    # sehen keine Buchungs-Punkte; „Meine Buchungen"/„Übersicht" nur mit Buchungen.
+    can_book = bool(member and member.can_book)
+    is_passive = bool(member and member.is_passive)
+    member_has_bookings = bool(member and (can_book or member.has_bookings))
+    return {
+        "is_admin": is_admin(user), "is_verwaltung": is_verwaltung(user),
+        "can_book": can_book, "is_passive": is_passive,
+        "member_has_bookings": member_has_bookings,
+    }
 
 
 def legal(request):

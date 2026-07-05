@@ -49,11 +49,20 @@ Betriebs-Einstellungen freigeschaltet (ADR 0056/Umzug).{% endcomment %}
     <p class="rehof-roles"><strong>Zwei Rollen:</strong>
       <strong>Backend (hier)</strong> = <em>Admin/Superuser</em> – Stammdaten,
       Buchungen ändern, Losung starten.
-      <strong>Verwaltung</strong> = Mitglieder der Gruppe „Verwaltung“ – nur das
+      <strong>Verwaltung</strong> = Mitglieder der <strong>Rolle „Verwaltung“</strong> – nur das
       operative Dashboard unter <a href="/verwaltung/">/verwaltung/</a> (Buchungen/
       Losung ansehen + Hofladen-Katalog pflegen), <em>kein</em> Backend. Eine Person
       bekommt die Verwaltungs-Rolle, indem du sie unter <strong>Benutzer</strong> der
-      <strong>Gruppe „Verwaltung“</strong> hinzufügst.</p>
+      <strong>Rolle „Verwaltung“</strong> hinzufügst (Rollen = frühere „Gruppen“).</p>
+
+    <p class="rehof-tip">🚪 <strong>Mitglied passivieren / ausscheiden</strong> (am
+      <strong>Benutzer</strong>, Abschnitt „Mitgliedsstatus“): <strong>1.</strong>
+      „<em>Passiv ab</em>“ setzen → ab dem Datum <strong>keine neuen Buchungen</strong>
+      mehr (Hofladen &amp; Login bleiben, bestehende Buchungen bleiben).
+      <strong>2.</strong> „<em>Ausgeschieden ab</em>“ setzen → ab dem Datum
+      <strong>Login aus</strong>. Liegt das Ausscheide-Datum <em>vor</em> bestehenden
+      Buchungen, musst du das Löschen dieser Buchungen ausdrücklich freigeben – sonst
+      wird das Datum abgelehnt. Leeren = rückgängig.</p>
 
     <p>Im <strong>Backend</strong> pflegst du die <strong>Stammdaten</strong>
       (Personen, Anteile, Quartiere, Regeln, Perioden, Hofladen). Das

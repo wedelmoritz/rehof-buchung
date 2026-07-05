@@ -18,7 +18,7 @@ from .models import (
     ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
     NightTransfer, DayPoolEntry,
     Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterBlock,
-    QuarterPrice, SchoolHoliday,
+    QuarterPrice, Rolle, SchoolHoliday,
     SeasonRule, Share, SwapRequest, TerminalConfig, UpcomingAllocation,
     WaitlistEntry, Wish,
 )
@@ -154,17 +154,62 @@ class QuarterBlockAdmin(admin.ModelAdmin):
 # Benutzer (Person + Login + Mitglieds-Profil in EINEM Formular)
 # --------------------------------------------------------------------------- #
 
+from django import forms as _dj_forms
+
+
+class MemberProfileForm(_dj_forms.ModelForm):
+    """Mitglieds-Profil-Formular mit dem **Ausscheide-Workflow** (ADR 0087):
+    Wird ein „Ausgeschieden ab"-Datum gesetzt, das **vor** bestehenden Buchungen
+    liegt, muss die Verwaltung ausdrücklich bestätigen, dass diese Buchungen
+    gelöscht werden – sonst wird das Ausscheide-Datum abgelehnt."""
+    delete_future_bookings = _dj_forms.BooleanField(
+        required=False, label="Zukünftige Buchungen beim Ausscheiden löschen",
+        help_text="Nur ankreuzen, wenn das Ausscheide-Datum vor bestehenden "
+                  "Buchungen liegt und diese wirklich storniert werden sollen.")
+
+    class Meta:
+        model = Member
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        exc = cleaned.get("excluded_from")
+        inst = self.instance
+        if exc and inst and inst.pk:
+            future = inst.allocations.filter(start__gte=exc, provisional=False)
+            n = future.count()
+            if n and not cleaned.get("delete_future_bookings"):
+                raise _dj_forms.ValidationError({"excluded_from": (
+                    f"{n} bestehende Buchung(en) liegen am/nach dem Ausscheide-Datum. "
+                    "Zum Ausscheiden bitte „Zukünftige Buchungen beim Ausscheiden "
+                    "löschen“ ankreuzen – oder ein späteres Datum wählen.")})
+        return cleaned
+
+    def save(self, commit=True):
+        obj = super().save(commit=commit)
+        # Beim Ausscheiden ausdrücklich freigegebene Zukunftsbuchungen stornieren
+        # (gibt Quartier/Warteliste frei – über den normalen Storno-Service).
+        if (obj.pk and obj.excluded_from
+                and self.cleaned_data.get("delete_future_bookings")):
+            from .services import cancel_allocation
+            for a in list(obj.allocations.filter(
+                    start__gte=obj.excluded_from, provisional=False)):
+                cancel_allocation(obj, a.id)
+        return obj
+
+
 class MemberProfileInline(admin.StackedInline):
     """Das Mitglieds-Profil dieses Benutzers: Anzeigename, Ausgleichsfaktor und
     die Rechnungsdaten. Ohne ausgefülltes Profil kann die Person nicht buchen
     (reine Verwaltungs-Konten brauchen es nicht)."""
     model = Member
+    form = MemberProfileForm
     can_delete = False
     extra = 1
     max_num = 1
     verbose_name = "Mitglieds-Profil"
     verbose_name_plural = "Mitglieds-Profil (zum Buchen nötig)"
-    readonly_fields = ("anteile_uebersicht",)
+    readonly_fields = ("anteile_uebersicht", "status_anzeige")
     fieldsets = (
         ("Buchungs-Profil", {
             "fields": ("display_name", "factor", "is_external", "anteile_uebersicht"),
@@ -188,7 +233,31 @@ class MemberProfileInline(admin.StackedInline):
                 "Profil; ohne PIN erscheint sie nicht am Terminal. Die Person kann das "
                 "auch selbst im Profil ausschalten."),
         }),
+        ("Mitgliedsstatus (Passivierung / Ausscheiden)", {
+            "fields": ("status_anzeige", "passive_from", "excluded_from",
+                       "delete_future_bookings"),
+            "description": (
+                "<b>Ablauf beim Ausscheiden (bitte in dieser Reihenfolge):</b><br>"
+                "1) <b>Passiv ab</b> setzen: ab dem Datum kann die Person <b>nicht mehr "
+                "buchen</b> (Wunschliste/Losung/Spontanbuchung gesperrt); <b>Hofladen "
+                "und Login bleiben</b>, bestehende Buchungen bleiben. „Meine Buchungen“/"
+                "„Übersicht“ sieht sie nur noch, wenn Buchungen bestehen.<br>"
+                "2) <b>Ausgeschieden ab</b> setzen: ab dem Datum wird das <b>Login "
+                "deaktiviert</b> (ein täglicher Lauf schaltet es zum Datum ab).<br>"
+                "<b>Wichtig:</b> Liegt das Ausscheide-Datum <b>vor</b> bestehenden "
+                "Buchungen, verlangt das Formular die ausdrückliche Freigabe "
+                "„Zukünftige Buchungen … löschen“ – sonst wird das Datum abgelehnt. "
+                "Leer lassen = Mitglied bleibt aktiv. Rückgängig = Datum wieder leeren."),
+        }),
     )
+
+    @admin.display(description="Aktueller Status")
+    def status_anzeige(self, obj):
+        if obj is None or obj.pk is None:
+            return "—"
+        label = {"active": "aktiv", "passive": "passiv (bucht nicht)",
+                 "excluded": "ausgeschieden (Login aus)"}[obj.status]
+        return label
 
     @admin.display(description="Mitglieds-Anteil(e)")
     def anteile_uebersicht(self, obj):
@@ -221,6 +290,49 @@ class MemberProfileInline(admin.StackedInline):
 
 
 admin.site.unregister(User)
+
+# „Gruppe" → „Rolle" (ADR 0087): die eingebaute Group-Registrierung durch unser
+# Proxy-Modell mit dem Label „Rolle" ersetzen – gleiche Funktion, klarerer Begriff.
+from django.contrib.auth.admin import GroupAdmin as _DjGroupAdmin
+from django.contrib.auth.models import Group as _AuthGroup
+try:  # pragma: no cover - je nach Autodiscovery evtl. schon/nicht registriert
+    admin.site.unregister(_AuthGroup)
+except admin.sites.NotRegistered:
+    pass
+
+
+@admin.register(Rolle)
+class RolleAdmin(_DjGroupAdmin):
+    """Rollen (= Django-Gruppen unter neuem Namen). Die Rolle „Verwaltung" gibt
+    Zugang zum Verwaltungs-Dashboard (ADR 0087/0014)."""
+
+
+class MemberStatusFilter(admin.SimpleListFilter):
+    """Mitgliedsstatus als **oberster** Filter (wichtiger als der Mitarbeiter-
+    Status, #71/ADR 0087) – aktiv/passiv/ausgeschieden, abgeleitet aus den Daten."""
+    title = "Mitgliedsstatus"
+    parameter_name = "mstatus"
+
+    def lookups(self, request, model_admin):
+        return [("active", "aktiv"), ("passive", "passiv"),
+                ("excluded", "ausgeschieden"), ("none", "ohne Mitglieds-Profil")]
+
+    def queryset(self, request, qs):
+        from datetime import date
+        today = date.today()
+        v = self.value()
+        if v == "none":
+            return qs.filter(member__isnull=True)
+        if v == "excluded":
+            return qs.filter(member__excluded_from__lte=today)
+        if v == "passive":
+            return (qs.filter(member__passive_from__lte=today)
+                    .exclude(member__excluded_from__lte=today))
+        if v == "active":
+            return (qs.filter(member__isnull=False)
+                    .exclude(member__passive_from__lte=today)
+                    .exclude(member__excluded_from__lte=today))
+        return qs
 
 
 from django import forms
@@ -261,8 +373,19 @@ class UserAdmin(VersionAdmin, DjangoUserAdmin):
     inlines = [MemberProfileInline]
     actions = ["send_invite_selected", "anonymize_selected"]
     # E-Mail in der Liste zeigen; beim Anlegen abfragen (Pflicht, ohne Passwort).
-    list_display = ("username", "email", "first_name", "last_name", "is_staff")
+    list_display = ("username", "email", "first_name", "last_name",
+                    "mitgliedsstatus")
+    # Mitgliedsstatus als OBERSTER Filter (#71/ADR 0087), dann Login-Status/Rolle.
+    list_filter = (MemberStatusFilter, "is_active", "groups", "is_superuser")
     search_fields = ("username", "email", "first_name", "last_name")
+
+    @admin.display(description="Mitgliedsstatus")
+    def mitgliedsstatus(self, obj):
+        m = getattr(obj, "member", None)
+        if m is None:
+            return "—"
+        return {"active": "aktiv", "passive": "passiv",
+                "excluded": "ausgeschieden"}[m.status]
     add_form = AdminUserInviteForm
     add_fieldsets = (
         (None, {

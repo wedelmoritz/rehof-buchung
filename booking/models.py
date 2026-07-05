@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.db import models
 
 
@@ -231,6 +231,18 @@ class Member(models.Model):
     # auch eine evtl. gesetzte PIN inaktiv).
     terminal_enabled = models.BooleanField("Hofladen-Terminal erlaubt", default=True)
     terminal_pin = models.CharField("Terminal-PIN (gehasht)", max_length=128, blank=True)
+    # Mitgliedsstatus (datumsgesteuert, ADR 0087). Leer = aktiv. Ab `passive_from`
+    # gilt „passiv" (Login/Hofladen an, KEINE neuen Buchungen/Wünsche, bestehende
+    # bleiben). Ab `excluded_from` gilt „ausgeschieden" (Login deaktiviert; ein
+    # täglicher Scheduler-Schritt setzt dann User.is_active=False).
+    passive_from = models.DateField(
+        "Passiv ab", null=True, blank=True,
+        help_text="Ab diesem Datum kann das Mitglied nicht mehr buchen "
+                  "(Hofladen/Login bleiben). Leer = aktiv.")
+    excluded_from = models.DateField(
+        "Ausgeschieden ab", null=True, blank=True,
+        help_text="Ab diesem Datum ist das Konto deaktiviert (Login aus). "
+                  "Bestehende Buchungen nach diesem Datum müssen vorher gelöst werden.")
 
     def set_terminal_pin(self, pin: str) -> None:
         from django.contrib.auth.hashers import make_password
@@ -243,6 +255,36 @@ class Member(models.Model):
     @property
     def terminal_ready(self) -> bool:
         return self.terminal_enabled and bool(self.terminal_pin)
+
+    def status_on(self, on_date=None) -> str:
+        """Effektiver Mitgliedsstatus zu einem Stichtag: ``'active'`` · ``'passive'``
+        · ``'excluded'`` (datumsgesteuert, ADR 0087)."""
+        from datetime import date as _date
+        d = on_date or _date.today()
+        if self.excluded_from and d >= self.excluded_from:
+            return "excluded"
+        if self.passive_from and d >= self.passive_from:
+            return "passive"
+        return "active"
+
+    @property
+    def status(self) -> str:
+        return self.status_on()
+
+    @property
+    def can_book(self) -> bool:
+        """Nur aktive Mitglieder dürfen neu buchen / Wünsche eintragen."""
+        return self.status == "active"
+
+    @property
+    def is_passive(self) -> bool:
+        return self.status == "passive"
+
+    @property
+    def has_bookings(self) -> bool:
+        """Ob (aktuell oder historisch) Buchungen bestehen – steuert, ob passive
+        Mitglieder „Meine Buchungen"/„Übersicht" in der Navigation sehen."""
+        return self.allocations.filter(provisional=False).exists()
 
     class Meta:
         verbose_name = "Nutzer-Konto"
@@ -1526,3 +1568,14 @@ class Beds24ImportRow(models.Model):
     def valid(self) -> bool:
         return bool(self.guest_name and self.arrival and self.departure
                     and self.departure > self.arrival)
+
+
+class Rolle(Group):
+    """Nur ein anderer NAME für Djangos Gruppe (ADR 0087): im Backend heißt das
+    Konzept „Rolle" (z. B. die Rolle „Verwaltung"), nicht „Gruppe". Reines
+    Proxy-Modell – kein Datenumbau, keine Migration nötig; die zugrunde liegende
+    `auth.Group` bleibt unverändert."""
+    class Meta:
+        proxy = True
+        verbose_name = "Rolle"
+        verbose_name_plural = "Rollen"

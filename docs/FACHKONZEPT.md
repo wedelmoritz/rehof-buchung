@@ -410,15 +410,32 @@ und Kassenfrage vor Go-Live mit Steuerberatung klären – keine Rechtsberatung.
 ## 14. Rollen & Rechte
 
 - **Mitglied** – bucht, pflegt sein Profil, sieht eigene Buchungen/Rechnungen.
-- **Verwaltung** (Gruppe „Verwaltung") – nur das operative **Dashboard**
+- **Verwaltung** (Rolle „Verwaltung") – nur das operative **Dashboard**
   (`/verwaltung/`): Buchungen/Losung **lesend**, Reinigungs-/Buchungslisten,
   Rechnungen mahnen, Kontoabgleich, Hofladen-Katalog pflegen. **Kein** Backend.
 - **Admin** (Superuser) – volles **Backend** (`/admin/`): Stammdaten, Buchungen
   ändern, **Losung starten/bestätigen/zurücknehmen**.
 - **Gast** (extern) – ohne Konto, Zugriff nur auf die eigene Buchung per Magic-Link.
 
-Eine Person erhält die Verwaltungs-Rolle, indem sie der Gruppe „Verwaltung"
-zugeordnet wird. Admin = Django-Superuser.
+Eine Person erhält die Verwaltungs-Rolle, indem sie der **Rolle „Verwaltung"**
+zugeordnet wird (im Backend heißen Djangos „Gruppen" durchgängig **„Rollen"**,
+ADR 0087). Admin = Django-Superuser. „Admin" und „Mitglied" sind **keine** Rollen im
+Gruppen-Sinn: Admin = Superuser-Flag, Mitglied = vorhandenes Buchungs-Profil – ein
+Superuser ist daher immer auch Verwaltung.
+
+**Mitgliedsstatus (aktiv/passiv/ausgeschieden, ADR 0087).** Datumsgesteuert über
+„Passiv ab" / „Ausgeschieden ab" am Benutzer (Backend):
+- **aktiv** – normaler Zugang.
+- **passiv** – Login und Hofladen bleiben, **neue Buchungen/Wünsche/Losung sind
+  gesperrt**, bestehende Buchungen bleiben. „Meine Buchungen"/„Übersicht" erscheinen
+  nur, wenn Buchungen bestehen.
+- **ausgeschieden** – Login deaktiviert (ein täglicher Lauf schaltet es zum Datum ab).
+
+**Ausscheide-Ablauf (Verwaltung/Backend):** erst „Passiv ab", dann „Ausgeschieden
+ab" setzen. Liegt das Ausscheide-Datum **vor** bestehenden Buchungen, muss das Löschen
+dieser Buchungen ausdrücklich freigegeben werden – sonst wird das Datum abgelehnt
+(die Buchungen bleiben erhalten). Der Mitgliedsstatus ist im Benutzer-Backend der
+**oberste Filter**.
 
 **Konto-Anlage:** Vom Backend oder per Beds24-Import angelegte Benutzer **vergeben
 ihr Passwort selbst** über einen Einladungs-Link per E-Mail – Admins setzen kein
