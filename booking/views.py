@@ -158,8 +158,10 @@ def overview(request):
             color_map[mid] = MEMBER_COLORS[len(color_map) % len(MEMBER_COLORS)]
         return color_map[mid]
 
-    # Tape-Chart-Achse: Startdatum (Default heute) + Bereich 1/2/4 Wochen (#41).
-    anchor = _parse_date(request.GET.get("from")) or today
+    # Tape-Chart-Achse: Startdatum + Bereich 1/2/4 Wochen (#41). Default ist der
+    # **Vortag** (heute − 1), damit der Belegungs-Übergang (gestern → heute) direkt
+    # sichtbar ist; ein explizites `from`/„Heute" nutzt weiterhin genau dieses Datum.
+    anchor = _parse_date(request.GET.get("from")) or (today - timedelta(days=1))
     try:
         weeks = int(request.GET.get("weeks", 2))
     except (TypeError, ValueError):
