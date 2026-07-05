@@ -94,5 +94,5 @@ __all__ = [
     'block_min_notice_days', 'max_compensation_days', 'block_conflicts',
     'block_within_notice', 'suggest_block_window', 'relocation_options',
     'create_quarter_block', 'propose_relocation', 'respond_relocation',
-    'cancel_with_apology', 'pending_relocation_requests',
+    'cancel_with_apology', 'pending_relocation_requests', 'count_relocations_needed',
 ]

@@ -1439,8 +1439,9 @@ def dashboard(request):
                     if i.paid_online_at and i.paid_online_at.year == year
                     and i.paid_online_at.month == month]
     ctx = _verw_nav_ctx(request, today, year, month)
+    service_requests = list(shop_svc.pending_service_requests())
     ctx.update({
-        "service_requests": list(shop_svc.pending_service_requests()),
+        "service_requests": service_requests,
         "overdue": overdue[:8], "overdue_count": len(overdue),
         "overdue_sum": sum((i.total_gross for i in overdue), Decimal(0)),
         "activity": svc.recent_booking_activity(7),
@@ -1448,6 +1449,22 @@ def dashboard(request):
                 "open": len(open_inv),
                 "open_sum": sum((i.total_gross for i in open_inv), Decimal(0)),
                 "overdue": len(overdue), "online": len(online_month)},
+        # Mobiles Bereiche-Raster (nur ≤720px sichtbar): direkter Sprung zu allen
+        # Verwaltungs-Unterseiten, mit „Handlungsbedarf"-Badges an den relevanten.
+        "tiles": [
+            {"url": "verw_buchungen", "label": "Buchungen", "icon": "ic-mybookings"},
+            {"url": "verw_reinigung", "label": "Reinigung", "icon": "ic-clean",
+             "badge": len(service_requests), "level": "warn"},
+            {"url": "verw_sperrzeiten", "label": "Sperrzeiten", "icon": "ic-lock",
+             "badge": svc.count_relocations_needed(today), "level": "warn"},
+            {"url": "verw_rechnungen", "label": "Rechnungen", "icon": "ic-invoices",
+             "badge": len(overdue), "level": "bad"},
+            {"url": "verw_konto", "label": "Kontoabgleich", "icon": "ic-bank"},
+            {"url": "verw_auslastung", "label": "Auslastung", "icon": "ic-community"},
+            {"url": "verw_mitglieder", "label": "Mitglieder", "icon": "ic-profile"},
+            {"url": "verw_rundnachricht", "label": "Rundnachricht", "icon": "ic-mail"},
+            {"url": "dashboard_products", "label": "Hofladen-Katalog", "icon": "ic-shop"},
+        ],
     })
     return render(request, "booking/verw_dashboard.html", ctx)
 

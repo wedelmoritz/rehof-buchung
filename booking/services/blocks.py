@@ -25,6 +25,7 @@ __all__ = [
     "block_within_notice", "suggest_block_window", "relocation_options",
     "create_quarter_block", "propose_relocation", "respond_relocation",
     "cancel_with_apology", "pending_relocation_requests",
+    "count_relocations_needed",
 ]
 
 _BLOCK_MSG = (
@@ -236,6 +237,21 @@ def pending_relocation_requests(member):
     return list(member.relocation_requests.filter(
         status=RelocationRequest.PROPOSED)
         .select_related("from_quarter", "to_quarter", "allocation"))
+
+
+def count_relocations_needed(today: date | None = None) -> int:
+    """Anzahl der Buchungen, die aktuell mit einer (künftigen) Sperrzeit kollidieren –
+    also noch umgebucht oder storniert-entschuldigt werden müssen (Badge fürs
+    Dashboard). Angenommene Umbuchungen zählen nicht mehr (die Buchung ist dann aus
+    dem gesperrten Quartier heraus)."""
+    today = today or date.today()
+    n = 0
+    for b in QuarterBlock.objects.filter(end__gte=today).only(
+            "quarter_id", "start", "end"):
+        n += Allocation.objects.filter(
+            quarter_id=b.quarter_id, start__lt=b.end, end__gt=b.start,
+            provisional=False).count()
+    return n
 
 
 def _notify_staff(text: str) -> None:

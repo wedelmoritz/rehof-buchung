@@ -58,6 +58,34 @@
     background:var(--line); overflow:hidden; vertical-align:middle; margin-right:.35rem; }
   .occbar span { display:block; height:100%; background:var(--sage-deep); border-radius:999px; }
   .amp { font-size:1rem; }
+  /* Mobiler Schnellzugriff auf die Verwaltungs-Bereiche (nur ≤720px; Desktop hat
+     die Seitenleiste). Tap-freundliches Kachelraster mit Handlungsbedarf-Badges. */
+  .verw-tiles { display:none; }
+  @media (max-width:720px){
+    .verw-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:.55rem; margin:.2rem 0 1.1rem; }
+    .verw-tile { position:relative; display:flex; flex-direction:column;
+      align-items:center; justify-content:flex-start; gap:.4rem; text-align:center;
+      min-height:5.1rem; padding:.7rem .4rem; border:1px solid var(--line);
+      border-radius:14px; background:var(--card); color:var(--ink);
+      text-decoration:none; -webkit-tap-highlight-color:transparent;
+      transition:transform .06s ease, border-color .12s ease, background .12s ease; }
+    .verw-tile:active { transform:scale(.97); background:var(--accent-soft);
+      border-color:var(--accent); }
+    .verw-tile .vt-icon { position:relative; display:flex; }
+    .verw-tile .vt-ic { width:26px; height:26px; fill:none; stroke:var(--accent-deep);
+      stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .verw-tile .vt-label { font-size:.78rem; font-weight:600; line-height:1.15;
+      overflow-wrap:anywhere; }
+    .verw-tile .vt-badge { position:absolute; top:-7px; right:-11px; min-width:1.15rem;
+      height:1.15rem; padding:0 .28rem; border-radius:999px; background:var(--sage-deep);
+      color:#fff; font-size:.68rem; font-weight:800; line-height:1.15rem;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 0 0 2px var(--card); }
+    .verw-tile .vt-badge.warn { background:var(--warn); }
+    .verw-tile .vt-badge.bad { background:var(--bad); }
+    .verw-tile.has-badge { border-color:var(--warn); }
+  }
   /* Handlungsbedarf-Dashboard: Aktions-Kacheln */
   /* Zwei schmale Karten nebeneinander, die dritte (Buchungs-Aktivität) spannt die
      volle Breite → mehr Platz für mehr Spalten. Am Handy alles einspaltig. */

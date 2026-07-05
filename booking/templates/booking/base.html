@@ -443,6 +443,8 @@
     <symbol id="ic-clean" viewBox="0 0 24 24"><path d="M9 8h5v12H9z"/><path d="M9 8V5h3v3M12 5V3h4v2l-2 1"/><path d="M11 12h1"/></symbol>
     <symbol id="ic-bank" viewBox="0 0 24 24"><path d="M3 9l9-5 9 5H3z"/><path d="M5 9v8M10 9v8M14 9v8M19 9v8"/><path d="M3 20h18"/></symbol>
     <symbol id="ic-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    {# Rundnachricht: Umschlag (Nachricht an eine Rolle). #}
+    <symbol id="ic-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
   </defs></svg>
 
   <aside class="sidenav" aria-label="Hauptnavigation">
@@ -488,7 +490,7 @@
       <a href="{% url 'verw_konto' %}" class="subnav {% if url_name == 'verw_konto' %}active{% endif %}" title="Kontoabgleich"><svg class="nav-ic"><use href="#ic-bank"/></svg><span class="nav-label">Kontoabgleich</span></a>
       <a href="{% url 'verw_auslastung' %}" class="subnav {% if url_name == 'verw_auslastung' %}active{% endif %}" title="Auslastung"><svg class="nav-ic"><use href="#ic-community"/></svg><span class="nav-label">Auslastung</span></a>
       <a href="{% url 'verw_mitglieder' %}" class="subnav {% if url_name == 'verw_mitglieder' %}active{% endif %}" title="Mitglieder"><svg class="nav-ic"><use href="#ic-profile"/></svg><span class="nav-label">Mitglieder</span></a>
-      <a href="{% url 'verw_rundnachricht' %}" class="subnav {% if url_name == 'verw_rundnachricht' %}active{% endif %}" title="Rundnachricht"><svg class="nav-ic"><use href="#ic-community"/></svg><span class="nav-label">Rundnachricht</span></a>
+      <a href="{% url 'verw_rundnachricht' %}" class="subnav {% if url_name == 'verw_rundnachricht' %}active{% endif %}" title="Rundnachricht"><svg class="nav-ic"><use href="#ic-mail"/></svg><span class="nav-label">Rundnachricht</span></a>
       <a href="{% url 'dashboard_products' %}" class="subnav {% if url_name == 'dashboard_products' %}active{% endif %}" title="Hofladen-Katalog"><svg class="nav-ic"><use href="#ic-shop"/></svg><span class="nav-label">Hofladen-Katalog</span></a>
       {% endif %}
       {% if is_admin %}<a href="/admin/" title="Backend (Stammdaten)"><svg class="nav-ic"><use href="#ic-backend"/></svg><span class="nav-label">Backend</span></a>{% endif %}
@@ -534,7 +536,7 @@
       <a href="{% url 'verw_konto' %}" class="{% if url_name == 'verw_konto' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Kontoabgleich</a>
       <a href="{% url 'verw_auslastung' %}" class="{% if url_name == 'verw_auslastung' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-community"/></svg>Auslastung</a>
       <a href="{% url 'verw_mitglieder' %}" class="{% if url_name == 'verw_mitglieder' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-profile"/></svg>Mitglieder</a>
-      <a href="{% url 'verw_rundnachricht' %}" class="{% if url_name == 'verw_rundnachricht' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-community"/></svg>Rundnachricht</a>
+      <a href="{% url 'verw_rundnachricht' %}" class="{% if url_name == 'verw_rundnachricht' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-mail"/></svg>Rundnachricht</a>
       <a href="{% url 'dashboard_products' %}" class="{% if url_name == 'dashboard_products' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-shop"/></svg>Hofladen-Katalog</a>
       {% endif %}
       {% if is_admin %}<a href="/admin/"><svg class="nav-ic"><use href="#ic-backend"/></svg>Backend</a>{% endif %}

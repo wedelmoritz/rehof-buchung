@@ -36,6 +36,21 @@
     <span class="lbl">online bezahlt<br>{{ month_label }}</span></div>
 </div>
 
+{% comment %}Mobile-only Schnellzugriff auf alle Verwaltungs-Bereiche (Desktop hat die
+Seitenleiste). Badges zeigen offenen Handlungsbedarf.{% endcomment %}
+<nav class="verw-tiles" aria-label="Verwaltungs-Bereiche">
+  {% for t in tiles %}
+  <a href="{% url t.url %}" class="verw-tile{% if t.badge %} has-badge{% endif %}"
+     {% if t.badge %}aria-label="{{ t.label }} – {{ t.badge }} offen"{% endif %}>
+    <span class="vt-icon">
+      <svg class="vt-ic" aria-hidden="true"><use href="#{{ t.icon }}"/></svg>
+      {% if t.badge %}<span class="vt-badge {{ t.level }}">{{ t.badge }}</span>{% endif %}
+    </span>
+    <span class="vt-label">{{ t.label }}</span>
+  </a>
+  {% endfor %}
+</nav>
+
 <h2 style="margin:.4rem 0 .6rem">Jetzt handeln</h2>
 <div class="hb-grid">
 
