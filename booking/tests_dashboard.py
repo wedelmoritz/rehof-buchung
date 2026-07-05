@@ -88,11 +88,13 @@ class DashboardTests(TestCase):
         # Verwaltung sieht Name + E-Mail; IBAN wird NICHT gelistet.
         self.member.iban = "DE02120300000000202051"
         self.member.city = "Musterstadt"
-        self.member.save(update_fields=["iban", "city"])
+        self.member.phone = "0170 1234567"
+        self.member.save(update_fields=["iban", "city", "phone"])
         self.client.force_login(self.staff.user)
         html = self.client.get(reverse("verw_mitglieder")).content.decode()
         self.assertIn("Anna", html)
         self.assertIn("anna@example.org", html)
+        self.assertIn("0170 1234567", html)   # Telefon sichtbar (#65-Nachtrag)
         self.assertNotIn(self.member.iban, html)
         # Suche grenzt ein: Chefs E-Mail (nur im Tabellen-mailto) verschwindet.
         only = self.client.get(reverse("verw_mitglieder") + "?q=Musterstadt").content.decode()

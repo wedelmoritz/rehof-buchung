@@ -1,0 +1,40 @@
+{% extends "booking/verw_base.html" %}
+{% block verw_title %}Rundnachricht · Verwaltung{% endblock %}
+{% block verw_h1 %}Rundnachricht &amp; Verteiler{% endblock %}
+
+{% block verw_body %}
+<div class="card">
+  <h2 style="margin-top:0">Nachricht an eine Rolle senden</h2>
+  <p class="muted" style="margin:.2rem 0 .8rem">Erreicht die gewählte Rolle als
+    <strong>In-App-Benachrichtigung</strong> und – wo eine Adresse hinterlegt ist und
+    E-Mails nicht abbestellt sind – zusätzlich per <strong>E-Mail</strong> und
+    <strong>Push</strong>. Für Losnachrichten &amp; Ankündigungen.</p>
+  <form method="post" class="inline-form" style="flex-direction:column; align-items:stretch; gap:.7rem; max-width:44rem"
+        data-confirm="Rundnachricht jetzt an die gewählte Rolle senden?">{% csrf_token %}
+    <input type="hidden" name="action" value="broadcast">
+    <label>Zielgruppe
+      <select name="audience" required>
+        {% for a in audiences %}<option value="{{ a.key }}">{{ a.label }} ({{ a.count }})</option>{% endfor %}
+      </select></label>
+    <label>Betreff
+      <input type="text" name="subject" maxlength="160" required
+             style="padding:.5rem .6rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink)"></label>
+    <label>Text
+      <textarea name="body" rows="6" maxlength="4000" required
+                style="padding:.5rem .6rem; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink)"></textarea></label>
+    <div><button class="btn small" type="submit">Senden</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Empfänger-Export (externe Verteilerlisten)</h2>
+  <p class="muted" style="margin:.2rem 0 .8rem">Für rollen-adressierte Mailinglisten
+    (z. B. <code>mitglieder@…</code>) beim Mailprovider: hier die aktuelle Empfänger-Liste
+    je Rolle als CSV exportieren und in die externe Gruppe importieren (ADR 0090).</p>
+  <div class="actions">
+    {% for a in audiences %}
+    <a class="btn small ghost" href="?export={{ a.key }}">{{ a.label }} ({{ a.count }}) · CSV</a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

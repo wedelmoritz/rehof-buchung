@@ -96,6 +96,12 @@ def run_data_retention(now=None) -> dict:
     n, _ = Wish.objects.filter(period__target_year__lte=max_year).delete()
     counts["wishes"] = n
 
+    # B7b: Kurzfrist-Verwirkungen vergangener Jahre (ADR 0088) – wirken nur aufs
+    #      Kontingent ihres Jahres; ältere sind gegenstandslos.
+    from ..models import ForfeitedNights
+    n, _ = ForfeitedNights.objects.filter(year__lt=now.year).delete()
+    counts["forfeited_nights"] = n
+
     # C1: abgelaufene Sessions (entspricht `clearsessions`).
     n, _ = Session.objects.filter(expire_date__lt=now).delete()
     counts["sessions"] = n

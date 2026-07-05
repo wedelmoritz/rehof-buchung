@@ -132,6 +132,31 @@ class BookingWindowTests(BaseData):
         self.assertIn("belegt", err)
 
 
+class UnavailableQuartersTests(BaseData):
+    """B6/ADR 0092: nicht-buchbare Quartiere werden mit Grund ausgewiesen."""
+
+    def test_saison_gibt_grund_mit_zeitraum(self):
+        release_period("global", date(YEAR, 1, 1), date(YEAR + 1, 1, 1))
+        # Q1 nur im Juni buchbar.
+        self.q1.season_start_month, self.q1.season_start_day = 6, 1
+        self.q1.season_end_month, self.q1.season_end_day = 6, 30
+        self.q1.save()
+        may = date(YEAR, 5, 10)
+        rows = svc.unavailable_quarters_for_range(may, may + timedelta(days=3))
+        by_q = {q.id: reason for q, reason in rows}
+        self.assertIn(self.q1.id, by_q)                 # Q1 wegen Saison ausgegraut
+        self.assertIn("saisonal", by_q[self.q1.id].lower())
+        self.assertIn("01.06.", by_q[self.q1.id])       # Saison-Zeitraum im Text
+        self.assertNotIn(self.q2.id, by_q)              # Q2 ganzjährig -> nicht hier
+
+    def test_nicht_freigeschaltet_gibt_grund(self):
+        # Keine Periode freigegeben -> alle aktiven Quartiere nicht verfügbar.
+        may = date(YEAR, 5, 10)
+        rows = svc.unavailable_quarters_for_range(may, may + timedelta(days=3))
+        reasons = {reason for _q, reason in rows}
+        self.assertTrue(any("freigeschaltet" in r for r in reasons))
+
+
 class NightTransferTests(BaseData):
     def setUp(self):
         super().setUp()

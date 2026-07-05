@@ -1,0 +1,219 @@
+"""Tests fürs Benachrichtigungs-Framework (ADR 0089): Katalog-Rendering (SSTI-frei),
+Dispatcher, geplante Status-Vorwarnung."""
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+from django.contrib.auth.models import User
+from django.test import TestCase, override_settings
+from django.urls import reverse
+
+from booking.models import (
+    Member, NotificationSetting, Notification, OpsConfig, OutboxEmail,
+)
+from booking.notify_catalog import render
+from booking import services as svc
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class NotificationFrameworkTests(TestCase):
+    def setUp(self):
+        OpsConfig.objects.all().delete()
+        OpsConfig.objects.create(admin_emails="office@example.org")
+
+    def _member(self, name, **kw):
+        u = User.objects.create_user(name, f"{name}@example.org", "x" * 12)
+        return Member.objects.create(user=u, display_name=name, **kw)
+
+    def test_render_ist_ssti_frei(self):
+        # $-Ausdrücke im Kontext werden NICHT als Vorlage interpretiert (nur Daten).
+        subj, body = render("announcement",
+                             {"subject": "Hallo", "body": "Wert=$geheim"})
+        self.assertIn("Hallo", subj)
+        self.assertIn("Wert=$geheim", body)   # unverändert eingesetzt, nicht ausgewertet
+
+    def test_dispatch_ops_geht_an_verwaltung(self):
+        OutboxEmail.objects.all().delete()
+        svc.dispatch_event("overdue_overview", {"body": "Rechnung HL-1"})
+        self.assertTrue(OutboxEmail.objects.filter(
+            to_email="office@example.org", subject__icontains="Überfällige").exists())
+
+    def test_dispatch_respektiert_aus_schalter(self):
+        OutboxEmail.objects.all().delete()
+        s = NotificationSetting.for_event("overdue_overview")
+        s.enabled = False
+        s.save(update_fields=["enabled"])
+        self.assertIsNone(svc.dispatch_event("overdue_overview", {"body": "x"}))
+        self.assertFalse(OutboxEmail.objects.exists())
+
+    def test_status_vorwarnung(self):
+        OutboxEmail.objects.all().delete()
+        today = date.today()
+        m = self._member("Vera")
+        m.passive_from = today + timedelta(days=3)      # innerhalb Vorlauf (14)
+        m.save(update_fields=["passive_from"])
+        far = self._member("Fern")
+        far.excluded_from = today + timedelta(days=90)  # außerhalb Vorlauf
+        far.save(update_fields=["excluded_from"])
+        n = svc.send_status_warnings(today)
+        self.assertEqual(n, 1)                          # nur Vera
+        mail = OutboxEmail.objects.filter(subject__icontains="Statuswechsel").first()
+        self.assertIsNotNone(mail)
+        self.assertIn("Vera", mail.body)
+        self.assertNotIn("Fern", mail.body)
+        # Idempotent: am selben Tag kein zweiter Versand.
+        self.assertEqual(svc.send_status_warnings(today), 0)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class BLNotificationTests(TestCase):
+    def setUp(self):
+        from booking.models import EquivalenceClass, Quarter, Membership, Share
+        OpsConfig.objects.all().delete()
+        OpsConfig.objects.create(admin_emails="office@example.org")
+        self.cls = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(name="K1", eq_class=self.cls,
+                                        min_occupancy=1, max_occupancy=4)
+        u = User.objects.create_user("mia", "mia@example.org", "x" * 12)
+        self.m = Member.objects.create(user=u, display_name="Mia")
+        ms = Membership.objects.create(eg_number="EG-1", label="Mia",
+                                       annual_night_budget=50, wish_night_budget=25)
+        Share.objects.create(membership=ms, member=self.m, night_budget=50,
+                             wish_night_budget=25)
+
+    def _daily(self, key):
+        s = NotificationSetting.for_event(key)
+        s.frequency = NotificationSetting.DAILY
+        s.save(update_fields=["frequency"])
+        return s
+
+    def test_kurzfristige_buchung_meldet_verwaltung_sofort(self):
+        from booking.models import Allocation
+        OutboxEmail.objects.all().delete()
+        today = date.today()
+        a = Allocation.objects.create(
+            member=self.m, quarter=self.q, start=today + timedelta(days=3),
+            end=today + timedelta(days=6), persons=2, source="spontaneous")
+        svc.notify_booking_activity(a, action="new")
+        self.assertTrue(OutboxEmail.objects.filter(
+            to_email="office@example.org", subject__icontains="Kurzfristig").exists())
+
+    def test_langfristige_buchung_keine_sofortmeldung(self):
+        from booking.models import Allocation
+        OutboxEmail.objects.all().delete()
+        today = date.today()
+        a = Allocation.objects.create(
+            member=self.m, quarter=self.q, start=today + timedelta(days=40),
+            end=today + timedelta(days=43), persons=2, source="spontaneous")
+        svc.notify_booking_activity(a, action="new")
+        self.assertFalse(OutboxEmail.objects.exists())
+
+    def test_overdue_overview_wenn_faellig(self):
+        OutboxEmail.objects.all().delete()
+        self._daily("overdue_overview")
+        n = svc.send_overdue_overview(date.today())
+        self.assertTrue(OutboxEmail.objects.filter(
+            subject__icontains="Überfällige").exists())
+
+    def test_lottery_reminder_einmal_je_periode(self):
+        from booking.models import BookingPeriod
+        OutboxEmail.objects.all().delete()
+        today = date.today()
+        p = BookingPeriod.objects.create(
+            name="Losung", target_year=today.year + 1,
+            start=date(today.year + 1, 1, 1), end=date(today.year + 2, 1, 1),
+            draw_at=today + timedelta(days=5))
+        self.assertEqual(svc.send_lottery_reminder(today), 1)
+        p.refresh_from_db()
+        self.assertIsNotNone(p.bl_reminder_at)
+        self.assertEqual(svc.send_lottery_reminder(today), 0)   # nicht doppelt
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class RundnachrichtTests(TestCase):
+    def _member(self, name, passive=False):
+        u = User.objects.create_user(name, f"{name.lower()}@example.org", "x" * 12)
+        m = Member.objects.create(user=u, display_name=name)
+        if passive:
+            m.passive_from = date.today() - timedelta(days=1)
+            m.save(update_fields=["passive_from"])
+        return m
+
+    def test_broadcast_aktive_vs_alle(self):
+        from booking.models import Notification
+        a = self._member("Aktiv")
+        p = self._member("Passiv", passive=True)
+        # Aktive: nur an aktive Mitglieder
+        res = svc.broadcast_message("active_members", "Hallo", "Text")
+        self.assertEqual(res["inapp"], 1)
+        self.assertTrue(Notification.objects.filter(member=a).exists())
+        self.assertFalse(Notification.objects.filter(member=p).exists())
+        # Alle: inkl. passive
+        res2 = svc.broadcast_message("all_members", "Hallo2", "Text2")
+        self.assertEqual(res2["inapp"], 2)
+
+    def test_rollen_export(self):
+        self._member("Ida")
+        rows = svc.role_recipients("all_members")
+        self.assertIn(("Ida", "ida@example.org"), rows)
+
+    def test_rundnachricht_seite_und_export(self):
+        from booking.permissions import ensure_verwaltung_group
+        su = User.objects.create_user("chef", "chef@example.org", "x" * 12)
+        su.groups.add(ensure_verwaltung_group())
+        self._member("Ida")
+        self.client.force_login(su)
+        r = self.client.get(reverse("verw_rundnachricht"))
+        self.assertEqual(r.status_code, 200)
+        csv = self.client.get(reverse("verw_rundnachricht") + "?export=all_members")
+        self.assertIn("text/csv", csv["Content-Type"])
+        self.assertIn("ida@example.org", csv.content.decode("utf-8"))
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                   RATELIMIT_ENABLE=False)
+class ContactFormTests(TestCase):
+    def setUp(self):
+        OpsConfig.objects.all().delete()
+        OpsConfig.objects.create(admin_emails="office@example.org",
+                                 contact_email_bl="bl@example.org",
+                                 contact_email_tech="dev@example.org")
+        self.u = User.objects.create_user("nina", "nina@example.org", "x" * 12)
+        Member.objects.create(user=self.u, display_name="Nina")
+
+    def test_routing_je_kategorie(self):
+        OutboxEmail.objects.all().delete()
+        svc.send_contact_message(self.u, "booking", "Frage zur Buchung")
+        self.assertTrue(OutboxEmail.objects.filter(to_email="bl@example.org").exists())
+        svc.send_contact_message(self.u, "bug", "App hängt")
+        self.assertTrue(OutboxEmail.objects.filter(to_email="dev@example.org").exists())
+
+    def test_reply_to_ist_absender(self):
+        OutboxEmail.objects.all().delete()
+        svc.send_contact_message(self.u, "general", "Hallo")
+        em = OutboxEmail.objects.filter(to_email="bl@example.org").first()
+        self.assertIsNotNone(em)
+        self.assertEqual(em.reply_to, "nina@example.org")
+
+    def test_ssti_frei_und_header_sicher(self):
+        # $-Ausdruck + Zeilenumbruch im Text: literal übernommen, kein Header-Leak.
+        OutboxEmail.objects.all().delete()
+        svc.send_contact_message(self.u, "general", "Wert=$geheim\nZeile2")
+        em = OutboxEmail.objects.filter(to_email="bl@example.org").first()
+        self.assertIn("Wert=$geheim", em.body)
+        self.assertIn("\n", em.body)                 # Body darf Umbrüche haben
+        self.assertNotIn("\n", em.subject)           # Betreff NICHT
+
+    def test_leere_nachricht_kein_versand(self):
+        OutboxEmail.objects.all().delete()
+        self.assertIsNone(svc.send_contact_message(self.u, "general", "   "))
+        self.assertFalse(OutboxEmail.objects.exists())
+
+    def test_view_sendet_und_leitet_um(self):
+        OutboxEmail.objects.all().delete()
+        self.client.force_login(self.u)
+        r = self.client.post(reverse("contact_send"),
+                             {"category": "cleaning", "message": "Reinigung fehlt"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("#kontakt", r["Location"])
+        self.assertTrue(OutboxEmail.objects.filter(to_email="bl@example.org").exists())

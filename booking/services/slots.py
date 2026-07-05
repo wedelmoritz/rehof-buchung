@@ -20,7 +20,8 @@ __all__ = [
     'schedule_blocker', 'season_min_nights', 'min_nights_for_range',
     'external_min_nights', 'wish_rule_error', '_active_windows',
     '_in_season_range', 'range_is_released', 'find_bookable_gaps',
-    'split_quarters_for_range', '_occupied_days_by_quarter',
+    'split_quarters_for_range', 'unavailable_quarters_for_range',
+    '_occupied_days_by_quarter',
     'is_gap_fill', 'gap_fill_allowed', 'is_group_booking', 'lead_time_blocker',
     'high_demand_periods', 'winter_usage', 'weekend_usage', 'wish_weekend_usage',
     'undersized_allowed', 'has_fitting_free_quarter', 'booking_policy_summary',
@@ -617,6 +618,30 @@ def split_quarters_for_range(
             continue
         (free if quarter_is_free(q, start, end) else occupied).append(q)
     return free, occupied
+
+
+def unavailable_quarters_for_range(start: date, end: date) -> list[tuple]:
+    """Aktive Quartiere, die im Zeitraum [start, end) **gar nicht buchbar** sind –
+    weil der Zeitraum nicht freigeschaltet ist ODER außerhalb der Quartier-Saison
+    liegt (ADR 0092). Für die Buchen-Seite als **ausgegraute** Einträge mit Grund,
+    damit ein Quartier nicht klanglos verschwindet. Liefert (Quartier, Grund-Text)."""
+    windows = _active_windows()
+    out: list[tuple] = []
+    if end <= start:
+        return out
+    for q in Quarter.objects.filter(active=True).order_by("sort_order", "name"):
+        released = A.range_released(windows, str(q.id), start, end)
+        in_season = _in_season_range(q, start, end)
+        if released and in_season:
+            continue                     # frei oder belegt – gehört nicht hierher
+        if not in_season and q.season_label:
+            reason = f"Nur saisonal buchbar ({q.season_label})"
+        elif not in_season:
+            reason = "Zurzeit nicht saisonal buchbar"
+        else:
+            reason = "Für diesen Zeitraum noch nicht freigeschaltet"
+        out.append((q, reason))
+    return out
 
 
 _OCC_VER_KEY = "rehof:occ:ver"

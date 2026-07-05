@@ -12,8 +12,92 @@ __all__ = [
     'unread_notifications', 'mark_notifications_read', 'absolute_url',
     'queue_email', 'email_member', 'queue_email_many', 'email_admins',
     'email_cleaning', 'send_web_push', 'send_account_invite',
-    'notify_admins_new_user',
+    'notify_admins_new_user', 'dispatch_event',
+    'CONTACT_CATEGORIES', 'send_contact_message',
 ]
+
+# Kontaktformular (ADR 0091): feste Kategorien → Betreff-Hülle + Routing-Schlüssel.
+# Die Kategorie bestimmt (über `OpsConfig.contact_list`), welche Rollen-Adresse die
+# Anfrage bekommt. „bug" geht an die technische Adresse, alles andere an die BL.
+CONTACT_CATEGORIES = [
+    ("booking", "Buchung / Wünsche"),
+    ("cleaning", "Endreinigung"),
+    ("general", "Allgemeine Frage"),
+    ("bug", "Technisches Problem / Fehler in der App"),
+]
+_CONTACT_LABELS = dict(CONTACT_CATEGORIES)
+
+
+def send_contact_message(user, category: str, message: str) -> "OutboxEmail | None":
+    """Verschickt eine Kontakt-Anfrage eines eingeloggten Mitglieds an die passende
+    Rollen-Adresse (ADR 0091). Der **Nachrichtentext wird literal** (kein Template-
+    Engine → keine SSTI) verschickt, Steuerzeichen/Länge gekappt; als **Reply-To**
+    steht die Adresse des Absenders, sodass die BL direkt antworten kann. Gibt die
+    letzte eingereihte Mail zurück (oder None, wenn kein Empfänger/Text)."""
+    from ..models import OpsConfig
+    from ..validation import strip_controls
+    if category not in _CONTACT_LABELS:
+        category = "general"
+    text = strip_controls(message, max_len=4000).strip()
+    if not text:
+        return None
+    recipients = OpsConfig.get_solo().contact_list(category)
+    if not recipients:
+        return None
+    label = _CONTACT_LABELS[category]
+    name = (user.get_full_name() or user.get_username() or "").strip()
+    email = (getattr(user, "email", "") or "").strip()
+    subject = f"Re:Hof-Kontakt: {label}"
+    body = (
+        f"Kontakt-Anfrage über die Re:Hof-App\n"
+        f"Kategorie: {label}\n"
+        f"Von: {name or user.get_username()}"
+        f"{f' <{email}>' if email else ''}\n\n"
+        f"{text}\n")
+    last = None
+    for to in recipients:
+        last = queue_email(to, subject, body, reply_to=email)
+    return last
+
+
+def dispatch_event(event_key: str, context: dict | None = None, *, member=None,
+                   recipients=None, attachment: bytes | None = None,
+                   attachment_name: str = "", url: str = ""):
+    """Zentrale Benachrichtigungs-Naht (ADR 0089): rendert die Vorlage aus dem
+    Katalog **sicher** und verschickt sie gemäß der Backend-`NotificationSetting`
+    (an/aus, Empfänger). ``member``-Ereignisse gehen als In-App + Mail (Opt-in) ans
+    Mitglied; ``ops``/``cleaning``/``broadcast`` als Mail an die Empfängerliste
+    (optional mit PDF-Anhang). Gibt die eingereihte(n) Mail(s) zurück (oder None)."""
+    from ..models import Notification, NotificationSetting, OpsConfig
+    from ..notify_catalog import EVENTS, render
+    ev = EVENTS.get(event_key)
+    if ev is None:
+        return None
+    setting = NotificationSetting.for_event(event_key)
+    if not setting.enabled:
+        return None
+    subject, body = render(event_key, context or {})
+    audience = ev["audience"]
+
+    if audience == "member":
+        if member is None:
+            return None
+        Notification.objects.create(member=member, message=subject[:255],
+                                    detail=body, url=url)
+        return email_member(member, subject, body, attachment=attachment,
+                            attachment_name=attachment_name,
+                            attachment_mime="application/pdf" if attachment else
+                            "application/octet-stream")
+    # ops / cleaning / broadcast → E-Mail an die Empfängerliste
+    if recipients is None:
+        recipients = (OpsConfig.get_solo().cleaning_list()
+                      if audience == "cleaning" else setting.recipient_list())
+    if attachment:
+        return [queue_email(to, subject, body, attachment=attachment,
+                            attachment_name=attachment_name,
+                            attachment_mime="application/pdf")
+                for to in recipients if to]
+    return queue_email_many(recipients, subject, body)
 
 def unread_notifications(member):
     return list(member.notifications.filter(read=False)) if member else []
@@ -35,16 +119,20 @@ def absolute_url(path: str) -> str:
 def queue_email(to_email: str, subject: str, body: str, html_body: str = "",
                 member=None, attachment: bytes | None = None,
                 attachment_name: str = "",
-                attachment_mime: str = "application/octet-stream"
-                ) -> "OutboxEmail | None":
+                attachment_mime: str = "application/octet-stream",
+                reply_to: str = "") -> "OutboxEmail | None":
     """Stellt eine E-Mail in die Warteschlange (versendet wird sie vom Scheduler).
-    Optional mit einem Datei-Anhang (z.B. Rechnungs-PDF)."""
+    Optional mit einem Datei-Anhang (z.B. Rechnungs-PDF) und `reply_to`."""
     to_email = (to_email or "").strip()
     if not to_email:
         return None
+    # Header-Injection ausschließen: Betreff/Reply-To dürfen keine Zeilenumbrüche
+    # tragen (Body ist reiner Text, keine Header).
+    subject = " ".join((subject or "").splitlines()).strip()[:200]
+    reply_to = (reply_to or "").strip().replace("\n", "").replace("\r", "")
     return OutboxEmail.objects.create(
         to_email=to_email, subject=subject, body=body, html_body=html_body,
-        member=member,
+        reply_to=reply_to, member=member,
         attachment=attachment if attachment else None,
         attachment_name=attachment_name if attachment else "",
         attachment_mime=attachment_mime if attachment else "")

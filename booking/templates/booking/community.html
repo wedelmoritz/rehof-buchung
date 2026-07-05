@@ -22,13 +22,13 @@
       <polygon class="occ-area" points="{{ occ.area }}"/>
       <polyline class="occ-line" points="{{ occ.line }}"/>
       {% for p in occ.points %}
-      <text class="occ-m" x="{{ p.x }}" y="148" font-size="9" font-weight="600" text-anchor="middle">{{ p.label }}</text>
-      <text class="occ-val" x="{{ p.x }}" y="{{ p.vy }}" font-size="8" font-weight="700" text-anchor="middle">{{ p.pct }}%</text>
+      <text class="occ-m" x="{{ p.x }}" y="148" text-anchor="middle">{{ p.label }}</text>
+      <text class="occ-val" x="{{ p.x }}" y="{{ p.vy }}" text-anchor="middle">{{ p.pct }}%</text>
       <circle class="occ-dot" cx="{{ p.x }}" cy="{{ p.y }}" r="2.6"><title>{{ p.label }}: {{ p.pct }} % ({{ p.booked }} von {{ p.possible }} Nächten)</title></circle>
       {% endfor %}
-      <text class="occ-ax" x="35" y="21" font-size="9" text-anchor="end">100%</text>
-      <text class="occ-ax" x="35" y="75" font-size="9" text-anchor="end">50%</text>
-      <text class="occ-ax" x="35" y="129" font-size="9" text-anchor="end">0%</text>
+      <text class="occ-ax" x="35" y="21" text-anchor="end">100%</text>
+      <text class="occ-ax" x="35" y="75" text-anchor="end">50%</text>
+      <text class="occ-ax" x="35" y="129" text-anchor="end">0%</text>
     </svg>
   </figure>
   {% endwith %}
@@ -83,12 +83,15 @@
   .occ-line { fill:none; stroke:var(--accent); stroke-width:2.2;
     stroke-linejoin:round; stroke-linecap:round; }
   .occ-dot { fill:var(--accent); }
-  /* Schriftgröße als PRÄSENTATIONS-ATTRIBUT am <text> (siehe SVG oben), NICHT als
-     CSS-`font`-Kurzform: die Kurzform wird von Safari auf SVG-Text ignoriert →
-     Text fiele auf 16px (Nutzer-Einheiten) zurück und würde riesig/unlesbar. Hier
-     nur Farbe + Familie (beides greift zuverlässig auch in Safari). */
-  .occ-val { fill:var(--accent-deep); font-family:system-ui,sans-serif; }
-  .occ-m { fill:var(--ink); font-family:system-ui,sans-serif; }
-  .occ-ax { fill:var(--muted); font-family:system-ui,sans-serif; }
+  /* SVG-Text: font-size als CSS-LONGHAND mit px (wie die Fairness-Grafik, die in
+     Safari/Firefox korrekt rendert) – NICHT als `font`-Kurzform (die ignoriert
+     Safari) und NICHT als reines Präsentationsattribut ohne Einheit (dann berechnen
+     WebKit/Gecko die Glyphen-Breite falsch und zeigen nur den ERSTEN Buchstaben je
+     Label). font-size + font-family stehen daher zusammen im CSS. */
+  .occ-val { fill:var(--accent-deep); font-family:system-ui,sans-serif;
+    font-size:8px; font-weight:700; }
+  .occ-m { fill:var(--ink); font-family:system-ui,sans-serif;
+    font-size:9px; font-weight:600; }
+  .occ-ax { fill:var(--muted); font-family:system-ui,sans-serif; font-size:9px; }
 </style>
 {% endblock %}

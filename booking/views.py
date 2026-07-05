@@ -439,7 +439,7 @@ def book(request):
 
     eff_start = sel_start if member else None    # für die Auswahl-Leiste
     eff_end = None
-    suitable, maybe_unsuitable, occ_quarters = [], [], []
+    suitable, maybe_unsuitable, occ_quarters, unavail_quarters = [], [], [], []
     range_min_nights = 0
     too_short = False
     not_enough_days = False
@@ -459,6 +459,8 @@ def book(request):
         high_demand = svc.high_demand_periods(eff_start, eff_end)
         is_group = svc.is_group_booking(persons)
         free_quarters, occ_quarters = svc.split_quarters_for_range(eff_start, eff_end)
+        # Nicht-buchbare Quartiere (Saison/nicht freigeschaltet) ausgegraut zeigen (B6).
+        unavail_quarters = svc.unavailable_quarters_for_range(eff_start, eff_end)
         # Termin-/Regel-/Budget-Grund ist quartiers-unabhängig → einmal berechnen,
         # plus die Variante ohne Mindestnächte/Vorausfrist für Lückenfüller (ADR 0075).
         reason = svc.schedule_blocker(member, eff_start, eff_end)
@@ -528,6 +530,7 @@ def book(request):
         "suitable": suitable,
         "maybe_unsuitable": maybe_unsuitable,
         "occ_quarters": occ_quarters,
+        "unavail_quarters": unavail_quarters,
         "high_demand": high_demand,
         "is_group": is_group,
         "has_group_pref": has_group_pref,
@@ -612,6 +615,9 @@ def my_bookings(request):
                 "service_requests__product"):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
+            # Kurzfrist-Storno/Verkürzen (Anreise ≤ Kurzfrist-Grenze): Tage verfallen,
+            # falls andere den Zeitraum nicht neu buchen (ADR 0088) – steuert die Warnung.
+            a.short_notice = svc.is_short_notice(a.start, today)
             a.service_reqs = list(a.service_requests.all())
             a.waiters = svc.waiters_for_allocation(a)
             a.concurrent = svc.concurrent_split(a)
@@ -919,7 +925,27 @@ def help_page(request):
     return render(request, "booking/help.html", {
         "member": _current_member(request),
         "p": svc.booking_policy_summary(),
+        "contact_categories": svc.CONTACT_CATEGORIES,
+        "help": svc.help_sections(),        # ausgelagerte Prosa (ADR 0093)
     })
+
+
+@login_required
+@require_POST
+@ratelimit(key="user", rate="5/h", method="POST", block=True)
+def contact_send(request):
+    """Kontaktformular (ADR 0091): ein eingeloggtes Mitglied schickt eine Nachricht
+    an die passende Rollen-Adresse. Der Text wird literal verschickt (keine SSTI),
+    Reply-To ist die eigene Adresse. Rate-limitiert gegen Missbrauch."""
+    category = request.POST.get("category", "general")
+    message = request.POST.get("message", "")
+    mail = svc.send_contact_message(request.user, category, message)
+    if mail is None:
+        messages.error(request, "Bitte gib eine Nachricht ein.")
+    else:
+        messages.success(
+            request, "Danke! Deine Nachricht ist unterwegs – wir melden uns bei dir.")
+    return redirect(reverse("help") + "#kontakt")
 
 
 @login_required
@@ -1259,7 +1285,7 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
                 reason=V.strip_controls(request.POST.get("reason", ""), max_len=200))
             messages.success(request, f"{q.name} vom {s:%d.%m.%Y} bis {e:%d.%m.%Y} "
                              "gesperrt (nicht mehr buchbar).")
-        target = "verw_reinigung"
+        target = "verw_sperrzeiten"
     elif action == "delete_block":
         from .models import QuarterBlock
         b = QuarterBlock.objects.filter(id=request.POST.get("block_id")).first()
@@ -1267,7 +1293,7 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
             name = b.quarter.name
             b.delete()
             messages.success(request, f"Sperrzeit für {name} aufgehoben.")
-        target = "verw_reinigung"
+        target = "verw_sperrzeiten"
     elif action == "import_bank":
         from shop import reconcile
         f = request.FILES.get("statement")
@@ -1351,7 +1377,7 @@ def verw_reinigung(request):
     if not _staff_required(request):
         return redirect("overview")
     from shop import services as shop_svc
-    from .models import BookingPolicy, Quarter, QuarterBlock
+    from .models import BookingPolicy
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
         return _verw_post(request, year, month, m_from, m_to, only_cleaning)
@@ -1366,12 +1392,28 @@ def verw_reinigung(request):
             {"sr": sr, "lock": shop_svc.service_request_lock_date(sr)}
             for sr in shop_svc.revisable_service_requests()],
         "er_lock_days": BookingPolicy.get_solo().er_decision_lock_days,
-        # Sperrzeiten (Reinigung/Reparatur, #61): aktuelle + künftige verwalten.
+    })
+    return render(request, "booking/verw_reinigung.html", ctx)
+
+
+@login_required
+def verw_sperrzeiten(request):
+    """Unterseite: **Sperrzeiten** je Quartier (Reinigung/Reparatur, #61/ADR 0086) –
+    eigene Seite (nicht mehr unter „Reinigung"): Sperren sind Planung, kein tägliches
+    Handeln. Anlegen/Aufheben über den zentralen POST-Dispatcher."""
+    if not _staff_required(request):
+        return redirect("overview")
+    from .models import Quarter, QuarterBlock
+    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
+    if request.method == "POST":
+        return _verw_post(request, year, month, m_from, m_to, only_cleaning)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx.update({
         "quarters": list(Quarter.objects.filter(active=True).order_by("sort_order", "name")),
         "blocks": list(QuarterBlock.objects.filter(end__gte=today)
                        .select_related("quarter").order_by("start", "quarter__sort_order")),
     })
-    return render(request, "booking/verw_reinigung.html", ctx)
+    return render(request, "booking/verw_sperrzeiten.html", ctx)
 
 
 @login_required
@@ -1473,7 +1515,7 @@ def verw_mitglieder(request):
         members = members.filter(
             Q(display_name__icontains=q) | Q(legal_name__icontains=q)
             | Q(user__email__icontains=q) | Q(user__username__icontains=q)
-            | Q(city__icontains=q))
+            | Q(city__icontains=q) | Q(phone__icontains=q))
     today = date.today()
     ny, nm = svc.next_month(today)
     year, month = _month_from_request(request, today, ny, nm)
@@ -1481,6 +1523,47 @@ def verw_mitglieder(request):
     ctx.update({"members": list(members), "q": q,
                 "member_count": len(members)})
     return render(request, "booking/verw_mitglieder.html", ctx)
+
+
+@login_required
+def verw_rundnachricht(request):
+    """Unterseite: **Rundnachricht** an eine Rolle (In-App + Mail + Push) und
+    **Rollen-Export** (CSV für externe Verteilerlisten) – ADR 0090/B4."""
+    if not _staff_required(request):
+        return redirect("overview")
+    import csv as _csv
+    # Export je Rolle als CSV (für externe Verteilerlisten).
+    exp = request.GET.get("export")
+    if exp:
+        rows = svc.role_recipients(exp)
+        resp = HttpResponse(content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="empfaenger-{exp}.csv"'
+        resp.write("﻿")     # BOM für Excel
+        w = _csv.writer(resp, delimiter=";")
+        w.writerow(["Name", "E-Mail"])
+        for name, email in rows:
+            w.writerow([name, email])
+        return resp
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    if request.method == "POST" and request.POST.get("action") == "broadcast":
+        audience = request.POST.get("audience", "")
+        subject = (request.POST.get("subject") or "").strip()
+        body = (request.POST.get("body") or "").strip()
+        valid_aud = {a for a, _ in svc.BROADCAST_AUDIENCES}
+        if audience not in valid_aud or not subject or not body:
+            messages.error(request, "Bitte Zielgruppe, Betreff und Text angeben.")
+        else:
+            res = svc.broadcast_message(audience, subject, body)
+            messages.success(request, f"Rundnachricht gesendet: {res['inapp']} In-App, "
+                             f"{res['mail']} E-Mail(s).")
+        return redirect(f"{reverse('verw_rundnachricht')}?year={year}&month={month}")
+    ctx = _verw_nav_ctx(request, today, year, month)
+    ctx["audiences"] = [
+        {"key": a, "label": lbl, "count": len(svc.role_recipients(a))}
+        for a, lbl in svc.BROADCAST_AUDIENCES]
+    return render(request, "booking/verw_rundnachricht.html", ctx)
 
 
 @login_required

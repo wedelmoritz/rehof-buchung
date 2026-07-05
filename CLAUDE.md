@@ -57,6 +57,8 @@ booking/
   rules.py              # reine Logik: Mindestnächte/Parallel/Deckel
   validation.py         # reine Logik: Plausibilität der Eingaben (Name/PLZ/IBAN…)
   exports.py            # CSV/xlsx-Export (mit Formel-Injektions-Schutz)
+  helptext.py           # reine Logik: sicherer (escape-first) Mini-Markup-Renderer für Hilfetexte (ADR 0093)
+  help_content/*.md     # ausgelagerte, editierbare Hilfe-Prosa (Warteliste/Gemeinschaft/Hofladen/Tage)
   services/             # Brücke DB <-> Logik (gesamte Geschäftslogik; Paket, ADR 0050)
     __init__.py         #  re-exportiert alles → `svc.*` bleibt unverändert
     dates.py notify.py slots.py        #  Blätter: Datum · Mail/Push · Verfügbarkeit+Regeln
@@ -109,19 +111,31 @@ buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitte
 `special_requests` = optionale **Besonderheiten** beim Buchen [Hund/Kinder/
 Zustellbett, dem Mitglied sichtbar] + `internal_note` = **interne Team-/BL-Notiz**
 [nur Verwaltung, editierbar auf `verw_buchungen`, dem Mitglied NIE gezeigt];
-#62/#68/#84),
+#62/#68/#84; `created_by` = **Audit** wer die Buchung im Backend anlegte/änderte,
+Property `by_management`; legt/ändert/storniert die Verwaltung eine Buchung im Backend,
+wird das Mitglied benachrichtigt [`services.notify_member_of_staff_booking` via
+`AllocationAdmin.save_model`/`delete_model`] und in „Meine Buchungen" als „von der
+Verwaltung angelegt" markiert – ADR 0094/#50),
 `UpcomingAllocation` (Proxy für die Admin-Ansicht „Anstehende
 Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
 erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thanked_at` =
-„Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5), `WaitlistEntry` (Spontanbuchungs-
+„Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5),
+`ForfeitedNights` (**Kurzfrist-Verwirkung**: Storno/Verkürzen ≤ `short_notice_days`
+verwirkt die Tage; `effective` = angelegt − von anderen neu gebucht; mindert
+`effective_annual_budget`; #ADR 0088), `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `CancellationLog` (schlanker **Storno-Nachweis** je gelöschter Buchung –
 Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 0082),
 `QuarterBlock` (**Sperrzeit** je Quartier für Reinigung/Reparatur – blockiert die
 Buchbarkeit wie eine Belegung [in `quarter_is_free`/`find_gaps`/Belegungs-Tage],
-Pflege im Dashboard „Reinigung" + Backend, Anzeige als schraffierter Balken im
+Pflege auf der **eigenen** Verwaltungs-Unterseite `verw_sperrzeiten`
+(`/verwaltung/sperrzeiten/`) + Backend, Anzeige als schraffierter Balken im
 Belegungsplan; #61/ADR 0086),
-`Notification` (In-App-Benachrichtigung), `OutboxEmail`
+`Notification` (In-App-Benachrichtigung), `NotificationSetting` (Betriebs-
+Einstellung je Benachrichtigungs-Ereignis: an/aus, Empfänger, Frequenz, PDF, Vorlauf –
+Vorlagen im Code-Katalog `booking/notify_catalog.py`, ADR 0089; Dispatcher
+`services.dispatch_event`, geplanter Lauf `run_scheduled_notifications`/Kommando
+`send_notifications`; Backend-Liste = Katalog-Überblick #85), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
 Empfänger der Verwaltungs-Mails + Reinigungsliste, Monats-Mail-Tag,
 `beds24_import_enabled` = Beds24-Import an/aus),
@@ -203,6 +217,10 @@ noch frei · „An diesem Tag buchen"). **Eine** kombinierte Legende (Personen +
 Ferien)), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
 eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
+für den Zeitraum **nicht buchbare** Unterkünfte (Saison/nicht freigeschaltet)
+erscheinen **ausgegraut mit Grund** statt zu verschwinden [`services.
+unavailable_quarters_for_range` + `Quarter.season_label`, „Nur saisonal buchbar
+(<von>–<bis>)"; B6/ADR 0092];
 Eignung und Mindestaufenthalt werden vorab angezeigt; **Anreise UND Abreise** sind
 je eigen markiert [Fähnchen „Anreise“/„Abreise“], das gewählte Band ist deutlich,
 sticky Leiste „Anreise → Abreise · N Nächte“ mit Zurücksetzen-Knopf – ebenso in
@@ -249,12 +267,13 @@ Unterkünfte, `services.swap_shift_hint`]. **Buchung ändern** je Buchung
 [`services.adjust_allocation`] deckt neben dem **Zeitraum** auch
 **Unterkunft-Wechsel** [nur freie – `services.free_quarters_for` listet sie] und
 die **Personenzahl** ab: **verlängern** spontan, solange die zusätzlichen
-Nächte frei/freigeschaltet/im Budget sind, **verkürzen** nur wenn der
-Mindestaufenthalt gewahrt bleibt UND die frei werdenden Nächte ≥7 Tage entfernt
-sind – dann In-App-Meldung **an alle** [`_broadcast_spontaneously_free`] + E-Mail
-an die Warteliste; der **Unterkunft-Wechsel** geht spontan und meldet das alte
-Quartier ebenso als „spontan frei“ an alle (die 7-Tage-Frist gilt nur fürs reine
-Verkürzen im selben Quartier); Karte **„Meine Wartelisten-Einträge“** listet die eigenen
+Nächte frei/freigeschaltet/im Budget sind, **verkürzen** solange der
+Mindestaufenthalt gewahrt bleibt – **kurzfristig** (frei werdende Nächte ≤
+`short_notice_days`) ist es erlaubt, die Nächte **verwirken** dann aber wie beim
+Kurzfrist-Storno (ADR 0088, löst die frühere „≥7-Tage"-Sperre ab); dann In-App-Meldung
+**an alle** [`_broadcast_spontaneously_free`] + E-Mail an die Warteliste; der
+**Unterkunft-Wechsel** geht spontan (Umzug verwirkt nichts) und meldet das alte
+Quartier ebenso als „spontan frei“ an alle; Karte **„Meine Wartelisten-Einträge“** listet die eigenen
 offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Empfänger:in über ein
 **Typeahead-Suchfeld** wählen [ab 3 Zeichen; JSON-Endpoint `member_search` sucht
 über Anzeigename/Benutzername/E-Mail/Vor-/Nachname, eigenes Konto + externe Gäste
@@ -284,8 +303,9 @@ eine `OutboxEmail` in die Warteschlange, die das Kommando `send_outbox` (vom
 für Massenmails. Provider-neutral über `EMAIL_*`/`PUBLIC_BASE_URL` (ohne
 `EMAIL_HOST` → Konsole). Ereignisse: Losergebnis, Wartelisten-Platz frei,
 Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
-Profil-/Rechnungsdaten (Name, Anschrift, IBAN) pflegt
-das Mitglied selbst unter `profile`. Eigene Karte **„Benachrichtigungen“** bündelt
+Profil-/Rechnungsdaten (Name, **Telefon**, Anschrift, IBAN) pflegt
+das Mitglied selbst unter `profile` (Telefon = Kontakt für die BL, sichtbar in
+Verwaltung→Mitglieder). Eigene Karte **„Benachrichtigungen“** bündelt
 die Kanäle: **In-App** (immer), **E-Mail** (`email_opt_in`, Aktion `notify_prefs` –
 getrennt aus der Profil-Form gelöst; dieselbe Aktion speichert auch
 `accept_swap_requests` = Tausch-Anfragen erlauben/abschalten, #8/ADR 0078) und
@@ -305,7 +325,17 @@ Einladung **und** „Passwort vergessen": Standard-Django-Reset-Views/-Namen
 `registration/`-Templates); „Passwort vergessen" ist auf der Anmeldeseite verlinkt.
 Die frühere `membership_number` (Mitgliedsnummer) wurde als ungenutzt **entfernt**
 (Datensparsamkeit; sie floss nirgends in Rechnung/Export/PDF). Eine `help`-Seite erklärt Abläufe und die
-Auslosung im Detail (verlinkt aus Übersicht/Wunschliste). **Fairness-Nachweis**
+Auslosung im Detail (verlinkt aus Übersicht/Wunschliste); unten trägt sie ein
+**In-App-Kontaktformular** (`#kontakt`, `contact_send`, ADR 0091): eingeloggte
+Mitglieder schicken Kategorie + Freitext an die passende Rollen-Adresse
+(`services.send_contact_message` → `OpsConfig.contact_list`: `bug`→technisch, sonst
+BL; leer = Verwaltung), **literal** verschickt (kein Template-Engine → SSTI-frei,
+`strip_controls`), **Reply-To = Absender** (`OutboxEmail.reply_to`), rate-limitiert;
+der Fuß-Link „Kontakt" führt eingeloggte Nutzer dorthin. Die reinen **Prosa-Abschnitte
+der Hilfe** (Warteliste/Gemeinschaft/Hofladen/Tage) liegen **ausgelagert** in
+`booking/help_content/*.md` und werden **sicher** (escape-first, kein SSTI) über
+`booking/helptext.py` + `services.help_sections()` gerendert (redaktionell editierbar,
+ADR 0093). **Fairness-Nachweis**
 (`lottery_fairness`, `/losung-fairness/`, login-pflichtig, von der Hilfe verlinkt):
 zeigt per **Monte-Carlo-Simulation** (reine Logik `booking/fairness.py` auf dem
 puren `lottery`-Modul) mit **Inline-SVG-Grafen**, dass gleich gestellte Mitglieder
@@ -319,8 +349,10 @@ Auslastung (**monatliche Inline-SVG-Kurve** übers Kalenderjahr
 `services.year_occupancy_curve` – 12 Monatspunkte mit Wert je Monat als Hover-Titel;
 löst die frühere Quartals-Kurve + separate Monatsliste ab, ADR 0074/0076/0079;
 effizient: alle Belegungen des Jahres einmal geladen, 2 Abfragen statt 24;
-**SVG-Text-Größe als Präsentationsattribut** `font-size` statt CSS-`font`-Kurzform,
-weil Safari die Kurzform auf SVG-Text ignoriert – ADR 0079-Nachtrag),
+**SVG-Text: `font-size` als CSS-LONGHAND mit `px`** (`.occ-*{font-size:9px}`, wie die
+Fairness-Grafik) – NICHT als `font`-Kurzform (ignoriert Safari) und NICHT als
+einheitenloses Präsentationsattribut (dann berechnen WebKit/Gecko die Glyphenbreite
+falsch → nur der ERSTE Buchstabe je Label sichtbar; ADR 0079-Nachtrag/Fix),
 Los-Ergebnis-
 Historie, **Karma-Verteilung** (`services.community_stats`/`karma_distribution`) als
 schlanke **CSS-Balken**/SVG (kein JS); in der Sekundär-Nav („Gemeinschaft"). Den
@@ -587,6 +619,13 @@ Erinnerung** vor der Losung an Mitglieder ohne eingereichten Wunsch;
 `services.send_wish_reminders`, idempotent je Stufe über
 `BookingPeriod.wish_reminder1_at/2_at`; Vorlauf konfigurierbar
 `BookingPolicy.wish_reminder_lead1/2`, Default 7/2 Tage, ADR 0080),
+`apply_member_status` (täglich, Ausscheide-Übergänge Login-Aus, ADR 0087),
+`send_notifications` (täglich, **geplante Verwaltungs-Benachrichtigungen** über das
+Framework `services.run_scheduled_notifications`, ADR 0089: Status-Vorwarnung,
+Buchungsübersicht+Plan-PDF, Auslastung+Ampel, überfällige Rechnungen, Los-Erinnerung –
+je Ereignis Frequenz/Empfänger/an-aus im Backend `NotificationSetting`; Buchung/Storno
+**≤ short_notice_days sofort** an die Verwaltung `notify_booking_activity`, sonst im
+Digest),
 `cleanup_data` (täglich, **DSGVO-Aufräumen**).
 **DSGVO/Datensparsamkeit (ADR 0043):** `cleanup_data` (Service
 `services.run_data_retention`, idempotent, im `run_scheduler` täglich) löscht/
@@ -667,11 +706,18 @@ Seite fürs kleine Team. **Aufbau als Handlungsbedarf-Cockpit mit echten Unterse
 verlinkt auf ihre **Unterseite**. Die vollen Listen/Aktionen liegen auf **eigenen
 gerouteten Unterseiten mit eigenem Menü-Eintrag** (Seitenleiste + „Mehr"-Sheet, für
 `is_verwaltung`, als eingerückte Unterpunkte unter „Verwaltung"):
-`verw_buchungen` (`/verwaltung/buchungen/`, anstehende Buchungen),
+`verw_buchungen` (`/verwaltung/buchungen/`, anstehende Buchungen; **interne Notiz**
+je Buchung inline editierbar #84),
 `verw_reinigung` (`/verwaltung/reinigung/`, **Reinigung inkl. Endreinigung** – s.u.),
+`verw_sperrzeiten` (`/verwaltung/sperrzeiten/`, **Sperrzeiten** je Quartier #61 –
+eigene Seite, nicht mehr unter Reinigung),
 `verw_rechnungen` (`/verwaltung/rechnungen/`, Rechnungen + Erinnerungen),
 `verw_konto` (`/verwaltung/kontoabgleich/`, Kontoabgleich),
 `verw_auslastung` (`/verwaltung/auslastung/`, Statistik + Auslastungs-Ampel),
+`verw_mitglieder` (`/verwaltung/mitglieder/`, Mitgliederliste mit Kontakt #65),
+`verw_rundnachricht` (`/verwaltung/rundnachricht/`, **Rundnachricht** an eine Rolle
+[In-App+Mail+Push, `services.broadcast_message`] + **Rollen-Empfänger-Export** als CSV
+für externe Verteilerlisten [`services.role_recipients`], ADR 0090),
 `dashboard_products` (`/verwaltung/produkte/`, Hofladen-Katalog). Gemeinsame Bausteine:
 `verw_base.html` (Layout + gesamtes CSS, Blöcke `verw_h1`/`verw_body`),
 `_verw_monthbar.html` (Monatswahl, GET+`data-ajax`) und der zentrale POST-Dispatcher
@@ -777,6 +823,14 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   **an andere Mitglieder übertragbar** (`NightTransfer`) **oder in den
   Solidaritäts-Pool spendbar/daraus entnehmbar** (`DayPoolEntry`, gedeckelt, nur bei
   Bedarf; P2.5/ADR 0064). Beides fließt in `Member.effective_annual_budget` ein.
+- **Kurzfrist-Storno/Verkürzen (ADR 0088):** wird eine Buchung mit Anreise ≤
+  `BookingPolicy.short_notice_days` (Default 14) storniert/verkürzt, **verfallen** die
+  betroffenen Tage (`ForfeitedNights`, mindert `effective_annual_budget`) – **zurück
+  nur, soweit ein anderes Mitglied** den Zeitraum neu bucht (`covered_by_others`,
+  dynamisch). Alle Mitglieder werden dann **in der App** informiert (kein Mail;
+  `_broadcast_spontaneously_free`), Warteliste wie gehabt per Mail. Die frühere
+  „≥7-Tage"-Verkürzungs-Sperre in `adjust_allocation` entfällt (Umzug/Quartier-Wechsel
+  verwirkt nichts). UI-Warnung in „Meine Buchungen" (`is_short_notice`).
 - **Saison-Regeln (`SeasonRule`):** **jährlich wiederkehrend** (Monat/Tag, ohne
   Jahr); je Zeitraum optional `min_nights`, `max_parallel_units` (gleichzeitige
   Wohneinheiten), `max_stay_nights` (Einheiten-Nächte-Deckel). Der Service

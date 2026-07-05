@@ -19,8 +19,9 @@ from .pool import *  # noqa: F401,F403
 from .dashboard import *  # noqa: F401,F403
 from .external_ops import *  # noqa: F401,F403
 from .terminal_ops import *  # noqa: F401,F403
+from .helptexts import *  # noqa: F401,F403
 
-from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops  # noqa: F401
+from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops, helptexts  # noqa: F401
 
 # Parität zur alten `services.py`: dort waren die importierten Modelle und die
 # reinen Logik-Module als Modul-Attribute erreichbar (z.B. `svc.ExternalConfig`,
@@ -51,6 +52,7 @@ __all__ = [
     'season_min_nights', 'min_nights_for_range', 'external_min_nights',
     'wish_rule_error', '_active_windows', '_in_season_range',
     'range_is_released', 'find_bookable_gaps', 'split_quarters_for_range',
+    'unavailable_quarters_for_range',
     '_occupied_days_by_quarter', '_beds24_member_candidates',
     '_beds24_quarter_candidates', 'beds24_stage', 'beds24_create_member',
     'beds24_apply', 'run_data_retention', 'anonymize_member',
@@ -69,6 +71,7 @@ __all__ = [
     'concurrent_split', 'create_swap_request', 'respond_swap_request',
     'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
     'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
+    'notify_member_of_staff_booking',
     'POOL_ELIGIBLE_REMAINING', 'POOL_WITHDRAW_CAP_PER_YEAR',
     'pool_balance', 'pool_status', 'pool_donate', 'pool_withdraw',
     '_annotate_cleaning', '_ExtRow', '_external_confirmed',
@@ -84,4 +87,6 @@ __all__ = [
     'cancel_external_booking_by_token',
     # Hofladen-Terminal (ADR 0053)
     'terminal_token_ok', 'terminal_payload', 'terminal_record',
+    # Ausgelagerte Hilfetexte (ADR 0093)
+    'HELP_SECTION_KEYS', 'help_sections',
 ]

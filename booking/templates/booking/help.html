@@ -16,6 +16,7 @@
   <a href="#hofladen">Hofladen &amp; Zahlung</a>
   <a href="#tage">Tage übertragen</a>
   <a href="#profil">Profil &amp; App</a>
+  <a href="#kontakt">Kontakt</a>
 </nav>
 
 <div class="card">
@@ -131,21 +132,22 @@
   <h2>Buchung ändern, stornieren &amp; tauschen</h2>
   <p class="muted" style="margin-top:0">Alles unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a>:</p>
   <ul class="tight">
-    <li><strong>Stornieren</strong> (mit Rückfrage) – gibt Zeitraum und Tage wieder frei.</li>
+    <li><strong>Stornieren</strong> (mit Rückfrage) – gibt Zeitraum und Tage wieder frei.
+      <span class="muted"><strong>Kurzfristig</strong> (Anreise in den nächsten ~2 Wochen): die Tage
+      <strong>verfallen</strong>, falls kein anderes Mitglied den Zeitraum neu bucht – bekommst du nur
+      zurück, soweit jemand übernimmt. Alle Mitglieder werden dann in der App informiert; mach den
+      Zeitraum am besten selbst publik.</span></li>
     <li><strong>Buchung ändern:</strong> <strong>Unterkunft</strong> wechseln (nur freie werden angeboten), <strong>Zeitraum</strong> verlängern/verkürzen, <strong>Personenzahl</strong> anpassen.
-      <span class="muted">Verlängern und Wechseln gehen spontan; Verkürzen nur, wenn der Mindestaufenthalt bleibt und die frei werdenden Nächte ≥ 1 Woche entfernt sind.</span></li>
+      <span class="muted">Verlängern und Wechseln gehen spontan; Verkürzen geht auch kurzfristig, solange der Mindestaufenthalt bleibt – die frei werdenden Nächte verfallen dann aber wie beim kurzfristigen Storno.</span></li>
     <li><strong>„Wer ist zur gleichen Zeit da?“</strong> zeigt rein informativ die anderen <strong>Mitglieder</strong> in deinem Zeitraum (getrennt nach <strong>exakt gleicher</strong> und nur <strong>überlappender</strong> Zeit) – ohne Aktion.</li>
     <li><strong>Unterkunft tauschen:</strong> nur mit jemandem, der <strong>genau in deinem Zeitraum</strong> in einer anderen Unterkunft ist. Bei Zustimmung wird <strong>sofort getauscht</strong> – ihr wechselt nur die Unterkunft, der Zeitraum bleibt. Gibt es niemanden zum Tauschen, es sind aber Unterkünfte frei (ggf. mit leicht verschobenem Zeitraum), wechselst du einfach über <strong>„Buchung ändern“</strong>.</li>
     <li>Wird durch eine Verkürzung etwas frei, geht eine <strong>„spontan frei“-Meldung</strong> an alle Mitglieder.</li>
   </ul>
 </div>
 
-<div class="card" id="warteliste">
-  <h2>Warteliste</h2>
-  <ul class="tight">
-    <li>Ist dein Zeitraum belegt, trag dich auf die <strong>Warteliste</strong> – du wirst benachrichtigt (In-App &amp; E-Mail), sobald er frei wird.</li>
-    <li>Wo du gerade wartest, zeigt die Karte <strong>„Meine Wartelisten-Einträge“</strong> unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</li>
-  </ul>
+<div class="card content-md" id="warteliste">
+  <h2>{{ help.warteliste.title }}</h2>
+  {{ help.warteliste.html|safe }}
 </div>
 
 <div class="card" id="losung">
@@ -371,50 +373,25 @@
   </p>
 </div>
 
-<div class="card" id="gemeinschaft">
-  <h2>Gemeinschaft &amp; Transparenz</h2>
-  <p style="margin-top:0">Wir teilen eine knappe, gemeinsame Ressource – darum machen wir sie so
-    transparent wie möglich und geben Wege, einander zu helfen. (Wie die Auslosung selbst
-    funktioniert, steht unter <a href="#losung">Wunschliste &amp; Auslosung</a>.)</p>
-  <ul class="tight">
-    <li><strong>Gemeinschafts-Spiegel</strong> (Menü „Gemeinschaft"): zeigt – anonym und
-      aggregiert – wie ausgelastet die Quartiere sind (quartalsweise als Kurve), wie viele
-      Wünsche die letzten Auslosungen erfüllt haben und wie der Ausgleich (Karma) verteilt ist.</li>
-    <li><strong>Solidaritäts-Pool</strong> (unter „Tage übertragen"): Spende ungenutzte
-      Tage in einen gemeinsamen Topf. Wer fast kein Budget mehr hat, kann daraus –
-      gedeckelt – entnehmen.</li>
-    <li><strong>Danke sagen:</strong> Hat dir jemand Tage übertragen, kannst du dich mit
-      einem Klick bedanken.</li>
-  </ul>
+<div class="card content-md" id="gemeinschaft">
+  <h2>{{ help.gemeinschaft.title }}</h2>
+  {{ help.gemeinschaft.html|safe }}
 </div>
 
-<div class="card" id="hofladen">
-  <h2>Hofladen &amp; Zahlung</h2>
-  <ul class="tight">
-    <li>Im <a href="{% url 'shop_index' %}">Hofladen</a> Produkte und Dienstleistungen (z. B. Sauna) in den Warenkorb legen. Preise sind <strong>brutto</strong>; der Preis zum Kaufzeitpunkt wird gespeichert.</li>
-    <li>Am Monatsende entsteht automatisch eine <strong>Sammelrechnung</strong> (auch als <strong>PDF</strong>).</li>
-    <li><strong>Bezahlen – zwei Wege:</strong>
-      <ul class="tight">
-        <li><strong>Überweisung</strong> mit der <strong>Rechnungsnummer als Verwendungszweck</strong>, dann in der App „bezahlt“ melden (die Verwaltung bestätigt den Eingang); oder</li>
-        <li><strong>Online bezahlen</strong> (Kreditkarte, PayPal, Apple/Google Pay über Mollie) – die Rechnung gilt sofort als bestätigt.</li>
-      </ul>
-    </li>
-  </ul>
+<div class="card content-md" id="hofladen">
+  <h2>{{ help.hofladen.title }}</h2>
+  {{ help.hofladen.html|safe }}
 </div>
 
-<div class="card" id="tage">
-  <h2>Tage übertragen</h2>
-  <p style="margin:0">Unter <a href="{% url 'transfer' %}">Tage übertragen</a> gibst du Tage an ein
-    anderes Mitglied ab. Die Empfänger:in suchst du, indem du <strong>Name, Benutzername
-    oder E-Mail</strong> ins Suchfeld tippst (ab 3 Zeichen) und sie aus den Treffern wählst –
-    danach folgt eine Bestätigung. Das ist <strong>verbindlich</strong> – die Basis dafür
-    regelt ihr vorher privat.</p>
+<div class="card content-md" id="tage">
+  <h2>{{ help.tage.title }}</h2>
+  {{ help.tage.html|safe }}
 </div>
 
 <div class="card" id="profil">
   <h2>Profil &amp; App</h2>
   <ul class="tight">
-    <li><a href="{% url 'profile' %}">Profil</a>: Name, Anschrift, IBAN sowie <strong>E-Mail (= Login) und Passwort</strong> selbst ändern – nur für dich sichtbar. Unter <strong>Benachrichtigungen</strong> stellst du E-Mail und Push getrennt ein.</li>
+    <li><a href="{% url 'profile' %}">Profil</a>: Name, <strong>Telefon</strong>, Anschrift, IBAN sowie <strong>E-Mail (= Login) und Passwort</strong> selbst ändern. Telefon dient der Betriebsleitung für Rückfragen; die übrigen Daten sind nur für dich sichtbar. Unter <strong>Benachrichtigungen</strong> stellst du E-Mail und Push getrennt ein.</li>
     <li><strong>Aktive und passive Mitgliedschaft:</strong> Als <strong>aktives</strong> Mitglied buchst du wie gewohnt. Ist deine Mitgliedschaft von der Verwaltung auf <strong>passiv</strong> gestellt, kannst du <strong>keine neuen Buchungen oder Wünsche</strong> mehr anlegen; der <strong>Hofladen</strong> und bestehende Buchungen bleiben dir erhalten. Fragen dazu klärst du mit der Betriebsleitung.</li>
     <li><strong>Neues Konto:</strong> Wurde dein Konto von der Verwaltung angelegt, bekommst du eine E-Mail mit einem Link, um dein <strong>Passwort selbst zu setzen</strong> – danach meldest du dich mit deiner E-Mail an.</li>
     <li><strong>Passwort vergessen?</strong> Auf der Anmeldeseite forderst du dir über „Passwort vergessen“ selbst einen neuen Link an.</li>
@@ -441,8 +418,33 @@
   </ul>
 </div>
 
+<div class="card" id="kontakt">
+  <h2>Kontakt zur Betriebsleitung</h2>
+  <p class="muted" style="margin:.2rem 0 .8rem">Frage, Anliegen oder ein Problem mit der App?
+    Schreib uns direkt – wir antworten an deine im <a href="{% url 'profile' %}">Profil</a>
+    hinterlegte E-Mail-Adresse.</p>
+  <form method="post" action="{% url 'contact_send' %}" class="contact-form">
+    {% csrf_token %}
+    <label for="c-cat">Worum geht es?</label>
+    <select name="category" id="c-cat">
+      {% for value, label in contact_categories %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <label for="c-msg">Deine Nachricht</label>
+    <textarea name="message" id="c-msg" rows="5" maxlength="4000"
+              placeholder="Beschreibe dein Anliegen möglichst konkret …" required></textarea>
+    <div><button type="submit" class="btn">Nachricht senden</button></div>
+  </form>
+</div>
+
 <style>
   .lead { font-size:1.05rem; color:var(--muted); margin:-.3rem 0 1rem; }
+  .contact-form { display:grid; gap:.35rem; max-width:560px; }
+  .contact-form label { font-weight:600; font-size:.9rem; margin-top:.4rem; }
+  .contact-form select, .contact-form textarea { width:100%; font:inherit;
+    padding:.5rem .6rem; border:1px solid var(--line); border-radius:8px; background:var(--card); }
+  .contact-form textarea { resize:vertical; }
   .toc-chips { display:flex; flex-wrap:wrap; gap:.4rem; }
   .toc-chips a { display:inline-block; padding:.32rem .7rem; border-radius:999px;
     background:var(--accent-soft); color:var(--accent-deep); text-decoration:none;
@@ -455,6 +457,11 @@
   .card[id] { scroll-margin-top:72px; }
   ul.tight { line-height:1.55; margin:.3rem 0; }
   ul.tight ul { margin:.25rem 0; }
+  /* Ausgelagerte Prosa (ADR 0093): gleiche Optik wie die Inline-Abschnitte. */
+  .content-md ul { line-height:1.55; margin:.3rem 0; padding-left:1.2rem; }
+  .content-md li { margin:.1rem 0; }
+  .content-md > p:first-of-type { margin-top:0; }
+  .content-md h3 { margin:.6rem 0 .2rem; font-size:1rem; }
   details.deep { border:1px solid var(--line); border-radius:10px; padding:.1rem .7rem; margin:.5rem 0; background:#fffdf8; }
   details.deep > summary { cursor:pointer; font-weight:600; color:var(--accent-deep); padding:.5rem 0; }
   details.deep[open] > summary { margin-bottom:.3rem; }

@@ -61,6 +61,7 @@ class Command(BaseCommand):
                 self._safe("notify_admins_upcoming")  # idempotent (eigener Tag)
                 self._safe("send_wish_reminders")     # Wunsch-Erinnerung (zweistufig)
                 self._safe("apply_member_status")     # Ausscheide-Übergänge (Login aus)
+                self._safe("send_notifications")      # geplante BL-Benachrichtigungen
                 self._safe("cleanup_data")            # DSGVO-Aufräumen (täglich)
                 last_daily = today
             self._safe("send_outbox")           # wartende E-Mails verschicken

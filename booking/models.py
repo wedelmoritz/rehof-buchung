@@ -91,6 +91,15 @@ class Quarter(models.Model):
         return bool(self.season_start_month and self.season_start_day
                     and self.season_end_month and self.season_end_day)
 
+    @property
+    def season_label(self) -> str:
+        """Menschenlesbarer Saison-Zeitraum ohne Jahr (z. B. „01.05.–30.09.“).
+        Leer, wenn das Quartier ganzjährig buchbar ist."""
+        if not self.has_season:
+            return ""
+        return (f"{self.season_start_day:02d}.{self.season_start_month:02d}."
+                f"–{self.season_end_day:02d}.{self.season_end_month:02d}.")
+
     def bookable_on(self, day) -> bool:
         """Ist das Quartier am `day` grundsätzlich (saisonal) buchbar?
         Ohne gesetzte Saison: ganzjährig. Die Saison gilt jedes Jahr;
@@ -221,6 +230,9 @@ class Member(models.Model):
                   "Die reine Anzeige „wer ist zur gleichen Zeit da“ bleibt.")
     # Profil-/Rechnungsdaten (vom Nutzer selbst pflegbar; nur eigene Sicht)
     legal_name = models.CharField("Vollständiger Name", max_length=160, blank=True)
+    phone = models.CharField(
+        "Telefon", max_length=40, blank=True,
+        help_text="Für Rückfragen der Betriebsleitung (im Profil selbst änderbar).")
     street = models.CharField("Straße & Nr.", max_length=160, blank=True)
     zip_code = models.CharField("PLZ", max_length=10, blank=True)
     city = models.CharField("Ort", max_length=120, blank=True)
@@ -340,14 +352,22 @@ class Member(models.Model):
         by = {r["kind"]: r["s"] or 0 for r in rows}
         return by.get("withdraw", 0) - by.get("donate", 0)
 
+    def forfeited_nights_in_year(self, year: int) -> int:
+        """Kurzfristig verwirkte Tage des Jahres (ADR 0088), die (noch) NICHT von
+        anderen Mitgliedern neu gebucht wurden – sie mindern das Jahreskontingent."""
+        return sum(f.effective for f in self.forfeits.filter(year=year)
+                   .select_related("quarter"))
+
     def effective_annual_budget(self, year: int) -> int:
         """Jahreskontingent inkl. erhaltener/abgegebener Tage und Pool-Spenden/
-        -Entnahmen (kein Übertrag aus dem Vorjahr)."""
+        -Entnahmen (kein Übertrag aus dem Vorjahr) – abzüglich kurzfristig
+        verwirkter Tage (ADR 0088)."""
         return (
             self.annual_night_budget
             + self.nights_received_in_year(year)
             - self.nights_given_in_year(year)
             + self.pool_net_in_year(year)
+            - self.forfeited_nights_in_year(year)
         )
 
     def nights_remaining_in_year(self, year: int) -> int:
@@ -485,6 +505,8 @@ class BookingPeriod(models.Model):
         "1. Wunsch-Erinnerung versendet am", null=True, blank=True)
     wish_reminder2_at = models.DateTimeField(
         "2. Wunsch-Erinnerung versendet am", null=True, blank=True)
+    bl_reminder_at = models.DateField(
+        "Verwaltungs-Erinnerung (Losung steht an) am", null=True, blank=True)
 
     class Meta:
         verbose_name = "Buchungsperiode (Jahr)"
@@ -621,6 +643,11 @@ class Allocation(models.Model):
     # aber für Mitglieder unsichtbar, bis die Losung bestätigt wird.
     provisional = models.BooleanField("Vorläufig (unbestätigt)", default=False)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    # Audit: wer die Buchung im Backend angelegt/zuletzt geändert hat (ADR 0094).
+    # Leer, wenn das Mitglied selbst über die App gebucht hat.
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Angelegt/geändert von (Verwaltung)")
 
     class Meta:
         verbose_name = "Zuteilung"
@@ -637,6 +664,12 @@ class Allocation(models.Model):
     @property
     def nights(self) -> int:
         return (self.end - self.start).days
+
+    @property
+    def by_management(self) -> bool:
+        """True, wenn ein Verwaltungs-/Admin-Konto die Buchung im Backend angelegt
+        hat (nicht das Mitglied selbst) – für den Hinweis in „Meine Buchungen“."""
+        return bool(self.created_by_id and self.created_by_id != self.member.user_id)
 
     def clean(self):
         """Domänenregeln auch bei manueller Pflege erzwingen (Django-Admin nutzt
@@ -803,6 +836,59 @@ class QuarterBlock(models.Model):
         return f"{self.quarter} gesperrt {self.start}–{self.end}"
 
 
+class ForfeitedNights(models.Model):
+    """**Kurzfrist-Verwirkung** von Tagen (ADR 0088): storniert/verkürzt ein Mitglied
+    eine Buchung, deren Anreise ≤ `BookingPolicy.short_notice_days` entfernt ist,
+    verfallen die betroffenen Nächte für das Jahr – sie werden weiter vom
+    `effective_annual_budget` abgezogen. Bucht ein **anderes** Mitglied den frei
+    gewordenen Zeitraum (im selben Quartier) ganz/teilweise neu, wird der gedeckte
+    Anteil **dynamisch** wieder freigegeben (`Member.forfeited_nights_in_year` zählt
+    die noch nicht anderweitig gebuchten Nächte). Bewusst additiv – kein Soft-Delete
+    der Buchung (die bleibt storniert)."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="forfeits",
+        verbose_name="Mitglied")
+    year = models.PositiveIntegerField("Jahr")
+    quarter = models.ForeignKey(
+        "Quarter", on_delete=models.SET_NULL, null=True, related_name="forfeits",
+        verbose_name="Quartier (frei geworden)")
+    start = models.DateField("Von")
+    end = models.DateField("Bis (exkl.)")
+    nights = models.PositiveIntegerField("Verwirkte Nächte")
+    reason = models.CharField("Anlass", max_length=20, default="cancel",
+                              help_text="cancel = Storno · shorten = Verkürzung")
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Kurzfrist-Verwirkung (Tage)"
+        verbose_name_plural = "Kurzfrist-Verwirkungen (Tage)"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["member", "year"])]
+
+    def covered_by_others(self) -> int:
+        """Wie viele der verwirkten Nächte inzwischen von **anderen** Mitgliedern im
+        selben Quartier/Zeitraum (neu) gebucht sind (deckt die Verwirkung ab)."""
+        if self.quarter_id is None:
+            return 0
+        covered = 0
+        for s, e in Allocation.objects.filter(
+                quarter_id=self.quarter_id, start__lt=self.end, end__gt=self.start,
+                provisional=False).exclude(member_id=self.member_id
+                                           ).values_list("start", "end"):
+            lo, hi = max(s, self.start), min(e, self.end)
+            if hi > lo:
+                covered += (hi - lo).days
+        return min(self.nights, covered)
+
+    @property
+    def effective(self) -> int:
+        """Tatsächlich (noch) verwirkte Nächte = angelegt − von anderen gedeckt."""
+        return max(0, self.nights - self.covered_by_others())
+
+    def __str__(self) -> str:
+        return f"{self.member} verwirkt {self.nights} Nächte ({self.year})"
+
+
 class NightTransfer(models.Model):
     """Übertragung von Tagen an ein anderes Mitglied innerhalb eines Jahres.
     (Ein Übertrag ins Folgejahr ist bewusst NICHT vorgesehen.)"""
@@ -924,6 +1010,82 @@ class Notification(models.Model):
         return f"{self.member}: {self.message}"
 
 
+class NotificationSetting(models.Model):
+    """Betriebs-Einstellung je Benachrichtigungs-Ereignis (ADR 0089): an/aus,
+    Empfänger, Frequenz/Tag, PDF-Anhang, Vorlauf. Die **Vorlagen** (Text) stehen im
+    Code-Katalog (`booking/notify_catalog.py`); hier nur die im Backend änderbaren
+    Betriebs-Parameter. Wird je Ereignis **lazy** mit den Katalog-Defaults angelegt."""
+    IMMEDIATE, EVENT, DAILY, WEEKLY, MONTHLY = (
+        "immediate", "event", "daily", "weekly", "monthly")
+    FREQUENCY = [(IMMEDIATE, "sofort (bei jedem Ereignis)"),
+                 (EVENT, "ereignisbezogen (mit Vorlauf)"),
+                 (DAILY, "täglich"), (WEEKLY, "wöchentlich"), (MONTHLY, "monatlich")]
+
+    event_key = models.CharField("Ereignis", max_length=60, unique=True)
+    enabled = models.BooleanField("Aktiv", default=True)
+    recipients = models.CharField(
+        "Empfänger (kommagetrennt, leer = Verwaltungs-Adressen)", max_length=400,
+        blank=True)
+    frequency = models.CharField("Frequenz", max_length=10, choices=FREQUENCY,
+                                 default=WEEKLY)
+    weekday = models.PositiveSmallIntegerField(
+        "Wochentag (0=Mo … 6=So, bei wöchentlich)", default=0)
+    day_of_month = models.PositiveSmallIntegerField(
+        "Tag im Monat (bei monatlich)", default=1)
+    attach_pdf = models.BooleanField("PDF anhängen (wo verfügbar)", default=False)
+    lead_days = models.PositiveSmallIntegerField("Vorlauf (Tage)", default=7)
+    last_run_on = models.DateField("Zuletzt gelaufen am", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Benachrichtigungs-Einstellung"
+        verbose_name_plural = "Benachrichtigungs-Einstellungen"
+        ordering = ["event_key"]
+
+    @classmethod
+    def for_event(cls, key: str) -> "NotificationSetting":
+        """Einstellung zum Ereignis holen/anlegen (Defaults aus dem Katalog)."""
+        from .notify_catalog import EVENTS
+        obj = cls.objects.filter(event_key=key).first()
+        if obj is not None:
+            return obj
+        d = (EVENTS.get(key) or {}).get("defaults", {})
+        return cls.objects.create(
+            event_key=key,
+            frequency=d.get("frequency", cls.WEEKLY),
+            weekday=d.get("weekday", 0),
+            day_of_month=d.get("day_of_month", 1),
+            attach_pdf=d.get("attach_pdf", False),
+            lead_days=d.get("lead_days", 7))
+
+    def recipient_list(self) -> list[str]:
+        """Empfänger-Adressen: explizit gesetzte, sonst die Verwaltungs-Adressen."""
+        raw = [e.strip() for e in (self.recipients or "").split(",") if e.strip()]
+        if raw:
+            return raw
+        return OpsConfig.get_solo().admin_list()
+
+    def due_today(self, today) -> bool:
+        """Ist eine geplante Benachrichtigung heute fällig (Frequenz + Idempotenz)?"""
+        if not self.enabled:
+            return False
+        if self.last_run_on == today:
+            return False
+        if self.frequency == self.DAILY:
+            return True
+        if self.frequency == self.WEEKLY:
+            return today.weekday() == self.weekday
+        if self.frequency == self.MONTHLY:
+            return today.day == self.day_of_month
+        return False   # immediate/event laufen nicht über den Zeitplan
+
+    def label(self) -> str:
+        from .notify_catalog import EVENTS
+        return (EVENTS.get(self.event_key) or {}).get("label", self.event_key)
+
+    def __str__(self) -> str:
+        return self.label()
+
+
 class PushSubscription(models.Model):
     """Web-Push-Abo eines Mitglieds (ein Eintrag je Browser/Gerät). Speichert den
     vom Browser gelieferten Endpoint + Schlüssel; der Versand läuft über
@@ -967,6 +1129,16 @@ class OpsConfig(models.Model):
         help_text="Der Beds24-Migrations-Assistent wird i. d. R. nur EINMALIG "
                   "gebraucht. Nach dem Umzug hier ausschalten, dann ist er im "
                   "Dashboard ausgeblendet und gesperrt.")
+    # Kontaktformular-Routing (ADR 0091): welche Kategorie an welche Adresse. Leer =
+    # Verwaltungs-Adressen. Idealerweise Rollen-Aliase (bl@… / dev@…).
+    contact_email_bl = models.CharField(
+        "Kontakt – Buchung/Reinigung/Allgemein", max_length=400, blank=True,
+        help_text="Empfänger für Kontakt-Anliegen zu Buchung, Endreinigung, "
+                  "allgemeine Fragen. Leer = Verwaltungs-Adressen.")
+    contact_email_tech = models.CharField(
+        "Kontakt – App-Problem/Bug", max_length=400, blank=True,
+        help_text="Empfänger für technische Probleme (Bug/App). Leer = "
+                  "Verwaltungs-Adressen.")
 
     class Meta:
         verbose_name = "Betriebs-Einstellungen"
@@ -989,6 +1161,11 @@ class OpsConfig(models.Model):
 
     def cleaning_list(self) -> list[str]:
         return self._parse(self.cleaning_emails) or self.admin_list()
+
+    def contact_list(self, category: str) -> list[str]:
+        """Empfänger fürs Kontaktformular je Kategorie (leer = Verwaltung)."""
+        raw = self.contact_email_tech if category == "bug" else self.contact_email_bl
+        return self._parse(raw) or self.admin_list()
 
 
 class TerminalConfig(models.Model):
@@ -1040,6 +1217,7 @@ class OutboxEmail(models.Model):
     subject = models.CharField("Betreff", max_length=200)
     body = models.TextField("Text")
     html_body = models.TextField("HTML", blank=True)
+    reply_to = models.EmailField("Antwort an", blank=True)
     member = models.ForeignKey(
         Member, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="emails", verbose_name="Mitglied")
@@ -1177,6 +1355,15 @@ class BookingPolicy(models.Model):
                   "(bestätigt/abgelehnt) bis zu so viele Tage VOR der Anreise noch "
                   "ändern; danach ist sie fest, damit sich das Mitglied darauf "
                   "einstellen kann. 0 = jederzeit änderbar (kein Lock). ADR 0081.",
+    )
+    short_notice_days = models.PositiveSmallIntegerField(
+        "Kurzfrist-Grenze für Storno/Verkürzen (Tage vor Anreise)", default=14,
+        help_text="Storniert oder verkürzt ein Mitglied eine Buchung, deren Anreise "
+                  "höchstens so viele Tage entfernt ist, VERFALLEN die betroffenen "
+                  "Tage – außer ein anderes Mitglied bucht den frei gewordenen "
+                  "Zeitraum (ganz/teilweise) neu. Alle Mitglieder werden dann in der "
+                  "App informiert (ohne Mail). Bei mehr Vorlauf gibt es die Tage "
+                  "normal zurück. ADR 0088.",
     )
 
     class Meta:

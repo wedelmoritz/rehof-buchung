@@ -305,15 +305,24 @@ Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufs
 
 - **Verlängern**: spontan, solange die zusätzlichen Nächte frei, freigeschaltet und
   im Budget sind.
-- **Verkürzen**: nur wenn der **Mindestaufenthalt gewahrt** bleibt **und** die frei
-  werdenden Nächte **≥ 7 Tage** in der Zukunft liegen.
+- **Verkürzen**: solange der **Mindestaufenthalt gewahrt** bleibt. **Kurzfristig**
+  (frei werdende Nächte ≤ Kurzfrist-Grenze, Standard 14 Tage) ist es erlaubt, die
+  Nächte **verwirken** dann aber (siehe unten).
 - **Unterkunft-Wechsel**: spontan möglich (nur in ein freies Quartier); meldet das
-  alte Quartier ebenso als „spontan frei". Die 7-Tage-Frist gilt nur fürs reine
-  Verkürzen im selben Quartier.
+  alte Quartier ebenso als „spontan frei". Ein **Umzug verwirkt nichts** (es wird
+  nicht gekürzt).
+
+**Kurzfrist-Storno / -Verkürzen & Verwirkung (ADR 0088):** Bei mehr als der
+Kurzfrist-Grenze (Standard **14 Tage**) Vorlauf ist Stornieren/Verkürzen frei – die
+Tage kommen zurück. **Innerhalb der Grenze verfallen die betroffenen Tage** – zurück
+gibt es sie nur, **soweit ein anderes Mitglied den frei gewordenen Zeitraum neu
+bucht**. In diesem Fall werden **alle Mitglieder in der App** informiert (ohne
+E-Mail); das stornierende Mitglied wird gebeten, den Zeitraum selbst publik zu machen.
 
 **Spontan frei → Benachrichtigung:** Wird ein Zeitraum frei (Storno/Verkürzen/
-Wechsel), bekommt die **Warteliste** für genau diesen Zeitraum eine Nachricht;
-zusätzlich gibt es eine **Rundmeldung an alle** (In-App + E-Mail).
+Wechsel), bekommt die **Warteliste** für genau diesen Zeitraum eine Nachricht
+(In-App + E-Mail); bei kurzfristigen Fällen zusätzlich eine **In-App-Rundmeldung an
+alle** (ohne E-Mail).
 
 **Unterkunfts-Tausch (ADR 0077):** Ein Mitglied kann ein anderes um einen
 **Quartiertausch** bitten – **nur bei exakt gleichem Zeitraum** (nur dann ergibt ein

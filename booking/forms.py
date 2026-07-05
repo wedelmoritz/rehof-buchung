@@ -65,13 +65,17 @@ class ProfileForm(forms.ModelForm):
         model = Member
         # email_opt_in wird separat in der „Benachrichtigungen"-Karte gepflegt
         # (neben Push), nicht hier zwischen den Rechnungsdaten.
-        fields = ["legal_name", "street", "zip_code", "city", "iban"]
+        fields = ["legal_name", "phone", "street", "zip_code", "city", "iban"]
 
     def clean_legal_name(self):
         v = (self.cleaned_data.get("legal_name") or "").strip()
         if v:
             _check(V.name_error(v, field="Name", max_len=160))
         return v
+
+    def clean_phone(self):
+        # Freitext, aber Steuerzeichen/übermäßige Länge kappen (Datensparsamkeit).
+        return V.strip_controls(self.cleaned_data.get("phone") or "", max_len=40)
 
     def clean_street(self):
         v = (self.cleaned_data.get("street") or "").strip()

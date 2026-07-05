@@ -1798,16 +1798,21 @@ class BuchungAnpassenTests(UseCaseBase):
         self.assertFalse(ok)
         self.assertIn("Mindestaufenthalt", err)
 
-    def test_verkuerzen_zu_kurzfristig_blockiert(self):
+    def test_verkuerzen_kurzfristig_erlaubt_aber_verwirkt(self):
+        """ADR 0088: die frühere ≥7-Tage-Sperre entfällt – kurzfristiges Verkürzen
+        ist erlaubt, die frei werdenden Nächte verwirken aber."""
+        from booking.models import ForfeitedNights
         today = date.today()
+        self.open_full_year_window(today.year)
         a = Allocation.objects.create(
             member=self.alice, quarter=self.k1, start=today + timedelta(days=3),
             end=today + timedelta(days=10), persons=1, source="spontaneous",
             provisional=False)
         ok, err = svc.adjust_allocation(
             self.alice, a.id, a.start, today + timedelta(days=6))
-        self.assertFalse(ok)
-        self.assertIn("Woche", err)
+        self.assertTrue(ok, err)                       # jetzt erlaubt
+        self.assertTrue(ForfeitedNights.objects.filter(
+            member=self.alice, reason="shorten").exists())
 
     def test_concurrent_split_exakt_vs_ueberlappend(self):
         s = date(NEXT_YEAR, 6, 10)
@@ -2381,7 +2386,7 @@ class SperrzeitenTests(UseCaseBase):
         from booking.permissions import ensure_verwaltung_group
         staff.user.groups.add(ensure_verwaltung_group())
         self.client.force_login(staff.user)
-        self.client.post(reverse("verw_reinigung"), {
+        self.client.post(reverse("verw_sperrzeiten"), {
             "action": "add_block", "quarter": self.k1.id,
             "start": self.s.isoformat(), "end": self.e.isoformat(),
             "reason": "Wasserschaden"})
@@ -2389,7 +2394,7 @@ class SperrzeitenTests(UseCaseBase):
         self.assertEqual(blk.reason, "Wasserschaden")
         self.assertFalse(svc.quarter_is_free(self.k1, self.s, self.e))
         # Aufheben gibt wieder frei.
-        self.client.post(reverse("verw_reinigung"), {
+        self.client.post(reverse("verw_sperrzeiten"), {
             "action": "delete_block", "block_id": blk.id})
         self.assertFalse(QuarterBlock.objects.filter(id=blk.id).exists())
         self.assertTrue(svc.quarter_is_free(self.k1, self.s, self.e))
@@ -2430,3 +2435,59 @@ class SonderwuenscheTests(UseCaseBase):
         self.client.force_login(self.alice.user)
         html = self.client.get(reverse("my_bookings")).content.decode()
         self.assertNotIn("Schlüssel liegt beim Nachbarn", html)
+
+
+class KurzfristVerwirkungTests(UseCaseBase):
+    """Kurzfrist-Storno/Verkürzen verwirkt Tage – zurück nur, soweit andere den
+    Zeitraum neu buchen (ADR 0088)."""
+
+    def setUp(self):
+        super().setUp()
+        self.today = date.today()
+        self.open_full_year_window(self.today.year)
+
+    def test_kurzfrist_storno_verwirkt_und_rueckgabe_bei_neubuchung(self):
+        from booking.models import ForfeitedNights, Notification
+        y = self.today.year
+        s = self.today + timedelta(days=5)      # kurzfristig (≤14)
+        e = s + timedelta(days=3)
+        base = self.alice.effective_annual_budget(y)
+        a, err = svc.book_spontaneous(self.alice, self.k1, s, e)
+        self.assertIsNotNone(a, err)
+        ok, _ = svc.cancel_allocation(self.alice, a.id)
+        self.assertTrue(ok)
+        # Tage verwirkt → effektives Budget bleibt um 3 gemindert (kein „Zurückholen")
+        self.assertEqual(self.alice.effective_annual_budget(y), base - 3)
+        self.assertEqual(ForfeitedNights.objects.filter(member=self.alice).count(), 1)
+        # ALLE Mitglieder in der App informiert
+        self.assertTrue(Notification.objects.filter(message__icontains="Spontan frei").exists())
+        # Bob bucht den frei gewordenen Zeitraum → Alice bekommt die Tage zurück
+        b, berr = svc.book_spontaneous(self.bob, self.k1, s, e)
+        self.assertIsNotNone(b, berr)
+        self.assertEqual(self.alice.effective_annual_budget(y), base)
+
+    def test_langfrist_storno_keine_verwirkung(self):
+        from booking.models import ForfeitedNights
+        y = self.today.year
+        s = self.today + timedelta(days=40)     # > 14 Tage
+        e = s + timedelta(days=3)
+        base = self.alice.effective_annual_budget(y)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, e)
+        svc.cancel_allocation(self.alice, a.id)
+        self.assertEqual(self.alice.effective_annual_budget(y), base)   # Tage zurück
+        self.assertFalse(ForfeitedNights.objects.filter(member=self.alice).exists())
+
+    def test_kurzfrist_verkuerzen_verwirkt(self):
+        from booking.models import ForfeitedNights
+        y = self.today.year
+        s = self.today + timedelta(days=5)
+        e = s + timedelta(days=6)               # 6 Nächte
+        base = self.alice.effective_annual_budget(y)
+        a, _ = svc.book_spontaneous(self.alice, self.k1, s, e)
+        ok, err = svc.adjust_allocation(self.alice, a.id, s, s + timedelta(days=3))
+        self.assertTrue(ok, err)
+        self.assertTrue(ForfeitedNights.objects.filter(
+            member=self.alice, reason="shorten").exists())
+        # 3 genutzt + 3 verwirkt
+        self.assertEqual(self.alice.effective_annual_budget(y), base - 3)
+        self.assertEqual(self.alice.nights_remaining_in_year(y), base - 6)

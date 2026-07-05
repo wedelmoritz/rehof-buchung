@@ -203,6 +203,18 @@
   </form>
   {% endfor %}
   {% endif %}
+
+  {% if unavail_quarters %}
+  <h3>Nicht verfügbar</h3>
+  <p class="muted" style="margin-top:0">Diese Unterkünfte sind für den gewählten Zeitraum nicht buchbar.</p>
+  {% for q, reason in unavail_quarters %}
+  <div class="qrow unavail">
+    <span class="qname">{{ q.name }}</span>
+    <span class="muted qmeta">{{ q.size_sqm }} m² · {{ q.min_occupancy }}–{{ q.max_occupancy }} Pers.{% if q.accessible %} · barrierearm/-frei{% endif %}</span>
+    <span class="unavail-reason">{{ reason }}</span>
+  </div>
+  {% endfor %}
+  {% endif %}
   {% endif %}{# sel_end #}
 </div>
 {% else %}
@@ -293,6 +305,9 @@
   .qrow .qmeta { font-size:.85rem; }
   .qrow .reason { color:var(--bad); font-size:.82rem; }
   .qrow .spacer { margin-left:auto; }
+  .qrow.unavail { opacity:.6; background:var(--bg); }
+  .qrow.unavail .unavail-reason { margin-left:auto; font-size:.82rem; color:var(--muted);
+    font-style:italic; }
 </style>
 {% endif %}
 {% endblock %}
