@@ -599,6 +599,14 @@ def my_bookings(request):
                 request.POST.get("decision") == "accept")
             messages.success(request, "Antwort gesendet.") if ok \
                 else messages.error(request, err or "Nicht möglich.")
+        elif action == "reloc_respond":
+            ok, err = svc.respond_relocation(
+                member, request.POST.get("request_id"),
+                request.POST.get("decision") == "accept")
+            if ok:
+                messages.success(request, "Antwort gesendet.")
+            else:
+                messages.error(request, err or "Nicht möglich.")
         return redirect("my_bookings")
 
     upcoming, past = [], []
@@ -674,6 +682,7 @@ def my_bookings(request):
         "upcoming": upcoming,
         "past": past,
         "incoming_swaps": incoming_swaps,
+        "relocations": svc.pending_relocation_requests(member) if member else [],
         "submitted_wishes": submitted_wishes,
         "my_waitlist": my_waitlist,
         "cancellations": cancellations,
@@ -1204,6 +1213,27 @@ def _verw_nav_ctx(request, today, year, month):
     }
 
 
+def _serialize_block_conflict(q, s, e, reason, info):
+    """Packt den Sperrzeit-Konflikt in ein session-taugliches Dict (ADR 0097) für das
+    Konflikt-Panel auf der Sperrzeiten-Seite (POST→Redirect→GET)."""
+    sug = info["suggestion"]
+    return {
+        "quarter_id": q.id, "quarter": q.name,
+        "start": s.isoformat(), "end": e.isoformat(), "reason": reason,
+        "within_notice": info["within_notice"],
+        "notice_days": svc.block_min_notice_days(),
+        "suggestion": [sug[0].isoformat(), sug[1].isoformat()] if sug else None,
+        "allocs": [{"member": a.member.display_name,
+                    "start": a.start.isoformat(), "end": a.end.isoformat(),
+                    "persons": a.persons,
+                    "phone": getattr(a.member, "phone", "") or "",
+                    "email": (getattr(a.member.user, "email", "") or "")}
+                   for a in info["allocs"]],
+        "ext": [{"start": b.start.isoformat(), "end": b.end.isoformat()}
+                for b in info["ext"]],
+    }
+
+
 def _verw_post(request, year, month, m_from, m_to, only_cleaning):
     """Zentrale POST-Verarbeitung aller Verwaltungs-Aktionen; leitet danach auf die
     passende Unterseite zurück (Monat/Filter erhalten)."""
@@ -1276,21 +1306,63 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
             messages.success(request, "Interne Notiz gespeichert.")
         target = "verw_buchungen"
     elif action == "add_block":
-        from .models import Quarter, QuarterBlock
+        from .models import Quarter
         q = Quarter.objects.filter(id=request.POST.get("quarter")).first()
         s = _parse_date(request.POST.get("start"))
         e = _parse_date(request.POST.get("end"))
+        reason = request.POST.get("reason", "")
+        request.session.pop("block_conflict", None)
         if not q or not s or not e:
             messages.error(request, "Bitte Quartier, Von- und Bis-Datum angeben.")
         elif e <= s:
             messages.error(request, "Das Bis-Datum muss nach dem Von-Datum liegen.")
         else:
-            from . import validation as V
-            QuarterBlock.objects.create(
-                quarter=q, start=s, end=e,
-                reason=V.strip_controls(request.POST.get("reason", ""), max_len=200))
-            messages.success(request, f"{q.name} vom {s:%d.%m.%Y} bis {e:%d.%m.%Y} "
-                             "gesperrt (nicht mehr buchbar).")
+            info = svc.create_quarter_block(q, s, e, reason, actor=request.user)
+            if info["block"] is None:
+                # Konflikt: NICHT anlegen – Panel-Zustand für die Seite merken.
+                request.session["block_conflict"] = _serialize_block_conflict(
+                    q, s, e, reason, info)
+            else:
+                messages.success(request, f"{q.name} vom {s:%d.%m.%Y} bis "
+                                 f"{e:%d.%m.%Y} gesperrt (nicht mehr buchbar).")
+        target = "verw_sperrzeiten"
+    elif action == "force_block":
+        from .models import Quarter
+        q = Quarter.objects.filter(id=request.POST.get("quarter")).first()
+        s = _parse_date(request.POST.get("start"))
+        e = _parse_date(request.POST.get("end"))
+        request.session.pop("block_conflict", None)
+        if q and s and e and e > s:
+            info = svc.create_quarter_block(q, s, e, request.POST.get("reason", ""),
+                                            force=True, actor=request.user)
+            n = len(info["allocs"])
+            messages.warning(
+                request, f"⚠ {q.name} wurde trotz {n} Buchung(en) gesperrt (dringend). "
+                "Bitte die betroffenen Mitglieder unten umbuchen oder – wenn kein "
+                "Platz frei ist – stornieren und entschuldigen.")
+        target = "verw_sperrzeiten"
+    elif action == "propose_reloc":
+        from .models import Allocation, Quarter
+        a = Allocation.objects.filter(id=request.POST.get("allocation_id")).first()
+        to_q = Quarter.objects.filter(id=request.POST.get("to_quarter")).first()
+        if a and to_q:
+            svc.propose_relocation(a, to_q, request.POST.get("reason", ""),
+                                   actor=request.user)
+            messages.success(request, f"Umbuchungs-Vorschlag ({to_q.name}) an "
+                             f"{a.member.display_name} gesendet.")
+        else:
+            messages.error(request, "Buchung oder Zielquartier nicht gefunden.")
+        target = "verw_sperrzeiten"
+    elif action == "apologize_block":
+        from .models import Allocation
+        a = Allocation.objects.filter(id=request.POST.get("allocation_id")).first()
+        if a:
+            name = a.member.display_name
+            res = svc.cancel_with_apology(
+                a, request.POST.get("reason", ""),
+                int(request.POST.get("compensation_days") or 0), actor=request.user)
+            messages.success(request, f"Buchung von {name} storniert und entschuldigt "
+                             f"(+{res['compensation']} Ausgleichstage).")
         target = "verw_sperrzeiten"
     elif action == "edit_block":
         from .models import QuarterBlock
@@ -1432,11 +1504,31 @@ def verw_sperrzeiten(request):
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
         return _verw_post(request, year, month, m_from, m_to, only_cleaning)
+    from .models import RelocationRequest
+    blocks = list(QuarterBlock.objects.filter(end__gte=today)
+                  .select_related("quarter").order_by("start", "quarter__sort_order"))
+    # Buchungen, die aktuell mit einer Sperrzeit kollidieren → brauchen Umbuchung
+    # oder eine Storno-mit-Entschuldigung (ADR 0097). Aus den Daten abgeleitet, damit
+    # der Abschnitt automatisch verschwindet, sobald ein Fall geklärt ist.
+    reloc_needed = []
+    for b in blocks:
+        allocs, _ext = svc.block_conflicts(b.quarter, b.start, b.end)
+        for a in allocs:
+            pending = next((r for r in a.relocation_requests.all()
+                            if r.status == RelocationRequest.PROPOSED), None)
+            rejected = any(r.status == RelocationRequest.REJECTED
+                           for r in a.relocation_requests.all())
+            reloc_needed.append({
+                "alloc": a, "block": b, "pending": pending, "rejected": rejected,
+                "options": None if pending else svc.relocation_options(a),
+            })
     ctx = _verw_nav_ctx(request, today, year, month)
     ctx.update({
         "quarters": list(Quarter.objects.filter(active=True).order_by("sort_order", "name")),
-        "blocks": list(QuarterBlock.objects.filter(end__gte=today)
-                       .select_related("quarter").order_by("start", "quarter__sort_order")),
+        "blocks": blocks,
+        "block_conflict": request.session.pop("block_conflict", None),
+        "reloc_needed": reloc_needed,
+        "max_comp_days": svc.max_compensation_days(),
     })
     return render(request, "booking/verw_sperrzeiten.html", ctx)
 

@@ -133,7 +133,16 @@ Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 
 Buchbarkeit wie eine Belegung [in `quarter_is_free`/`find_gaps`/Belegungs-Tage],
 Pflege auf der **eigenen** Verwaltungs-Unterseite `verw_sperrzeiten`
 (`/verwaltung/sperrzeiten/`) + Backend, Anzeige als schraffierter Balken im
-Belegungsplan; #61/ADR 0086),
+Belegungsplan; #61/ADR 0086; **Konflikt-Workflow ADR 0097**: eine Sperrzeit über einer
+Buchung wird **standardmäßig abgelehnt** mit Meldung + betroffenen Mitgliedern +
+Vorschlag der nächsten freien Zeit [`services/blocks.py`]; unter
+`BookingPolicy.block_min_notice_days` [14] greift der **dringende** Weg [WARNUNG,
+`force`]: Buchungen kommen unter „Umbuchung nötig", die BL schlägt eine freie
+Ersatz-Unterkunft vor [`RelocationRequest`, Mitglied nimmt in „Meine Buchungen" an=
+sofort-Umzug / ab] oder **storniert mit Entschuldigung** [`cancel_with_apology`: Tage
+zurück ohne Verfall + bis zu `max_compensation_days` `CompensationGrant`-Ausgleichstage
+ins `effective_annual_budget`]),
+`RelocationRequest`/`CompensationGrant` (ADR 0097, s. `QuarterBlock`),
 `Notification` (In-App-Benachrichtigung), `NotificationSetting` (Betriebs-
 Einstellung je Benachrichtigungs-Ereignis: an/aus, Empfänger, Frequenz, PDF, Vorlauf –
 Vorlagen im Code-Katalog `booking/notify_catalog.py`, ADR 0089; Dispatcher

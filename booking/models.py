@@ -365,15 +365,23 @@ class Member(models.Model):
         return sum(f.effective for f in self.forfeits.filter(year=year)
                    .select_related("quarter"))
 
+    def compensation_days_in_year(self, year: int) -> int:
+        """Von der Verwaltung gewährte Ausgleichs-Tage (ADR 0097, dringende
+        Sperrung ohne Ersatz-Unterkunft) – additiv zum Budget."""
+        from django.db.models import Sum
+        return self.compensations.filter(year=year).aggregate(
+            s=Sum("days"))["s"] or 0
+
     def effective_annual_budget(self, year: int) -> int:
-        """Jahreskontingent inkl. erhaltener/abgegebener Tage und Pool-Spenden/
-        -Entnahmen (kein Übertrag aus dem Vorjahr) – abzüglich kurzfristig
-        verwirkter Tage (ADR 0088)."""
+        """Jahreskontingent inkl. erhaltener/abgegebener Tage, Pool-Spenden/-Entnahmen
+        und Ausgleichs-Tagen (kein Übertrag aus dem Vorjahr) – abzüglich kurzfristig
+        verwirkter Tage (ADR 0088/0097)."""
         return (
             self.annual_night_budget
             + self.nights_received_in_year(year)
             - self.nights_given_in_year(year)
             + self.pool_net_in_year(year)
+            + self.compensation_days_in_year(year)
             - self.forfeited_nights_in_year(year)
         )
 
@@ -841,6 +849,72 @@ class QuarterBlock(models.Model):
 
     def __str__(self) -> str:
         return f"{self.quarter} gesperrt {self.start}–{self.end}"
+
+
+class RelocationRequest(models.Model):
+    """Umbuchungs-Anfrage der Verwaltung an ein Mitglied (ADR 0097): Muss ein Quartier
+    **dringend gesperrt** werden (z. B. Wasserrohrbruch), während dort eine Buchung
+    liegt, schlägt die BL dem Mitglied eine **andere freie Unterkunft** für denselben
+    Zeitraum vor. Das Mitglied kann **annehmen** (Buchung zieht sofort um, unter Sperre
+    geprüft) oder **ablehnen**. Ist die vorgeschlagene Unterkunft kleiner als die Gruppe
+    (`undersized`), wird das dem Mitglied klar angezeigt."""
+    PROPOSED, ACCEPTED, REJECTED, CANCELLED = "proposed", "accepted", "rejected", "cancelled"
+    STATUS = [(PROPOSED, "Vorgeschlagen"), (ACCEPTED, "Angenommen"),
+              (REJECTED, "Abgelehnt"), (CANCELLED, "Zurückgezogen")]
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="relocation_requests",
+        verbose_name="Mitglied")
+    allocation = models.ForeignKey(
+        "Allocation", on_delete=models.CASCADE, related_name="relocation_requests",
+        verbose_name="Betroffene Buchung")
+    from_quarter = models.ForeignKey(
+        "Quarter", on_delete=models.PROTECT, related_name="+",
+        verbose_name="Bisherige (gesperrte) Unterkunft")
+    to_quarter = models.ForeignKey(
+        "Quarter", on_delete=models.PROTECT, related_name="+",
+        verbose_name="Vorgeschlagene Unterkunft")
+    undersized = models.BooleanField(
+        "Kleiner als die Gruppe", default=False,
+        help_text="Die vorgeschlagene Unterkunft ist kleiner als die Personenzahl "
+                  "der Buchung – dem Mitglied wird das ausdrücklich mitgeteilt.")
+    reason = models.CharField("Grund der Sperrung", max_length=300, blank=True)
+    status = models.CharField("Status", max_length=10, choices=STATUS, default=PROPOSED)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    responded_at = models.DateTimeField("Beantwortet am", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Umbuchungs-Anfrage"
+        verbose_name_plural = "Umbuchungs-Anfragen"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.member} → {self.to_quarter} ({self.get_status_display()})"
+
+
+class CompensationGrant(models.Model):
+    """**Ausgleichs-Tage** (ADR 0097): Muss die Verwaltung eine Buchung wegen einer
+    dringenden Sperrung stornieren und kann keine passende Ersatz-Unterkunft
+    bereitstellen, kann sie dem Mitglied – je nach Schwere – **bis zu
+    `BookingPolicy.max_compensation_days` zusätzliche Tage** gutschreiben. Fließt additiv
+    ins `Member.effective_annual_budget` (wie erhaltene Übertragungen)."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="compensations",
+        verbose_name="Mitglied")
+    year = models.PositiveIntegerField("Jahr")
+    days = models.PositiveSmallIntegerField("Ausgleichs-Tage")
+    reason = models.CharField("Grund", max_length=300, blank=True)
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Gewährt von")
+
+    class Meta:
+        verbose_name = "Ausgleichs-Tage"
+        verbose_name_plural = "Ausgleichs-Tage"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.member}: +{self.days} Tage ({self.year})"
 
 
 class ForfeitedNights(models.Model):
@@ -1371,6 +1445,20 @@ class BookingPolicy(models.Model):
                   "Zeitraum (ganz/teilweise) neu. Alle Mitglieder werden dann in der "
                   "App informiert (ohne Mail). Bei mehr Vorlauf gibt es die Tage "
                   "normal zurück. ADR 0088.",
+    )
+    block_min_notice_days = models.PositiveSmallIntegerField(
+        "Sperrzeit: Vorlauf für Absprache mit Mitgliedern (Tage)", default=14,
+        help_text="Eine Sperrzeit über eine bestehende Buchung ist regulär nur mit "
+                  "diesem Mindestvorlauf möglich (damit sich die Mitglieder darauf "
+                  "einlassen können). Startet die Sperrung früher, greift der "
+                  "**dringende** Workflow (Wasserrohrbruch o. Ä.) mit Umbuchung/"
+                  "Ausgleich. ADR 0097.",
+    )
+    max_compensation_days = models.PositiveSmallIntegerField(
+        "Max. Ausgleichs-Tage bei dringender Sperrung", default=2,
+        help_text="Kann die Verwaltung bei einer dringenden Sperrung keine passende "
+                  "Ersatz-Unterkunft bereitstellen, darf sie dem Mitglied bis zu so "
+                  "viele zusätzliche Tage gutschreiben (je nach Schwere). ADR 0097.",
     )
 
     class Meta:

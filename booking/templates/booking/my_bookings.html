@@ -7,6 +7,37 @@
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% else %}
 
+{% if relocations %}
+<div class="card" style="border:1.5px solid var(--warn)">
+  <h2 style="margin-top:0">🔀 Umbuchungs-Vorschlag der Verwaltung</h2>
+  {% for r in relocations %}
+  <div class="reloc-in">
+    <p style="margin:.2rem 0">Die Verwaltung muss <strong>{{ r.from_quarter.name }}</strong>
+      für deinen Zeitraum <strong>{{ r.allocation.start|date:"d.m." }}–{{ r.allocation.end|date:"d.m.Y" }}</strong>
+      sperren{% if r.reason %} ({{ r.reason }}){% endif %} und schlägt dir
+      <strong>{{ r.to_quarter.name }}</strong> als Ersatz vor.
+      {% if r.undersized %}<br><span class="msg warning" style="display:inline-block;margin-top:.3rem">
+        ⚠ Hinweis: {{ r.to_quarter.name }} ist <strong>kleiner als eure Gruppe</strong>
+        ({{ r.allocation.persons }} Pers.).</span>{% endif %}</p>
+    <div class="reloc-in-actions">
+      <form method="post" class="inline" data-confirm="Umbuchung nach {{ r.to_quarter.name }} annehmen? Deine Buchung zieht dann dorthin um.">{% csrf_token %}
+        <input type="hidden" name="action" value="reloc_respond">
+        <input type="hidden" name="request_id" value="{{ r.id }}">
+        <input type="hidden" name="decision" value="accept">
+        <button class="btn small" type="submit">Annehmen (umziehen)</button>
+      </form>
+      <form method="post" class="inline" data-confirm="Umbuchung ablehnen? Die Verwaltung wird informiert.">{% csrf_token %}
+        <input type="hidden" name="action" value="reloc_respond">
+        <input type="hidden" name="request_id" value="{{ r.id }}">
+        <input type="hidden" name="decision" value="reject">
+        <button class="btn small ghost danger" type="submit">Ablehnen</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if incoming_swaps %}
 <div class="card" style="border-color:var(--sage)">
   <h2 style="margin-top:0">Eingegangene Wechselwünsche</h2>

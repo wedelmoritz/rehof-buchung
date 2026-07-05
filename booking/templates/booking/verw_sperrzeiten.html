@@ -3,6 +3,115 @@
 {% block verw_h1 %}Sperrzeiten (Reinigung/Reparatur){% endblock %}
 
 {% block verw_body %}
+
+{% if block_conflict %}
+{% with c=block_conflict %}
+<div class="card conflict">
+  <h2 style="margin-top:0">⛔ Sperrzeit überschneidet Buchungen</h2>
+  <p style="margin-top:0"><strong>Das geht nicht:</strong> {{ c.quarter }} vom
+    {{ c.start }} bis {{ c.end }} überschneidet bestehende Buchungen. Falls die
+    Sperrzeit unbedingt nötig ist, geh bitte <strong>zuerst auf die eingebuchten
+    Mitglieder zu</strong> und kläre das mit ihnen – das ist nur bis spätestens
+    <strong>{{ c.notice_days }} Tage vorher</strong> möglich, damit sie sich darauf
+    einlassen können.</p>
+  <div class="conflict-members">
+    <strong>Betroffene Mitglieder:</strong>
+    <ul class="tight">
+      {% for a in c.allocs %}
+      <li>{{ a.member }} · {{ a.start }}–{{ a.end }} · {{ a.persons }} Pers.
+        {% if a.phone %}· ☎ {{ a.phone }}{% endif %}{% if a.email %}· ✉ {{ a.email }}{% endif %}</li>
+      {% endfor %}
+      {% for x in c.ext %}<li>Externer Gast · {{ x.start }}–{{ x.end }}</li>{% endfor %}
+    </ul>
+  </div>
+
+  {% if c.suggestion %}
+  <p class="sug">💡 Nächste freie Zeit im {{ c.quarter }}:
+    <strong>{{ c.suggestion.0 }} – {{ c.suggestion.1 }}</strong>
+    <form method="post" class="inline">{% csrf_token %}
+      <input type="hidden" name="action" value="add_block">
+      <input type="hidden" name="quarter" value="{{ c.quarter_id }}">
+      <input type="hidden" name="start" value="{{ c.suggestion.0 }}">
+      <input type="hidden" name="end" value="{{ c.suggestion.1 }}">
+      <input type="hidden" name="reason" value="{{ c.reason }}">
+      <button class="btn small" type="submit">Diese Zeit stattdessen sperren</button>
+    </form>
+  </p>
+  {% endif %}
+
+  <div class="urgent">
+    {% if c.within_notice %}
+    <p style="margin:.2rem 0"><strong>Weniger als {{ c.notice_days }} Tage Vorlauf.</strong>
+      Ist die Sperrung <strong>unumgänglich</strong> (z. B. Wasserrohrbruch)?</p>
+    {% else %}
+    <p style="margin:.2rem 0">Genug Vorlauf für eine Absprache. Nur wenn es
+      <strong>dringend</strong> ist, kannst du trotzdem sperren und die Mitglieder umbuchen.</p>
+    {% endif %}
+    <form method="post" class="inline"
+          data-confirm="Wirklich TROTZ Buchungen sperren? Die betroffenen Mitglieder müssen dann umgebucht oder entschuldigt werden.">{% csrf_token %}
+      <input type="hidden" name="action" value="force_block">
+      <input type="hidden" name="quarter" value="{{ c.quarter_id }}">
+      <input type="hidden" name="start" value="{{ c.start }}">
+      <input type="hidden" name="end" value="{{ c.end }}">
+      <input type="hidden" name="reason" value="{{ c.reason }}">
+      <button class="btn small danger" type="submit">Ja, dringend – trotzdem sperren &amp; umbuchen</button>
+    </form>
+  </div>
+</div>
+{% endwith %}
+{% endif %}
+
+{% if reloc_needed %}
+<div class="card reloc">
+  <h2 style="margin-top:0">🔀 Umbuchung nötig ({{ reloc_needed|length }})</h2>
+  <p class="muted" style="margin-top:0">Diese Buchungen liegen in einer gesperrten Zeit.
+    Schlag dem Mitglied eine <strong>freie Ersatz-Unterkunft</strong> vor – oder, wenn
+    nichts frei ist, <strong>storniere mit Entschuldigung</strong> (die Tage kommen
+    zurück, optional plus Ausgleich).</p>
+  {% for r in reloc_needed %}
+  <div class="reloc-item">
+    <div class="reloc-head"><strong>{{ r.alloc.member.display_name }}</strong> ·
+      {{ r.block.quarter.name }} · {{ r.alloc.start|date:"d.m." }}–{{ r.alloc.end|date:"d.m.Y" }}
+      · {{ r.alloc.persons }} Pers.
+      {% if r.rejected %}<span class="tag danger">Vorschlag abgelehnt</span>{% endif %}</div>
+    {% if r.pending %}
+    <p class="muted" style="margin:.2rem 0">⏳ Vorschlag <strong>{{ r.pending.to_quarter.name }}</strong>
+      gesendet – wartet auf Antwort des Mitglieds.</p>
+    {% else %}
+    <div class="reloc-actions">
+      <form method="post" class="reloc-form">{% csrf_token %}
+        <input type="hidden" name="action" value="propose_reloc">
+        <input type="hidden" name="allocation_id" value="{{ r.alloc.id }}">
+        <label>Ersatz-Unterkunft
+          <select name="to_quarter" required>
+            <option value="">– wählen –</option>
+            {% for q in r.options.fitting %}<option value="{{ q.id }}">{{ q.name }} (passt)</option>{% endfor %}
+            {% for q in r.options.undersized %}<option value="{{ q.id }}">{{ q.name }} (kleiner als Gruppe)</option>{% endfor %}
+          </select></label>
+        <input type="text" name="reason" maxlength="300" placeholder="Grund (z. B. Wasserrohrbruch)">
+        <button class="btn small" type="submit"
+          {% if not r.options.fitting and not r.options.undersized %}disabled title="Keine Unterkunft frei"{% endif %}>Umbuchung vorschlagen</button>
+      </form>
+      <form method="post" class="reloc-form apology"
+            data-confirm="Buchung von {{ r.alloc.member.display_name }} stornieren und entschuldigen? Die Tage kommen zurück.">{% csrf_token %}
+        <input type="hidden" name="action" value="apologize_block">
+        <input type="hidden" name="allocation_id" value="{{ r.alloc.id }}">
+        <input type="text" name="reason" maxlength="300" placeholder="Grund/Entschuldigung">
+        <label>Ausgleichs-Tage
+          <input type="number" name="compensation_days" value="0" min="0" max="{{ max_comp_days }}" style="width:3.5rem"></label>
+        <button class="btn small ghost danger" type="submit">Stornieren &amp; entschuldigen</button>
+      </form>
+    </div>
+    {% if not r.options.fitting and not r.options.undersized %}
+    <p class="muted" style="margin:.2rem 0 0">Keine Ersatz-Unterkunft frei – bitte
+      stornieren &amp; entschuldigen (Ausgleich max. {{ max_comp_days }} Tage).</p>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="card">
   <div class="sec-head">
     <h2 style="margin:0">Quartier sperren</h2>
@@ -67,6 +176,21 @@
 </div>
 
 <style>
+  .card.conflict { border:1.5px solid var(--bad); background:var(--bad-soft); }
+  .card.conflict .sug { background:var(--card); border-radius:9px; padding:.5rem .7rem; }
+  .card.conflict .urgent { margin-top:.6rem; padding-top:.6rem; border-top:1px solid var(--line); }
+  .conflict-members { margin:.4rem 0; }
+  .card.reloc { border:1px solid var(--warn); }
+  .reloc-item { border-top:1px solid var(--line); padding:.6rem 0; }
+  .reloc-item:first-of-type { border-top:0; }
+  .reloc-head { margin-bottom:.35rem; }
+  .reloc-actions { display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end; }
+  .reloc-form { display:flex; flex-wrap:wrap; gap:.5rem; align-items:flex-end;
+    padding:.5rem; border:1px solid var(--line); border-radius:9px; background:var(--bg); }
+  .reloc-form.apology { background:var(--card); }
+  .reloc-form label { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:.15rem; }
+  .reloc-form input, .reloc-form select { padding:.4rem .5rem; border:1px solid var(--line);
+    border-radius:8px; background:#fff; font:inherit; color:var(--ink); }
   .block-actions { white-space:nowrap; }
   .block-edit { display:inline-block; vertical-align:middle; }
   .block-edit > summary { display:inline-block; cursor:pointer; list-style:none; margin-right:.3rem; }
