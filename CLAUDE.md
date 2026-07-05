@@ -114,7 +114,10 @@ Zustellbett, dem Mitglied sichtbar] + `internal_note` = **interne Team-/BL-Notiz
 Buchungen“), `PendingUser` (Proxy auf `User` für das geführte Onboarding neuer
 Konten, ADR 0056), `LotteryRun` (Losdurchlauf; `n_allocations`/`n_losses` =
 erfüllte/nicht erfüllte Wünsche fürs Dashboard), `NightTransfer` (mit `thanked_at` =
-„Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5), `WaitlistEntry` (Spontanbuchungs-
+„Danke", P2.7), `DayPoolEntry` (Solidaritäts-Pool für Tage, P2.5),
+`ForfeitedNights` (**Kurzfrist-Verwirkung**: Storno/Verkürzen ≤ `short_notice_days`
+verwirkt die Tage; `effective` = angelegt − von anderen neu gebucht; mindert
+`effective_annual_budget`; #ADR 0088), `WaitlistEntry` (Spontanbuchungs-
 Warteliste), `CancellationLog` (schlanker **Storno-Nachweis** je gelöschter Buchung –
 Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 0082),
 `QuarterBlock` (**Sperrzeit** je Quartier für Reinigung/Reparatur – blockiert die
@@ -250,12 +253,13 @@ Unterkünfte, `services.swap_shift_hint`]. **Buchung ändern** je Buchung
 [`services.adjust_allocation`] deckt neben dem **Zeitraum** auch
 **Unterkunft-Wechsel** [nur freie – `services.free_quarters_for` listet sie] und
 die **Personenzahl** ab: **verlängern** spontan, solange die zusätzlichen
-Nächte frei/freigeschaltet/im Budget sind, **verkürzen** nur wenn der
-Mindestaufenthalt gewahrt bleibt UND die frei werdenden Nächte ≥7 Tage entfernt
-sind – dann In-App-Meldung **an alle** [`_broadcast_spontaneously_free`] + E-Mail
-an die Warteliste; der **Unterkunft-Wechsel** geht spontan und meldet das alte
-Quartier ebenso als „spontan frei“ an alle (die 7-Tage-Frist gilt nur fürs reine
-Verkürzen im selben Quartier); Karte **„Meine Wartelisten-Einträge“** listet die eigenen
+Nächte frei/freigeschaltet/im Budget sind, **verkürzen** solange der
+Mindestaufenthalt gewahrt bleibt – **kurzfristig** (frei werdende Nächte ≤
+`short_notice_days`) ist es erlaubt, die Nächte **verwirken** dann aber wie beim
+Kurzfrist-Storno (ADR 0088, löst die frühere „≥7-Tage"-Sperre ab); dann In-App-Meldung
+**an alle** [`_broadcast_spontaneously_free`] + E-Mail an die Warteliste; der
+**Unterkunft-Wechsel** geht spontan (Umzug verwirkt nichts) und meldet das alte
+Quartier ebenso als „spontan frei“ an alle; Karte **„Meine Wartelisten-Einträge“** listet die eigenen
 offenen Wartelisten-Einträge), `transfer` (**zweistufig**: Empfänger:in über ein
 **Typeahead-Suchfeld** wählen [ab 3 Zeichen; JSON-Endpoint `member_search` sucht
 über Anzeigename/Benutzername/E-Mail/Vor-/Nachname, eigenes Konto + externe Gäste
@@ -785,6 +789,14 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   **an andere Mitglieder übertragbar** (`NightTransfer`) **oder in den
   Solidaritäts-Pool spendbar/daraus entnehmbar** (`DayPoolEntry`, gedeckelt, nur bei
   Bedarf; P2.5/ADR 0064). Beides fließt in `Member.effective_annual_budget` ein.
+- **Kurzfrist-Storno/Verkürzen (ADR 0088):** wird eine Buchung mit Anreise ≤
+  `BookingPolicy.short_notice_days` (Default 14) storniert/verkürzt, **verfallen** die
+  betroffenen Tage (`ForfeitedNights`, mindert `effective_annual_budget`) – **zurück
+  nur, soweit ein anderes Mitglied** den Zeitraum neu bucht (`covered_by_others`,
+  dynamisch). Alle Mitglieder werden dann **in der App** informiert (kein Mail;
+  `_broadcast_spontaneously_free`), Warteliste wie gehabt per Mail. Die frühere
+  „≥7-Tage"-Verkürzungs-Sperre in `adjust_allocation` entfällt (Umzug/Quartier-Wechsel
+  verwirkt nichts). UI-Warnung in „Meine Buchungen" (`is_short_notice`).
 - **Saison-Regeln (`SeasonRule`):** **jährlich wiederkehrend** (Monat/Tag, ohne
   Jahr); je Zeitraum optional `min_nights`, `max_parallel_units` (gleichzeitige
   Wohneinheiten), `max_stay_nights` (Einheiten-Nächte-Deckel). Der Service

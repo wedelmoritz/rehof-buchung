@@ -612,6 +612,9 @@ def my_bookings(request):
                 "service_requests__product"):
             (upcoming if a.end > today else past).append(a)
         for a in upcoming:
+            # Kurzfrist-Storno/Verkürzen (Anreise ≤ Kurzfrist-Grenze): Tage verfallen,
+            # falls andere den Zeitraum nicht neu buchen (ADR 0088) – steuert die Warnung.
+            a.short_notice = svc.is_short_notice(a.start, today)
             a.service_reqs = list(a.service_requests.all())
             a.waiters = svc.waiters_for_allocation(a)
             a.concurrent = svc.concurrent_split(a)

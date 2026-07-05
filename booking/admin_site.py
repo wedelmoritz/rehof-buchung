@@ -27,6 +27,7 @@ SECTIONS: list[tuple[str, list[str]]] = [
         "booking.PendingUser",                       # Onboarding-Seite zuerst (ADR 0056)
         "auth.User", "booking.Member", "booking.Rolle",
         "booking.Membership", "booking.NightTransfer", "booking.DayPoolEntry",
+        "booking.ForfeitedNights",
     ]),
     ("Quartiere & Buchungssystem", [
         "booking.Quarter", "booking.QuarterBlock", "booking.EquivalenceClass",

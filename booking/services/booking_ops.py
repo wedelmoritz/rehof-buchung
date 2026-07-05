@@ -24,6 +24,7 @@ __all__ = [
     'concurrent_split', 'create_swap_request', 'respond_swap_request',
     'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
     'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
+    'short_notice_days', 'is_short_notice',
 ]
 
 @transaction.atomic
@@ -387,10 +388,25 @@ def thank_for_transfer(member: Member, transfer_id) -> tuple[bool, str | None]:
 
 
 @transaction.atomic
+def short_notice_days() -> int:
+    """Kurzfrist-Grenze (Tage vor Anreise) aus den Buchungsregeln (ADR 0088)."""
+    return BookingPolicy.get_solo().short_notice_days
+
+
+def is_short_notice(start: date, today: date | None = None) -> bool:
+    """Anreise höchstens `short_notice_days` entfernt → Kurzfrist (Verwirkung)."""
+    today = today or date.today()
+    return start <= today + timedelta(days=short_notice_days())
+
+
+@transaction.atomic
 def cancel_allocation(member: Member, allocation_id) -> tuple[bool, str | None]:
-    """Storniert eine Buchung des Mitglieds. Vergangene Buchungen bleiben.
-    Wird dadurch ein Wartelisten-Zeitraum frei, werden die Wartenden
-    benachrichtigt."""
+    """Storniert eine Buchung des Mitglieds. Vergangene Buchungen bleiben. Wird
+    dadurch ein Wartelisten-Zeitraum frei, werden die Wartenden benachrichtigt.
+
+    **Kurzfrist-Storno** (Anreise ≤ `short_notice_days`, ADR 0088): die Tage
+    **verfallen** (Verwirkungs-Eintrag; zurück nur, soweit andere den Zeitraum neu
+    buchen) und ALLE Mitglieder werden in der App informiert (ohne Mail)."""
     try:
         a = member.allocations.get(id=allocation_id)
     except Allocation.DoesNotExist:
@@ -398,13 +414,21 @@ def cancel_allocation(member: Member, allocation_id) -> tuple[bool, str | None]:
     if a.end <= date.today():
         return False, "Vergangene Buchungen können nicht storniert werden."
     quarter, start, end = a.quarter, a.start, a.end
+    short = is_short_notice(start)
     # Schlanken Storno-Nachweis anlegen, BEVOR die Buchung gelöscht wird (#30) –
     # damit das Mitglied in „Meine Buchungen“ sieht, dass sie wirklich raus ist.
-    from ..models import CancellationLog
+    from ..models import CancellationLog, ForfeitedNights
     CancellationLog.objects.create(
         member=member, quarter_name=quarter.name, start=start, end=end,
         persons=a.persons, source=a.source)
     a.delete()
+    if short:
+        # Tage verwirken (Rückgabe nur, soweit andere den Zeitraum neu buchen) …
+        ForfeitedNights.objects.create(
+            member=member, year=start.year, quarter=quarter, start=start, end=end,
+            nights=(end - start).days, reason="cancel")
+        # … und ALLE Mitglieder in der App informieren (keine Mail; ADR 0088).
+        _broadcast_spontaneously_free(quarter, start, end, exclude_member=member)
     notify_waitlist_if_free(quarter, start, end)
     return True, None
 
@@ -498,8 +522,10 @@ def adjust_allocation(member: Member, allocation_id, new_start: date,
     if new_nights < min_n and not gap_fill:
         return False, f"Mindestaufenthalt {min_n} Nächte (neu wären es {new_nights})."
 
-    # Frei werdende Bereiche bestimmen + 7-Tage-Frist (nur bei Verkürzung im
-    # gleichen Quartier).
+    # Frei werdende Bereiche bestimmen. Die frühere „≥7-Tage"-Sperre beim Verkürzen
+    # entfällt (ADR 0088): Kurzfrist-Verkürzen ist erlaubt, die frei werdenden Nächte
+    # VERWIRKEN dann aber (wie beim Kurzfrist-Storno) – Umzug (Quartier-Wechsel)
+    # verwirkt nichts (es wird nur umgezogen, nicht gekürzt).
     if quarter_changed:
         freed = [(old_q, a.start, a.end)]             # altes Quartier ganz frei
     else:
@@ -508,17 +534,21 @@ def adjust_allocation(member: Member, allocation_id, new_start: date,
             freed.append((old_q, a.start, new_start))
         if new_end < a.end:
             freed.append((old_q, new_end, a.end))
-        if freed:
-            earliest = min(s for _, s, _ in freed)
-            if earliest < today + timedelta(days=7):
-                return False, ("Verkürzen ist nur möglich, wenn die frei werdenden "
-                               "Nächte mindestens eine Woche in der Zukunft liegen.")
 
     a.quarter, a.start, a.end, a.persons = new_q, new_start, new_end, persons
     a.save(update_fields=["quarter", "start", "end", "persons"])
 
-    # Frei gewordene Zeiträume melden.
+    # Frei gewordene Zeiträume melden (In-App an alle + Warteliste per Mail).
     for q, s, e in freed:
         _broadcast_spontaneously_free(q, s, e, exclude_member=member)
         notify_waitlist_if_free(q, s, e)
+    # Kurzfrist-Verkürzen (nur gleiches Quartier): die frei werdenden Nächte verwirken
+    # – zurück nur, soweit andere den Zeitraum neu buchen (ADR 0088).
+    if not quarter_changed:
+        from ..models import ForfeitedNights
+        for q, s, e in freed:
+            if is_short_notice(s, today):
+                ForfeitedNights.objects.create(
+                    member=member, year=s.year, quarter=q, start=s, end=e,
+                    nights=(e - s).days, reason="shorten")
     return True, None

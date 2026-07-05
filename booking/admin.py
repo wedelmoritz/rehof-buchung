@@ -15,7 +15,8 @@ from django.utils.safestring import mark_safe
 from .models import (
     Allocation, Beds24Import, Beds24ImportRow, BookingPeriod, BookingPolicy,
     EquivalenceClass, ExternalBooking,
-    ExternalConfig, FairnessSimConfig, Guest, LotteryRun, Member, Membership,
+    ExternalConfig, FairnessSimConfig, ForfeitedNights, Guest, LotteryRun,
+    Member, Membership,
     NightTransfer, DayPoolEntry,
     Notification, OpsConfig, OutboxEmail, PendingUser, Quarter, QuarterBlock,
     QuarterPrice, Rolle, SchoolHoliday,
@@ -960,6 +961,22 @@ class DayPoolEntryAdmin(admin.ModelAdmin):
     list_display = ("year", "kind", "member", "nights", "created_at")
     list_filter = ("year", "kind")
     search_fields = ("member__display_name",)
+
+
+@admin.register(ForfeitedNights)
+class ForfeitedNightsAdmin(admin.ModelAdmin):
+    """Kurzfrist-Verwirkungen (ADR 0088): storniert/verkürzt ein Mitglied kurzfristig,
+    verfallen die Tage – zurück nur, soweit andere den Zeitraum neu buchen (Spalte
+    „noch verwirkt")."""
+    list_display = ("member", "year", "quarter", "start", "end", "nights",
+                    "effective_display", "reason", "created_at")
+    list_filter = ("year", "reason", "quarter")
+    search_fields = ("member__display_name", "quarter__name")
+    date_hierarchy = "start"
+
+    @admin.display(description="noch verwirkt")
+    def effective_display(self, obj):
+        return obj.effective
 
 
 @admin.register(WaitlistEntry)

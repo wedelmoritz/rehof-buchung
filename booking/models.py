@@ -343,14 +343,22 @@ class Member(models.Model):
         by = {r["kind"]: r["s"] or 0 for r in rows}
         return by.get("withdraw", 0) - by.get("donate", 0)
 
+    def forfeited_nights_in_year(self, year: int) -> int:
+        """Kurzfristig verwirkte Tage des Jahres (ADR 0088), die (noch) NICHT von
+        anderen Mitgliedern neu gebucht wurden – sie mindern das Jahreskontingent."""
+        return sum(f.effective for f in self.forfeits.filter(year=year)
+                   .select_related("quarter"))
+
     def effective_annual_budget(self, year: int) -> int:
         """Jahreskontingent inkl. erhaltener/abgegebener Tage und Pool-Spenden/
-        -Entnahmen (kein Übertrag aus dem Vorjahr)."""
+        -Entnahmen (kein Übertrag aus dem Vorjahr) – abzüglich kurzfristig
+        verwirkter Tage (ADR 0088)."""
         return (
             self.annual_night_budget
             + self.nights_received_in_year(year)
             - self.nights_given_in_year(year)
             + self.pool_net_in_year(year)
+            - self.forfeited_nights_in_year(year)
         )
 
     def nights_remaining_in_year(self, year: int) -> int:
@@ -806,6 +814,59 @@ class QuarterBlock(models.Model):
         return f"{self.quarter} gesperrt {self.start}–{self.end}"
 
 
+class ForfeitedNights(models.Model):
+    """**Kurzfrist-Verwirkung** von Tagen (ADR 0088): storniert/verkürzt ein Mitglied
+    eine Buchung, deren Anreise ≤ `BookingPolicy.short_notice_days` entfernt ist,
+    verfallen die betroffenen Nächte für das Jahr – sie werden weiter vom
+    `effective_annual_budget` abgezogen. Bucht ein **anderes** Mitglied den frei
+    gewordenen Zeitraum (im selben Quartier) ganz/teilweise neu, wird der gedeckte
+    Anteil **dynamisch** wieder freigegeben (`Member.forfeited_nights_in_year` zählt
+    die noch nicht anderweitig gebuchten Nächte). Bewusst additiv – kein Soft-Delete
+    der Buchung (die bleibt storniert)."""
+    member = models.ForeignKey(
+        Member, on_delete=models.CASCADE, related_name="forfeits",
+        verbose_name="Mitglied")
+    year = models.PositiveIntegerField("Jahr")
+    quarter = models.ForeignKey(
+        "Quarter", on_delete=models.SET_NULL, null=True, related_name="forfeits",
+        verbose_name="Quartier (frei geworden)")
+    start = models.DateField("Von")
+    end = models.DateField("Bis (exkl.)")
+    nights = models.PositiveIntegerField("Verwirkte Nächte")
+    reason = models.CharField("Anlass", max_length=20, default="cancel",
+                              help_text="cancel = Storno · shorten = Verkürzung")
+    created_at = models.DateTimeField("Erstellt", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Kurzfrist-Verwirkung (Tage)"
+        verbose_name_plural = "Kurzfrist-Verwirkungen (Tage)"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["member", "year"])]
+
+    def covered_by_others(self) -> int:
+        """Wie viele der verwirkten Nächte inzwischen von **anderen** Mitgliedern im
+        selben Quartier/Zeitraum (neu) gebucht sind (deckt die Verwirkung ab)."""
+        if self.quarter_id is None:
+            return 0
+        covered = 0
+        for s, e in Allocation.objects.filter(
+                quarter_id=self.quarter_id, start__lt=self.end, end__gt=self.start,
+                provisional=False).exclude(member_id=self.member_id
+                                           ).values_list("start", "end"):
+            lo, hi = max(s, self.start), min(e, self.end)
+            if hi > lo:
+                covered += (hi - lo).days
+        return min(self.nights, covered)
+
+    @property
+    def effective(self) -> int:
+        """Tatsächlich (noch) verwirkte Nächte = angelegt − von anderen gedeckt."""
+        return max(0, self.nights - self.covered_by_others())
+
+    def __str__(self) -> str:
+        return f"{self.member} verwirkt {self.nights} Nächte ({self.year})"
+
+
 class NightTransfer(models.Model):
     """Übertragung von Tagen an ein anderes Mitglied innerhalb eines Jahres.
     (Ein Übertrag ins Folgejahr ist bewusst NICHT vorgesehen.)"""
@@ -1180,6 +1241,15 @@ class BookingPolicy(models.Model):
                   "(bestätigt/abgelehnt) bis zu so viele Tage VOR der Anreise noch "
                   "ändern; danach ist sie fest, damit sich das Mitglied darauf "
                   "einstellen kann. 0 = jederzeit änderbar (kein Lock). ADR 0081.",
+    )
+    short_notice_days = models.PositiveSmallIntegerField(
+        "Kurzfrist-Grenze für Storno/Verkürzen (Tage vor Anreise)", default=14,
+        help_text="Storniert oder verkürzt ein Mitglied eine Buchung, deren Anreise "
+                  "höchstens so viele Tage entfernt ist, VERFALLEN die betroffenen "
+                  "Tage – außer ein anderes Mitglied bucht den frei gewordenen "
+                  "Zeitraum (ganz/teilweise) neu. Alle Mitglieder werden dann in der "
+                  "App informiert (ohne Mail). Bei mehr Vorlauf gibt es die Tage "
+                  "normal zurück. ADR 0088.",
     )
 
     class Meta:
