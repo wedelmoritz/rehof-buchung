@@ -2381,7 +2381,7 @@ class SperrzeitenTests(UseCaseBase):
         from booking.permissions import ensure_verwaltung_group
         staff.user.groups.add(ensure_verwaltung_group())
         self.client.force_login(staff.user)
-        self.client.post(reverse("verw_reinigung"), {
+        self.client.post(reverse("verw_sperrzeiten"), {
             "action": "add_block", "quarter": self.k1.id,
             "start": self.s.isoformat(), "end": self.e.isoformat(),
             "reason": "Wasserschaden"})
@@ -2389,7 +2389,7 @@ class SperrzeitenTests(UseCaseBase):
         self.assertEqual(blk.reason, "Wasserschaden")
         self.assertFalse(svc.quarter_is_free(self.k1, self.s, self.e))
         # Aufheben gibt wieder frei.
-        self.client.post(reverse("verw_reinigung"), {
+        self.client.post(reverse("verw_sperrzeiten"), {
             "action": "delete_block", "block_id": blk.id})
         self.assertFalse(QuarterBlock.objects.filter(id=blk.id).exists())
         self.assertTrue(svc.quarter_is_free(self.k1, self.s, self.e))

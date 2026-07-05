@@ -119,7 +119,8 @@ Warteliste), `CancellationLog` (schlanker **Storno-Nachweis** je gelöschter Buc
 Anzeige „Zuletzt storniert" in „Meine Buchungen"; kein Soft-Delete, #30/ADR 0082),
 `QuarterBlock` (**Sperrzeit** je Quartier für Reinigung/Reparatur – blockiert die
 Buchbarkeit wie eine Belegung [in `quarter_is_free`/`find_gaps`/Belegungs-Tage],
-Pflege im Dashboard „Reinigung" + Backend, Anzeige als schraffierter Balken im
+Pflege auf der **eigenen** Verwaltungs-Unterseite `verw_sperrzeiten`
+(`/verwaltung/sperrzeiten/`) + Backend, Anzeige als schraffierter Balken im
 Belegungsplan; #61/ADR 0086),
 `Notification` (In-App-Benachrichtigung), `OutboxEmail`
 (E-Mail-Warteschlange), `OpsConfig` (Betriebs-Einstellungen-Singleton:
@@ -667,11 +668,15 @@ Seite fürs kleine Team. **Aufbau als Handlungsbedarf-Cockpit mit echten Unterse
 verlinkt auf ihre **Unterseite**. Die vollen Listen/Aktionen liegen auf **eigenen
 gerouteten Unterseiten mit eigenem Menü-Eintrag** (Seitenleiste + „Mehr"-Sheet, für
 `is_verwaltung`, als eingerückte Unterpunkte unter „Verwaltung"):
-`verw_buchungen` (`/verwaltung/buchungen/`, anstehende Buchungen),
+`verw_buchungen` (`/verwaltung/buchungen/`, anstehende Buchungen; **interne Notiz**
+je Buchung inline editierbar #84),
 `verw_reinigung` (`/verwaltung/reinigung/`, **Reinigung inkl. Endreinigung** – s.u.),
+`verw_sperrzeiten` (`/verwaltung/sperrzeiten/`, **Sperrzeiten** je Quartier #61 –
+eigene Seite, nicht mehr unter Reinigung),
 `verw_rechnungen` (`/verwaltung/rechnungen/`, Rechnungen + Erinnerungen),
 `verw_konto` (`/verwaltung/kontoabgleich/`, Kontoabgleich),
 `verw_auslastung` (`/verwaltung/auslastung/`, Statistik + Auslastungs-Ampel),
+`verw_mitglieder` (`/verwaltung/mitglieder/`, Mitgliederliste mit Kontakt #65),
 `dashboard_products` (`/verwaltung/produkte/`, Hofladen-Katalog). Gemeinsame Bausteine:
 `verw_base.html` (Layout + gesamtes CSS, Blöcke `verw_h1`/`verw_body`),
 `_verw_monthbar.html` (Monatswahl, GET+`data-ajax`) und der zentrale POST-Dispatcher

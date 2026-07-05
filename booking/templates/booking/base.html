@@ -119,8 +119,12 @@
       box-shadow: inset 2px 0 0 var(--accent); }
     /* Verwaltungs-Unterpunkte: eingerückt unter „Verwaltung"; im Icon-Modus aus. */
     .sidenav a.subnav { padding-left: 2.35rem; font-size: .85rem; font-weight: 500; }
+    .sidenav a.subnav .nav-ic { width: 17px; height: 17px; opacity: .8; }
     .sidenav a.subnav.active { font-weight: 600; }
-    html.nav-collapsed .sidenav a.subnav { display: none; }
+    .sidenav a.subnav.active .nav-ic { opacity: 1; }
+    {% comment %}Eingeklappt: Unterpunkte bleiben als klickbare Symbole sichtbar
+    (leicht kleiner/gedimmt), zentriert wie die Hauptpunkte.{% endcomment %}
+    html.nav-collapsed .sidenav a.subnav .nav-ic { width: 19px; height: 19px; }
     .nav-ic, .tab-ic { fill: none; stroke: currentColor; stroke-width: 1.8;
       stroke-linecap: round; stroke-linejoin: round; }
     .nav-ic { flex: 0 0 20px; width: 20px; height: 20px; }
@@ -430,6 +434,10 @@
     {# Verwaltung: Klemmbrett mit Haken (Freigaben/Reinigung/Buchungen) statt Sonne (#43). #}
     <symbol id="ic-admin" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.8h6V4M8.5 12.2l2.2 2.2 4.3-4.4"/></symbol>
     <symbol id="ic-backend" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+    {# Reinigung: Sprühflasche (Putzen). Kontoabgleich: Bank/Säulen. Sperrzeit: Schloss. #}
+    <symbol id="ic-clean" viewBox="0 0 24 24"><path d="M9 8h5v12H9z"/><path d="M9 8V5h3v3M12 5V3h4v2l-2 1"/><path d="M11 12h1"/></symbol>
+    <symbol id="ic-bank" viewBox="0 0 24 24"><path d="M3 9l9-5 9 5H3z"/><path d="M5 9v8M10 9v8M14 9v8M19 9v8"/><path d="M3 20h18"/></symbol>
+    <symbol id="ic-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
   </defs></svg>
 
   <aside class="sidenav" aria-label="Hauptnavigation">
@@ -437,7 +445,7 @@
       <span class="sidenav-title">Menü</span>
       <button id="navToggle" class="nav-toggle" type="button" aria-expanded="true"
               aria-label="Menü einklappen" title="Menü einklappen">
-        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
       </button>
     </div>
     <nav>
@@ -468,13 +476,14 @@
       <a href="{% url 'help' %}" class="{% if url_name == 'help' %}active{% endif %}" title="Hilfe"><svg class="nav-ic"><use href="#ic-help"/></svg><span class="nav-label">Hilfe</span></a>
       {% if is_verwaltung %}
       <a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}" title="Verwaltung"><svg class="nav-ic"><use href="#ic-admin"/></svg><span class="nav-label">Verwaltung</span></a>
-      <a href="{% url 'verw_buchungen' %}" class="subnav {% if url_name == 'verw_buchungen' %}active{% endif %}" title="Buchungen"><span class="nav-label">Buchungen</span></a>
-      <a href="{% url 'verw_reinigung' %}" class="subnav {% if url_name == 'verw_reinigung' %}active{% endif %}" title="Reinigung"><span class="nav-label">Reinigung</span></a>
-      <a href="{% url 'verw_rechnungen' %}" class="subnav {% if url_name == 'verw_rechnungen' %}active{% endif %}" title="Rechnungen"><span class="nav-label">Rechnungen</span></a>
-      <a href="{% url 'verw_konto' %}" class="subnav {% if url_name == 'verw_konto' %}active{% endif %}" title="Kontoabgleich"><span class="nav-label">Kontoabgleich</span></a>
-      <a href="{% url 'verw_auslastung' %}" class="subnav {% if url_name == 'verw_auslastung' %}active{% endif %}" title="Auslastung"><span class="nav-label">Auslastung</span></a>
-      <a href="{% url 'verw_mitglieder' %}" class="subnav {% if url_name == 'verw_mitglieder' %}active{% endif %}" title="Mitglieder"><span class="nav-label">Mitglieder</span></a>
-      <a href="{% url 'dashboard_products' %}" class="subnav {% if url_name == 'dashboard_products' %}active{% endif %}" title="Hofladen-Katalog"><span class="nav-label">Hofladen-Katalog</span></a>
+      <a href="{% url 'verw_buchungen' %}" class="subnav {% if url_name == 'verw_buchungen' %}active{% endif %}" title="Buchungen"><svg class="nav-ic"><use href="#ic-mybookings"/></svg><span class="nav-label">Buchungen</span></a>
+      <a href="{% url 'verw_reinigung' %}" class="subnav {% if url_name == 'verw_reinigung' %}active{% endif %}" title="Reinigung"><svg class="nav-ic"><use href="#ic-clean"/></svg><span class="nav-label">Reinigung</span></a>
+      <a href="{% url 'verw_sperrzeiten' %}" class="subnav {% if url_name == 'verw_sperrzeiten' %}active{% endif %}" title="Sperrzeiten"><svg class="nav-ic"><use href="#ic-lock"/></svg><span class="nav-label">Sperrzeiten</span></a>
+      <a href="{% url 'verw_rechnungen' %}" class="subnav {% if url_name == 'verw_rechnungen' %}active{% endif %}" title="Rechnungen"><svg class="nav-ic"><use href="#ic-invoices"/></svg><span class="nav-label">Rechnungen</span></a>
+      <a href="{% url 'verw_konto' %}" class="subnav {% if url_name == 'verw_konto' %}active{% endif %}" title="Kontoabgleich"><svg class="nav-ic"><use href="#ic-bank"/></svg><span class="nav-label">Kontoabgleich</span></a>
+      <a href="{% url 'verw_auslastung' %}" class="subnav {% if url_name == 'verw_auslastung' %}active{% endif %}" title="Auslastung"><svg class="nav-ic"><use href="#ic-community"/></svg><span class="nav-label">Auslastung</span></a>
+      <a href="{% url 'verw_mitglieder' %}" class="subnav {% if url_name == 'verw_mitglieder' %}active{% endif %}" title="Mitglieder"><svg class="nav-ic"><use href="#ic-profile"/></svg><span class="nav-label">Mitglieder</span></a>
+      <a href="{% url 'dashboard_products' %}" class="subnav {% if url_name == 'dashboard_products' %}active{% endif %}" title="Hofladen-Katalog"><svg class="nav-ic"><use href="#ic-shop"/></svg><span class="nav-label">Hofladen-Katalog</span></a>
       {% endif %}
       {% if is_admin %}<a href="/admin/" title="Backend (Stammdaten)"><svg class="nav-ic"><use href="#ic-backend"/></svg><span class="nav-label">Backend</span></a>{% endif %}
     </nav>
@@ -513,7 +522,8 @@
       {% if is_verwaltung %}
       {% if user.member %}<a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Verwaltung</a>{% endif %}
       <a href="{% url 'verw_buchungen' %}" class="{% if url_name == 'verw_buchungen' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-mybookings"/></svg>Buchungen</a>
-      <a href="{% url 'verw_reinigung' %}" class="{% if url_name == 'verw_reinigung' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-admin"/></svg>Reinigung</a>
+      <a href="{% url 'verw_reinigung' %}" class="{% if url_name == 'verw_reinigung' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-clean"/></svg>Reinigung</a>
+      <a href="{% url 'verw_sperrzeiten' %}" class="{% if url_name == 'verw_sperrzeiten' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-lock"/></svg>Sperrzeiten</a>
       <a href="{% url 'verw_rechnungen' %}" class="{% if url_name == 'verw_rechnungen' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Rechnungen</a>
       <a href="{% url 'verw_konto' %}" class="{% if url_name == 'verw_konto' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Kontoabgleich</a>
       <a href="{% url 'verw_auslastung' %}" class="{% if url_name == 'verw_auslastung' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-community"/></svg>Auslastung</a>

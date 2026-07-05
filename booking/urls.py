@@ -40,6 +40,7 @@ urlpatterns = [
     path("verwaltung/", views.dashboard, name="dashboard"),
     path("verwaltung/buchungen/", views.verw_buchungen, name="verw_buchungen"),
     path("verwaltung/reinigung/", views.verw_reinigung, name="verw_reinigung"),
+    path("verwaltung/sperrzeiten/", views.verw_sperrzeiten, name="verw_sperrzeiten"),
     path("verwaltung/rechnungen/", views.verw_rechnungen, name="verw_rechnungen"),
     path("verwaltung/kontoabgleich/", views.verw_konto, name="verw_konto"),
     path("verwaltung/auslastung/", views.verw_auslastung, name="verw_auslastung"),
