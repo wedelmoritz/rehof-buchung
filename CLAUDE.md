@@ -88,6 +88,9 @@ booking/
   templates/registration/login.html
   tests.py              # Django-Integrationstests (DB-Ebene)
   management/commands/seed_demo.py   # Demo-Daten + reale BB-Termine
+  management/commands/fill_bookings.py        # Test/Demo: laufendes Jahr dicht füllen (regeltreu,
+                        #   Budgets ausschöpfen, Markierung `internal_note=FILL_MARKER`)
+  management/commands/clear_filled_bookings.py# entfernt genau diese Testfüllung wieder
 config/                 # settings.py, urls.py, wsgi.py, asgi.py
 tests/                  # reine pytest-Suite (ohne Django/DB)
   test_lottery.py  test_availability.py  test_rules.py
