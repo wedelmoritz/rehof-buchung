@@ -734,7 +734,10 @@ Unterkunfts-Nächte] für **aktuellen und kommenden Monat** sowie das Ergebnis d
 **Auslastung je Unterkunft** (`services.quarter_occupancy_ampel`:
 gebuchte/mögliche Nächte im Monat + **statische Ziel-Ampel** gegen
 `Quarter.target_occupancy` – 🟢 ab Ziel · 🟡 bis 20 %-Punkte darunter · 🔴 darunter;
-#63/#64) auf `verw_auslastung`;
+#63/#64) auf `verw_auslastung`. **`Quarter.count_in_occupancy`** (Default an, ADR 0096):
+aus = die Einheit zählt **nicht** in die Auslastungs-Quote (Camping-/Gemeinschafts-
+flächen) – gilt für Gemeinschafts-Balkendiagramm, Dashboard-Kennzahl und Ziel-Ampel;
+buchbar/im Plan bleibt sie. Migration setzt Bestand mit Ziel-Auslastung 0 % darauf;
 **Reinigung UND Endreinigung auf EINER Seite** (`verw_reinigung`, ADR 0085: kein
 getrennter Menüpunkt – nach **jeder** Abreise wird unbezahlt gereinigt, die gebuchte
 **bezahlpflichtige** Endreinigung ist ein Zusatz): **Reinigungsliste** (alle Abreisen

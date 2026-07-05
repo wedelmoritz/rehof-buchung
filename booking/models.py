@@ -49,6 +49,13 @@ class Quarter(models.Model):
         "Ziel-Auslastung (%)", null=True, blank=True,
         help_text="Optionale Zielauslastung in Prozent. Ist sie gesetzt, zeigt das "
                   "Dashboard je Quartier eine Ampel (🔴/🟡/🟢). Leer = keine Ampel.")
+    # Zählt diese Einheit in die Auslastungs-Quote (Gemeinschaft/Dashboard)? Camping-
+    # und Gemeinschaftsflächen bewusst NICHT einbeziehen (ADR 0096).
+    count_in_occupancy = models.BooleanField(
+        "In Auslastungs-Quote einbeziehen", default=True,
+        help_text="Aus, wenn diese Fläche NICHT in die Auslastungs-Statistik zählen "
+                  "soll (z. B. Camping- oder Gemeinschaftsflächen). Buchbar bleibt sie "
+                  "trotzdem.")
     # Organisatorische Gruppierung + sanfte Gruppen-Empfehlung (ADR 0075).
     building = models.CharField(
         "Gebäude", max_length=80, blank=True, default="",

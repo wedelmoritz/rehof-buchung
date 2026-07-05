@@ -12,8 +12,8 @@
   {% with occ=stats.occ_curve %}
   <p class="sm muted" style="margin:0 0 .3rem">Jahr {{ occ.year }}, je Monat –
     gebuchte gegen mögliche Unterkunfts-Nächte (Mitglieder + bestätigte externe
-    Gäste). Schnitt {{ occ.avg }} %, Spitze {{ occ.peak }} %. Genauer Wert je Monat
-    beim Überfahren/Antippen des Balkens.</p>
+    Gäste; Camping- und Gemeinschaftsflächen zählen nicht mit).
+    Schnitt {{ occ.avg }} %, Spitze {{ occ.peak }} %.</p>
   {% comment %}Reines HTML/CSS-Balkendiagramm (kein SVG) – rendert auf allen Engines
   identisch/lesbar. Frühere SVG-Varianten waren auf Safari unzuverlässig (ADR 0095).{% endcomment %}
   <figure class="occ" role="img"
