@@ -42,6 +42,10 @@ def book_spontaneous(
       4. Quartier ist frei,
       5. genügend verfügbare Tage (inkl. erhaltener/abgegebener) im Jahr.
     """
+    # Passive/ausgeschiedene Mitglieder dürfen nicht neu buchen (ADR 0087).
+    if not member.can_book:
+        return None, ("Dein Konto ist derzeit nicht buchungsberechtigt "
+                      "(passives/ausgeschiedenes Mitglied).")
     nights = (end - start).days
     if nights <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."

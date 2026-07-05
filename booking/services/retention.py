@@ -9,13 +9,29 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from ..models import (
-    Allocation, CancellationLog, NightTransfer, Notification, OutboxEmail,
+    Allocation, CancellationLog, Member, NightTransfer, Notification, OutboxEmail,
     SwapRequest, WaitlistEntry, Wish,
 )
 
 __all__ = [
-    'run_data_retention', 'anonymize_member',
+    'run_data_retention', 'anonymize_member', 'apply_member_status_transitions',
 ]
+
+
+def apply_member_status_transitions(on_date=None) -> int:
+    """Vollzieht den datumsgesteuerten Ausscheide-Übergang (ADR 0087): erreicht ein
+    Mitglied sein `excluded_from`-Datum, wird sein Login deaktiviert
+    (`User.is_active=False`). Idempotent; gibt die Zahl der deaktivierten Konten
+    zurück. „Passiv" braucht keinen Übergang (wird live über den Status geprüft)."""
+    today = on_date or date.today()
+    n = 0
+    qs = (Member.objects.filter(excluded_from__lte=today, user__is_active=True)
+          .select_related("user"))
+    for m in qs:
+        m.user.is_active = False
+        m.user.save(update_fields=["is_active"])
+        n += 1
+    return n
 
 def run_data_retention(now=None) -> dict:
     """Löscht/pseudonymisiert abgelaufene Daten anhand der RETENTION_*-Fristen.

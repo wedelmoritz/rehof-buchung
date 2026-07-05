@@ -158,10 +158,13 @@ def run_period_lottery(
     # Nur eingereichte Wünsche ("im Lostopf") nehmen an der Losung teil – und nur,
     # wenn das Quartier im GANZEN Wunschzeitraum saisonal buchbar ist (sonst würde
     # die Losung eine Buchung außerhalb der Quartier-Saison erzeugen).
+    # Passive/ausgeschiedene Mitglieder nehmen NICHT an der Losung teil (ADR 0087),
+    # auch wenn sie vor der Passivierung noch Wünsche eingereicht hatten. Dieselbe
+    # Filterung gilt bei der Verifikation, damit die Ziehung reproduzierbar bleibt.
     wishes_qs = [
         w for w in Wish.objects.filter(period=period, submitted=True)
         .select_related("member", "quarter")
-        if _in_season_range(w.quarter, w.start, w.end)
+        if _in_season_range(w.quarter, w.start, w.end) and w.member.can_book
     ]
 
     parties = [
@@ -432,10 +435,13 @@ def verify_period_lottery(period: BookingPeriod) -> dict:
 
     members = list(Member.objects.filter(is_external=False))
     quarters = list(Quarter.objects.filter(active=True))
+    # Passive/ausgeschiedene Mitglieder nehmen NICHT an der Losung teil (ADR 0087),
+    # auch wenn sie vor der Passivierung noch Wünsche eingereicht hatten. Dieselbe
+    # Filterung gilt bei der Verifikation, damit die Ziehung reproduzierbar bleibt.
     wishes_qs = [
         w for w in Wish.objects.filter(period=period, submitted=True)
         .select_related("member", "quarter")
-        if _in_season_range(w.quarter, w.start, w.end)
+        if _in_season_range(w.quarter, w.start, w.end) and w.member.can_book
     ]
     snap = run.karma_snapshot or {}
     parties = [

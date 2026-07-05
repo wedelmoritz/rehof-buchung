@@ -60,6 +60,19 @@ def _current_member(request) -> Member | None:
     return getattr(request.user, "member", None)
 
 
+def _block_if_not_bookable(request):
+    """Defense-in-depth (ADR 0087): passive/ausgeschiedene Mitglieder dürfen die
+    Buchungs-Seiten (Buchen/Wunschliste/Übertragen) NICHT nutzen – auch nicht über
+    die direkte URL. Gibt ein Redirect-Response zurück, wenn gesperrt, sonst None."""
+    member = _current_member(request)
+    if member is not None and not member.can_book:
+        messages.info(request, "Dein Konto ist derzeit nicht buchungsberechtigt "
+                      "(passives/ausgeschiedenes Mitglied). Der Hofladen steht dir "
+                      "weiterhin offen.")
+        return redirect("overview" if member.has_bookings else "shop_index")
+    return None
+
+
 def _parse_date(s):
     try:
         return date.fromisoformat(s) if s else None
@@ -231,6 +244,8 @@ def book_confirm(request):
     Tage sehen – erst „Bestätigen“ legt die Buchung an."""
     from shop.models import Product
     from shop import services as shop_svc
+    if (blocked := _block_if_not_bookable(request)) is not None:
+        return blocked
 
     member = _current_member(request)
     if not member:
@@ -355,6 +370,8 @@ def book_confirm(request):
 def book(request):
     """Klick-Buchung: Personen + Barrierefrei oben einstellen, im Ampel-Kalender
     Anreise/Abreise wählen, dann passendes Quartier buchen (oder Warteliste)."""
+    if (blocked := _block_if_not_bookable(request)) is not None:
+        return blocked
     member = _current_member(request)
     today = date.today()
     year, month = _month_from_request(request, today)
@@ -667,6 +684,8 @@ def my_bookings(request):
 def wishlist(request):
     """Wunschliste fürs Losverfahren der nächsten Periode. Anders als beim
     Buchen dürfen Wünsche bewusst miteinander kollidieren."""
+    if (blocked := _block_if_not_bookable(request)) is not None:
+        return blocked
     member = _current_member(request)
     today = date.today()
     period = BookingPeriod.objects.filter(status=BookingPeriod.WISHES_OPEN).first()
@@ -1024,6 +1043,8 @@ def push_unsubscribe(request):
 @login_required
 def transfer(request):
     """Tage an ein anderes Mitglied übertragen (innerhalb des Jahres)."""
+    if (blocked := _block_if_not_bookable(request)) is not None:
+        return blocked
     member = _current_member(request)
     year = date.today().year
     if not member:

@@ -38,6 +38,9 @@ def add_wish(member, period, quarter, start, end,
     Der Wunsch wird einem Mitglieds-Anteil zugerechnet (Default: eindeutiger/
     größter Anteil; bei Mehrfach-Tandem die Wahl), damit das Parallel-Limit/der
     Aufenthaltsdeckel in der Losung auf den vollen Anteil wirkt (ADR 0066)."""
+    if not member.can_book:
+        return None, ("Dein Konto ist derzeit nicht buchungsberechtigt "
+                      "(passives/ausgeschiedenes Mitglied).")
     if (end - start).days <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
     if not _in_season_range(quarter, start, end):
@@ -124,6 +127,9 @@ def submit_wishlist(member, period) -> tuple[int, str | None]:
     Wunsch zuvor gegen die Saison-Regeln (Mindestnächte/Deckel) – verletzt einer
     eine Regel (z.B. weil eine Regel nach dem Eintragen ergänzt wurde), wird
     NICHTS eingereicht und der Grund zurückgegeben. Liefert (Anzahl, Fehler|None)."""
+    if not member.can_book:
+        return 0, ("Dein Konto ist derzeit nicht buchungsberechtigt "
+                   "(passives/ausgeschiedenes Mitglied).")
     drafts = list(Wish.objects.filter(
         member=member, period=period, submitted=False).select_related("quarter"))
     problems = [

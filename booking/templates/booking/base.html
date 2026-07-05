@@ -441,14 +441,25 @@
       </button>
     </div>
     <nav>
+      {% comment %}Übersicht/Buchungen nur für Buchende bzw. Konten mit Buchungen
+      (passive Mitglieder ohne Buchungen sehen sie nicht, ADR 0087); Staff immer.{% endcomment %}
+      {% if member_has_bookings or is_verwaltung %}
       <a href="{% url 'overview' %}" class="{% if url_name == 'overview' %}active{% endif %}" title="Übersicht"><svg class="nav-ic"><use href="#ic-overview"/></svg><span class="nav-label">Übersicht</span></a>
+      {% endif %}
       {% comment %}Mitglieds-eigene Punkte nur mit Buchungs-Profil zeigen – reine
-      Verwaltungs-/Admin-Konten liefen sonst ins Leere (#48).{% endcomment %}
-      {% if user.member %}
+      Verwaltungs-/Admin-Konten liefen sonst ins Leere (#48). Buchen/Wunschliste/
+      Tage übertragen nur für aktive (buchungsberechtigte) Mitglieder (ADR 0087).{% endcomment %}
+      {% if can_book %}
       <a href="{% url 'book' %}" class="{% if url_name == 'book' or url_name == 'book_confirm' %}active{% endif %}" title="Buchen"><svg class="nav-ic"><use href="#ic-book"/></svg><span class="nav-label">Buchen</span></a>
       <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}" title="Wunschliste"><svg class="nav-ic"><use href="#ic-wish"/></svg><span class="nav-label">Wunschliste</span></a>
+      {% endif %}
+      {% if member_has_bookings %}
       <a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}" title="Meine Buchungen"><svg class="nav-ic"><use href="#ic-mybookings"/></svg><span class="nav-label">Meine Buchungen</span></a>
+      {% endif %}
+      {% if can_book %}
       <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}" title="Tage übertragen"><svg class="nav-ic"><use href="#ic-transfer"/></svg><span class="nav-label">Tage übertragen</span></a>
+      {% endif %}
+      {% if user.member %}
       <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_checkout' %}active{% endif %}" title="Hofladen"><svg class="nav-ic"><use href="#ic-shop"/></svg><span class="nav-label">Hofladen</span></a>
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}" title="Meine Rechnungen"><svg class="nav-ic"><use href="#ic-invoices"/></svg><span class="nav-label">Meine Rechnungen</span></a>
       {% endif %}
@@ -471,10 +482,12 @@
 
   {# Mobile: feste Tab-Leiste unten (4 Hauptpunkte) + „Mehr“ öffnet das Sheet #}
   <nav class="tabbar" aria-label="Hauptnavigation">
+    {% if member_has_bookings or is_verwaltung %}
     <a href="{% url 'overview' %}" class="{% if url_name == 'overview' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-overview"/></svg><span>Übersicht</span></a>
+    {% endif %}
     {% if user.member %}
-    <a href="{% url 'book' %}" class="{% if url_name == 'book' or url_name == 'book_confirm' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-book"/></svg><span>Buchen</span></a>
-    <a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-mybookings"/></svg><span>Buchungen</span></a>
+    {% if can_book %}<a href="{% url 'book' %}" class="{% if url_name == 'book' or url_name == 'book_confirm' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-book"/></svg><span>Buchen</span></a>{% endif %}
+    {% if member_has_bookings %}<a href="{% url 'my_bookings' %}" class="{% if url_name == 'my_bookings' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-mybookings"/></svg><span>Buchungen</span></a>{% endif %}
     <a href="{% url 'shop_index' %}" class="{% if url_name == 'shop_index' or url_name == 'shop_checkout' %}active{% endif %}"><svg class="tab-ic"><use href="#ic-shop"/></svg><span>Hofladen</span></a>
     {% elif is_verwaltung %}
     {# Reines Verwaltungs-Konto: Dashboard als Haupt-Tab statt der Mitglieds-Punkte (#48). #}
@@ -487,9 +500,11 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">Mehr</div>
     <div class="sheet-grid">
-      {% if user.member %}
+      {% if can_book %}
       <a href="{% url 'wishlist' %}" class="{% if url_name == 'wishlist' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-wish"/></svg>Wunschliste</a>
       <a href="{% url 'transfer' %}" class="{% if url_name == 'transfer' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-transfer"/></svg>Tage übertragen</a>
+      {% endif %}
+      {% if user.member %}
       <a href="{% url 'shop_invoices' %}" class="{% if url_name == 'shop_invoices' or url_name == 'shop_invoice' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-invoices"/></svg>Meine Rechnungen</a>
       {% endif %}
       <a href="{% url 'community' %}" class="{% if url_name == 'community' %}active{% endif %}"><svg class="nav-ic"><use href="#ic-community"/></svg>Gemeinschaft</a>

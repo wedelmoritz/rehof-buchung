@@ -98,7 +98,9 @@ saisonale Übernachtungspreise für Externe), `Membership`
 („Mitglied"/Anteil = eine Vielleben-eG-Nummer + `kind` Voll/Teil +
 Gesamt-Tagebudget), `Member` (Buchungs-Subjekt je Nutzer; **Tage**-Budget =
 **Summe** der `Share`-`night_budget`; **Wunsch**-Budget = **Hälfte der Tage,
-abgerundet**, ADR 0073), `Share` (Through-Modell Nutzer↔Anteil mit festem
+abgerundet**, ADR 0073; **Mitgliedsstatus** `passive_from`/`excluded_from` +
+`status`/`can_book`, ADR 0087 – s. „Rollen"), `Rolle` (Proxy auf `auth.Group` =
+„Rolle" statt „Gruppe", ADR 0087), `Share` (Through-Modell Nutzer↔Anteil mit festem
 `night_budget`; ein Nutzer kann mehreren Anteilen angehören → Budgets summieren
 sich, ganze Tage; `wish_night_budget` ist obsolet/abgeleitet), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
 buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`
@@ -987,14 +989,36 @@ bleibt in `settings.py` markiert.
 **Rollen Admin/Verwaltung** (`booking/permissions.py`): zwei getrennte Rollen
 statt eines einzelnen `is_staff`-Flags. **Admin** = Django-**Superuser** → volles
 Backend `/admin/`, darf Buchungen ändern und Losungen starten. **Verwaltung** =
-Mitglied der Gruppe **„Verwaltung“** (Konstante `VERWALTUNG_GROUP`) **oder** Admin
+Mitglied der Rolle **„Verwaltung“** (Konstante `VERWALTUNG_GROUP`) **oder** Admin
 → nur das Dashboard `/verwaltung/` (Buchungen/Losung lesend, pflegt dort den
 Hofladen-Katalog), **kein** Backend. Helfer: `is_admin`/`is_verwaltung`/
-`ensure_verwaltung_group`; die Gruppe legt Migration `booking/0027_verwaltung_group`
-an. `booking/context_processors.py` stellt `is_admin`/`is_verwaltung` allen
-Templates bereit (registriert in `config/settings.py`) – die Nav zeigt darüber
-„Verwaltung“ (Gruppe) und „Backend“ (nur Admin). Zuordnung = ein Häkchen: den User
-im Backend der Gruppe „Verwaltung“ hinzufügen.
+`ensure_verwaltung_group`; die Rolle legt Migration `booking/0027_verwaltung_group`
+an. **„Rolle" statt „Gruppe" (ADR 0087):** im Backend heißt Djangos `auth.Group`
+über das Proxy-Modell `booking.Rolle` durchgängig **„Rolle"** (die rohe „Gruppen"-
+Liste ist ausgeblendet; reines Proxy, keine Migration nötig). „Admin"/„Mitglied"
+sind KEINE Gruppen: Admin = Superuser-Flag, Mitglied = vorhandenes `Member`-Profil –
+ein Superuser ist damit **immer** auch Verwaltung (Admin-ohne-Verwaltung gibt es
+nicht). `booking/context_processors.py` stellt `is_admin`/`is_verwaltung` **plus**
+`can_book`/`is_passive`/`member_has_bookings` (Mitgliedsstatus, s.u.) allen
+Templates bereit – die Nav gated darüber. Zuordnung = ein Häkchen: den User im
+Backend der Rolle „Verwaltung“ hinzufügen. **Rollen-Matrix getestet** in
+`booking/tests_roles_status.py` (jede Kombination Admin/Verwaltung/Mitglied + Status
+→ erwartete Navigation & Zugriffe).
+
+**Mitgliedsstatus (datumsgesteuert, ADR 0087):** `Member.passive_from`/
+`excluded_from` (Daten, leer = aktiv). `Member.status_on(datum)`→`active`/`passive`/
+`excluded`; `status`/`can_book`/`is_passive`/`has_bookings` als Properties. **passiv**
+= Login/Hofladen an, **keine neuen Buchungen/Wünsche/Losung** (serverseitig gesperrt
+in `book_spontaneous`/`add_wish`/`submit_wishlist`/`run_period_lottery` + Views-Guard
+`_block_if_not_bookable`), bestehende Buchungen bleiben; Nav zeigt „Meine Buchungen"/
+„Übersicht" nur bei vorhandenen Buchungen. **ausgeschieden** = `User.is_active=False`
+(Login aus) – der tägliche Scheduler-Schritt `apply_member_status`
+(`services.apply_member_status_transitions`) vollzieht den Übergang zum
+`excluded_from`-Datum. Pflege im **Backend** am Benutzer (Fieldset „Mitgliedsstatus")
+mit dem **Ausscheide-Workflow** (`MemberProfileForm`): liegt „Ausgeschieden ab" vor
+bestehenden Buchungen, verlangt das Formular die Freigabe „Zukünftige Buchungen …
+löschen" (storniert sie) – sonst wird das Datum abgelehnt. **#71:** Mitgliedsstatus
+ist der **oberste** Admin-Filter (`MemberStatusFilter`).
 
 ---
 
