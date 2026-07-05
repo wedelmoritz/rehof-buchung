@@ -64,4 +64,5 @@ files = [
     "booking/external.py",
     "booking/beds24.py",
     "booking/fairness.py",
+    "booking/helptext.py",
 ]

@@ -145,12 +145,9 @@
   </ul>
 </div>
 
-<div class="card" id="warteliste">
-  <h2>Warteliste</h2>
-  <ul class="tight">
-    <li>Ist dein Zeitraum belegt, trag dich auf die <strong>Warteliste</strong> – du wirst benachrichtigt (In-App &amp; E-Mail), sobald er frei wird.</li>
-    <li>Wo du gerade wartest, zeigt die Karte <strong>„Meine Wartelisten-Einträge“</strong> unter <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</li>
-  </ul>
+<div class="card content-md" id="warteliste">
+  <h2>{{ help.warteliste.title }}</h2>
+  {{ help.warteliste.html|safe }}
 </div>
 
 <div class="card" id="losung">
@@ -376,44 +373,19 @@
   </p>
 </div>
 
-<div class="card" id="gemeinschaft">
-  <h2>Gemeinschaft &amp; Transparenz</h2>
-  <p style="margin-top:0">Wir teilen eine knappe, gemeinsame Ressource – darum machen wir sie so
-    transparent wie möglich und geben Wege, einander zu helfen. (Wie die Auslosung selbst
-    funktioniert, steht unter <a href="#losung">Wunschliste &amp; Auslosung</a>.)</p>
-  <ul class="tight">
-    <li><strong>Gemeinschafts-Spiegel</strong> (Menü „Gemeinschaft"): zeigt – anonym und
-      aggregiert – wie ausgelastet die Quartiere sind (quartalsweise als Kurve), wie viele
-      Wünsche die letzten Auslosungen erfüllt haben und wie der Ausgleich (Karma) verteilt ist.</li>
-    <li><strong>Solidaritäts-Pool</strong> (unter „Tage übertragen"): Spende ungenutzte
-      Tage in einen gemeinsamen Topf. Wer fast kein Budget mehr hat, kann daraus –
-      gedeckelt – entnehmen.</li>
-    <li><strong>Danke sagen:</strong> Hat dir jemand Tage übertragen, kannst du dich mit
-      einem Klick bedanken.</li>
-  </ul>
+<div class="card content-md" id="gemeinschaft">
+  <h2>{{ help.gemeinschaft.title }}</h2>
+  {{ help.gemeinschaft.html|safe }}
 </div>
 
-<div class="card" id="hofladen">
-  <h2>Hofladen &amp; Zahlung</h2>
-  <ul class="tight">
-    <li>Im <a href="{% url 'shop_index' %}">Hofladen</a> Produkte und Dienstleistungen (z. B. Sauna) in den Warenkorb legen. Preise sind <strong>brutto</strong>; der Preis zum Kaufzeitpunkt wird gespeichert.</li>
-    <li>Am Monatsende entsteht automatisch eine <strong>Sammelrechnung</strong> (auch als <strong>PDF</strong>).</li>
-    <li><strong>Bezahlen – zwei Wege:</strong>
-      <ul class="tight">
-        <li><strong>Überweisung</strong> mit der <strong>Rechnungsnummer als Verwendungszweck</strong>, dann in der App „bezahlt“ melden (die Verwaltung bestätigt den Eingang); oder</li>
-        <li><strong>Online bezahlen</strong> (Kreditkarte, PayPal, Apple/Google Pay über Mollie) – die Rechnung gilt sofort als bestätigt.</li>
-      </ul>
-    </li>
-  </ul>
+<div class="card content-md" id="hofladen">
+  <h2>{{ help.hofladen.title }}</h2>
+  {{ help.hofladen.html|safe }}
 </div>
 
-<div class="card" id="tage">
-  <h2>Tage übertragen</h2>
-  <p style="margin:0">Unter <a href="{% url 'transfer' %}">Tage übertragen</a> gibst du Tage an ein
-    anderes Mitglied ab. Die Empfänger:in suchst du, indem du <strong>Name, Benutzername
-    oder E-Mail</strong> ins Suchfeld tippst (ab 3 Zeichen) und sie aus den Treffern wählst –
-    danach folgt eine Bestätigung. Das ist <strong>verbindlich</strong> – die Basis dafür
-    regelt ihr vorher privat.</p>
+<div class="card content-md" id="tage">
+  <h2>{{ help.tage.title }}</h2>
+  {{ help.tage.html|safe }}
 </div>
 
 <div class="card" id="profil">
@@ -485,6 +457,11 @@
   .card[id] { scroll-margin-top:72px; }
   ul.tight { line-height:1.55; margin:.3rem 0; }
   ul.tight ul { margin:.25rem 0; }
+  /* Ausgelagerte Prosa (ADR 0093): gleiche Optik wie die Inline-Abschnitte. */
+  .content-md ul { line-height:1.55; margin:.3rem 0; padding-left:1.2rem; }
+  .content-md li { margin:.1rem 0; }
+  .content-md > p:first-of-type { margin-top:0; }
+  .content-md h3 { margin:.6rem 0 .2rem; font-size:1rem; }
   details.deep { border:1px solid var(--line); border-radius:10px; padding:.1rem .7rem; margin:.5rem 0; background:#fffdf8; }
   details.deep > summary { cursor:pointer; font-weight:600; color:var(--accent-deep); padding:.5rem 0; }
   details.deep[open] > summary { margin-bottom:.3rem; }

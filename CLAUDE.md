@@ -57,6 +57,8 @@ booking/
   rules.py              # reine Logik: Mindestnächte/Parallel/Deckel
   validation.py         # reine Logik: Plausibilität der Eingaben (Name/PLZ/IBAN…)
   exports.py            # CSV/xlsx-Export (mit Formel-Injektions-Schutz)
+  helptext.py           # reine Logik: sicherer (escape-first) Mini-Markup-Renderer für Hilfetexte (ADR 0093)
+  help_content/*.md     # ausgelagerte, editierbare Hilfe-Prosa (Warteliste/Gemeinschaft/Hofladen/Tage)
   services/             # Brücke DB <-> Logik (gesamte Geschäftslogik; Paket, ADR 0050)
     __init__.py         #  re-exportiert alles → `svc.*` bleibt unverändert
     dates.py notify.py slots.py        #  Blätter: Datum · Mail/Push · Verfügbarkeit+Regeln
@@ -325,7 +327,11 @@ Mitglieder schicken Kategorie + Freitext an die passende Rollen-Adresse
 (`services.send_contact_message` → `OpsConfig.contact_list`: `bug`→technisch, sonst
 BL; leer = Verwaltung), **literal** verschickt (kein Template-Engine → SSTI-frei,
 `strip_controls`), **Reply-To = Absender** (`OutboxEmail.reply_to`), rate-limitiert;
-der Fuß-Link „Kontakt" führt eingeloggte Nutzer dorthin. **Fairness-Nachweis**
+der Fuß-Link „Kontakt" führt eingeloggte Nutzer dorthin. Die reinen **Prosa-Abschnitte
+der Hilfe** (Warteliste/Gemeinschaft/Hofladen/Tage) liegen **ausgelagert** in
+`booking/help_content/*.md` und werden **sicher** (escape-first, kein SSTI) über
+`booking/helptext.py` + `services.help_sections()` gerendert (redaktionell editierbar,
+ADR 0093). **Fairness-Nachweis**
 (`lottery_fairness`, `/losung-fairness/`, login-pflichtig, von der Hilfe verlinkt):
 zeigt per **Monte-Carlo-Simulation** (reine Logik `booking/fairness.py` auf dem
 puren `lottery`-Modul) mit **Inline-SVG-Grafen**, dass gleich gestellte Mitglieder

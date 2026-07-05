@@ -926,6 +926,7 @@ def help_page(request):
         "member": _current_member(request),
         "p": svc.booking_policy_summary(),
         "contact_categories": svc.CONTACT_CATEGORIES,
+        "help": svc.help_sections(),        # ausgelagerte Prosa (ADR 0093)
     })
 
 
