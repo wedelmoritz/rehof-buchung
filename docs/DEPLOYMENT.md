@@ -26,13 +26,13 @@ Der Betriebs-Stack besteht aus vier Diensten (ADR 0020, ADR 0021):
 ```
 
 - **`web`** — Django unter Gunicorn, lauscht im Container auf `0.0.0.0:8000`.
-  Es wird **kein Host-Port veröffentlicht** (`ports:` fehlt bewusst). Caddy
-  erreicht den Dienst über das **gemeinsame Docker-Netz** `compose_web` unter der
-  festen IP **`10.42.42.20:8000`** (alternativ `web:8000`). TLS terminiert
-  ausschließlich **Caddy am Host** — daher braucht die App keinen eigenen Port
-  nach außen und spricht intern nur HTTP.
-- **`db`** — PostgreSQL 16 (`postgres:16-alpine`), nur am internen Netz, **nicht**
-  am Caddy-Netz erreichbar. Daten liegen im benannten Volume `pgdata`.
+  Im **rootless-Docker-Betrieb** veröffentlicht der Dienst diesen Port auf dem
+  **Host**, gebunden an die **Bridge-Gateway-IP** (`REHOF_PUBLISH_ADDR`, Default
+  **`10.42.42.1`**) — bewusst **kein** `0.0.0.0` und kein `127.0.0.1`. Caddy am
+  Host erreicht die App dann unter **`10.42.42.1:8000`**. TLS terminiert
+  ausschließlich **Caddy am Host** — die App spricht intern nur HTTP.
+- **`db`** — PostgreSQL 16 (`postgres:16-alpine`), nur am internen Compose-Netz,
+  veröffentlicht **keinen** Host-Port. Daten liegen im benannten Volume `pgdata`.
 - **`cron`** — derselbe Image-Build, aber mit Entrypoint
   `python manage.py run_scheduler`. Ersetzt klassischen Cron (Losungen, Rechnungen,
   Mail-Versand, DSGVO-Aufräumen). Startet erst, wenn `web` **healthy** ist.
@@ -51,10 +51,10 @@ aus. Siehe ADR 0022/0047.)*
 ## 2. Voraussetzungen
 
 - **Linux-Server** (Debian/Ubuntu empfohlen) mit Root- oder `sudo`-Zugang.
-- **Caddy läuft bereits** als Container/Dienst auf dem Host und holt die
-  TLS-Zertifikate automatisch (Let's Encrypt). Der Caddy-Container muss am selben
-  externen Docker-Netz hängen wie `web` (siehe `docker-compose.yml: networks.caddy`,
-  Name `compose_web`).
+- **Caddy läuft bereits** als Dienst auf dem Host und holt die TLS-Zertifikate
+  automatisch (Let's Encrypt). Caddy proxyt auf die vom `web`-Dienst am Host
+  veröffentlichte Bind-Adresse `10.42.42.1:8000` (`REHOF_PUBLISH_ADDR`) — ein
+  gemeinsames Docker-Netz ist nicht nötig.
 - **Docker, Docker Compose (v2-Plugin), git** — `install.sh` prüft das und
   installiert es bei Bedarf (über `get.docker.com` bzw. `docker-compose-plugin`).
 - **DNS** der Domain zeigt auf den Server (für die Caddy-Zertifikate).
@@ -89,17 +89,21 @@ Das Skript ist **idempotent** und tut:
 Vor dem ersten Start die Domain setzen (siehe auch Abschnitt 4):
 
 ```dotenv
-ALLOWED_HOSTS=quartiere.example.de,10.42.42.20
-CSRF_TRUSTED_ORIGINS=https://quartiere.example.de
-PUBLIC_BASE_URL=https://quartiere.example.de
-DEFAULT_FROM_EMAIL=Re:Hof <noreply@quartiere.example.de>
+ALLOWED_HOSTS=rehof.wedelparlow.de
+CSRF_TRUSTED_ORIGINS=https://rehof.wedelparlow.de
+PUBLIC_BASE_URL=https://rehof.wedelparlow.de
+DEFAULT_FROM_EMAIL=Re:Hof <noreply@rehof.wedelparlow.de>
+# Optional: Host-Bind der App (rootless Docker); Default 10.42.42.1
+# REHOF_PUBLISH_ADDR=10.42.42.1
 ```
 
-- `ALLOWED_HOSTS` — kommagetrennt; die Container-IP `10.42.42.20` erlaubt den
-  internen Health-Check (Loopback `127.0.0.1`/`localhost` ergänzt Django ohnehin
+- `ALLOWED_HOSTS` — kommagetrennt; nur die öffentliche Domain nötig (Loopback
+  `127.0.0.1`/`localhost` für den Container-Health-Check ergänzt Django ohnehin
   automatisch).
 - `CSRF_TRUSTED_ORIGINS` — muss als **https-Origin** angegeben werden (CSRF hinter
   dem TLS-terminierenden Caddy).
+- `REHOF_PUBLISH_ADDR` — Host-Bind-Adresse für den veröffentlichten Web-Port
+  (rootless Docker). Default `10.42.42.1` (Bridge-Gateway); Caddy proxyt dorthin.
 
 ### 3.4 Stack bauen und starten
 
@@ -147,9 +151,9 @@ Nutzer im Backend der Gruppe „Verwaltung" hinzugefügt wird (ADR 0014).
 Den Block aus `caddy/Caddyfile.snippet` ins Caddyfile übernehmen, Domain anpassen:
 
 ```caddy
-quartiere.example.de {
+rehof.wedelparlow.de {
     encode gzip
-    reverse_proxy 10.42.42.20:8000
+    reverse_proxy 10.42.42.1:8000
 }
 ```
 
@@ -159,14 +163,11 @@ Dann neu laden:
 sudo systemctl reload caddy        # oder: caddy reload --config /etc/caddy/Caddyfile
 ```
 
-> **Warum bindet `web` nur intern?** TLS macht **Caddy am Host**. `web`
-> veröffentlicht keinen Host-Port, sondern ist nur im Docker-Netz `compose_web`
-> unter `10.42.42.20:8000` (bzw. `web:8000`) erreichbar — Caddy proxyt dorthin per
-> HTTP. So ist Gunicorn nie direkt aus dem Internet exponiert.
-
-Der Caddy-Container **muss** am Netz `compose_web` hängen. Mit
-`docker network ls` / `docker inspect <caddy>` prüfen; ggf. den Netznamen in
-`docker-compose.yml` (`networks.caddy.name`) an die eigene Umgebung anpassen.
+> **Warum bindet `web` an die Gateway-IP?** TLS macht **Caddy am Host**. Im
+> rootless-Betrieb veröffentlicht `web` seinen Port auf dem Host, gebunden an die
+> Bridge-Gateway-IP `10.42.42.1` (`REHOF_PUBLISH_ADDR`) — **nicht** an `0.0.0.0`
+> (nicht aus dem Internet exponiert) und **nicht** an `127.0.0.1`. Caddy am Host
+> proxyt per HTTP nach `10.42.42.1:8000`.
 
 ---
 
@@ -540,8 +541,8 @@ BACKUP_PASSPHRASE=… ./ops/backup.sh restore <datei> # spielt es wieder ein
 |---|---|
 | Seite nicht erreichbar, **502 bei Caddy** | `web` ist weg/unhealthy. `docker compose ps`, dann `docker compose logs -f web`. |
 | `docker compose ps` zeigt **`unhealthy`** | Gunicorn antwortet nicht oder DB weg (z. B. abgebrochene Migration). Logs prüfen, ggf. `docker compose up -d` / `migrate`. |
-| Health-Check rot | `curl -fsS https://quartiere.example.de/healthz/` (erwartet 200) bzw. intern `docker compose exec web curl -fsS http://127.0.0.1:8000/healthz/`. |
-| Caddy erreicht `web` nicht | Hängt Caddy am Netz `compose_web`? `docker network inspect compose_web` — `web` muss `10.42.42.20` haben. |
+| Health-Check rot | `curl -fsS https://rehof.wedelparlow.de/healthz/` (erwartet 200) bzw. intern `docker compose exec web curl -fsS http://127.0.0.1:8000/healthz/`. |
+| Caddy erreicht `web` nicht | Lauscht der Host-Port? `curl -fsS http://10.42.42.1:8000/healthz/` auf dem Server; `docker compose ps` muss `web` als `10.42.42.1:8000->8000` zeigen. Bind-Adresse ggf. via `REHOF_PUBLISH_ADDR` anpassen. |
 | CSRF-Fehler beim Login/POST | `CSRF_TRUSTED_ORIGINS` als `https://…` gesetzt? Domain in `ALLOWED_HOSTS`? |
 | Mails kommen nicht an | Ohne `EMAIL_HOST` Konsolen-Backend (nur Log). `EMAIL_*` setzen; `docker compose logs -f cron` für `send_outbox`. |
 | Demo-Daten erscheinen wieder | `SEED_DEMO`/`DEMO_RESET`/`DEMO_WIPE` in der `.env` auf `0` zurücksetzen. |

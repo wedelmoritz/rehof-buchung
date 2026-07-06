@@ -1,12 +1,13 @@
 # Diesen Block in das vorhandene Caddyfile aufnehmen.
 # Caddy holt das TLS-Zertifikat automatisch via Let's Encrypt und terminiert
-# TLS; nach hinten spricht er HTTP. Der Caddy-Container muss am selben
-# externen Docker-Netz hängen wie web (siehe docker-compose.yml: networks.caddy).
+# TLS; nach hinten spricht er HTTP. Die App läuft in einem isolierten, rootless
+# Docker-Daemon und veröffentlicht ihren Port auf dem Host, gebunden an die
+# Bridge-Gateway-IP 10.42.42.1. Der Host-Caddy erreicht sie dort direkt –
+# KEIN gemeinsames Docker-Netz mehr nötig.
 
-quartiere.example.de {
+rehof.wedelparlow.de {
     encode gzip
-    # Feste Container-IP im gemeinsamen Netz compose_web (Schema: caddy=.10,
-    # web=.20). Deterministisch und unabhängig von DNS-Aliassen anderer Stacks.
-    # Alternativ ginge der Servicename: reverse_proxy web:8000
-    reverse_proxy 10.42.42.20:8000
+    # Rootless-Docker: die App veröffentlicht ihren Port auf dem Host-Gateway
+    # (siehe docker-compose.yml: REHOF_PUBLISH_ADDR, Default 10.42.42.1).
+    reverse_proxy 10.42.42.1:8000
 }
