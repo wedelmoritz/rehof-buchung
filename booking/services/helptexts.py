@@ -22,12 +22,27 @@ HELP_CONTENT_DIR = Path(__file__).resolve().parent.parent / "help_content"
 HELP_SECTION_KEYS = ["warteliste", "gemeinschaft", "hofladen", "tage"]
 
 
+_MONTHS_DE = ("", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+              "August", "September", "Oktober", "November", "Dezember")
+
+
 def _help_context() -> dict:
     from django.urls import reverse
+    from ..models import BookingPolicy
+    p = BookingPolicy.get_solo()
+    # Solidaritäts-Pool: die **konfigurierten** Werte (nicht die Code-Defaults, ADR 0099)
+    # als Platzhalter in den Hilfetext einsetzen.
+    month = p.pool_withdraw_from_month
+    pool_time_note = (
+        f" Entnahmen sind außerdem erst **ab {_MONTHS_DE[month]}** möglich – so zeigt "
+        f"sich zuerst, wer bis dahin wirklich zu wenig Tage hat." if month else "")
     return {
         "url_my_bookings": reverse("my_bookings"),
         "url_shop": reverse("shop_index"),
         "url_transfer": reverse("transfer"),
+        "pool_threshold": p.pool_eligible_remaining,
+        "pool_cap": p.pool_withdraw_cap,
+        "pool_time_note": pool_time_note,
     }
 
 

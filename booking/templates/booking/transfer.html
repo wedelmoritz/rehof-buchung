@@ -171,6 +171,9 @@
         ({{ pool.cap }}/Jahr, davon {{ pool.withdrawn }} genutzt). <em>Unabhängig</em> davon, wie viel
         du selbst gespendet hast.</p>
     </form>
+    {% elif not pool.member_active %}
+    <p class="sm muted" style="align-self:center;margin:0">Als <strong>passives Mitglied</strong>
+      kannst du Tage in den Pool <strong>spenden</strong>, aber nicht daraus entnehmen.</p>
     {% elif not pool.time_ok %}
     <p class="sm muted" style="align-self:center;margin:0">Entnahmen aus dem Pool sind erst
       <strong>ab {{ pool.withdraw_from_month_name }}</strong> möglich – so ist zuerst klar, wer bis

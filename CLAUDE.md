@@ -306,8 +306,11 @@ gemeinsamen Topf **spenden** und **bei Bedarf, gedeckelt entnehmen** [`DayPoolEn
 `Member.effective_annual_budget`; Entnahme nur bei fast aufgebrauchtem Budget
 [`POOL_ELIGIBLE_REMAINING`], gedeckelt `POOL_WITHDRAW_CAP_PER_YEAR`; **Parameter
 backend-konfigurierbar** über `BookingPolicy.pool_eligible_remaining`/`pool_withdraw_cap`
-+ optionaler **Zeit-Riegel** `pool_withdraw_from_month` gegen „früh verbrauchen, dann
-nachladen" [Default 0 = aus], ADR 0099]).
++ **Zeit-Riegel** `pool_withdraw_from_month` gegen „früh verbrauchen, dann nachladen"
+[Default **9 = ab September**; 0 = ganzjährig], ADR 0099. **Passive Mitglieder dürfen
+SPENDEN, aber nicht ENTNEHMEN** [`pool_withdraw`/`pool_status` prüfen `can_book`; die
+Transfer-Seite ist für sie zugänglich – nur „Geben"]. Die **Hilfe** [`tage.md`] nennt
+die konfigurierten Werte].
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
 den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit

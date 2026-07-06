@@ -1482,9 +1482,9 @@ class BookingPolicy(models.Model):
                   "Pool entnehmen. ADR 0064/0099.",
     )
     pool_withdraw_from_month = models.PositiveSmallIntegerField(
-        "Solidaritäts-Pool: Entnahme erst ab Monat (1–12; 0 = ganzjährig)", default=0,
-        help_text="Optionaler Zeit-Riegel gegen „schnell verbrauchen, dann nachladen“: "
-                  "Entnahmen sind erst ab diesem Monat möglich (z. B. 9 = ab September). "
+        "Solidaritäts-Pool: Entnahme erst ab Monat (1–12; 0 = ganzjährig)", default=9,
+        help_text="Zeit-Riegel gegen „schnell verbrauchen, dann nachladen“: Entnahmen "
+                  "sind erst ab diesem Monat möglich (Default 9 = ab September). "
                   "0 = ganzjährig (kein Riegel). ADR 0099.",
     )
 

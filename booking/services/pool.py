@@ -66,10 +66,13 @@ def pool_status(member: Member, year: int) -> dict:
     cap_left = max(0, cap - withdrawn)
     balance = pool_balance(year)
     time_ok = (from_month == 0) or (date.today().month >= from_month)
-    eligible = remaining <= threshold and time_ok
+    # Passive/ausgeschiedene Mitglieder dürfen SPENDEN, aber nicht ENTNEHMEN (ADR 0099).
+    active = member.can_book
+    eligible = active and remaining <= threshold and time_ok
     return {
         "balance": balance,
         "remaining": remaining,
+        "member_active": active,
         "can_donate": remaining > 0,
         "max_donate": max(0, remaining),
         "eligible_to_withdraw": eligible,
@@ -116,9 +119,13 @@ def pool_withdraw(member: Member, nights: int, year: int, note: str = "") -> tup
         return None, "Die Anzahl der Tage muss positiv sein."
     from datetime import date
     threshold, cap, from_month = _pool_policy()
+    # Passive/ausgeschiedene Mitglieder dürfen spenden, aber NICHT entnehmen (ADR 0099).
+    if not member.can_book:
+        return None, ("Als passives Mitglied kannst du in den Pool spenden, aber nicht "
+                      "daraus entnehmen.")
     _lock_pool_year(year)   # gegen gleichzeitige Entnahmen serialisieren (S1)
-    # Optionaler Zeit-Riegel (ADR 0099): erst ab konfiguriertem Monat entnehmbar –
-    # entschärft „Budget früh verbrauchen, dann nachladen".
+    # Zeit-Riegel (ADR 0099): erst ab konfiguriertem Monat entnehmbar – entschärft
+    # „Budget früh verbrauchen, dann nachladen".
     if from_month and date.today().month < from_month:
         return None, (f"Entnahmen aus dem Pool sind erst ab {_MONTHS_DE[from_month]} "
                       f"möglich (damit zuerst klar ist, wer bis dahin wirklich zu "

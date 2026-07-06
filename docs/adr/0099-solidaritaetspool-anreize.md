@@ -38,23 +38,30 @@ Defaults = bisheriges Verhalten:
 1. **`pool_eligible_remaining`** (Default 5) – Entnahme-Schwelle jetzt konfigurierbar
    (Antwort auf „ist 5 sinnvoll?" → die Delegation entscheidet, ohne Code).
 2. **`pool_withdraw_cap`** (Default 10) – Jahres-Deckel konfigurierbar.
-3. **`pool_withdraw_from_month`** (Default **0 = aus**) – optionaler **Zeit-Riegel**:
-   Entnahmen erst ab einem Monat (z. B. 9 = ab September). Das ist der gezielte
-   Anreiz-Fix gegen „früh verbrauchen, dann nachladen": wer früh alles ausgibt, kann
-   **nicht sofort** nachladen; bis zum Stichtag zeigt sich, wer bis dahin wirklich zu
-   wenig hat. Als **Opt-in** ausgelegt, damit die Genossenschaft es beschließt.
+3. **`pool_withdraw_from_month`** (Default **9 = September**) – **Zeit-Riegel**:
+   Entnahmen erst ab diesem Monat. Der gezielte Anreiz-Fix gegen „früh verbrauchen,
+   dann nachladen": wer früh alles ausgibt, kann **nicht sofort** nachladen; bis
+   September zeigt sich, wer wirklich zu wenig hat. `0` = ganzjährig (Riegel aus).
+
+**Passive Mitglieder dürfen SPENDEN, aber nicht ENTNEHMEN.** Ihre Tage verfallen
+sonst ungenutzt – Spenden (und Übertragen an aktive Mitglieder) ist erwünscht;
+Entnehmen ist an die aktive Mitgliedschaft gebunden (`Member.can_book`, in
+`pool_withdraw`/`pool_status` erzwungen). Die Transfer-Seite ist für passive
+Mitglieder daher zugänglich (nur „Geben", nicht „Nehmen").
 
 Werte kommen über `services.pool._pool_policy()` aus `BookingPolicy.get_solo()`;
-`pool_status`/`pool_withdraw` erzwingen Schwelle, Deckel **und** Zeit-Riegel; die
-UI erklärt den jeweils greifenden Grund.
+`pool_status`/`pool_withdraw` erzwingen Schwelle, Deckel, Zeit-Riegel **und** den
+Aktiv-Status; die UI erklärt den jeweils greifenden Grund. Die **Hilfe-Seite**
+(`help_content/tage.md`) nennt die **konfigurierten** Werte (über den helptexts-
+Kontext, nicht die Code-Defaults).
 
 ## Konsequenzen
 
 **Positiv** – die Genossenschaft kann die Fairness-Parameter selbst tunen; der
 Zeit-Riegel adressiert den Moral-Hazard gezielt, ohne den Pool zu verkomplizieren.
 
-**Grenzen / offen (für die Delegation).** Eine **echte** Bedarfsprüfung (Entnahme
-gebunden an eine konkrete, sonst nicht deckbare Buchung, wie beim Leave-Bank-„qualifying
-need") wäre der stärkste Missbrauchs-Schutz, aber deutlich aufwändiger und mit mehr
-Reibung – bewusst NICHT umgesetzt, sondern als Option dokumentiert. Ebenso denkbar:
-relative Schwelle (Anteil des Jahresbudgets) statt absoluter Tage.
+**Bewusst NICHT umgesetzt.** Eine **relative Schwelle** (Anteil des Jahresbudgets statt
+absoluter Tage) wurde erwogen, aber verworfen – die absolute, konfigurierbare Grenze
+bleibt. Eine **echte** Bedarfsprüfung (Entnahme gebunden an eine konkrete, sonst nicht
+deckbare Buchung, wie beim Leave-Bank-„qualifying need") wäre der stärkste Missbrauchs-
+Schutz, aber deutlich aufwändiger/reibungsreicher – als spätere Option dokumentiert.
