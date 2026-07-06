@@ -11,6 +11,12 @@ YEAR = date.today().year
 
 class PoolTests(TestCase):
     def setUp(self):
+        # Zeit-Riegel für die Schwellen-/Deckel-Tests neutralisieren (Default ist
+        # September; diese Tests prüfen die anderen Regeln unabhängig vom Monat).
+        from booking.models import BookingPolicy
+        p = BookingPolicy.get_solo()
+        p.pool_withdraw_from_month = 0
+        p.save(update_fields=["pool_withdraw_from_month"])
         self.donor = make_member("donor", nights=50)
         self.needy = make_member("needy", nights=5)   # remaining 5 → „bei Bedarf"
 
@@ -61,6 +67,55 @@ class PoolTests(TestCase):
         self.assertEqual(st["balance"], 8)
         self.assertTrue(st["eligible_to_withdraw"])
         self.assertEqual(st["max_withdraw"], 8)   # min(balance 8, cap 10)
+
+    def test_zeit_riegel_default_september(self):
+        # Default-Riegel ist September (ADR 0099): vor September gesperrt, ab September frei.
+        from booking.models import BookingPolicy
+        p = BookingPolicy.get_solo()
+        self.assertEqual(BookingPolicy._meta.get_field(
+            "pool_withdraw_from_month").default, 9)
+        p.pool_withdraw_from_month = 9
+        p.save(update_fields=["pool_withdraw_from_month"])
+        svc.pool_donate(self.donor, 20, YEAR)
+        e, err = svc.pool_withdraw(self.needy, 3, YEAR)
+        if date.today().month < 9:
+            self.assertIsNone(e)
+            self.assertIn("erst ab September", err)
+        else:
+            self.assertIsNotNone(e, err)
+
+    def test_passives_mitglied_darf_spenden_nicht_entnehmen(self):
+        # ADR 0099: passive Mitglieder dürfen SPENDEN, aber nicht ENTNEHMEN.
+        passive = make_member("passiv", nights=5)
+        passive.passive_from = date(YEAR - 1, 1, 1)
+        passive.save(update_fields=["passive_from"])
+        self.assertFalse(passive.can_book)
+        # Spenden geht:
+        e, err = svc.pool_donate(passive, 2, YEAR)
+        self.assertIsNotNone(e, err)
+        # Entnehmen nicht (obwohl Rest ≤ Schwelle):
+        svc.pool_donate(self.donor, 10, YEAR)
+        e2, err2 = svc.pool_withdraw(passive, 1, YEAR)
+        self.assertIsNone(e2)
+        self.assertIn("passives Mitglied", err2)
+        self.assertFalse(svc.pool_status(passive, YEAR)["eligible_to_withdraw"])
+        self.assertFalse(svc.pool_status(passive, YEAR)["member_active"])
+
+    def test_konfigurierbare_schwelle(self):
+        # Schwelle im Backend hochsetzen → auch wer mehr übrig hat, ist berechtigt.
+        from booking.models import BookingPolicy
+        mid = make_member("mid", nights=20)          # 20 übrig
+        svc.pool_donate(self.donor, 10, YEAR)
+        # Mit Default-Schwelle 5 ist mid NICHT berechtigt.
+        e, err = svc.pool_withdraw(mid, 2, YEAR)
+        self.assertIsNone(e)
+        # Schwelle auf 25 → mid (20 übrig) ist jetzt berechtigt.
+        p = BookingPolicy.get_solo()
+        p.pool_eligible_remaining = 25
+        p.save(update_fields=["pool_eligible_remaining"])
+        e2, err2 = svc.pool_withdraw(mid, 2, YEAR)
+        self.assertIsNotNone(e2, err2)
+        self.assertEqual(mid.nights_remaining_in_year(YEAR), 22)
 
     def test_transfer_seite_zeigt_pool_und_spende_per_post(self):
         from django.urls import reverse

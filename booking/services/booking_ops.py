@@ -368,27 +368,50 @@ def pending_swaps_for(member):
 
 
 @transaction.atomic
+@transaction.atomic
 def transfer_nights(
     from_member: Member, to_member: Member, nights: int, year: int,
     note: str = "",
 ) -> tuple[NightTransfer | None, str | None]:
-    """Überträgt `nights` Tage von einem Mitglied auf ein anderes (für `year`).
-    Gibt (NightTransfer, None) oder (None, Fehlermeldung) zurück."""
+    """Überträgt `nights` Tage von einem Mitglied auf ein anderes (für `year`) und
+    **benachrichtigt die empfangende Person** (In-App + Mail-Opt-in + Push via Signal).
+    Gibt (NightTransfer, None) oder (None, Fehlermeldung) zurück.
+
+    Gegen gleichzeitige Überträge gesperrt (das Budget ist abgeleitet – ohne Sperre
+    könnten zwei parallele Überträge dasselbe Kontingent doppelt vergeben): der
+    schenkende Datensatz wird unter Sperre geladen und das verfügbare Budget INNERHALB
+    der Transaktion frisch geprüft."""
     if from_member.id == to_member.id:
         return None, "Empfänger muss ein anderes Mitglied sein."
     if nights <= 0:
         return None, "Die Anzahl der Tage muss positiv sein."
+    # Nur an AKTIVE Mitglieder (ADR 0087) – passive/ausgeschiedene können die Tage
+    # nicht nutzen. Serverseitige Absicherung zusätzlich zur Empfänger-Auswahl.
+    if to_member.is_external or not to_member.can_book:
+        return None, "Empfänger:in ist zurzeit kein aktives Mitglied."
+    Member.objects.select_for_update().filter(id=from_member.id).first()
     remaining = from_member.nights_remaining_in_year(year)
     if remaining < nights:
         return None, (f"Nicht genügend verfügbare Tage zum Übertragen "
                       f"({remaining} übrig, {nights} angefragt).")
+    note = V.strip_controls(note, max_len=200)
     t = NightTransfer.objects.create(
         from_member=from_member, to_member=to_member, nights=nights,
-        year=year, note=V.strip_controls(note, max_len=200),
+        year=year, note=note,
     )
+    # Empfänger:in benachrichtigen – der Kern-Wunsch: „Tage erhalten" sichtbar machen.
+    tag = "einen Tag" if nights == 1 else f"{nights} Tage"
+    msg = f"{from_member.display_name} hat dir {tag} übertragen."
+    detail = (msg + (f"\n\nNachricht: {note}" if note else "")
+              + "\n\nDu findest sie unter „Tage übertragen“ – dort kannst du dich "
+                "auch bedanken.")
+    Notification.objects.create(member=to_member, message=msg[:255], detail=detail,
+                                url="/tage-uebertragen/")
+    email_member(to_member, "Re:Hof: Du hast Tage erhalten", detail)
     return t, None
 
 
+@transaction.atomic
 def thank_for_transfer(member: Member, transfer_id) -> tuple[bool, str | None]:
     """Die empfangende Person bedankt sich für eine Tage-Übertragung (P2.7).
 
@@ -397,8 +420,9 @@ def thank_for_transfer(member: Member, transfer_id) -> tuple[bool, str | None]:
     nur durch die tatsächliche Empfängerin auslösbar – keine öffentliche Rangliste."""
     from django.utils import timezone
     try:
-        t = NightTransfer.objects.select_related("from_member").get(
-            id=transfer_id, to_member=member)
+        # Unter Sperre laden, damit ein Doppelklick nicht zweimal „Danke" auslöst.
+        t = NightTransfer.objects.select_for_update().select_related(
+            "from_member").get(id=transfer_id, to_member=member)
     except NightTransfer.DoesNotExist:
         return False, "Übertragung nicht gefunden."
     if t.thanked_at:

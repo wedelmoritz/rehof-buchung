@@ -1084,9 +1084,13 @@ def push_unsubscribe(request):
 
 @login_required
 def transfer(request):
-    """Tage an ein anderes Mitglied übertragen (innerhalb des Jahres)."""
-    if (blocked := _block_if_not_bookable(request)) is not None:
-        return blocked
+    """Tage an ein anderes Mitglied übertragen bzw. in den Solidaritäts-Pool spenden.
+
+    Passive/ausgeschiedene Mitglieder dürfen diese Seite bewusst nutzen, um ihre
+    (sonst verfallenden) Tage **abzugeben** – Spenden in den Pool und Übertragen an
+    aktive Mitglieder. Nur **Entnehmen** aus dem Pool ist ihnen verwehrt (ADR 0099,
+    im Pool-Service erzwungen); Buchen/Wünsche bleiben über `_block_if_not_bookable`
+    gesperrt."""
     member = _current_member(request)
     year = date.today().year
     if not member:
@@ -1158,8 +1162,9 @@ def member_search(request):
     q = (request.GET.get("q") or "").strip()
     if not member or len(q) < 3:
         return JsonResponse({"results": []})
-    qs = (Member.objects.filter(is_external=False)
-          .exclude(id=member.id)
+    # Nur AKTIVE Mitglieder als Empfänger:in vorschlagen (ADR 0087).
+    base = Member.objects.filter(is_external=False).exclude(id=member.id)
+    qs = (Member.active_members(base=base)
           .filter(Q(display_name__icontains=q)
                   | Q(user__username__icontains=q)
                   | Q(user__email__icontains=q)

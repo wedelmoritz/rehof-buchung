@@ -28,3 +28,18 @@ class HelpSectionsTests(TestCase):
         self.assertIn('id="warteliste"', body)
         self.assertIn("Solidaritäts-Pool", body)      # aus gemeinschaft.md
         self.assertIn("Sammelrechnung", body)         # aus hofladen.md
+
+    def test_help_pool_zeigt_konfigurierte_werte(self):
+        # Die Hilfe nennt die BACKEND-Werte des Pools, nicht die Code-Defaults (ADR 0099).
+        from booking.models import BookingPolicy
+        p = BookingPolicy.get_solo()
+        p.pool_eligible_remaining = 7
+        p.pool_withdraw_cap = 12
+        p.pool_withdraw_from_month = 10          # Oktober
+        p.save(update_fields=["pool_eligible_remaining", "pool_withdraw_cap",
+                              "pool_withdraw_from_month"])
+        html = svc.help_sections()["tage"]["html"]
+        self.assertIn("höchstens 7 Tage", html)
+        self.assertIn("höchstens 12 Tage", html)
+        self.assertIn("ab Oktober", html)
+        self.assertNotIn("$pool_threshold", html)

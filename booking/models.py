@@ -295,6 +295,16 @@ class Member(models.Model):
         """Nur aktive Mitglieder dürfen neu buchen / Wünsche eintragen."""
         return self.status == "active"
 
+    @classmethod
+    def active_members(cls, on_date=None, base=None):
+        """Queryset der zum Stichtag **aktiven** Mitglieder (nicht passiv/ausgeschieden,
+        ADR 0087) – DB-seitig, z. B. als Empfänger:innen einer Tage-Übertragung. `base`
+        erlaubt eine Vorfilterung (z. B. `is_external=False`)."""
+        from datetime import date as _date
+        d = on_date or _date.today()
+        qs = cls.objects.all() if base is None else base
+        return qs.exclude(excluded_from__lte=d).exclude(passive_from__lte=d)
+
     @property
     def is_passive(self) -> bool:
         return self.status == "passive"
@@ -1459,6 +1469,23 @@ class BookingPolicy(models.Model):
         help_text="Kann die Verwaltung bei einer dringenden Sperrung keine passende "
                   "Ersatz-Unterkunft bereitstellen, darf sie dem Mitglied bis zu so "
                   "viele zusätzliche Tage gutschreiben (je nach Schwere). ADR 0097.",
+    )
+    pool_eligible_remaining = models.PositiveSmallIntegerField(
+        "Solidaritäts-Pool: Entnahme erst ab Rest-Budget ≤", default=5,
+        help_text="Aus dem Solidaritäts-Pool darf ein Mitglied erst entnehmen, wenn "
+                  "sein Jahresbudget bis auf höchstens so viele Tage aufgebraucht ist "
+                  "(Bedarfs-Signal). ADR 0064/0099.",
+    )
+    pool_withdraw_cap = models.PositiveSmallIntegerField(
+        "Solidaritäts-Pool: Höchst-Entnahme je Mitglied/Jahr", default=10,
+        help_text="Mehr als so viele Tage darf ein Mitglied pro Jahr nicht aus dem "
+                  "Pool entnehmen. ADR 0064/0099.",
+    )
+    pool_withdraw_from_month = models.PositiveSmallIntegerField(
+        "Solidaritäts-Pool: Entnahme erst ab Monat (1–12; 0 = ganzjährig)", default=9,
+        help_text="Zeit-Riegel gegen „schnell verbrauchen, dann nachladen“: Entnahmen "
+                  "sind erst ab diesem Monat möglich (Default 9 = ab September). "
+                  "0 = ganzjährig (kein Riegel). ADR 0099.",
     )
 
     class Meta:
