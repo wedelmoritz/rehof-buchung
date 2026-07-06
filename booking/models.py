@@ -295,6 +295,16 @@ class Member(models.Model):
         """Nur aktive Mitglieder dürfen neu buchen / Wünsche eintragen."""
         return self.status == "active"
 
+    @classmethod
+    def active_members(cls, on_date=None, base=None):
+        """Queryset der zum Stichtag **aktiven** Mitglieder (nicht passiv/ausgeschieden,
+        ADR 0087) – DB-seitig, z. B. als Empfänger:innen einer Tage-Übertragung. `base`
+        erlaubt eine Vorfilterung (z. B. `is_external=False`)."""
+        from datetime import date as _date
+        d = on_date or _date.today()
+        qs = cls.objects.all() if base is None else base
+        return qs.exclude(excluded_from__lte=d).exclude(passive_from__lte=d)
+
     @property
     def is_passive(self) -> bool:
         return self.status == "passive"

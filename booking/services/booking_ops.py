@@ -385,6 +385,10 @@ def transfer_nights(
         return None, "Empfänger muss ein anderes Mitglied sein."
     if nights <= 0:
         return None, "Die Anzahl der Tage muss positiv sein."
+    # Nur an AKTIVE Mitglieder (ADR 0087) – passive/ausgeschiedene können die Tage
+    # nicht nutzen. Serverseitige Absicherung zusätzlich zur Empfänger-Auswahl.
+    if to_member.is_external or not to_member.can_book:
+        return None, "Empfänger:in ist zurzeit kein aktives Mitglied."
     Member.objects.select_for_update().filter(id=from_member.id).first()
     remaining = from_member.nights_remaining_in_year(year)
     if remaining < nights:

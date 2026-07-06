@@ -1158,8 +1158,9 @@ def member_search(request):
     q = (request.GET.get("q") or "").strip()
     if not member or len(q) < 3:
         return JsonResponse({"results": []})
-    qs = (Member.objects.filter(is_external=False)
-          .exclude(id=member.id)
+    # Nur AKTIVE Mitglieder als Empfänger:in vorschlagen (ADR 0087).
+    base = Member.objects.filter(is_external=False).exclude(id=member.id)
+    qs = (Member.active_members(base=base)
           .filter(Q(display_name__icontains=q)
                   | Q(user__username__icontains=q)
                   | Q(user__email__icontains=q)

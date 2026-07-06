@@ -173,7 +173,9 @@ class TransferForm(forms.Form):
 
     def __init__(self, *args, exclude_member=None, **kwargs):
         super().__init__(*args, **kwargs)
-        qs = Member.objects.filter(is_external=False)
+        # Nur AKTIVE Mitglieder als Empfänger:in (passive/ausgeschiedene können die
+        # Tage nicht nutzen, ADR 0087) – server-seitig erzwungen.
+        qs = Member.active_members(base=Member.objects.filter(is_external=False))
         if exclude_member is not None:
             qs = qs.exclude(id=exclude_member.id)
         self.fields["to_member"].queryset = qs.order_by("display_name")

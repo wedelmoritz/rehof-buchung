@@ -190,6 +190,18 @@ class NightTransferTests(BaseData):
         t, err = transfer_nights(self.alice, self.alice, 5, YEAR)
         self.assertIsNone(t)
 
+    def test_kein_uebertrag_an_passives_mitglied(self):
+        # Passive/ausgeschiedene Empfänger:innen sind gesperrt (ADR 0087).
+        self.bob.passive_from = date(YEAR - 1, 1, 1)
+        self.bob.save(update_fields=["passive_from"])
+        t, err = transfer_nights(self.alice, self.bob, 3, YEAR)
+        self.assertIsNone(t)
+        self.assertIn("aktives Mitglied", err)
+        # active_members-Queryset schließt Bob ebenfalls aus.
+        from booking.models import Member
+        self.assertNotIn(self.bob.id,
+                         list(Member.active_members().values_list("id", flat=True)))
+
     def test_empfaenger_kann_mehr_buchen(self):
         # Bob bekommt 10 Tage -> kann 60 statt 50 buchen
         transfer_nights(self.alice, self.bob, 10, YEAR)
