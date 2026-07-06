@@ -76,9 +76,10 @@ git clone <repo-url> rehof && cd rehof
 ./install.sh
 
 # 2) In .env die Domain eintragen:
-#    ALLOWED_HOSTS=quartiere.deine-domain.de
-#    CSRF_TRUSTED_ORIGINS=https://quartiere.deine-domain.de
-#    PUBLIC_BASE_URL=https://quartiere.deine-domain.de
+#    ALLOWED_HOSTS=rehof.deine-domain.de
+#    CSRF_TRUSTED_ORIGINS=https://rehof.deine-domain.de
+#    PUBLIC_BASE_URL=https://rehof.deine-domain.de
+#    (optional) REHOF_PUBLISH_ADDR=10.42.42.1  # Host-Bind der App (rootless)
 
 # 3) Stack bauen & starten (optional mit Demo-/Testdaten: --seed)
 ./install.sh --start
@@ -89,8 +90,10 @@ docker compose exec web python manage.py createsuperuser
 
 Anschließend den Block aus [`caddy/Caddyfile.snippet`](caddy/Caddyfile.snippet) ins
 Host-Caddyfile übernehmen (Domain anpassen) und `sudo systemctl reload caddy`. Caddy
-terminiert TLS und proxyt im gemeinsamen Docker-Netz auf den `web`-Container (der
-**keinen** Host-Port veröffentlicht).
+terminiert TLS und proxyt nach HTTP auf die App. Im **rootless-Betrieb**
+veröffentlicht der `web`-Dienst seinen Port auf der Bridge-Gateway-IP des Hosts
+(`REHOF_PUBLISH_ADDR`, Default `10.42.42.1`) → Caddy erreicht ihn unter
+`10.42.42.1:8000`. Die Datenbank veröffentlicht **keinen** Host-Port.
 
 ➡️ **Die vollständige, schrittweise Anleitung** – alle Umgebungsvariablen, Web-Push/
 VAPID, Monitoring-Anbindung, Mollie, Scheduler, Redis, Updates und Server-Umzug –

@@ -1,9 +1,11 @@
 # Docker-Compose-Stack für die Quartier-Buchung.
 # Dienste: web (Django/Gunicorn) + db (PostgreSQL).
-# Caddy läuft als eigener Container und erreicht web über das gemeinsame
-# externe Docker-Netz (networks.caddy) unter web:8000 bzw. 10.42.42.20:8000.
-# Caddy terminiert TLS und proxyt nach HTTP weiter – die App selbst spricht
-# nur HTTP auf 0.0.0.0:8000.
+# Betrieb in einem isolierten, rootless Docker-Daemon: der web-Dienst
+# veröffentlicht seinen Port auf dem Host, gebunden an die Bridge-Gateway-IP
+# (REHOF_PUBLISH_ADDR, Default 10.42.42.1). Der Host-Caddy erreicht die App
+# dann unter 10.42.42.1:8000 (KEIN gemeinsames Docker-Netz mehr). Caddy
+# terminiert TLS und proxyt nach HTTP weiter – die App selbst spricht nur
+# HTTP auf 0.0.0.0:8000. db/redis bleiben ohne Host-Port im internen Netz.
 
 services:
   db:
@@ -73,9 +75,12 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
-    # KEIN ports: — kein Host-Port nötig, Caddy erreicht web im Docker-Netz.
-    expose:
-      - "8000"               # für Container im selben Netz (Caddy)
+    # Host-Port NUR auf der Bridge-Gateway-IP veröffentlichen (rootless Docker):
+    # 10.42.42.1:8000 (Host) -> 8000 (Container). Bewusst KEIN 0.0.0.0 und kein
+    # 127.0.0.1 – so erreicht ausschließlich der Host-Caddy die App. Die
+    # Bind-Adresse ist per REHOF_PUBLISH_ADDR überschreibbar.
+    ports:
+      - "${REHOF_PUBLISH_ADDR:-10.42.42.1}:8000:8000"
     # Healthcheck: /healthz/ prüft zusätzlich die DB-Erreichbarkeit. Schlägt fehl,
     # wenn Gunicorn nicht (mehr) antwortet ODER die DB weg ist – z.B. weil eine
     # Migration beim Start abgebrochen ist. So ist ein kaputter Start sofort an
@@ -88,11 +93,7 @@ services:
       retries: 3
       start_period: 40s        # Zeit für Warten-auf-DB + Migrationen + Start
     networks:
-      caddy:
-        # Feste IP für Caddys reverse_proxy/Health-Check. Schema im Netz
-        # compose_web (10.42.42.0/24): caddy=.10, web=.20.
-        ipv4_address: 10.42.42.20
-      internal: {}
+      - internal               # nur internes Netz (db); erreichbar über Host-Port
     # gunicorn bindet 0.0.0.0:8000 (siehe entrypoint.sh)
 
   # Hintergrund-Scheduler (ersetzt klassischen Cron): führt regelmäßig fällige
@@ -163,8 +164,3 @@ volumes:
 
 networks:
   internal: {}
-  caddy:
-    external: true
-    # Muss das Netz sein, in dem der Caddy-Container hängt.
-    # Mit `docker network ls` / `docker inspect <caddy>` auf dem Server prüfen.
-    name: compose_web

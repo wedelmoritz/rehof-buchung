@@ -198,7 +198,7 @@ if [ "$DO_START" = "1" ]; then
   echo "  2) Domain in .env (ALLOWED_HOSTS / CSRF_TRUSTED_ORIGINS) eintragen, dann:"
   echo "       $( [ -n \"$SUDO\" ] && echo sudo )docker compose up -d"
   echo "  3) Caddy konfigurieren (siehe caddy/Caddyfile.snippet) und neu laden."
-  echo "       Caddy muss am selben Docker-Netz hängen wie 'web' (networks.caddy)."
+  echo "       Caddy proxyt auf den Host-Port 10.42.42.1:8000 (REHOF_PUBLISH_ADDR)."
 else
   echo
   info "Voraussetzungen geprüft und .env vorbereitet."
