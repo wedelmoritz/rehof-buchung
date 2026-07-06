@@ -175,6 +175,17 @@ class NightTransferTests(BaseData):
         self.assertIsNone(t)
         self.assertIn("Nicht genügend", err)
 
+    def test_empfaenger_wird_benachrichtigt(self):
+        from booking.models import Notification
+        t, err = transfer_nights(self.alice, self.bob, 2, YEAR, note="Viel Spaß")
+        self.assertIsNotNone(t, err)
+        n = Notification.objects.filter(member=self.bob).order_by("-id").first()
+        self.assertIsNotNone(n)                       # Empfänger wird informiert
+        self.assertIn("übertragen", n.message)
+        self.assertIn("Viel Spaß", n.detail)          # Notiz steht in der Nachricht
+        # Der Schenkende bekommt (noch) keine – erst beim „Danke".
+        self.assertFalse(Notification.objects.filter(member=self.alice).exists())
+
     def test_uebertragung_an_sich_selbst_unzulaessig(self):
         t, err = transfer_nights(self.alice, self.alice, 5, YEAR)
         self.assertIsNone(t)

@@ -319,7 +319,11 @@ eine `OutboxEmail` in die Warteschlange, die das Kommando `send_outbox` (vom
 `run_scheduler` regelmäßig aufgerufen) verschickt – entkoppelt vom Request, gut
 für Massenmails. Provider-neutral über `EMAIL_*`/`PUBLIC_BASE_URL` (ohne
 `EMAIL_HOST` → Konsole). Ereignisse: Losergebnis, Wartelisten-Platz frei,
-Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage).
+Rechnung erstellt, Konto-Freischaltung (Signal an `Member`-Anlage), **Tage erhalten**
+(`transfer_nights` benachrichtigt die Empfänger:in In-App+Mail+Push, inkl. Notiz) und
+**Danke** (`thank_for_transfer` an die schenkende Person). `transfer_nights`/
+`thank_for_transfer` sind `@transaction.atomic` + `select_for_update` (kein
+Doppel-Übertrag/-Danke bei parallelen Requests).
 Profil-/Rechnungsdaten (Name, **Telefon**, Anschrift, IBAN) pflegt
 das Mitglied selbst unter `profile` (Telefon = Kontakt für die BL, sichtbar in
 Verwaltung→Mitglieder). Eigene Karte **„Benachrichtigungen“** bündelt
