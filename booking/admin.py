@@ -1267,6 +1267,16 @@ class BookingPolicyAdmin(admin.ModelAdmin):
                 "damit sich das Mitglied darauf einstellen kann. 0 = jederzeit änderbar "
                 "(ADR 0081/#45)."),
         }),
+        ("Solidaritäts-Pool", {
+            "fields": ("pool_eligible_remaining", "pool_withdraw_cap",
+                       "pool_withdraw_from_month"),
+            "description": (
+                "<b>Entnahme ab Rest-Budget ≤</b>: aus dem Pool darf erst entnehmen, "
+                "wer nur noch so wenige eigene Tage übrig hat (Bedarfs-Signal). "
+                "<b>Höchst-Entnahme/Jahr</b>: Deckel je Mitglied. <b>Entnahme ab "
+                "Monat</b>: optionaler Zeit-Riegel (z. B. 9 = ab September) gegen "
+                "„Budget früh verbrauchen, dann nachladen“; 0 = ganzjährig. ADR 0099."),
+        }),
         ("Kurzfristigkeit & Sperrzeiten", {
             "fields": ("short_notice_days", "block_min_notice_days",
                        "max_compensation_days"),

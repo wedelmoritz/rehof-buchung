@@ -171,6 +171,10 @@
         ({{ pool.cap }}/Jahr, davon {{ pool.withdrawn }} genutzt). <em>Unabhängig</em> davon, wie viel
         du selbst gespendet hast.</p>
     </form>
+    {% elif not pool.time_ok %}
+    <p class="sm muted" style="align-self:center;margin:0">Entnahmen aus dem Pool sind erst
+      <strong>ab {{ pool.withdraw_from_month_name }}</strong> möglich – so ist zuerst klar, wer bis
+      dahin wirklich zu wenig Tage hat.</p>
     {% elif not pool.eligible_to_withdraw %}
     <p class="sm muted" style="align-self:center;margin:0">Entnahme ist erst möglich, wenn dein
       Jahresbudget fast aufgebraucht ist (≤&nbsp;{{ pool.eligible_remaining_threshold }} Tage übrig).

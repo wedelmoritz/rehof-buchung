@@ -62,6 +62,38 @@ class PoolTests(TestCase):
         self.assertTrue(st["eligible_to_withdraw"])
         self.assertEqual(st["max_withdraw"], 8)   # min(balance 8, cap 10)
 
+    def test_zeit_riegel_sperrt_entnahme(self):
+        # Optionaler Zeit-Riegel (ADR 0099): Entnahme erst ab einem späteren Monat.
+        from booking.models import BookingPolicy
+        p = BookingPolicy.get_solo()
+        p.pool_withdraw_from_month = 12 if date.today().month < 12 else 1
+        # sicher in der Zukunft: nächster Monat (oder Dezember)
+        future = date.today().month + 1
+        p.pool_withdraw_from_month = future if future <= 12 else 12
+        p.save(update_fields=["pool_withdraw_from_month"])
+        svc.pool_donate(self.donor, 20, YEAR)
+        e, err = svc.pool_withdraw(self.needy, 3, YEAR)
+        if date.today().month < p.pool_withdraw_from_month:
+            self.assertIsNone(e)
+            self.assertIn("erst ab", err)
+            self.assertFalse(svc.pool_status(self.needy, YEAR)["time_ok"])
+
+    def test_konfigurierbare_schwelle(self):
+        # Schwelle im Backend hochsetzen → auch wer mehr übrig hat, ist berechtigt.
+        from booking.models import BookingPolicy
+        mid = make_member("mid", nights=20)          # 20 übrig
+        svc.pool_donate(self.donor, 10, YEAR)
+        # Mit Default-Schwelle 5 ist mid NICHT berechtigt.
+        e, err = svc.pool_withdraw(mid, 2, YEAR)
+        self.assertIsNone(e)
+        # Schwelle auf 25 → mid (20 übrig) ist jetzt berechtigt.
+        p = BookingPolicy.get_solo()
+        p.pool_eligible_remaining = 25
+        p.save(update_fields=["pool_eligible_remaining"])
+        e2, err2 = svc.pool_withdraw(mid, 2, YEAR)
+        self.assertIsNotNone(e2, err2)
+        self.assertEqual(mid.nights_remaining_in_year(YEAR), 22)
+
     def test_transfer_seite_zeigt_pool_und_spende_per_post(self):
         from django.urls import reverse
         self.client.force_login(self.donor.user)

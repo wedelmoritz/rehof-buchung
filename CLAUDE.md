@@ -304,7 +304,10 @@ Auf derselben Seite der **Solidaritäts-Pool** [P2.5/ADR 0064]: Tage in einen
 gemeinsamen Topf **spenden** und **bei Bedarf, gedeckelt entnehmen** [`DayPoolEntry`,
 `services/pool.py`: `pool_donate`/`pool_withdraw`/`pool_status`; wirkt über
 `Member.effective_annual_budget`; Entnahme nur bei fast aufgebrauchtem Budget
-[`POOL_ELIGIBLE_REMAINING`], gedeckelt `POOL_WITHDRAW_CAP_PER_YEAR`]).
+[`POOL_ELIGIBLE_REMAINING`], gedeckelt `POOL_WITHDRAW_CAP_PER_YEAR`; **Parameter
+backend-konfigurierbar** über `BookingPolicy.pool_eligible_remaining`/`pool_withdraw_cap`
++ optionaler **Zeit-Riegel** `pool_withdraw_from_month` gegen „früh verbrauchen, dann
+nachladen" [Default 0 = aus], ADR 0099]).
 `dashboard` (Rolle Verwaltung/Admin, `/verwaltung/`) ist das operative
 Verwaltungs-Dashboard (s.u. „Verwaltungs-Dashboard“), `dashboard_products` pflegt
 den Hofladen-Katalog dort. Mitbuchbare Dienstleistungen sind `Product` mit
