@@ -479,6 +479,23 @@ gespeicherten Sitzungen bleiben gültig.
 
 ## 11. Updates / Upgrades
 
+**Läuft der Stack rootless (eigener Docker-Daemon eines Service-Users, z.B.
+`rehof-svc`)?** Dann IMMER über das mitgelieferte Skript deployen – es spricht
+garantiert den rootless-Daemon an und bricht ab, falls es beim rootful-Daemon
+landen würde (sonst entsteht ein zweiter Stack mit leerem Volume + Port-Konflikt):
+
+```bash
+ops/redeploy.sh          # git pull + build + up -d, gegen den rootless-Daemon
+ops/redeploy.sh --prune  # zusätzlich alte Images aufräumen
+```
+
+Das Skript darf als Admin-User (`deploy`, nutzt dessen git-Zugang) ODER direkt als
+Service-User laufen. Ziel-User/Repo per Env `REHOF_USER` / `REHOF_DIR` anpassbar.
+**Wichtig:** in diesem Betrieb NIE `docker compose …` von Hand im rootful-Daemon
+(z.B. als `deploy`) starten – das baut eine zweite, eigenständige Instanz.
+
+**Klassischer (rootful) Betrieb** – wenn der Stack im Standard-Daemon läuft:
+
 ```bash
 git pull
 docker compose build
@@ -493,6 +510,9 @@ docker compose ps                 # auf "healthy" prüfen
   (Startfenster `start_period` 40 s für Warten-auf-DB + Migration + Start).
 - `python manage.py makemigrations --check` darf keine fehlende Migration zeigen
   (im CI abgesichert).
+- `web` wird aus dem Quellcode **lokal gebaut** (`build: .`), kommt also NICHT aus
+  einer Registry – **Watchtower & Co. aktualisieren Re:Hof daher nicht** (und
+  können es auch nicht). Updates laufen bewusst nur über `git pull` + Rebuild.
 
 ---
 
