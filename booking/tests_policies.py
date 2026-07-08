@@ -15,7 +15,7 @@ from django.test import TestCase
 from booking import services as svc
 from booking.models import (
     Allocation, BookingPeriod, BookingPolicy, EquivalenceClass, Member,
-    Membership, Quarter, SchoolHoliday, SeasonRule, Share,
+    Membership, Quarter, SchoolHoliday, SeasonRule, Share, Wish,
 )
 
 TODAY = date.today()
@@ -217,6 +217,57 @@ class WeekendUsageTests(PolicyBase):
         we = svc.weekend_usage(self.alice, ref_date=date(TODAY.year, 8, 1))
         self.assertTrue(we["near"])     # 1 von 2 → nah dran (>= target-1)
         self.assertFalse(we["over"])
+
+
+class GuidelineBasisTests(PolicyBase):
+    """Umschaltbare Bezugsgröße der Richtwerte (BookingPolicy.guideline_basis):
+    „pro Mitglied" (voller Wert je Person) vs. „pro vollem Anteil" (anteilig nach
+    Tage-Budget). Gilt einheitlich für Winter- UND Wochenend-Richtwert."""
+
+    def test_default_ist_pro_anteil(self):
+        self.assertEqual(BookingPolicy.get_solo().guideline_basis,
+                         BookingPolicy.BASIS_SHARE)
+
+    def test_pro_anteil_tandem_anteilig(self):
+        self.policy.max_weekends_per_year = 10
+        self.policy.winter_guideline_nights = 20
+        self.policy.guideline_basis = BookingPolicy.BASIS_SHARE
+        self.policy.save()
+        tandem = mk_member("tandem_a", nights=25)              # halber Anteil
+        self.assertEqual(svc.weekend_usage(tandem)["target"], 5)   # 10 * 25/50
+        self.assertEqual(svc.winter_usage(tandem)["target"], 10)   # 20 * 25/50
+        # Voller Anteil bekommt den vollen Wert.
+        self.assertEqual(svc.weekend_usage(self.alice)["target"], 10)
+        self.assertEqual(svc.winter_usage(self.alice)["target"], 20)
+
+    def test_pro_mitglied_flach(self):
+        self.policy.max_weekends_per_year = 10
+        self.policy.winter_guideline_nights = 20
+        self.policy.guideline_basis = BookingPolicy.BASIS_MEMBER
+        self.policy.save()
+        tandem = mk_member("tandem_b", nights=25)
+        # Pro Mitglied: jede Person der volle Wert, NICHT anteilig.
+        self.assertEqual(svc.weekend_usage(tandem)["target"], 10)
+        self.assertEqual(svc.winter_usage(tandem)["target"], 20)
+
+    def test_wish_winter_zaehlt_nur_winterhalbjahr(self):
+        y = TODAY.year + 3
+        period = BookingPeriod.objects.create(
+            name="loswish", target_year=y,
+            start=date(y, 1, 1), end=date(y + 1, 1, 1),
+            wishlist_open=TODAY, wishlist_close=TODAY + timedelta(days=10),
+            status=BookingPeriod.WISHES_OPEN)
+        Wish.objects.create(                                   # 4 Winter-Nächte (Nov)
+            period=period, member=self.alice, priority=1, quarter=self.q,
+            start=date(y, 11, 10), end=date(y, 11, 14), submitted=True,
+            membership=self.alice.membership_for())
+        Wish.objects.create(                                   # 3 Sommer-Nächte (Jul)
+            period=period, member=self.alice, priority=2, quarter=self.q,
+            start=date(y, 7, 10), end=date(y, 7, 13), submitted=True,
+            membership=self.alice.membership_for())
+        w = svc.wish_winter_usage(self.alice, period)
+        self.assertEqual(w["booked"], 4)                       # nur die Nov-Nächte
+        self.assertEqual(w["target"], 20)                      # voller Anteil, Default
 
 
 class UndersizedTests(PolicyBase):

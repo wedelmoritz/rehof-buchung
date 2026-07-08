@@ -829,6 +829,7 @@ def wishlist(request):
     candidates = []
     high_demand = []
     wish_weekends = svc.wish_weekend_usage(member, period) if member and period else None
+    wish_winter = svc.wish_winter_usage(member, period) if member and period else None
     if member and period and sel_start:
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
@@ -857,6 +858,7 @@ def wishlist(request):
         "candidates": candidates,
         "high_demand": high_demand,
         "wish_weekends": wish_weekends,
+        "wish_winter": wish_winter,
         "wish_form": WishForm(),
         "memberships": member.memberships if member else [],
         "wishes": wishes,

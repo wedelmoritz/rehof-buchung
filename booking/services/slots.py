@@ -24,6 +24,7 @@ __all__ = [
     '_occupied_days_by_quarter',
     'is_gap_fill', 'gap_fill_allowed', 'is_group_booking', 'lead_time_blocker',
     'high_demand_periods', 'winter_usage', 'weekend_usage', 'wish_weekend_usage',
+    'wish_winter_usage',
     'undersized_allowed', 'has_fitting_free_quarter', 'booking_policy_summary',
     'swap_shift_hint', 'short_free_gaps',
 ]
@@ -323,13 +324,33 @@ def high_demand_periods(start: date, end: date) -> list[str]:
 FULL_SHARE_NIGHTS = 50          # nominales Tage-Budget eines vollen Anteils
 
 
+def _scaled_guideline(policy, member: Member, value: int) -> int:
+    """Skaliert einen Richtwert (`value`) auf die im Backend gewählte Bezugsgröße
+    `BookingPolicy.guideline_basis` (ADR 0076/#…):
+
+    - `BASIS_MEMBER` („pro Mitglied") → der **volle** Wert für jede Person.
+    - `BASIS_SHARE` („pro vollem Anteil") → **anteilig** nach dem Tage-Budget des
+      Mitglieds (`annual_night_budget / 50`); ein voller Anteil bekommt den vollen
+      Wert, ein Tandem-/Trio-Anteil entsprechend weniger.
+
+    Der Umschalter gilt einheitlich für Winter- UND Wochenend-Richtwert. Gezählt
+    werden weiterhin die Buchungen/Wünsche des jeweiligen Mitglieds; nur der
+    Zielwert unterscheidet sich."""
+    if not value:
+        return 0
+    if policy.guideline_basis == BookingPolicy.BASIS_SHARE:
+        budget = member.annual_night_budget or 0
+        return round(value * budget / FULL_SHARE_NIGHTS)
+    return int(value)
+
+
 def winter_usage(member: Member, ref_date: date | None = None) -> dict:
     """Winter-Richtwert (ADR 0075/0076): wie viele Tage hat das Mitglied im
     aktuellen/kommenden Winterhalbjahr (1.10.–31.3.) gebucht – gemessen an einem
-    **Mindest**-Richtwert. `BookingPolicy.winter_guideline_nights` gilt pro vollem
-    Anteil (50 Tage); bei Teil-/Tandem-Anteilen **anteilig** weniger (skaliert mit
-    dem Tage-Budget). Es ist bewusst KEIN Maximum – es geht ums Verteilen übers
-    Jahr. Eine Abfrage über die überlappenden Buchungen."""
+    **Mindest**-Richtwert. `BookingPolicy.winter_guideline_nights` wird über
+    `guideline_basis` bezogen (pro Mitglied = voller Wert; pro vollem Anteil =
+    anteilig nach Tage-Budget). Es ist bewusst KEIN Maximum – es geht ums
+    Verteilen übers Jahr. Eine Abfrage über die überlappenden Buchungen."""
     today = ref_date or date.today()
     # Das relevante Winterhalbjahr: beginnt am 1.10. des Jahres, dessen Winter
     # heute läuft oder als nächstes ansteht. Jan–Sep → Winter ab Okt des Vorjahres
@@ -345,9 +366,8 @@ def winter_usage(member: Member, ref_date: date | None = None) -> dict:
             start__lt=win_end, end__gt=win_start)
             .values_list("start", "end")):
         booked += (min(e, win_end) - max(s, win_start)).days
-    guideline = BookingPolicy.get_solo().winter_guideline_nights or 0
-    budget = member.annual_night_budget or 0
-    target = round(guideline * budget / FULL_SHARE_NIGHTS) if guideline else 0
+    policy = BookingPolicy.get_solo()
+    target = _scaled_guideline(policy, member, policy.winter_guideline_nights or 0)
     return {
         "booked": booked, "target": target,
         "win_start": win_start, "win_end": win_end - timedelta(days=1),
@@ -359,10 +379,12 @@ def winter_usage(member: Member, ref_date: date | None = None) -> dict:
 def weekend_usage(member: Member, ref_date: date | None = None) -> dict:
     """Wochenend-Richtwert (ADR 0076): wie viele **Wochenenden** hat das Mitglied
     im laufenden Kalenderjahr schon belegt – gemessen am **Höchst**-Richtwert
-    `BookingPolicy.max_weekends_per_year`. Anders als der Winterwert ist dies eine
-    Obergrenze; ein Hinweis erscheint, wenn man sich ihr nähert (`near`) bzw. sie
-    erreicht/überschreitet (`over`). Gezählt werden Fr-/Sa-Nächte (reine Logik
-    `availability.weekend_keys`), je Wochenende einmal. Eine DB-Abfrage."""
+    `BookingPolicy.max_weekends_per_year` (über `guideline_basis` bezogen: pro
+    Mitglied = voller Wert; pro vollem Anteil = anteilig nach Tage-Budget). Anders
+    als der Winterwert ist dies eine Obergrenze; ein Hinweis erscheint, wenn man
+    sich ihr nähert (`near`) bzw. sie erreicht/überschreitet (`over`). Gezählt
+    werden Fr-/Sa-Nächte (reine Logik `availability.weekend_keys`), je Wochenende
+    einmal. Eine DB-Abfrage."""
     today = ref_date or date.today()
     y0, y1 = date(today.year, 1, 1), date(today.year + 1, 1, 1)
     keys: set = set()
@@ -370,7 +392,8 @@ def weekend_usage(member: Member, ref_date: date | None = None) -> dict:
             member=member, provisional=False, start__lt=y1, end__gt=y0)
             .values_list("start", "end")):
         keys |= A.weekend_keys(max(s, y0), min(e, y1))
-    target = BookingPolicy.get_solo().max_weekends_per_year or 0
+    policy = BookingPolicy.get_solo()
+    target = _scaled_guideline(policy, member, policy.max_weekends_per_year or 0)
     booked = len(keys)
     return {
         "booked": booked, "target": target, "year": today.year,
@@ -383,16 +406,39 @@ def wish_weekend_usage(member: Member, period) -> dict:
     """Wie viele **Wochenenden** umfassen die Wünsche des Mitglieds für `period`?
     Reine Anzeige auf der Wunschliste (ADR 0076): Es ist ausdrücklich **legitim**,
     mehr Wochenenden zu wünschen als am Ende erfüllt werden (man darf mehr wünschen,
-    als die Losung vergibt). Daher nur Hinweis, keine Sperre."""
+    als die Losung vergibt). Daher nur Hinweis, keine Sperre. Der Zielwert folgt
+    `guideline_basis` (pro Mitglied / pro vollem Anteil, anteilig nach Tagen)."""
     from ..models import Wish
     keys: set = set()
     for s, e in (Wish.objects.filter(member=member, period=period)
                  .values_list("start", "end")):
         keys |= A.weekend_keys(s, e)
-    target = BookingPolicy.get_solo().max_weekends_per_year or 0
+    policy = BookingPolicy.get_solo()
+    target = _scaled_guideline(policy, member, policy.max_weekends_per_year or 0)
     booked = len(keys)
     return {"booked": booked, "target": target,
             "over": bool(target) and booked > target}
+
+
+def wish_winter_usage(member: Member, period) -> dict:
+    """Wie viele **Winter-Tage** (Nächte im Winterhalbjahr Okt–März) umfassen die
+    Wünsche des Mitglieds für `period`? Gegenstück zu `wish_winter`/`winter_usage`
+    auf der Wunschliste – gemessen am **Mindest**-Richtwert
+    `winter_guideline_nights` (über `guideline_basis` bezogen). Reine Orientierung
+    (kein Limit, mehr wünschen ist legitim)."""
+    from ..models import Wish
+    booked = 0
+    for s, e in (Wish.objects.filter(member=member, period=period)
+                 .values_list("start", "end")):
+        d = s
+        while d < e:
+            if d.month in (10, 11, 12, 1, 2, 3):      # Winterhalbjahr
+                booked += 1
+            d += timedelta(days=1)
+    policy = BookingPolicy.get_solo()
+    target = _scaled_guideline(policy, member, policy.winter_guideline_nights or 0)
+    return {"booked": booked, "target": target,
+            "reached": bool(target) and booked >= target}
 
 
 def undersized_allowed() -> bool:
@@ -436,6 +482,8 @@ def booking_policy_summary() -> dict:
         "group_min_persons": p.group_min_persons,
         "winter_guideline": p.winter_guideline_nights,
         "max_weekends": p.max_weekends_per_year,
+        "guideline_basis": p.guideline_basis,
+        "guideline_per_share": p.guideline_basis == BookingPolicy.BASIS_SHARE,
         "max_wishes": p.max_wishes_per_period,
         "season_min_nights": season_min,
         "season_min_names": season_min_names,
