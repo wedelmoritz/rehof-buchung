@@ -1239,14 +1239,17 @@ class BookingPolicyAdmin(admin.ModelAdmin):
         }),
         ("Orientierung & Gruppen (nur Hinweise, keine Sperren)", {
             "fields": ("group_min_persons", "winter_guideline_nights",
-                       "max_weekends_per_year"),
+                       "max_weekends_per_year", "guideline_basis"),
             "description": (
                 "<b>Gruppe ab Personen</b>: ab dieser Personenzahl werden Gruppen-"
                 "Wohneinheiten (Quartier-Feld „für Gruppen zuerst anbieten“) oben "
-                "angezeigt. <b>Mindest-Tage Okt–März</b>: Winter-Richtwert pro vollem "
-                "Anteil (ein <i>Mindestwert</i>, bei Tandems anteilig). <b>Höchst-"
-                "Wochenenden/Jahr</b>: Wochenend-Richtwert (ein <i>Höchstwert</i>) – "
-                "beide nur Anzeige beim Buchen, keine Sperre."),
+                "angezeigt. <b>Mindest-Tage Okt–März</b>: Winter-Richtwert (ein "
+                "<i>Mindestwert</i>). <b>Höchst-Wochenenden/Jahr</b>: Wochenend-"
+                "Richtwert (ein <i>Höchstwert</i>). <b>Richtwert-Berechnung</b>: "
+                "Bezugsgröße für BEIDE Werte – <i>pro Mitglied</i> (jede Person der "
+                "volle Wert) oder <i>pro vollem Anteil</i> (Wert gilt für 50 Tage; "
+                "Tandem/Trio anteilig nach Tage-Budget). Alle nur Anzeige beim Buchen "
+                "und auf der Wunschliste, keine Sperre."),
         }),
         ("Wunsch-Losung", {
             "fields": ("max_wishes_per_period", "wish_reminder_lead1",

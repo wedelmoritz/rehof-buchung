@@ -106,14 +106,15 @@
       Freunde/Familie weitergeben, ohne dass ein Mitglied mit vor Ort ist. Außerhalb dieser
       Zeiten ist eine Weitergabe in Ordnung.</li>
     {% if p.winter_guideline %}
-    <li><strong>Übers Jahr verteilen (Mindestwert):</strong> Richtwert <strong>mindestens {{ p.winter_guideline }} von 50 Tagen
-      zwischen Oktober und März</strong> – pro vollem Anteil; bei Teil-/Tandem-Anteilen anteilig weniger.
+    <li><strong>Übers Jahr verteilen (Mindestwert):</strong> Richtwert <strong>mindestens {{ p.winter_guideline }} Tage
+      zwischen Oktober und März</strong>{% if p.guideline_per_share %} – pro vollem Anteil (50 Tage); bei Teil-/Tandem-Anteilen anteilig weniger{% else %} je Mitglied{% endif %}.
       Das ist <em>kein Maximum</em>, sondern ein Ziel, damit sich die Nutzung übers Jahr verteilt. Beim Buchen
-      siehst du deinen Stand.</li>
+      und auf der Wunschliste siehst du deinen Stand.</li>
     {% endif %}
     {% if p.max_weekends %}
-    <li><strong>Wochenenden (Höchstwert):</strong> Richtwert <strong>höchstens {{ p.max_weekends }} Wochenenden</strong> je
-      Mitglied und Jahr (bei voller Gemeinschaft fair). Beim Buchen erscheint ein Hinweis, wenn du dich
+    <li><strong>Wochenenden (Höchstwert):</strong> Richtwert <strong>höchstens {{ p.max_weekends }} Wochenenden</strong>
+      {% if p.guideline_per_share %}pro vollem Anteil (bei Teil-/Tandem-Anteilen anteilig weniger){% else %}je Mitglied{% endif %} und Jahr
+      (bei voller Gemeinschaft fair). Beim Buchen und auf der Wunschliste erscheint ein Hinweis, wenn du dich
       diesem Wert näherst.</li>
     {% endif %}
     <li><strong>Vor der Buchung in begehrten Zeiten kurz innehalten:</strong> Bin ich wirklich auf

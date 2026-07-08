@@ -1380,6 +1380,17 @@ class SwapRequest(models.Model):
 class BookingPolicy(models.Model):
     """Globale Buchungsregeln (eine Zeile). Saisonale Verschärfungen siehe
     SeasonRule."""
+    # Bezugsgröße der Winter-/Wochenend-Richtwerte (rein für die Anzeige):
+    #  - pro Mitglied: jede Person bekommt den vollen Wert.
+    #  - pro vollem Anteil: der Wert gilt für 50 Tage; wer nur einen Teil hält
+    #    (Tandem/Trio), bekommt anteilig nach seinem Tage-Budget weniger.
+    BASIS_MEMBER = "member"
+    BASIS_SHARE = "share"
+    GUIDELINE_BASIS = [
+        (BASIS_MEMBER, "pro Mitglied (jede Person der volle Wert)"),
+        (BASIS_SHARE, "pro vollem Anteil (Tandem/Trio anteilig nach Tagen)"),
+    ]
+
     default_min_nights = models.PositiveIntegerField(
         "Mindestnächte (Standard)", default=3,
         help_text="Gilt, wenn keine Saison-Regel etwas Strengeres vorgibt.",
@@ -1414,6 +1425,15 @@ class BookingPolicy(models.Model):
         help_text="Orientierung (kein Limit): so viele Wochenenden je Mitglied und "
                   "Jahr sind fair (bei voller Gemeinschaft). Beim Buchen wird ein "
                   "Hinweis angezeigt, wenn man sich diesem Höchstwert nähert.",
+    )
+    guideline_basis = models.CharField(
+        "Richtwert-Berechnung (Winter & Wochenenden)", max_length=8,
+        choices=GUIDELINE_BASIS, default=BASIS_SHARE,
+        help_text="Bezugsgröße für die BEIDEN Richtwerte oben (Winter-Tage und "
+                  "Höchst-Wochenenden). „pro Mitglied“: jede Person bekommt den vollen "
+                  "Wert. „pro vollem Anteil“: der Wert gilt für einen vollen Anteil "
+                  "(50 Tage); wer nur einen Teil hält (Tandem/Trio), bekommt anteilig "
+                  "nach seinem Tage-Budget weniger. Reine Anzeige – kein Limit.",
     )
     max_wishes_per_period = models.PositiveIntegerField(
         "Max. Wünsche je Periode (0 = unbegrenzt)", default=0,

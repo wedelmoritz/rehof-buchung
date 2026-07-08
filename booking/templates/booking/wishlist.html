@@ -150,10 +150,16 @@
 
 <div class="card" id="wunschliste">
   <h2>Meine Wünsche</h2>
+  {% if wish_winter and wish_winter.target %}
+  <p class="muted" style="margin:.1rem 0 .35rem;font-size:.9rem">🌙 Deine Wünsche legen
+    <strong>{{ wish_winter.booked }}</strong>/{{ wish_winter.target }} Tage ins Winterhalbjahr
+    (Okt–März){% if wish_winter.reached %} ✓{% endif %}. <span class="muted">Richtwert:
+    <strong>mindestens</strong> so viele – das verteilt die Nutzung übers Jahr (kein Limit).</span></p>
+  {% endif %}
   {% if wish_weekends and wish_weekends.booked %}
   <p class="muted" style="margin:.1rem 0 .5rem;font-size:.9rem">📅 Deine Wünsche umfassen
     <strong>{{ wish_weekends.booked }}</strong> Wochenende{{ wish_weekends.booked|pluralize:"n" }}{% if wish_weekends.target %}
-    (Richtwert höchstens {{ wish_weekends.target }} je Mitglied){% endif %}.{% if wish_weekends.over %}
+    (Richtwert höchstens {{ wish_weekends.target }}){% endif %}.{% if wish_weekends.over %}
     <strong>Das ist völlig in Ordnung</strong> – du darfst ruhig mehr wünschen, als am Ende
     erfüllt wird: Über die Losung gehen höchstens <strong>{{ wish_budget }} Nächte</strong>,
     der Rest ist Rückfall.{% else %} <span class="muted">Reine Orientierung – kein Limit; über die

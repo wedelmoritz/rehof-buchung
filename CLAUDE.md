@@ -920,11 +920,16 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   als „kleiner als eure Gruppe" bzw. „größer als nötig" markiert (Badge + Hinweis).
   **Gruppe** ab `group_min_persons` (Default 6).
   **Weiche Richtwerte (nur Anzeige, ADR 0076):** **Winter**
-  (`winter_guideline_nights`, `services.winter_usage`) ist ein **Mindestwert pro
-  vollem Anteil** (Tage Okt–März, bei Tandems anteilig; KEIN Maximum); **Wochenenden**
+  (`winter_guideline_nights`, `services.winter_usage`) ist ein **Mindestwert**
+  (Tage Okt–März; KEIN Maximum); **Wochenenden**
   (`max_weekends_per_year`, `services.weekend_usage`, reine Zählung
   `availability.weekend_keys`) ist umgekehrt ein **Höchstwert** (warnt beim
-  Annähern) – beide auf Übersicht/Buchen. **Rücksichts-Hinweis** in begehrten Zeiten
+  Annähern) – beide auf Übersicht/Buchen **und Wunschliste** (`services.wish_winter_usage`/
+  `wish_weekend_usage`). **Bezugsgröße per Backend-Umschalter** (`BookingPolicy.guideline_basis`,
+  gilt für BEIDE Werte, `services._scaled_guideline`): `member` = voller Wert je Mitglied,
+  `share` (Default) = pro vollem Anteil (50 Tage), bei Teil-/Tandem-/Trio-Anteilen anteilig
+  nach Tage-Budget (`annual_night_budget/50`). Rein Anzeige, kein Limit.
+  **Rücksichts-Hinweis** in begehrten Zeiten
   (`services.high_demand_periods` → Partial `_high_demand_note.html`, beim Buchen
   **und** Wünschen). Die **Hilfeseite** zeigt die echten Backend-Werte
   (`services.booking_policy_summary`) und erklärt (Anker `#regeln-losung`), welche
