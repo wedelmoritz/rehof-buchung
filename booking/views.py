@@ -1488,6 +1488,7 @@ def dashboard(request):
         # Verwaltungs-Unterseiten, mit „Handlungsbedarf"-Badges an den relevanten.
         "tiles": [
             {"url": "verw_buchungen", "label": "Buchungen", "icon": "ic-mybookings"},
+            {"url": "verw_wuensche", "label": "Wünsche & Losung", "icon": "ic-wish"},
             {"url": "verw_reinigung", "label": "Reinigung", "icon": "ic-clean",
              "badge": len(service_requests), "level": "warn"},
             {"url": "verw_sperrzeiten", "label": "Sperrzeiten", "icon": "ic-lock",
@@ -1561,6 +1562,80 @@ def verw_book_for_member(request):
         messages.success(request, f"Buchung für {m.display_name} angelegt{note}: "
                          f"{q.name}, {start:%d.%m.%Y}–{end:%d.%m.%Y}. Das Mitglied "
                          "wurde benachrichtigt.")
+    return redirect(back)
+
+
+def _lottery_period():
+    """Die aktuell relevante Los-Periode (offen/in Entzerrung/zur Auslosung) für die
+    Verwaltungs-Wunschseite; sonst die jüngste."""
+    q = BookingPeriod.objects.filter(status__in=[
+        BookingPeriod.WISHES_OPEN, BookingPeriod.WISHES_REVIEW,
+        BookingPeriod.LOTTERY_READY]).order_by("draw_at").first()
+    return q or BookingPeriod.objects.order_by("-target_year").first()
+
+
+@authz.requires_capability("wuensche")
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
+def verw_wuensche(request):
+    """Unterseite: **Wünsche & Losung** (ADR 0101). Zeigt den eingereichten Lostopf,
+    erlaubt den **Wunsch-Export** (xlsx/CSV; Recht `export_wishes`) und – mit dem Recht
+    `add_wish_for_member` – das **stellvertretende Nachtragen** eines Wunsches für ein
+    Mitglied (auditiert)."""
+    from . import exports
+    period = _lottery_period()
+    if request.method == "POST":
+        return _verw_wuensche_post(request, period)
+    exp = request.GET.get("export")
+    if exp in ("csv", "xlsx") and period:
+        rows = svc.wish_export_rows(period)
+        return exports.table_response(
+            exp, f"wuensche-{period.target_year}", f"Wünsche {period.target_year}",
+            svc.WISH_EXPORT_COLUMNS, rows)
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    wishes = []
+    if period:
+        wishes = list(Wish.objects.filter(period=period, submitted=True)
+                      .select_related("member", "quarter", "created_by")
+                      .order_by("member__display_name", "priority"))
+    can_add = authz.user_can(request.user, authz.P_ADD_WISH_FOR_MEMBER)
+    ctx.update({
+        "lot_period": period, "wishes": wishes, "wish_count": len(wishes),
+        "can_add_wish": can_add,
+        "bl_members": (list(Member.objects.filter(is_external=False)
+                            .select_related("user").order_by("display_name"))
+                       if can_add else []),
+        "bl_quarters": (list(Quarter.objects.filter(active=True)
+                             .order_by("sort_order", "name")) if can_add else []),
+    })
+    return render(request, "booking/verw_wuensche.html", ctx)
+
+
+def _verw_wuensche_post(request, period):
+    """Verarbeitet das stellvertretende Nachtragen eines Wunsches (Recht wird in der
+    View über die Capability UND im Service geprüft – Defense in depth)."""
+    back = reverse("verw_wuensche")
+    if not authz.user_can(request.user, authz.P_ADD_WISH_FOR_MEMBER):
+        raise PermissionDenied
+    if not period:
+        messages.error(request, "Keine offene Los-Periode.")
+        return redirect(back)
+    m = Member.objects.filter(pk=request.POST.get("member_id"),
+                              is_external=False).first()
+    q = Quarter.objects.filter(pk=request.POST.get("quarter_id")).first()
+    start = _parse_date(request.POST.get("start"))
+    end = _parse_date(request.POST.get("end"))
+    if not (m and q and start and end):
+        messages.error(request, "Bitte Mitglied, Quartier, Anreise und Abreise wählen.")
+        return redirect(back)
+    wish, err = svc.add_wish_for_member(request.user, m, period, q, start, end)
+    if err:
+        messages.error(request, err)
+    else:
+        messages.success(request, f"Wunsch für {m.display_name} nachgetragen und "
+                         f"eingereicht: {q.name}, {start:%d.%m.}–{end:%d.%m.}.")
     return redirect(back)
 
 

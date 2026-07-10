@@ -5,7 +5,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
+from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -133,3 +135,70 @@ class CoordinationTests(TestCase):
                          {"action": "notify_prefs", "coordination_visible": "on"})
         self.a.refresh_from_db()
         self.assertFalse(self.a.coordination_opt_out)
+
+
+class WishExportAndNachtragTests(TestCase):
+    def setUp(self):
+        call_command("sync_roles", verbosity=0)
+        self.cls = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(name="Turm", eq_class=self.cls,
+                                        min_occupancy=1, max_occupancy=4)
+        self.period = _period()
+        self.a = _member("anna")
+        svc.add_wish(self.a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
+        svc.submit_wishlist(self.a, self.period)
+
+    def _login(self, role):
+        u = User.objects.create_user(f"u_{role}", password="x" * 12)
+        u.groups.add(Group.objects.get(name=role))
+        self.client.force_login(u)
+        return User.objects.get(pk=u.pk)
+
+    # --- Export (export_wishes) ------------------------------------------ #
+    def test_export_csv_und_xlsx(self):
+        self._login("Buchungs-Verwaltung")
+        r = self.client.get(reverse("verw_wuensche") + "?export=csv")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/csv", r["Content-Type"])
+        self.assertIn(b"anna", r.content)
+        r2 = self.client.get(reverse("verw_wuensche") + "?export=xlsx")
+        self.assertEqual(r2.status_code, 200)
+
+    def test_export_gegated_403(self):
+        self._login("Rechnungs-Verwaltung")     # kein export_wishes
+        self.assertEqual(self.client.get(reverse("verw_wuensche")).status_code, 403)
+
+    def test_seite_ohne_add_form_fuer_basis_rolle(self):
+        self._login("Buchungs-Verwaltung")       # kein add_wish_for_member
+        html = self.client.get(reverse("verw_wuensche")).content.decode()
+        self.assertNotIn("Wunsch für ein Mitglied nachtragen", html)
+
+    # --- Admin-Nachtrag (add_wish_for_member) ---------------------------- #
+    def test_add_wish_for_member_service_auditiert(self):
+        actor = User.objects.create_user("bl", password="x" * 12)
+        actor.groups.add(Group.objects.get(name="Buchungs-Verwaltung-Erweitert"))
+        actor = User.objects.get(pk=actor.pk)
+        bob = _member("bob")
+        w, err = svc.add_wish_for_member(actor, bob, self.period, self.q,
+                                         date(NEXT, 6, 1), date(NEXT, 6, 4))
+        self.assertIsNotNone(w, err)
+        self.assertTrue(w.submitted)
+        self.assertEqual(w.created_by_id, actor.id)
+
+    def test_add_wish_for_member_defense_in_depth(self):
+        nobody = User.objects.create_user("x", password="x" * 12)
+        with self.assertRaises(PermissionDenied):
+            svc.add_wish_for_member(nobody, self.a, self.period, self.q,
+                                    date(NEXT, 6, 1), date(NEXT, 6, 4))
+
+    def test_erweitert_view_kann_nachtragen(self):
+        self._login("Buchungs-Verwaltung-Erweitert")
+        bob = _member("bob")
+        html = self.client.get(reverse("verw_wuensche")).content.decode()
+        self.assertIn("Wunsch für ein Mitglied nachtragen", html)
+        r = self.client.post(reverse("verw_wuensche"), {
+            "member_id": bob.id, "quarter_id": self.q.id,
+            "start": date(NEXT, 6, 1).isoformat(), "end": date(NEXT, 6, 4).isoformat()})
+        self.assertEqual(r.status_code, 302)
+        from booking.models import Wish
+        self.assertTrue(Wish.objects.filter(member=bob, submitted=True).exists())

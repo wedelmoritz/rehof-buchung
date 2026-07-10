@@ -1,0 +1,85 @@
+{% extends "booking/verw_base.html" %}
+{% block verw_title %}Wünsche &amp; Losung · Verwaltung{% endblock %}
+{% block verw_h1 %}Wünsche &amp; Losung{% endblock %}
+
+{% block verw_body %}
+{% if not lot_period %}
+<div class="card"><p class="muted" style="margin:0">Aktuell keine Los-Periode.</p></div>
+{% else %}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Eingereichte Wünsche · {{ lot_period.target_year }}</h2>
+    <span class="spacer"></span>
+    <span class="muted">{{ wish_count }} im Lostopf</span>
+  </div>
+  <p class="muted" style="margin:.2rem 0 .7rem">Status: {{ lot_period.get_status_display }}.
+    {% if lot_period.submission_deadline %}Einreiche-Frist: {{ lot_period.submission_deadline|date:"d.m.Y" }}.{% endif %}
+    {% if lot_period.draw_at %}Losung: {{ lot_period.draw_at|date:"d.m.Y H:i" }}.{% endif %}
+    Der Export eignet sich als Momentaufnahme <strong>vor</strong> (zu Beginn der
+    Entzerrungsphase) und <strong>nach</strong> der Entzerrung (kurz vor der Losung).</p>
+  <div class="actions">
+    <a class="btn small ghost" href="?export=xlsx">Excel-Export</a>
+    <a class="btn small ghost" href="?export=csv">CSV-Export</a>
+  </div>
+</div>
+
+{% if can_add_wish %}
+<details class="card">
+  <summary><strong>Wunsch für ein Mitglied nachtragen</strong> <span class="muted">– für Vergessene (auditiert)</span></summary>
+  <form method="post" class="bl-form">{% csrf_token %}
+    <label>Mitglied
+      <select name="member_id" required>
+        <option value="">– wählen –</option>
+        {% for m in bl_members %}<option value="{{ m.id }}">{{ m.display_name }}{% if m.status != "active" %} ({{ m.status }}){% endif %}</option>{% endfor %}
+      </select></label>
+    <label>Quartier
+      <select name="quarter_id" required>
+        <option value="">– wählen –</option>
+        {% for q in bl_quarters %}<option value="{{ q.id }}">{{ q.name }}</option>{% endfor %}
+      </select></label>
+    <label>Anreise<input type="date" name="start" required></label>
+    <label>Abreise<input type="date" name="end" required></label>
+    <div class="bl-full">
+      <button class="btn" type="submit">Wunsch nachtragen &amp; einreichen</button>
+      <span class="muted sm">Der Wunsch wird sofort in den Lostopf eingereicht und als
+        „von der Verwaltung nachgetragen“ vermerkt.</span>
+    </div>
+  </form>
+</details>
+{% endif %}
+
+<div class="card">
+  {% if wishes %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead><tr><th>Mitglied</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th><th>Prio</th><th>Eingereicht</th><th>Quelle</th></tr></thead>
+      <tbody>
+        {% for w in wishes %}
+        <tr>
+          <td>{{ w.member.display_name }}</td>
+          <td>{{ w.quarter.name }}</td>
+          <td>{{ w.start|date:"d.m.Y" }}</td>
+          <td>{{ w.end|date:"d.m.Y" }}</td>
+          <td>{{ w.nights }}</td>
+          <td>{{ w.priority }}</td>
+          <td>{{ w.submitted_at|date:"d.m. H:i"|default:"–" }}</td>
+          <td>{% if w.created_by_id %}<span class="tag warn">nachgetragen</span>{% else %}<span class="muted">Mitglied</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Noch keine eingereichten Wünsche.</p>{% endif %}
+</div>
+
+<style>
+  .bl-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));
+    gap:.7rem 1rem; margin-top:.9rem; }
+  .bl-form label { display:flex; flex-direction:column; gap:.25rem; font-size:.8rem; color:var(--muted); }
+  .bl-form input, .bl-form select { padding:.45rem .6rem; border-radius:9px;
+    border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); }
+  .bl-form .bl-full { grid-column:1 / -1; }
+  details.card summary { cursor:pointer; }
+</style>
+{% endif %}
+{% endblock %}

@@ -14,8 +14,60 @@ from .slots import _in_season_range, wish_rule_error
 __all__ = [
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
     'delete_wish', 'submit_wishlist', 'withdraw_wishlist', 'wishes_editable',
-    'wish_neighbors',
+    'wish_neighbors', 'add_wish_for_member', 'WISH_EXPORT_COLUMNS', 'wish_export_rows',
 ]
+
+
+def add_wish_for_member(actor, member, period, quarter, start, end,
+                        membership_id=None) -> tuple["Wish | None", str | None]:
+    """Trägt die Verwaltung stellvertretend einen Wunsch für ein Mitglied nach und
+    reicht ihn ein (ADR 0101, für Vergessene – auch in der Entzerrungsphase). Auditiert
+    (`Wish.created_by = actor`, analog `book_for_member`). **Defense in depth:** das
+    Recht `add_wish_for_member` wird hier zusätzlich geprüft (nicht nur in der View)."""
+    from django.core.exceptions import PermissionDenied
+    from .. import authz
+    if not authz.user_can(actor, authz.P_ADD_WISH_FOR_MEMBER):
+        raise PermissionDenied("Keine Berechtigung, Wünsche nachzutragen.")
+    if member is None or member.is_external:
+        return None, "Kein gültiges Mitglied gewählt."
+    wish, err = add_wish(member, period, quarter, start, end,
+                         membership_id=membership_id)
+    if err:
+        return None, err
+    wish.created_by = actor
+    wish.submitted = True
+    wish.submitted_at = timezone.now()
+    wish.save(update_fields=["created_by", "submitted", "submitted_at"])
+    return wish, None
+
+
+WISH_EXPORT_COLUMNS = [
+    "Mitglied", "Benutzername", "Quartier", "Anreise", "Abreise", "Nächte",
+    "Priorität", "Eingereicht am", "Nachgetragen von",
+]
+
+
+def wish_export_rows(period, *, submitted_only=True) -> list[list]:
+    """Zeilen für den Wunsch-Export der Verwaltung (ADR 0101): je Wunsch eine Zeile.
+    Standardmäßig nur eingereichte Wünsche (der Lostopf). Neueste Priorität zuerst je
+    Mitglied. Effizient über `select_related`."""
+    qs = Wish.objects.filter(period=period).select_related(
+        "member", "member__user", "quarter", "created_by").order_by(
+        "member__display_name", "priority")
+    if submitted_only:
+        qs = qs.filter(submitted=True)
+    rows = []
+    for w in qs:
+        rows.append([
+            w.member.display_name,
+            w.member.user.username if w.member.user_id else "",
+            w.quarter.name,
+            w.start.isoformat(), w.end.isoformat(), (w.end - w.start).days,
+            w.priority,
+            w.submitted_at.strftime("%Y-%m-%d %H:%M") if w.submitted_at else "",
+            w.created_by.get_username() if w.created_by_id else "",
+        ])
+    return rows
 
 
 def wish_neighbors(period, member) -> list[dict]:

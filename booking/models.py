@@ -658,6 +658,11 @@ class Wish(models.Model):
     end = models.DateField("Abreise (exkl.)")
     submitted = models.BooleanField("Im Lostopf", default=False)
     submitted_at = models.DateTimeField("Eingereicht am", null=True, blank=True)
+    # Audit: wer den Wunsch stellvertretend eingetragen hat (Verwaltung, ADR 0101).
+    # Leer, wenn das Mitglied den Wunsch selbst angelegt hat.
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Nachgetragen von (Verwaltung)")
 
     class Meta:
         verbose_name = "Wunsch"
