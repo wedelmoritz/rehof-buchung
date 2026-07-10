@@ -96,7 +96,13 @@ Inhalt:
   **24 h vor der Losung** ein (`freeze_start`); **Änderungen zählen** aber bis zur
   Ziehung – zwei kommunizierte Marken „Nachfrage sichtbar bis …“ und „Änderungen
   möglich bis …“. Bewusst **keine** harte Teilnehmer-Sperre (das RSD-Losverfahren ist
-  strategiesicher, § 5).
+  strategiesicher, § 5). Die Phase zeigt: eine **Gewinn-Prognose** je Wunsch
+  (Monte-Carlo-Trockenlauf der echten Losung – nur Zufalls-Seeds, der Los-Seed bleibt
+  geheim), eine **anonyme Nachfrage-Heatmap** (Quartier × Monat) und **Wunsch-Nachbarn**
+  für private **Absprachen** (Name + Telefon von Mitgliedern mit überlappendem Wunsch,
+  **Default sichtbar**, 1-Klick-Opt-out im Profil; nur in der Phase, nur zwei Felder –
+  DSGVO, siehe § 15). Die Verwaltung kann Wünsche **exportieren** (vor/nach der
+  Entzerrung) und für Vergessene einen Wunsch **nachtragen** (auditiert).
 
 - **Termine** der Periode: Wunsch-Fenster (offen/Schluss), Losungs-Zeitpunkt,
   buchbar ab/bis. Der Status wird normalerweise **aus den Terminen abgeleitet** und
