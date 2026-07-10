@@ -40,6 +40,8 @@ urlpatterns = [
     path("extern/widget/", views.external_embed, name="external_embed"),
     path("verwaltung/", views.dashboard, name="dashboard"),
     path("verwaltung/buchungen/", views.verw_buchungen, name="verw_buchungen"),
+    path("verwaltung/buchungen/anlegen/", views.verw_book_for_member,
+         name="verw_book_for_member"),
     path("verwaltung/reinigung/", views.verw_reinigung, name="verw_reinigung"),
     path("verwaltung/sperrzeiten/", views.verw_sperrzeiten, name="verw_sperrzeiten"),
     path("verwaltung/rechnungen/", views.verw_rechnungen, name="verw_rechnungen"),

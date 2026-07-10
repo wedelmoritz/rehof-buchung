@@ -4,6 +4,40 @@
 
 {% block verw_body %}
 {% include "booking/_verw_monthbar.html" %}
+
+{% if can_book_for_member %}
+<details class="card bl-book">
+  <summary><strong>Buchung für ein Mitglied anlegen</strong> <span class="muted">– im Namen des Mitglieds</span></summary>
+  <form method="post" action="{% url 'verw_book_for_member' %}" class="bl-form">{% csrf_token %}
+    <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">
+    <label>Mitglied
+      <select name="member_id" required>
+        <option value="">– wählen –</option>
+        {% for m in bl_members %}<option value="{{ m.id }}">{{ m.display_name }}{% if m.status != "active" %} ({{ m.status }}){% endif %}</option>{% endfor %}
+      </select></label>
+    <label>Quartier
+      <select name="quarter_id" required>
+        <option value="">– wählen –</option>
+        {% for q in bl_quarters %}<option value="{{ q.id }}">{{ q.name }}</option>{% endfor %}
+      </select></label>
+    <label>Anreise<input type="date" name="start" required></label>
+    <label>Abreise<input type="date" name="end" required></label>
+    <label>Personen<input type="number" name="persons" value="2" min="1" step="1" style="max-width:6rem"></label>
+    <label class="bl-full">Besonderheiten (optional)
+      <input type="text" name="special_requests" maxlength="255" placeholder="Hund, Kinder, Zustellbett …"></label>
+    <label class="bl-full bl-check"><input type="checkbox" name="override" value="on">
+      Regeln übergehen (BL-Ausnahme: Budget/Vorlauf/Mindestnächte/passiv) – nur Doppelbuchung bleibt gesperrt</label>
+    <label class="bl-full">Grund der Ausnahme (bei „Regeln übergehen")
+      <input type="text" name="reason" maxlength="200" placeholder="wird als interne Notiz protokolliert"></label>
+    <div class="bl-full">
+      <button class="btn" type="submit">Buchung anlegen</button>
+      <span class="muted sm">Standardmäßig gelten dieselben Regeln wie bei einer
+        Eigenbuchung. Das Mitglied wird über die Buchung benachrichtigt.</span>
+    </div>
+  </form>
+</details>
+{% endif %}
+
 <div class="card">
   <h2 style="margin-top:0">{{ month_label }}</h2>
   {% if arrivals %}
@@ -48,6 +82,21 @@
     </form>
   </div>
 </div>
-<p class="muted sm">Buchungen ändern und die Losung starten macht die Admin-Rolle im
-  Backend; hier siehst du sie nur lesend.</p>
+<p class="muted sm">Buchungen ändern/stornieren und die Losung starten macht die
+  Admin-Rolle im Backend; hier siehst du sie nur lesend{% if can_book_for_member %} und
+  kannst neue Buchungen im Namen von Mitgliedern anlegen{% endif %}.</p>
+
+<style>
+  .bl-book summary { cursor:pointer; font-size:1.05rem; }
+  .bl-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));
+    gap:.7rem 1rem; margin-top:.9rem; }
+  .bl-form label { display:flex; flex-direction:column; gap:.25rem; font-size:.8rem;
+    color:var(--muted); }
+  .bl-form input, .bl-form select { padding:.45rem .6rem; border-radius:9px;
+    border:1px solid var(--line); background:#fff; font:inherit; color:var(--ink); }
+  .bl-form .bl-full { grid-column:1 / -1; }
+  .bl-form .bl-check { flex-direction:row; align-items:flex-start; gap:.5rem;
+    color:var(--ink); font-size:.9rem; }
+  .bl-form .bl-check input { width:auto; margin-top:.15rem; }
+</style>
 {% endblock %}

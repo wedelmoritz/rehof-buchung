@@ -4,6 +4,16 @@
 
 Accepted (2026-07-05) · adressiert Feedback #50 · konkretisiert ADR 0087 (Punkt 9)
 
+> **Teilweise überholt durch [ADR 0100](0100-granulare-verwaltungsrollen-rbac.md):**
+> Der Punkt „bewusst **kein** eigener BL-Buchungs-Screen im Frontend" gilt nicht mehr.
+> Mit den granularen Rollen gibt es die native BL-Buchung („Buchung für ein Mitglied
+> anlegen" unter Verwaltung → Buchungen, Recht `book_for_member`). Der **Audit- und
+> Benachrichtigungs-Mechanismus dieser ADR bleibt** die Grundlage: `Allocation.created_by`
+> + `by_management` + `notify_member_of_staff_booking`; die native Buchung setzt genau
+> diese Felder und benachrichtigt das Mitglied ebenso. Das Backend bleibt zusätzlich
+> verfügbar. Ein Änderungs-Journal (Reversion) für Buchungen bleibt bewusst außen vor
+> (created_by ist der Audit-Anker).
+
 ## Kontext
 
 Die Betriebsleitung legt im Tagesgeschäft Buchungen **für** Mitglieder an (telefonische
