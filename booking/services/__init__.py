@@ -81,6 +81,7 @@ __all__ = [
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
     'onboard_as_member', 'onboard_as_terminal', 'deactivate_account',
+    'set_member_passive',
     'ensure_personal_membership', 'external_quote',
     'external_available_quarters', 'create_external_booking',
     'external_cancellation_preview', 'cancel_external_booking',

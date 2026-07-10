@@ -1625,11 +1625,16 @@ def verw_auslastung(request):
 
 
 @authz.requires_capability("mitglieder")
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
 def verw_mitglieder(request):
-    """Unterseite: Mitgliederliste mit Kontaktdaten für Rückfragen der BL (#65).
-    Nur buchende Mitglieder (keine externen Gäste); IBAN bleibt der Backend-
-    Detailansicht vorbehalten (Datensparsamkeit)."""
-    from .models import Member
+    """Unterseite: **native Mitglieder-Verwaltung** (shallow, ADR 0100). Vereint die
+    Freischaltung neuer Konten (Onboarding-Warteschlange), die Mitgliederliste mit
+    Status-Chips und Kontaktdaten (#65) und die flache Status-Aktion passiv/aktiv.
+    Tiefe Änderungen (PII, Anteile umbauen, Ausscheiden, Löschen) bleiben dem
+    Superuser-Backend vorbehalten."""
+    from .models import Member, Membership
+    if request.method == "POST":
+        return _verw_mitglieder_post(request)
     q = (request.GET.get("q") or "").strip()
     members = (Member.objects.filter(is_external=False)
                .select_related("user")
@@ -1641,13 +1646,90 @@ def verw_mitglieder(request):
             Q(display_name__icontains=q) | Q(legal_name__icontains=q)
             | Q(user__email__icontains=q) | Q(user__username__icontains=q)
             | Q(city__icontains=q) | Q(phone__icontains=q))
+    members = list(members)
+    # Onboarding-Warteschlange: frisch registrierte Konten ohne Mitglieds-Anteil.
+    pending = list(svc.users_without_membership().select_related("member"))
+    for u in pending:
+        u.suggested_name = (u.get_full_name() or u.username).strip()
+    memberships = list(Membership.objects.order_by("label", "eg_number")
+                       .prefetch_related("shares"))
+    for ms in memberships:
+        ms.free_nights = ms.annual_night_budget - ms.allocated_budget
+    default_budget = Membership.suggest_budget()
     today = date.today()
     ny, nm = svc.next_month(today)
     year, month = _month_from_request(request, today, ny, nm)
     ctx = _verw_nav_ctx(request, today, year, month)
-    ctx.update({"members": list(members), "q": q,
-                "member_count": len(members)})
+    ctx.update({"members": members, "q": q, "member_count": len(members),
+                "pending": pending, "memberships": memberships,
+                "default_budget": default_budget})
     return render(request, "booking/verw_mitglieder.html", ctx)
+
+
+def _verw_mitglieder_post(request):
+    """Verarbeitet die flachen Mitglieder-Aktionen (Onboarding + Status). Jede Aktion
+    prüft ihr Ziel erneut serverseitig (Defense in depth): Onboarding/Deaktivieren
+    nur für Konten OHNE Anteil, passiv/aktiv nur für buchende Mitglieder."""
+    from .models import Member, Membership
+    from urllib.parse import urlencode
+    action = request.POST.get("action")
+    back = reverse("verw_mitglieder")
+    q = (request.POST.get("q") or "").strip()
+    if q:
+        back = f"{back}?{urlencode({'q': q})}"
+
+    if action in ("passive", "active"):
+        m = Member.objects.filter(pk=request.POST.get("member_id"),
+                                  is_external=False).first()
+        if not m:
+            messages.error(request, "Mitglied nicht gefunden.")
+        elif m.status == "excluded":
+            messages.error(request, "Ausgeschiedene Mitglieder werden im Backend "
+                           "verwaltet.")
+        else:
+            changed = svc.set_member_passive(m, passive=(action == "passive"))
+            if changed and action == "passive":
+                messages.success(request, f"{m.display_name} ist jetzt passiv "
+                                 "(kann nicht mehr neu buchen; Hofladen/Login bleiben).")
+            elif changed:
+                messages.success(request, f"{m.display_name} ist wieder aktiv.")
+            else:
+                messages.info(request, "Status war bereits so gesetzt.")
+        return redirect(back)
+
+    # Onboarding-Aktionen: das Ziel MUSS ein Konto ohne Anteil sein.
+    user = svc.users_without_membership().filter(pk=request.POST.get("user_id")).first()
+    if not user:
+        messages.error(request, "Konto nicht gefunden oder schon zugeordnet.")
+        return redirect(back)
+    name = (user.get_full_name() or user.username).strip()
+    display_name = (request.POST.get("display_name") or "").strip() or user.username
+    try:
+        if action == "member":
+            mid = request.POST.get("membership") or ""
+            membership_id = mid if mid and mid != "new" else None
+            nb = int(request.POST.get("night_budget") or 0)
+            svc.onboard_as_member(
+                user, display_name=display_name, night_budget=nb,
+                wish_night_budget=nb // 2, membership_id=membership_id,
+                new_label=(request.POST.get("new_label") or "").strip())
+            messages.success(request, f"{name} wurde als Mitglied zugeordnet und "
+                             "kann jetzt buchen.")
+        elif action == "terminal":
+            svc.onboard_as_terminal(user, display_name=display_name)
+            messages.success(request, f"{name} ist jetzt Hofladen-/Terminal-Gast. "
+                             "Die PIN setzt die Person selbst im Profil.")
+        elif action == "deactivate":
+            svc.deactivate_account(user)
+            messages.success(request, f"Konto {name} deaktiviert (Login gesperrt; "
+                             "reversibel im Backend).")
+        else:
+            messages.error(request, "Unbekannte Aktion.")
+    except Membership.DoesNotExist:
+        messages.error(request, "Der gewählte Anteil existiert nicht (mehr).")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect(back)
 
 
 @authz.requires_capability("rundnachricht")
