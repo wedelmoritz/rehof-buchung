@@ -473,11 +473,15 @@ def community_stats() -> dict:
             "total": total,
             "pct": round(100 * r.n_allocations / total) if total else 0,
         })
+    # Rückblick der jüngsten bestätigten Losung (ADR 0102): schon vorberechnet am
+    # Lauf, hier nur der neueste nicht-leere. Altläufe ohne Rückblick bleiben leer.
+    retro = next((r.retrospective for r in runs if r.retrospective), None)
     stats = {
         "occ_current": _month_occupancy(today.year, today.month),
         "occ_next": _month_occupancy(ny, nm),
         "occ_curve": year_occupancy_curve(today.year),
         "lottery_history": history,
+        "lottery_retro": retro,
         "karma": karma_distribution(),
         "n_members": Member.objects.filter(is_external=False).count(),
     }

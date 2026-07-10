@@ -22,7 +22,59 @@ __all__ = [
     'run_period_lottery', '_restore_factors', 'confirm_lottery',
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
     'ensure_seed_commit', 'verify_period_lottery', 'send_wish_reminders',
+    'lottery_retrospective',
 ]
+
+
+def lottery_retrospective(period, result, quarters, karma_before) -> dict:
+    """Baut den **anonymen** Losergebnis-Rückblick (ADR 0102) aus dem Los-Ergebnis:
+    projiziert Gewinne/Verluste auf Äquivalenzklasse + Zeit-Band (Feiertage vs.
+    normal), ergänzt die beliebtesten Quartiere (Nachfrage/erfüllt) und ruft die
+    reine Aggregat-Logik `lottery.summarize_run` auf.
+
+    Wird **bei der Ziehung** berechnet (da liegt das Ergebnis vor) und am Lauf
+    gespeichert; gezeigt wird er erst nach der **Bestätigung** (der
+    Gemeinschaftsspiegel liest nur `confirmed=True`). Reine Aggregate, keine Namen."""
+    from ..models import EquivalenceClass
+    from .dates import school_holidays_in_range
+    q_class = {str(q.id): str(q.eq_class_id) for q in quarters}
+    q_name = {str(q.id): q.name for q in quarters}
+    class_name = {str(c.id): c.name for c in EquivalenceClass.objects.all()}
+
+    def _band(start, end) -> str:
+        return "holiday" if school_holidays_in_range(start, end) else "normal"
+
+    def _cls(qid: str) -> str:
+        return class_name.get(q_class.get(qid, ""), "—")
+
+    won = [{"party": a.party_id, "eq_class": _cls(a.quarter_id),
+            "band": _band(a.start, a.end), "contested": a.contested}
+           for a in result.allocations]
+    lost = [{"party": w.party_id, "eq_class": _cls(w.quarter_id),
+             "band": _band(w.start, w.end)} for w in result.losses]
+
+    # Beliebteste Quartiere: Nachfrage = gewünschtes Quartier (bei Zuteilung das
+    # ursprünglich gewünschte, nicht das Ausweichquartier); dazu, wie oft erfüllt.
+    demand: dict[str, int] = {}
+    fulfilled: dict[str, int] = {}
+    for a in result.allocations:
+        name = q_name.get(a.original_quarter_id, a.original_quarter_id)
+        demand[name] = demand.get(name, 0) + 1
+        fulfilled[name] = fulfilled.get(name, 0) + 1
+    for w in result.losses:
+        name = q_name.get(w.quarter_id, w.quarter_id)
+        demand[name] = demand.get(name, 0) + 1
+    popular = sorted(
+        [{"quarter": q, "demand": d, "fulfilled": fulfilled.get(q, 0),
+          "pct": round(100 * fulfilled.get(q, 0) / d) if d else 0}
+         for q, d in demand.items()],
+        key=lambda x: -x["demand"])[:6]
+
+    retro = L.summarize_run(won, lost, karma_before, result.new_factors)
+    retro["year"] = period.target_year
+    retro["total_wishes"] = len(won) + len(lost)
+    retro["popular"] = popular
+    return retro
 
 
 def _members_without_submitted_wishes(period: BookingPeriod):
@@ -266,10 +318,14 @@ def run_period_lottery(
         f"{len(result.allocations)} Zuteilungen, "
         f"{len(result.losses)} Verluste, Seed {seed}"
     )
+    # Anonymen Rückblick vorberechnen (ADR 0102) – jetzt liegt das Ergebnis vor;
+    # gezeigt wird er erst nach der Bestätigung (Gemeinschaftsspiegel filtert `confirmed`).
+    retrospective = lottery_retrospective(period, result, quarters, old_factors)
     return LotteryRun.objects.create(
         period=period, seed=seed, log_text=log_text, summary=summary,
         karma_snapshot=old_factors, notices=notices, confirmed=False,
         n_allocations=len(result.allocations), n_losses=len(result.losses),
+        retrospective=retrospective,
     )
 
 

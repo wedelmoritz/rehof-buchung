@@ -7,7 +7,16 @@ Proposed (2026-07-10) · nutzt [ADR 0003](0003-losverfahren-weighted-rsd.md) (Lo
 (Review-Workflow), [ADR 0062](0062-verifizierbare-auslosung-commit-reveal.md) (Commit-Reveal),
 [ADR 0063](0063-gemeinschafts-spiegel-karma-transparenz.md) (Anonymität), [ADR 0095](0095-auslastungsgraph-html-balken.md)
 (HTML/CSS-Diagramme) · Gegenstück zu [ADR 0101](0101-entzerrungsphase-vor-losung.md).
-**Noch nicht umgesetzt.**
+**Umgesetzt (2026-07).**
+
+> **Umsetzungs-Notiz (Precompute-Zeitpunkt):** Der Rückblick wird **bei der Ziehung**
+> (`run_period_lottery`) aus dem noch vorliegenden `result` berechnet und am
+> `LotteryRun.retrospective` gespeichert – nicht erst bei `confirm_lottery` (dort ist
+> das feingranulare Ergebnis nicht mehr im Speicher; nur `notices`/Snapshots wären
+> persistiert). **Gezeigt** wird er unverändert **erst nach der Bestätigung**: der
+> Gemeinschaftsspiegel liest ausschließlich `confirmed=True`. Ein Rollback+Neulauf
+> berechnet ihn neu. Ergebnis identisch zur ADR-Absicht (Precompute, O(1)-Reads,
+> Sichtbarkeit erst nach Bestätigung), nur genauer (echte Ergebnis-Daten).
 
 > **Fachlicher Bezug:** Losverfahren/Karma stehen im [Fachkonzept](../FACHKONZEPT.md);
 > dieser ADR fügt eine **rückblickende, anonyme Auswertung** hinzu, keine neue Regel.

@@ -444,3 +444,102 @@ def render_log_text(
     for pid, f in result.new_factors.items():
         lines.append(f"  {P(pid)}: {f}")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------- #
+# Anonymer Rückblick (ADR 0102): Aggregat-Kennzahlen einer Ziehung
+# --------------------------------------------------------------------------- #
+
+def _quota(won: int, lost: int) -> dict:
+    total = won + lost
+    return {"won": won, "lost": lost, "total": total,
+            "pct": round(100 * won / total) if total else 0}
+
+
+def _median(values: list) -> float:
+    """Median einer Zahlenliste (0 bei leer). Ganze Zahl, wenn möglich."""
+    s = sorted(values)
+    n = len(s)
+    if n == 0:
+        return 0
+    mid = n // 2
+    if n % 2:
+        return s[mid]
+    avg = (s[mid - 1] + s[mid]) / 2
+    return int(avg) if avg == int(avg) else round(avg, 1)
+
+
+def summarize_run(
+    won: list[dict],
+    lost: list[dict],
+    karma_before: dict[str, float],
+    karma_after: dict[str, float],
+) -> dict:
+    """Aggregiert ein Losergebnis zu **anonymen** Kennzahlen für den Rückblick
+    (ADR 0102). Django-frei/testbar: `won`/`lost` sind bereits projizierte Einträge
+    mit `party`, `eq_class`, `band` (`won` zusätzlich `contested`). Liefert
+    Gesamt-/Klassen-/Band-Erfüllungsquoten, „leicht vs. umkämpft", die Karma-Bewegung
+    (vorher→nachher) und Verteilungs-Mediane (Wünsche/Erfüllte je Partei)."""
+    overall = _quota(len(won), len(lost))
+
+    # je Äquivalenzklasse (nach Nachfrage sortiert)
+    classes: dict[str, list[int]] = {}
+    for e in won:
+        classes.setdefault(e["eq_class"], [0, 0])[0] += 1
+    for e in lost:
+        classes.setdefault(e["eq_class"], [0, 0])[1] += 1
+    by_class = sorted(
+        [{"eq_class": k, **_quota(v[0], v[1])} for k, v in classes.items()],
+        key=lambda d: -d["total"])
+
+    # je Zeit-Band (Feiertage vs. normal)
+    bands: dict[str, list[int]] = {"holiday": [0, 0], "normal": [0, 0]}
+    for e in won:
+        bands.setdefault(e.get("band", "normal"), [0, 0])[0] += 1
+    for e in lost:
+        bands.setdefault(e.get("band", "normal"), [0, 0])[1] += 1
+    by_band = {k: _quota(v[0], v[1]) for k, v in bands.items()}
+
+    # leicht erfüllbar (konfliktfrei) vs. umkämpft (Los entschied)
+    contested_wins = sum(1 for e in won if e.get("contested"))
+    easy_wins = len(won) - contested_wins
+
+    # Karma-Bewegung: vorher → nachher (Verlierer +Karma; Reset bei heißem Slot)
+    inc = res = unchanged = 0
+    deltas: list[float] = []
+    for pid, after in karma_after.items():
+        before = karma_before.get(pid, after)
+        delta = round(after - before, 4)
+        deltas.append(delta)
+        if delta > 0:
+            inc += 1
+        elif delta < 0:
+            res += 1
+        else:
+            unchanged += 1
+    avg_delta = round(sum(deltas) / len(deltas), 3) if deltas else 0.0
+
+    # Verteilungs-Fairness: Wünsche/Erfüllte je Partei → Mediane
+    wishes_by: dict[str, int] = {}
+    won_by: dict[str, int] = {}
+    for e in won:
+        wishes_by[e["party"]] = wishes_by.get(e["party"], 0) + 1
+        won_by[e["party"]] = won_by.get(e["party"], 0) + 1
+    for e in lost:
+        wishes_by[e["party"]] = wishes_by.get(e["party"], 0) + 1
+    parties = list(wishes_by)
+    distribution = {
+        "n_parties": len(parties),
+        "median_wishes": _median(list(wishes_by.values())),
+        "median_fulfilled": _median([won_by.get(p, 0) for p in parties]),
+    }
+
+    return {
+        "overall": overall,
+        "by_class": by_class,
+        "by_band": by_band,
+        "contested": {"contested_wins": contested_wins, "easy_wins": easy_wins},
+        "karma": {"increased": inc, "reset": res, "unchanged": unchanged,
+                  "avg_delta": avg_delta},
+        "distribution": distribution,
+    }

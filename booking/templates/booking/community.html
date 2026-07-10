@@ -59,6 +59,58 @@
 </div>
 {% endif %}
 
+{% with retro=stats.lottery_retro %}
+{% if retro %}
+<div class="card">
+  <h2 style="margin-top:0">Rückblick Losung {{ retro.year }}</h2>
+  <p class="sm muted" style="margin:0 0 .8rem">Wie ist die letzte Auslosung ausgegangen –
+    anonym und aggregiert. {{ retro.total_wishes }} Wünsche im Lostopf,
+    {{ retro.overall.won }} erfüllt ({{ retro.overall.pct }} %).</p>
+
+  <div class="retro-kpis">
+    <div class="retro-kpi"><span class="rk-num">{{ retro.overall.pct }} %</span>
+      <span class="rk-lbl">Wünsche erfüllt</span></div>
+    <div class="retro-kpi"><span class="rk-num">{{ retro.distribution.median_fulfilled }}</span>
+      <span class="rk-lbl">erfüllt je Mitglied (Median)</span></div>
+    <div class="retro-kpi"><span class="rk-num">{{ retro.distribution.median_wishes }}</span>
+      <span class="rk-lbl">Wünsche je Mitglied (Median)</span></div>
+  </div>
+
+  {% if retro.popular %}
+  <h3 class="retro-h3">Am meisten gewünscht</h3>
+  {% for q in retro.popular %}
+  <div class="mbar"><span class="mbar-lbl">{{ q.quarter }}</span>
+    <span class="mbar-track"><span class="mbar-fill good" style="width:{{ q.pct }}%"></span></span>
+    <span class="mbar-val">{{ q.fulfilled }}/{{ q.demand }}</span></div>
+  {% endfor %}
+  <p class="sm muted" style="margin:.2rem 0 0">Nachfrage (Wünsche) je Quartier und wie
+    oft der Wunsch erfüllt wurde.</p>
+  {% endif %}
+
+  <h3 class="retro-h3">Erfüllung nach Zeit</h3>
+  <div class="mbar"><span class="mbar-lbl">Ferien/Feiertage</span>
+    <span class="mbar-track"><span class="mbar-fill good" style="width:{{ retro.by_band.holiday.pct }}%"></span></span>
+    <span class="mbar-val">{{ retro.by_band.holiday.won }}/{{ retro.by_band.holiday.total }}</span></div>
+  <div class="mbar"><span class="mbar-lbl">übrige Zeit</span>
+    <span class="mbar-track"><span class="mbar-fill good" style="width:{{ retro.by_band.normal.pct }}%"></span></span>
+    <span class="mbar-val">{{ retro.by_band.normal.won }}/{{ retro.by_band.normal.total }}</span></div>
+
+  <h3 class="retro-h3">Leicht erfüllbar vs. umkämpft</h3>
+  <p class="sm" style="margin:.1rem 0 .6rem">
+    <strong>{{ retro.contested.easy_wins }}</strong> Wünsche gingen ohne Konkurrenz
+    durch, bei <strong>{{ retro.contested.contested_wins }}</strong> hat das Los
+    entschieden.</p>
+
+  <h3 class="retro-h3">Ausgleich (Karma) durch diese Losung</h3>
+  <p class="sm" style="margin:.1rem 0 0">Bei <strong>{{ retro.karma.increased }}</strong>
+    Mitgliedern stieg der Ausgleichsfaktor (leer ausgegangen → bessere Chancen nächstes
+    Mal){% if retro.karma.reset %}, bei <strong>{{ retro.karma.reset }}</strong> wurde er
+    nach einem sehr beliebten Gewinn zurückgesetzt{% endif %}.
+    <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis &amp; Seed-Offenlegung →</a></p>
+</div>
+{% endif %}
+{% endwith %}
+
 <div class="card">
   <h2 style="margin-top:0">Ausgleich (Karma) in der Gemeinschaft</h2>
   <p class="muted" style="margin-top:0">Wer im Vorjahr leer ausging, bekommt einen höheren
@@ -85,6 +137,13 @@
   .mbar-fill.sage { background:var(--sage); }
   .mbar-val { flex:0 0 3.4rem; text-align:right; font-variant-numeric:tabular-nums;
     font-size:.9rem; }
+  .retro-h3 { margin:1rem 0 .3rem; font-size:.95rem; }
+  .retro-kpis { display:flex; gap:.8rem; flex-wrap:wrap; margin:.2rem 0 .4rem; }
+  .retro-kpi { flex:1 1 8rem; background:var(--bg); border:1px solid var(--line);
+    border-radius:12px; padding:.6rem .8rem; }
+  .retro-kpi .rk-num { display:block; font-size:1.5rem; font-weight:700;
+    color:var(--accent-deep); line-height:1.1; font-variant-numeric:tabular-nums; }
+  .retro-kpi .rk-lbl { font-size:.78rem; color:var(--muted); }
   /* Auslastung als reines HTML/CSS-Balkendiagramm (ADR 0095) – kein SVG, daher
      engine-neutral (Chromium/WebKit/Gecko identisch, keine SVG-Text-Fallstricke). */
   .occ { --plot-h:150px; margin:.2rem 0 0; padding-top:1.15rem; max-width:600px; }

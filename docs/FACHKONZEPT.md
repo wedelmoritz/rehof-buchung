@@ -237,6 +237,15 @@ Der Hintergrund-Scheduler schaltet **nie automatisch** aus `lottery_review` hera
 die Freigabe ist immer eine bewusste Handlung der Verwaltung/Admin. Ein erneuter
 Lauf rollt einen vorhandenen unbestätigten Lauf zuerst zurück (kein Karma-Aufsummieren).
 
+**Anonymer Rückblick (ADR 0102).** Bei der Ziehung wird zusätzlich eine
+**aggregierte, anonyme Rückblick-Auswertung** vorberechnet und am Lauf gespeichert –
+sie erscheint aber **erst nach der Bestätigung** im **Gemeinschaftsspiegel**
+(Abschnitt „Rückblick Losung <Jahr>“): Erfüllungsquote gesamt/nach Zeit, beliebteste
+Quartiere, „leicht erfüllbar vs. umkämpft“, die Karma-Bewegung durch die Losung und
+Verteilungs-Mediane (Wünsche/erfüllte Wünsche je Mitglied). Bewusst nur grobe
+Aggregate ohne Namen (Datensparsamkeit); Altläufe ohne gespeicherten Rückblick
+bleiben leer.
+
 ---
 
 ## 8. Wunschliste

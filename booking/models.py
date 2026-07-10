@@ -787,6 +787,9 @@ class LotteryRun(models.Model):
                                                 default=0)
     n_losses = models.PositiveIntegerField("Nicht erfüllte Wünsche (Verluste)",
                                            default=0)
+    # Anonymer Losergebnis-Rückblick (ADR 0102): beim Lauf vorberechnet, erst nach
+    # Bestätigung im Gemeinschaftsspiegel gezeigt. Leer bei Altläufen.
+    retrospective = models.JSONField("Rückblick (anonym)", default=dict, blank=True)
 
     class Meta:
         verbose_name = "Losdurchlauf"
