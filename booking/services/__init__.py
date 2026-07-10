@@ -59,6 +59,7 @@ __all__ = [
     'beds24_apply', 'run_data_retention', 'anonymize_member',
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
     'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
+    'capture_wish_snapshots',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_plan_print', 'build_external_calendar', 'week_agenda',
     'karma_distribution', 'community_stats',

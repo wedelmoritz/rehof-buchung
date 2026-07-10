@@ -43,6 +43,7 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         if opts["once"]:
             self._safe("run_due_lotteries")
+            self._safe("capture_demand_snapshots")
             self._safe("run_monthly_invoices")
             self._safe("notify_admins_upcoming")
             self._safe("send_wish_reminders")
@@ -55,6 +56,7 @@ class Command(BaseCommand):
         last_daily: date | None = None
         while True:
             self._safe("run_due_lotteries")
+            self._safe("capture_demand_snapshots")  # Freeze-/„vor"-Stand (ADR 0101)
             today = date.today()
             if today != last_daily:
                 self._safe("run_monthly_invoices")

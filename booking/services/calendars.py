@@ -20,6 +20,7 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
     'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
+    'capture_wish_snapshots',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_plan_print', 'build_external_calendar', 'week_agenda',
 ]
@@ -289,6 +290,37 @@ def wish_demand_grid(period) -> dict:
     } for i, q in enumerate(quarters)]
     months = [MONTHS_DE[m][:3] for m in range(1, 13)]
     return {"rows": rows, "months": months, "max": mx}
+
+
+def capture_wish_snapshots(period, now) -> bool:
+    """Hält die **Nachfrage-Snapshots** der Entzerrungsphase fest (ADR 0101), idempotent
+    und vom Scheduler je Lauf aufgerufen:
+
+    * ab `review_open` den **„vor"-Stand** (Heatmap-Raster **+** Wunschzeilen für den
+      Export „vor der Entzerrung"),
+    * ab `freeze_start` die **eingefrorene Anzeige** (Heatmap-Raster der letzten Stunden).
+
+    Beide werden je Periode **genau einmal** gespeichert. Gibt True zurück, wenn etwas
+    Neues gespeichert wurde."""
+    if not period or not period.draw_at:
+        return False
+    snap = dict(period.demand_snapshot or {})
+    changed = False
+    ro = period.review_open
+    if ro and (now.date() if hasattr(now, "date") else now) >= ro \
+            and "review_open" not in snap:
+        from .wishes import wish_export_rows
+        snap["review_open"] = {"grid": wish_demand_grid(period),
+                               "rows": wish_export_rows(period)}
+        changed = True
+    fs = period.freeze_start
+    if fs and now >= fs and "frozen" not in snap:
+        snap["frozen"] = {"grid": wish_demand_grid(period), "at": now.isoformat()}
+        changed = True
+    if changed:
+        period.demand_snapshot = snap
+        period.save(update_fields=["demand_snapshot"])
+    return changed
 
 
 def wish_deconfliction(period, start: date, end: date, *, max_shift: int = 2) -> dict:

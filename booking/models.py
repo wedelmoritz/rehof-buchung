@@ -531,6 +531,9 @@ class BookingPeriod(models.Model):
         "Entzerrungsphase (Tage vor Losung)", null=True, blank=True,
         help_text="Überschreibt für diese Periode die Länge der Entzerrungsphase "
                   "(ADR 0101). Leer = Vorgabe aus den Buchungsrichtlinien.")
+    # Nachfrage-Snapshots (ADR 0101): vom Scheduler festgehalten – „review_open" als
+    # „vor"-Stand (Export) und „frozen" als eingefrorene Anzeige der letzten Stunden.
+    demand_snapshot = models.JSONField("Nachfrage-Snapshots", default=dict, blank=True)
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
     seed = models.BigIntegerField("Zufalls-Seed", null=True, blank=True)
     # Verifizierbarkeit (Commit-Reveal, ADR 0062): Die Prüfsumme des Seeds wird

@@ -704,6 +704,18 @@ def my_bookings(request):
 # Wunschliste fürs nächste Jahr
 # --------------------------------------------------------------------------- #
 
+def _wishlist_demand_grid(period):
+    """Nachfrage-Heatmap für die Wunschliste (ADR 0101): in den letzten Stunden vor der
+    Losung die EINGEFRORENE Anzeige (Freeze-Snapshot von `freeze_start`), sonst live."""
+    if not period:
+        return None
+    if period.display_frozen(timezone.now()):
+        frozen = (period.demand_snapshot or {}).get("frozen", {}).get("grid")
+        if frozen:
+            return frozen
+    return svc.wish_demand_grid(period)
+
+
 @login_required
 def wishlist(request):
     """Wunschliste fürs Losverfahren der nächsten Periode. Anders als beim
@@ -892,7 +904,9 @@ def wishlist(request):
         # Entzerrungsphase (ADR 0101): Phasen-Marken für den Status-Hinweis.
         "review_phase": bool(period and period.status == BookingPeriod.WISHES_REVIEW),
         # Anonyme Nachfrage-Heatmap (ADR 0101): welche Quartiere/Monate sind begehrt.
-        "demand_grid": svc.wish_demand_grid(period) if period else None,
+        # In den letzten Stunden vor der Losung ist die Anzeige EINGEFROREN – dann den
+        # Freeze-Snapshot zeigen (Stand von `freeze_start`), sonst live.
+        "demand_grid": _wishlist_demand_grid(period),
         "submission_deadline": period.submission_deadline if period else None,
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,
@@ -1587,10 +1601,15 @@ def verw_wuensche(request):
         return _verw_wuensche_post(request, period)
     exp = request.GET.get("export")
     if exp in ("csv", "xlsx") and period:
-        rows = svc.wish_export_rows(period)
+        # „vor der Entzerrung" nutzt den review_open-Snapshot (ADR 0101), sonst aktuell.
+        if request.GET.get("state") == "before":
+            rows = (period.demand_snapshot or {}).get("review_open", {}).get("rows") or []
+            fname = f"wuensche-vor-{period.target_year}"
+        else:
+            rows = svc.wish_export_rows(period)
+            fname = f"wuensche-{period.target_year}"
         return exports.table_response(
-            exp, f"wuensche-{period.target_year}", f"Wünsche {period.target_year}",
-            svc.WISH_EXPORT_COLUMNS, rows)
+            exp, fname, f"Wünsche {period.target_year}", svc.WISH_EXPORT_COLUMNS, rows)
     today = date.today()
     ny, nm = svc.next_month(today)
     year, month = _month_from_request(request, today, ny, nm)
@@ -1601,9 +1620,10 @@ def verw_wuensche(request):
                       .select_related("member", "quarter", "created_by")
                       .order_by("member__display_name", "priority"))
     can_add = authz.user_can(request.user, authz.P_ADD_WISH_FOR_MEMBER)
+    has_before = bool(period and (period.demand_snapshot or {}).get("review_open"))
     ctx.update({
         "lot_period": period, "wishes": wishes, "wish_count": len(wishes),
-        "can_add_wish": can_add,
+        "can_add_wish": can_add, "has_before_snapshot": has_before,
         "bl_members": (list(Member.objects.filter(is_external=False)
                             .select_related("user").order_by("display_name"))
                        if can_add else []),

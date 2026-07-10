@@ -213,3 +213,63 @@ class HelpPageTests(TestCase):
         self.assertIn("phase-flow", html)                        # HTML/CSS-Zeitleiste
         self.assertIn("Einreiche-Frist", html)
         self.assertIn("Freeze", html)
+
+
+class SnapshotTests(TestCase):
+    def setUp(self):
+        self.cls = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(name="Turm", eq_class=self.cls,
+                                        min_occupancy=1, max_occupancy=4)
+        self.a = _member("anna")
+
+    def _period_draw_in(self, **kw):
+        p = BookingPeriod.objects.create(
+            name="P", target_year=NEXT, start=date(NEXT, 1, 1),
+            end=date(NEXT + 1, 1, 1), wishlist_open=date.today(),
+            status=BookingPeriod.WISHES_REVIEW,
+            draw_at=timezone.now() + timedelta(**kw))
+        svc.add_wish(self.a, p, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
+        svc.submit_wishlist(self.a, p)
+        return p
+
+    def test_freeze_und_vor_snapshot_werden_gespeichert(self):
+        p = self._period_draw_in(hours=10)     # < 24 h → eingefroren; review_open lange her
+        changed = svc.capture_wish_snapshots(p, timezone.now())
+        self.assertTrue(changed)
+        p.refresh_from_db()
+        self.assertIn("frozen", p.demand_snapshot)
+        self.assertIn("review_open", p.demand_snapshot)
+        self.assertEqual(p.demand_snapshot["frozen"]["grid"]["max"], 1)
+        self.assertTrue(p.demand_snapshot["review_open"]["rows"])   # Wunschzeilen
+
+    def test_idempotent(self):
+        p = self._period_draw_in(hours=10)
+        svc.capture_wish_snapshots(p, timezone.now())
+        # Ein zweiter Wunsch danach ändert den bereits eingefrorenen Stand NICHT.
+        b = _member("bea")
+        svc.add_wish(b, p, self.q, date(NEXT, 5, 4), date(NEXT, 5, 8))
+        svc.submit_wishlist(b, p)
+        self.assertFalse(svc.capture_wish_snapshots(p, timezone.now()))
+        p.refresh_from_db()
+        self.assertEqual(p.demand_snapshot["frozen"]["grid"]["max"], 1)  # unverändert
+
+    def test_kein_freeze_wenn_weit_vor_losung(self):
+        # Losung in 5 Tagen: review_open (draw − 7 T) ist schon vorbei, der Freeze
+        # (draw − 24 h) aber noch nicht → nur der „vor"-Stand, keine eingefrorene Anzeige.
+        p = self._period_draw_in(days=5)
+        svc.capture_wish_snapshots(p, timezone.now())
+        p.refresh_from_db()
+        self.assertNotIn("frozen", p.demand_snapshot)
+        self.assertIn("review_open", p.demand_snapshot)
+
+    def test_wishlist_zeigt_eingefrorene_anzeige(self):
+        p = self._period_draw_in(hours=10)
+        svc.capture_wish_snapshots(p, timezone.now())
+        # Nach dem Snapshot ändert sich die Live-Nachfrage, die Anzeige bleibt aber fix.
+        b = _member("bea")
+        svc.add_wish(b, p, self.q, date(NEXT, 5, 4), date(NEXT, 5, 8))
+        svc.submit_wishlist(b, p)
+        self.client.force_login(self.a.user)
+        r = self.client.get(reverse("wishlist"))
+        # display_frozen → Heatmap kommt aus dem Snapshot (max 1), nicht live (max 2).
+        self.assertEqual(r.context["demand_grid"]["max"], 1)
