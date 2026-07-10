@@ -18,6 +18,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -195,8 +196,10 @@ def overview(request):
 
     sel_day = _parse_date(request.GET.get("day"))
     detail = svc.day_detail(member, sel_day, management=is_mgmt) if sel_day else None
-    open_period = BookingPeriod.objects.filter(
-        status=BookingPeriod.WISHES_OPEN).first()
+    # Wunsch-Fenster ODER Entzerrungsphase (ADR 0101) – in beiden zeigt die Übersicht
+    # den Los-Status-Chip und (falls nichts eingereicht) den Erinnerungs-Chip.
+    open_period = BookingPeriod.objects.filter(status__in=[
+        BookingPeriod.WISHES_OPEN, BookingPeriod.WISHES_REVIEW]).first()
     return render(request, "booking/overview.html", {
         "member": member,
         "cal": cal,
@@ -220,6 +223,8 @@ def overview(request):
         ),
         "notifications": svc.unread_notifications(member),
         "open_period": open_period,
+        "review_phase": bool(open_period
+                             and open_period.status == BookingPeriod.WISHES_REVIEW),
         # Hat DIESES Mitglied schon Wünsche eingereicht? Wenn nicht, weist die
         # Übersicht bis zum Losdatum darauf hin (ADR 0080).
         "wish_submitted": bool(member and open_period and Wish.objects.filter(
@@ -653,7 +658,8 @@ def my_bookings(request):
             member.waitlist_entries.filter(fulfilled=False, end__gte=today)
             .select_related("quarter").order_by("start"))
         wish_period = BookingPeriod.objects.filter(status__in=[
-            BookingPeriod.WISHES_OPEN, BookingPeriod.LOTTERY_READY]).first()
+            BookingPeriod.WISHES_OPEN, BookingPeriod.WISHES_REVIEW,
+            BookingPeriod.LOTTERY_READY]).first()
         if wish_period:
             submitted_wishes = list(
                 Wish.objects.filter(member=member, period=wish_period, submitted=True)
@@ -706,7 +712,10 @@ def wishlist(request):
         return blocked
     member = _current_member(request)
     today = date.today()
-    period = BookingPeriod.objects.filter(status=BookingPeriod.WISHES_OPEN).first()
+    # Wunsch-Fenster ODER Entzerrungsphase (ADR 0101): in beiden ist die Wunschliste
+    # bearbeitbar (in der Review-Phase zum Anpassen/Entzerren).
+    period = BookingPeriod.objects.filter(status__in=[
+        BookingPeriod.WISHES_OPEN, BookingPeriod.WISHES_REVIEW]).first()
     # Der Wunsch-Kalender startet beim Zeitraum der Periode (nicht „heute“).
     dy = period.start.year if period else None
     dm = period.start.month if period else None
@@ -868,6 +877,12 @@ def wishlist(request):
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "wish_cap": wish_cap,
+        # Entzerrungsphase (ADR 0101): Phasen-Marken für den Status-Hinweis.
+        "review_phase": bool(period and period.status == BookingPeriod.WISHES_REVIEW),
+        "submission_deadline": period.submission_deadline if period else None,
+        "draw_at": period.draw_at if period else None,
+        "freeze_start": period.freeze_start if period else None,
+        "display_frozen": period.display_frozen(timezone.now()) if period else False,
         "notifications": svc.unread_notifications(member),
     })
 

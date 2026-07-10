@@ -66,7 +66,7 @@ __all__ = [
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
     'ensure_seed_commit', 'verify_period_lottery', 'lottery_retrospective',
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
-    'delete_wish', 'submit_wishlist', 'withdraw_wishlist',
+    'delete_wish', 'submit_wishlist', 'withdraw_wishlist', 'wishes_editable',
     'book_spontaneous', 'add_waitlist_entry', 'waiters_for_allocation',
     'notify_waitlist_if_free', 'concurrent_allocations', 'free_quarters_for',
     'concurrent_split', 'create_swap_request', 'respond_swap_request',

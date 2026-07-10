@@ -973,10 +973,13 @@ class TerminierteLosungTests(UseCaseBase):
             Allocation.objects.filter(period=period, source="lottery").count(), 1)
 
     def test_zukuenftige_losung_bleibt_offen(self):
+        # Losung in 2 Tagen → innerhalb der 7-tägigen Entzerrungsphase (ADR 0101):
+        # die Periode steht auf „Entzerrung“, gezogen wird aber noch NICHT.
         period = self._period(timezone.now() + timedelta(days=2))
         call_command("run_due_lotteries")
         period.refresh_from_db()
-        self.assertEqual(period.status, BookingPeriod.WISHES_OPEN)
+        self.assertEqual(period.status, BookingPeriod.WISHES_REVIEW)
+        self.assertFalse(period.runs.exists())
 
     def test_status_folgt_terminen_vorwaerts(self):
         """Erreicht „Wünsche ab“, schaltet der Cron den Entwurf auf

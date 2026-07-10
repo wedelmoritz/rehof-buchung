@@ -81,10 +81,22 @@ Inhalt:
 - Eine Periode vereint **Jahres-Losung** und **buchbaren Zeitraum**, gesteuert über
   ihren **Status**:
 
-  `draft` (Entwurf) → `wishes_open` (Wünsche offen) → `lottery_ready` (zur Auslosung
-  freigegeben) → `lottery_review` (Losung gelaufen, **unbestätigt**) → `lottery_done`
-  (bestätigt/veröffentlicht) → `free_booking` (freie Bebuchbarkeit) → `ended`
-  (beendet). `suspended` (unterbrochen) sperrt vorläufig.
+  `draft` (Entwurf) → `wishes_open` (Wünsche offen) → `wishes_review`
+  (**Entzerrungsphase**: Einreiche-Frist vorbei, Anpassen möglich) → `lottery_review`
+  (Losung gelaufen, **unbestätigt**) → `lottery_done` (bestätigt/veröffentlicht) →
+  `free_booking` (freie Bebuchbarkeit) → `ended` (beendet). `suspended` (unterbrochen)
+  sperrt vorläufig. (`lottery_ready` = Rückfall-Zustand nach zurückgenommener Losung,
+  wieder ziehbar.)
+
+- **Entzerrungsphase (`wishes_review`, ADR 0101).** Zwischen Wunsch-Einreichung und
+  Losung liegt eine eigene Phase: die **Einreiche-Frist** (`review_open` = „Losdatum −
+  Entzerrungstage“, Vorgabe **7** Tage, je Periode überschreibbar) markiert das Ende
+  der Neu-Einreichung; danach können Mitglieder ihre Wünsche noch **anpassen**
+  (entzerren), um begehrten Zeiten auszuweichen. Die **angezeigte** Nachfrage friert
+  **24 h vor der Losung** ein (`freeze_start`); **Änderungen zählen** aber bis zur
+  Ziehung – zwei kommunizierte Marken „Nachfrage sichtbar bis …“ und „Änderungen
+  möglich bis …“. Bewusst **keine** harte Teilnehmer-Sperre (das RSD-Losverfahren ist
+  strategiesicher, § 5).
 
 - **Termine** der Periode: Wunsch-Fenster (offen/Schluss), Losungs-Zeitpunkt,
   buchbar ab/bis. Der Status wird normalerweise **aus den Terminen abgeleitet** und

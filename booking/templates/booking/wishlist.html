@@ -35,6 +35,18 @@
     {% if wishlist_submitted %}Deine Wünsche sind im Lostopf – du kannst sie bis dahin noch ändern (zurückziehen &amp; neu einreichen).{% else %}<strong>Bisher hast du nichts eingereicht</strong> – trage deine Wünsche ein und reiche sie unten ein, sonst nimmst du nicht teil.{% endif %}
   </p>
   {% endif %}
+  {% if review_phase %}
+  {% comment %}Entzerrungsphase (ADR 0101): Einreiche-Frist vorbei, Anpassen weiter
+  möglich; zwei Marken – Anzeige friert 24 h vor der Losung ein, Änderungen zählen
+  bis dahin.{% endcomment %}
+  <p class="msg {% if display_frozen %}info{% else %}warn{% endif %}" style="margin-top:0">
+    🔀 <strong>Entzerrungsphase</strong> – die Einreiche-Frist ist vorbei, aber du kannst
+    deine Wünsche noch <strong>anpassen</strong> (zurückziehen &amp; neu einreichen), um
+    begehrten Zeiten auszuweichen.
+    {% if freeze_start %}Nachfrage sichtbar bis {{ freeze_start|date:"d.m. H:i" }}{% endif %}{% if draw_at %} · Änderungen möglich bis {{ draw_at|date:"d.m. H:i" }} (Losung){% endif %}.
+    {% if display_frozen %}<br><em>Die angezeigte Nachfrage ist jetzt eingefroren (Stand kurz vor der Losung) – deine Änderungen zählen aber weiter.</em>{% endif %}
+  </p>
+  {% endif %}
   <p class="muted" style="margin-top:0">
     Periode <strong>{{ period }}</strong>. Die Ampel zeigt, wie beliebt ein Zeitraum
     ist (rot = besonders gefragt) – eintragen kannst du trotzdem überall.

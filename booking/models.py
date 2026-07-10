@@ -478,6 +478,7 @@ class BookingPeriod(models.Model):
     """
     DRAFT = "draft"
     WISHES_OPEN = "wishes_open"
+    WISHES_REVIEW = "wishes_review"
     LOTTERY_READY = "lottery_ready"
     LOTTERY_REVIEW = "lottery_review"
     LOTTERY_DONE = "lottery_done"
@@ -487,6 +488,7 @@ class BookingPeriod(models.Model):
     STATUS = [
         (DRAFT, "Entwurf"),
         (WISHES_OPEN, "Für Wunsch-Einträge freigegeben"),
+        (WISHES_REVIEW, "Entzerrungsphase (Frist vorbei, anpassen möglich)"),
         (LOTTERY_READY, "Zur Auslosung freigegeben"),
         (LOTTERY_REVIEW, "Auslosung zur Prüfung (unbestätigt)"),
         (LOTTERY_DONE, "Auslosung bestätigt/veröffentlicht"),
@@ -494,10 +496,15 @@ class BookingPeriod(models.Model):
         (ENDED, "Beendet"),
         (SUSPENDED, "Unterbrochen"),
     ]
+    # Freeze: die ANGEZEIGTE Nachfrage/Prognose friert 24 h vor der Losung ein
+    # (ADR 0101). Bewusst fest, nicht pro Nutzer konfigurierbar. Edits zählen
+    # weiter bis draw_at – nur die Sichtbarkeit endet früher.
+    FREEZE_HOURS = 24
     # Reihenfolge des Lebenszyklus (für die automatische Vorwärts-Schaltung).
-    # LOTTERY_REVIEW → LOTTERY_DONE ist bewusst MANUELL (Bestätigung), siehe
-    # services.confirm_lottery / run_due_lotteries.
-    LIFECYCLE = [DRAFT, WISHES_OPEN, LOTTERY_READY, LOTTERY_REVIEW,
+    # WISHES_REVIEW liegt zwischen Wunsch-Einreichung und Auslosung (ADR 0101).
+    # LOTTERY_READY bleibt als Rollback-Ziel (nach zurückgenommener Losung wieder
+    # ziehbar); LOTTERY_REVIEW → LOTTERY_DONE ist bewusst MANUELL (Bestätigung).
+    LIFECYCLE = [DRAFT, WISHES_OPEN, WISHES_REVIEW, LOTTERY_READY, LOTTERY_REVIEW,
                  LOTTERY_DONE, FREE_BOOKING, ENDED]
 
     name = models.CharField("Bezeichnung", max_length=120)
@@ -514,6 +521,10 @@ class BookingPeriod(models.Model):
         help_text="Terminierte Auslosung; läuft per Cron automatisch (siehe "
                   "Management-Kommando run_due_lotteries).",
     )
+    review_days = models.PositiveSmallIntegerField(
+        "Entzerrungsphase (Tage vor Losung)", null=True, blank=True,
+        help_text="Überschreibt für diese Periode die Länge der Entzerrungsphase "
+                  "(ADR 0101). Leer = Vorgabe aus den Buchungsrichtlinien.")
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
     seed = models.BigIntegerField("Zufalls-Seed", null=True, blank=True)
     # Verifizierbarkeit (Commit-Reveal, ADR 0062): Die Prüfsumme des Seeds wird
@@ -553,8 +564,11 @@ class BookingPeriod(models.Model):
             # Nach dem Losungstermin nur bis „zur Prüfung“ – die Veröffentlichung
             # (LOTTERY_DONE) erfolgt manuell über die Bestätigung.
             return self.LOTTERY_REVIEW
-        if self.wishlist_close and today >= self.wishlist_close:
-            return self.LOTTERY_READY
+        # Entzerrungsphase (ADR 0101): ab der Einreiche-Frist (`review_open`) bis zur
+        # Losung; der Teilnehmerkreis steht fest, Teilnehmer können noch anpassen.
+        ro = self.review_open
+        if ro and today >= ro:
+            return self.WISHES_REVIEW
         if self.wishlist_open and today >= self.wishlist_open:
             return self.WISHES_OPEN
         return self.DRAFT
@@ -564,15 +578,52 @@ class BookingPeriod(models.Model):
         return self.LIFECYCLE.index(self.status) if self.status in self.LIFECYCLE else -1
 
     @property
-    def submission_deadline(self):
-        """Letzter Tag, an dem Wünsche eingereicht werden können: `wishlist_close`
-        (dann schließt das Wunsch-Fenster), sonst der Tag des Losdatums `draw_at`.
-        None, wenn kein Termin gesetzt ist. Grundlage für Anzeige + Erinnerung."""
+    def effective_review_days(self) -> int:
+        """Länge der Entzerrungsphase (ADR 0101): Periode-Override oder Vorgabe aus
+        den Buchungsrichtlinien (Default 7)."""
+        if self.review_days is not None:
+            return self.review_days
+        return BookingPolicy.get_solo().review_days
+
+    @property
+    def review_open(self):
+        """Beginn der Entzerrungsphase = **Einreiche-Frist** (ADR 0101). Bevorzugt der
+        explizit gesetzte `wishlist_close`; sonst abgeleitet als „Losdatum −
+        Entzerrungstage“. None, wenn weder Termin noch Losdatum gesetzt sind."""
         if self.wishlist_close:
             return self.wishlist_close
         if self.draw_at:
-            return self.draw_at.date()
+            return (self.draw_at - timedelta(days=self.effective_review_days)).date()
         return None
+
+    @property
+    def freeze_start(self):
+        """Zeitpunkt, ab dem die ANGEZEIGTE Nachfrage/Prognose einfriert
+        (`draw_at − FREEZE_HOURS`, ADR 0101). None ohne Losdatum. Edits zählen
+        weiter bis `draw_at`; nur die Sichtbarkeit endet früher."""
+        if self.draw_at:
+            return self.draw_at - timedelta(hours=self.FREEZE_HOURS)
+        return None
+
+    def display_frozen(self, now) -> bool:
+        """Ob die Anzeige der Nachfrage/Prognose gerade eingefroren ist (in den
+        letzten `FREEZE_HOURS` vor der Losung)."""
+        fs = self.freeze_start
+        return bool(fs and self.draw_at and fs <= now < self.draw_at)
+
+    def in_wishes_review(self, now) -> bool:
+        """Ob die Periode gerade in der Entzerrungsphase ist (nach `review_open`,
+        vor `draw_at`)."""
+        today = now.date() if hasattr(now, "date") else now
+        ro = self.review_open
+        return bool(ro and today >= ro and self.draw_at and now < self.draw_at)
+
+    @property
+    def submission_deadline(self):
+        """Letzter Tag, an dem Wünsche **eingereicht** werden können (danach steht der
+        Teilnehmerkreis fest): der Beginn der Entzerrungsphase `review_open`.
+        None, wenn kein Termin gesetzt ist. Grundlage für Anzeige + Erinnerung."""
+        return self.review_open
 
 
 class Wish(models.Model):
@@ -1462,6 +1513,13 @@ class BookingPolicy(models.Model):
         "2. Wunsch-Erinnerung (Tage vor Frist)", default=2,
         help_text="Zweite, dringlichere Erinnerung so viele Tage vor dem Schluss. "
                   "Sollte kleiner als die erste sein. 0 = diese Stufe aus (ADR 0080).",
+    )
+    review_days = models.PositiveSmallIntegerField(
+        "Entzerrungsphase (Tage vor der Losung)", default=7,
+        help_text="Länge der Entzerrungs-/Review-Phase VOR der Losung (ADR 0101): "
+                  "Ab „Losdatum − diese Tage“ ist die Einreiche-Frist vorbei "
+                  "(Teilnehmerkreis fest); Teilnehmer können ihre Wünsche noch "
+                  "anpassen und sehen die Nachfrage. Je Periode überschreibbar.",
     )
     er_decision_lock_days = models.PositiveSmallIntegerField(
         "Endreinigung: Frist zum Revidieren (Tage vor Anreise)", default=7,

@@ -13,8 +13,27 @@ from .slots import _in_season_range, wish_rule_error
 
 __all__ = [
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
-    'delete_wish', 'submit_wishlist', 'withdraw_wishlist',
+    'delete_wish', 'submit_wishlist', 'withdraw_wishlist', 'wishes_editable',
 ]
+
+
+def wishes_editable(period: BookingPeriod, member: Member) -> tuple[bool, str | None]:
+    """Darf `member` in `period` seine Wünsche eintragen/anpassen/einreichen? (ADR 0101)
+
+    Bearbeitbar im **Wunsch-Fenster** (`WISHES_OPEN`) UND in der **Entzerrungsphase**
+    (`WISHES_REVIEW`): dort ist die Einreiche-Frist zwar vorbei (Anzeige/Erinnerung),
+    aber Anpassen bleibt bewusst möglich – der Zweck der Phase ist das **Entzerren**.
+    Bewusst KEINE harte Teilnehmer-Sperre: das RSD-Losverfahren ist strategiesicher
+    (späte Anpassungen sind kein Vorteil), und ein harter Riegel würde mit dem
+    bestehenden Einreichen/Zurückziehen-Ablauf kollidieren (wer zum Anpassen
+    zurückzieht, wäre sonst plötzlich „raus“). Eine strengere Frist ließe sich später
+    ergänzen. Außerhalb dieser beiden Phasen: gesperrt (Defense in depth – die Views
+    wählen die Periode ohnehin nach Status). `member` ist bewusst Teil der Signatur
+    (Aufrufer übergeben ihn), damit eine spätere, feinere Teilnehmerregel keine
+    Signaturänderung braucht."""
+    if period.status in (BookingPeriod.WISHES_OPEN, BookingPeriod.WISHES_REVIEW):
+        return True, None
+    return False, "Für diese Periode können gerade keine Wünsche bearbeitet werden."
 
 def _renumber_wishes(member: Member, period: BookingPeriod) -> None:
     """Setzt die Prioritäten lückenlos auf 1..N gemäß aktueller Reihenfolge."""
@@ -41,6 +60,9 @@ def add_wish(member, period, quarter, start, end,
     if not member.can_book:
         return None, ("Dein Konto ist derzeit nicht buchungsberechtigt "
                       "(passives/ausgeschiedenes Mitglied).")
+    ok, reason = wishes_editable(period, member)
+    if not ok:
+        return None, reason
     if (end - start).days <= 0:
         return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
     if not _in_season_range(quarter, start, end):
@@ -130,6 +152,9 @@ def submit_wishlist(member, period) -> tuple[int, str | None]:
     if not member.can_book:
         return 0, ("Dein Konto ist derzeit nicht buchungsberechtigt "
                    "(passives/ausgeschiedenes Mitglied).")
+    ok, reason = wishes_editable(period, member)
+    if not ok:
+        return 0, reason
     drafts = list(Wish.objects.filter(
         member=member, period=period, submitted=False).select_related("quarter"))
     problems = [
