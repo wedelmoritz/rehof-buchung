@@ -886,6 +886,8 @@ def wishlist(request):
         "wish_cap": wish_cap,
         # Entzerrungsphase (ADR 0101): Phasen-Marken für den Status-Hinweis.
         "review_phase": bool(period and period.status == BookingPeriod.WISHES_REVIEW),
+        # Anonyme Nachfrage-Heatmap (ADR 0101): welche Quartiere/Monate sind begehrt.
+        "demand_grid": svc.wish_demand_grid(period) if period else None,
         "submission_deadline": period.submission_deadline if period else None,
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,

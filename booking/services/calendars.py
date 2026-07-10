@@ -12,13 +12,14 @@ from ..models import (
     Allocation, ExternalBooking, ExternalConfig, Member, Quarter, QuarterBlock,
     Wish,
 )
-from .dates import EXTERN_COLOR, GERMAN_MONTHS, next_month, school_holidays_in_range
+from .dates import (EXTERN_COLOR, GERMAN_MONTHS, MONTHS_DE, next_month,
+                    school_holidays_in_range)
 from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter,
                     split_quarters_for_range)
 
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
-    'wish_deconfliction', 'wish_alternatives',
+    'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_plan_print', 'build_external_calendar', 'week_agenda',
 ]
@@ -250,6 +251,44 @@ def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
     ):
         counts[str(w.quarter_id)] += 1
     return counts
+
+
+def wish_demand_grid(period) -> dict:
+    """Anonyme **Nachfrage-Heatmap** (ADR 0101): je Quartier (Zeile) × **Monat**
+    (Spalte) die Zahl der **eingereichten** Wünsche, die den Monat berühren – zeigt
+    auf einen Blick die begehrten Quartiere/Zeiten. Nur Aggregate (keine Namen,
+    ADR 0063). Eine Wunsch-Abfrage, Rest in Python.
+
+    Gibt `{"rows": [{quarter, cells:[{count,pct}×12]}], "months": [kurz], "max": n}`."""
+    from ..models import Quarter
+    empty = {"rows": [], "months": [], "max": 0}
+    if not period:
+        return empty
+    year = period.target_year
+    bounds = [(date(year, m, 1),
+               date(year + 1, 1, 1) if m == 12 else date(year, m + 1, 1))
+              for m in range(1, 13)]
+    quarters = list(Quarter.objects.filter(active=True).order_by("sort_order", "name"))
+    qidx = {q.id: i for i, q in enumerate(quarters)}
+    grid = [[0] * 12 for _ in quarters]
+    for qid, ws, we in Wish.objects.filter(
+            period=period, submitted=True).values_list("quarter_id", "start", "end"):
+        i = qidx.get(qid)
+        if i is None:
+            continue
+        for j, (ms, me) in enumerate(bounds):
+            if ws < me and we > ms:
+                grid[i][j] += 1
+    mx = max((c for row in grid for c in row), default=0)
+    rows = [{
+        "quarter": q.name,
+        "total": sum(grid[i]),
+        "cells": [{"count": grid[i][j],
+                   "pct": round(100 * grid[i][j] / mx) if mx else 0}
+                  for j in range(12)],
+    } for i, q in enumerate(quarters)]
+    months = [MONTHS_DE[m][:3] for m in range(1, 13)]
+    return {"rows": rows, "months": months, "max": mx}
 
 
 def wish_deconfliction(period, start: date, end: date, *, max_shift: int = 2) -> dict:

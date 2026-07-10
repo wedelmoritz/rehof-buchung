@@ -75,6 +75,28 @@
     {% endif %}
   </details>
 
+  {% if demand_grid and demand_grid.max %}
+  <details class="card demand" style="margin:.8rem 0 0">
+    <summary><strong>Nachfrage-Übersicht (anonym)</strong> – wo drängen sich die Wünsche?</summary>
+    <p class="muted sm" style="margin:.4rem 0 .6rem">Anzahl bereits <strong>eingereichter</strong>
+      Wünsche je Quartier und Monat – ohne Namen. Dunklere Felder = mehr Nachfrage. So
+      siehst du, wohin du zum <strong>Entzerren</strong> ausweichen kannst (hellere Felder =
+      bessere Chancen).</p>
+    <div class="table-wrap">
+      <table class="heat">
+        <thead><tr><th class="hq">Quartier</th>{% for m in demand_grid.months %}<th>{{ m }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for r in demand_grid.rows %}
+          <tr><th class="hq">{{ r.quarter }}</th>
+            {% for c in r.cells %}<td class="heat-cell" style="--h:{{ c.pct }}" title="{{ r.quarter }} · {{ c.count }} Wunsch/Wünsche">{% if c.count %}{{ c.count }}{% endif %}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
   {% include "booking/_calnav.html" %}
 
   <table class="cal wish-cal">
@@ -331,6 +353,16 @@
   .wish-prog.band-good { background:var(--good-soft); color:var(--good); }
   .wish-prog.band-open { background:var(--warn-soft); color:var(--warn); }
   .wish-prog.band-tight { background:var(--accent-soft); color:var(--accent-deep); }
+  /* Nachfrage-Heatmap (ADR 0101): HTML/CSS-Zellen (kein SVG). Heat über --h (0-100)
+     als Deckkraft des Akzents; Text bleibt lesbar (near-black). */
+  .demand summary { cursor:pointer; font-size:1rem; }
+  table.heat { border-collapse:separate; border-spacing:2px; font-size:.8rem; }
+  table.heat th { font-weight:600; color:var(--muted); padding:.15rem .3rem; font-size:.72rem; }
+  table.heat th.hq { text-align:left; white-space:nowrap; position:sticky; left:0;
+    background:var(--card); z-index:1; }
+  .heat-cell { width:2rem; height:1.7rem; text-align:center; border-radius:5px;
+    font-variant-numeric:tabular-nums; font-weight:700; color:var(--ink);
+    background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
   .hint-entzerren { font-size:.9rem; color:#5b5347; background:#f7f1e3;
     border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; margin:.2rem 0 .7rem; }
   /* „So funktioniert die Auslosung (kurz)" leicht abheben (besser lesbar). */
