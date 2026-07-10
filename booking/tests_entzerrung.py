@@ -202,3 +202,14 @@ class WishExportAndNachtragTests(TestCase):
         self.assertEqual(r.status_code, 302)
         from booking.models import Wish
         self.assertTrue(Wish.objects.filter(member=bob, submitted=True).exists())
+
+
+class HelpPageTests(TestCase):
+    def test_hilfe_zeigt_entzerrungsphase_und_zeitleiste(self):
+        m = _member("hilde")
+        self.client.force_login(m.user)
+        html = self.client.get(reverse("help")).content.decode()
+        self.assertIn("Entzerrungsphase vor der Losung", html)   # Abschnittstitel
+        self.assertIn("phase-flow", html)                        # HTML/CSS-Zeitleiste
+        self.assertIn("Einreiche-Frist", html)
+        self.assertIn("Freeze", html)
