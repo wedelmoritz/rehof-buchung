@@ -10,7 +10,25 @@ Proposed (2026-07-10) · erweitert [ADR 0003](0003-losverfahren-weighted-rsd.md)
 [ADR 0089](0089-benachrichtigungs-framework.md) (Benachrichtigungen),
 [ADR 0095](0095-auslastungsgraph-html-balken.md) (HTML/CSS-Diagramme),
 [ADR 0063](0063-gemeinschafts-spiegel-karma-transparenz.md) (Anonymität) · Verwaltungsrechte über
-[ADR 0100](0100-granulare-verwaltungsrollen-rbac.md). **Noch nicht umgesetzt.**
+[ADR 0100](0100-granulare-verwaltungsrollen-rbac.md). **In Umsetzung (batchweise).**
+
+> **Umsetzungsstand.** **Batch A (Lebenszyklus-Fundament) umgesetzt (2026-07):** die
+> Phase `wishes_review`, `review_days` (Richtlinie + je Periode), die abgeleiteten
+> Fristen `review_open`/`freeze_start` und der `display_frozen`-Zustand, `compute_status`/
+> Scheduler, `submission_deadline = review_open`, der Phasen-Hinweis mit den zwei Marken
+> (Übersicht + Wunschliste) und der serverseitige Wunsch-Guard (`wishes_editable`).
+> **Offen (Folge-PRs):** Prognose/Heatmap (Abschnitt 3), Absprachen + Opt-out
+> (Abschnitt 4), Wunsch-Export + Admin-Nachtrag (Abschnitt 5/2), Snapshots + dringende
+> Erinnerung + Hilfeseite/Diagramm (Abschnitt 6).
+>
+> **Präzisierung zu Abschnitt 2 (Edits in der Phase).** In der Entzerrungsphase bleibt
+> die Wunschliste **bearbeitbar** (Anpassen/Zurückziehen+Neu-Einreichen), ohne **harte**
+> Teilnehmer-Sperre: Das RSD-Losverfahren ist strategiesicher (späte Anpassungen bringen
+> keinen Vorteil), und ein harter Riegel würde mit dem bestehenden Einreichen/
+> Zurückziehen-Ablauf kollidieren (wer zum Anpassen zurückzieht, wäre sonst plötzlich
+> „raus“). Die Frist wird klar **kommuniziert** (Chip/Banner + Erinnerung). Eine
+> strengere Cutoff-Variante bleibt später nachrüstbar (`wishes_editable` trägt die
+> Mitglieds-Signatur bereits).
 
 > **Fachlicher Bezug:** Der Perioden-Lebenszyklus und die Losregeln stehen im
 > [Fachkonzept](../FACHKONZEPT.md); dieser ADR ergänzt eine **Phase** darin. Die
