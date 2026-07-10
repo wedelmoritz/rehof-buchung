@@ -4,8 +4,8 @@
 
 Proposed (2026-07-10) · nutzt [ADR 0003](0003-losverfahren-weighted-rsd.md) (Losverfahren),
 [ADR 0004](0004-karma-ausgleichsfaktor.md) (Karma), [ADR 0008](0008-losung-review-workflow.md)
-(Review-Workflow), [ADR 0062](0062-losung-verifizierbar-commit-reveal.md) (Commit-Reveal),
-[ADR 0063](0063-gemeinschaftsspiegel.md) (Anonymität), [ADR 0095](0095-auslastungsgraph-html-balken.md)
+(Review-Workflow), [ADR 0062](0062-verifizierbare-auslosung-commit-reveal.md) (Commit-Reveal),
+[ADR 0063](0063-gemeinschafts-spiegel-karma-transparenz.md) (Anonymität), [ADR 0095](0095-auslastungsgraph-html-balken.md)
 (HTML/CSS-Diagramme) · Gegenstück zu [ADR 0101](0101-entzerrungsphase-vor-losung.md).
 **Noch nicht umgesetzt.**
 
@@ -16,7 +16,7 @@ Proposed (2026-07-10) · nutzt [ADR 0003](0003-losverfahren-weighted-rsd.md) (Lo
 
 Nach der Ziehung liegt am `LotteryRun` bereits viel vor: `notices` (je Wunsch *warum*
 bekommen/nicht), strukturierter `log`, `karma_snapshot` (Karma **vor** dem Lauf),
-`n_allocations`/`n_losses`. Der Gemeinschaftsspiegel ([ADR 0063](0063-gemeinschaftsspiegel.md))
+`n_allocations`/`n_losses`. Der Gemeinschaftsspiegel ([ADR 0063](0063-gemeinschafts-spiegel-karma-transparenz.md))
 zeigt Auslastung/Karma, aber **keinen** Rückblick auf die **einzelne Losung**. Ziel:
 anonyme, verständliche Transparenz – was war begehrt, wie ging es aus, wie wirkte das
 Karma, was war konfliktfrei.
@@ -37,7 +37,7 @@ Anonyme Aggregate, **erst nach Bestätigung** (`confirmed=True`).
 - **„Leicht erfüllbar":** konfliktfreie Wünsche (ohne Ziehung erfüllt) vs. umkämpfte.
 - **Volumen & Verteilung:** Wünsche **gesamt** (Lostopf) + **Median je Mitglied**;
   erfüllte Wünsche **absolut** + **Median je Mitglied** (Verteilungs-Fairness).
-- **Verweise:** Fairness-Nachweis + Seed-Offenlegung ([ADR 0062](0062-losung-verifizierbar-commit-reveal.md)).
+- **Verweise:** Fairness-Nachweis + Seed-Offenlegung ([ADR 0062](0062-verifizierbare-auslosung-commit-reveal.md)).
 
 ## Architektur / Sicherheit / Performanz
 
@@ -46,9 +46,9 @@ Anonyme Aggregate, **erst nach Bestätigung** (`confirmed=True`).
 - **Service** `lottery_retrospective(run)` baut aus `notices`/`log`/Snapshots; **einmal
   bei Bestätigung** (`transaction.on_commit`), Ergebnis in `LotteryRun.retrospective`
   (JSON). Community-View rendert nur.
-- **Privacy/Security:** nur `confirmed=True`; **anonyme Aggregate** ([ADR 0063](0063-gemeinschaftsspiegel.md));
+- **Privacy/Security:** nur `confirmed=True`; **anonyme Aggregate** ([ADR 0063](0063-gemeinschafts-spiegel-karma-transparenz.md));
   keine Identität über das eigene Ergebnis hinaus; Seed-Offenlegung ohnehin erst
-  nach der Ziehung ([ADR 0062](0062-losung-verifizierbar-commit-reveal.md)).
+  nach der Ziehung ([ADR 0062](0062-verifizierbare-auslosung-commit-reveal.md)).
 - **UI/UX:** neuer Abschnitt „Rückblick Losung <Jahr>" im Gemeinschaftsspiegel –
   Balken (Erfüllungsquote), Heat (beliebteste Zeiten), Karma-Shift, „leicht vs.
   umkämpft", Volumen/Median – **HTML/CSS** ([ADR 0095](0095-auslastungsgraph-html-balken.md)),
