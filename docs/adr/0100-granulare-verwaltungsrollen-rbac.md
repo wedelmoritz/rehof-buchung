@@ -45,6 +45,14 @@ tiefe Mitglieds-/Anteils-/PII-Änderungen · Löschen/Anonymisieren · Reversion
 Config-Singletons (`ShopConfig`/`OpsConfig`/`NotificationSetting`/`TerminalConfig`,
 inkl. Terminal-Token/Roster) · Beds24-Import · Logs.
 
+**Carve-out Losverfahren-Domäne (ADR 0101):** Zwei **alltägliche, reversible**
+Wunsch-Operationen sind **nativ** (nicht Superuser), obwohl die Losung sonst dem
+Superuser vorbehalten bleibt: **stellvertretend einen Wunsch nachtragen**
+(`add_wish_for_member`, für Vergessene) und der **Wunsch-Export** der Verwaltung
+(`export_wishes`). Beide ändern nur Wunsch-Daten (kein Ziehen/Bestätigen, keine
+Regeln); ersteres auditiert wie `book_for_member`. Sie fallen damit klar auf die
+Seite „alltäglich & reversibel → native Verwaltung".
+
 ### 2. Zweischichtiges RBAC (Django-nativ)
 
 - **Atome = Permissions** je (Ressource × Aktion) – hier lebt Least Privilege.
@@ -59,8 +67,8 @@ inkl. Terminal-Token/Roster) · Beds24-Import · Logs.
 | Rolle (Group) | Permissions | Superset von |
 |---|---|---|
 | Hofladen-Verwaltung | `access_hofladen`, `send_broadcast` | – |
-| Buchungs-Verwaltung | `access_buchungen`, `send_broadcast` | – |
-| Buchungs-Verwaltung-Erweitert | + `book_for_member` | Buchungs-Verwaltung |
+| Buchungs-Verwaltung | `access_buchungen`, `export_wishes`, `send_broadcast` | – |
+| Buchungs-Verwaltung-Erweitert | + `book_for_member`, `add_wish_for_member` | Buchungs-Verwaltung |
 | Mitglieder-Verwaltung | `access_mitglieder`, `send_broadcast` | – |
 | Quartiers-Verwaltung | `access_quartiere`, `send_broadcast` | – |
 | Rechnungs-Verwaltung | `access_rechnungen`, `send_broadcast` | – |
@@ -70,6 +78,10 @@ inkl. Terminal-Token/Roster) · Beds24-Import · Logs.
 - **`access_quartiere`** deckt: Quartiere/Preise/Saison **+ Sperrzeiten** (Sperrzeiten
   gehören damit Buchungs- **∪** Quartiers-Verwaltung).
 - **`book_for_member`** = BL-Buchungen anlegen/ändern/stornieren (auditiert, s. §4).
+- **`export_wishes`** = Wunsch-Export der Verwaltung (vor/nach der Entzerrungsphase,
+  ADR 0101); bei **Buchungs-Verwaltung**, da Nachfrage-/Buchungsanalyse.
+- **`add_wish_for_member`** = Wunsch stellvertretend für Vergessene nachtragen
+  (auditiert, ADR 0101); bei **Buchungs-Verwaltung-Erweitert** (wie `book_for_member`).
 - **`send_broadcast`** (Rundnachricht) + Auslastung(read) sind **Querschnitt** → in
   jeder nativen Rolle enthalten.
 - **Mitglieder-Verwaltung ist bewusst „shallow"**: Freischalten (Onboarding), Anteil an
@@ -92,13 +104,15 @@ class VerwaltungAccess(models.Model):
         managed = False
         default_permissions = ()
         permissions = [
-            ("access_buchungen",  "Verwaltung: Buchungen/Reinigung/Sperrzeiten"),
-            ("book_for_member",   "Verwaltung: Buchungen für Mitglieder"),
-            ("access_mitglieder", "Verwaltung: Mitglieder freischalten/zuordnen"),
-            ("access_quartiere",  "Verwaltung: Quartiere/Sperrzeiten"),
-            ("access_rechnungen", "Verwaltung: Rechnungen/Kontoabgleich"),
-            ("access_hofladen",   "Verwaltung: Hofladen-Katalog"),
-            ("send_broadcast",    "Verwaltung: Rundnachricht senden"),
+            ("access_buchungen",   "Verwaltung: Buchungen/Reinigung/Sperrzeiten"),
+            ("book_for_member",    "Verwaltung: Buchungen für Mitglieder"),
+            ("export_wishes",      "Verwaltung: Wunsch-Export (Entzerrungsphase)"),
+            ("add_wish_for_member","Verwaltung: Wunsch für Mitglied nachtragen"),
+            ("access_mitglieder",  "Verwaltung: Mitglieder freischalten/zuordnen"),
+            ("access_quartiere",   "Verwaltung: Quartiere/Sperrzeiten"),
+            ("access_rechnungen",  "Verwaltung: Rechnungen/Kontoabgleich"),
+            ("access_hofladen",    "Verwaltung: Hofladen-Katalog"),
+            ("send_broadcast",     "Verwaltung: Rundnachricht senden"),
         ]
 ```
 
