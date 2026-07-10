@@ -74,6 +74,16 @@ def effective_role_perms(role: str) -> set[str]:
     return perms
 
 
+# Rechte, die die Legacy-Rolle „Verwaltung" **implizit** trägt – exakt die Summe
+# ihrer Ziel-Basis-Rollen (`LEGACY_MAPS_TO`). So behalten bestehende „Verwaltung"-
+# Konten ihren Zugriff auch dann, wenn `sync_roles` beim Deploy noch NICHT lief
+# (kein Zugriffsverlust) – und bekommen dennoch **keine** neuen Schreib-/Quartier-
+# Rechte (Least Privilege).
+LEGACY_PERMS: set[str] = {
+    p for role in LEGACY_MAPS_TO for p in effective_role_perms(role)
+}
+
+
 # --- Capability-Registry: je Verwaltungs-Seite EIN Eintrag --------------------
 # perm: Codename (str), Tupel = „eines davon genügt", None = „irgendeine Rolle".
 @dataclass(frozen=True)
@@ -106,6 +116,20 @@ def _full(codename: str) -> str:
     return f"{APP}.{codename}"
 
 
+def _is_legacy(user) -> bool:
+    """Ob `user` in der Legacy-Rolle „Verwaltung" ist – **einmal je Request/Instanz
+    gecacht** (die Nav prüft 10 Capabilities × mehrere Call-Sites; ohne Cache wäre das
+    ein Query pro Capability, N+1)."""
+    cached = getattr(user, "_rehof_legacy", None)
+    if cached is None:
+        cached = user.groups.filter(name=LEGACY_ROLE).exists()
+        try:
+            user._rehof_legacy = cached
+        except (AttributeError, TypeError):  # z. B. AnonymousUser
+            pass
+    return cached
+
+
 def is_any_verwaltung(user) -> bool:
     """Bereichs-Gate: Superuser, wer irgendeine native Verwaltungs-Capability hat,
     oder (Übergang) Mitglied der Legacy-Rolle „Verwaltung"."""
@@ -115,7 +139,7 @@ def is_any_verwaltung(user) -> bool:
         return True
     if any(user.has_perm(_full(p)) for p in ALL_PERMS):
         return True
-    return user.groups.filter(name=LEGACY_ROLE).exists()
+    return _is_legacy(user)
 
 
 def user_can(user, perm) -> bool:
@@ -128,7 +152,13 @@ def user_can(user, perm) -> bool:
     if perm is None:
         return is_any_verwaltung(user)
     perms = (perm,) if isinstance(perm, str) else tuple(perm)
-    return any(user.has_perm(_full(p)) for p in perms)
+    if any(user.has_perm(_full(p)) for p in perms):
+        return True
+    # Übergang: Legacy-Rolle „Verwaltung" deckt ihre Basis-Rechte auch ohne
+    # gelaufenes `sync_roles` ab (kein stilles Eskalieren über LEGACY_PERMS hinaus).
+    if any(p in LEGACY_PERMS for p in perms):
+        return _is_legacy(user)
+    return False
 
 
 def allowed_capabilities(user) -> list[Capability]:

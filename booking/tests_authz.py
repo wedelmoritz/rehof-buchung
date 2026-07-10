@@ -7,6 +7,7 @@ from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.http import HttpResponse
 from django.test import RequestFactory, TestCase
+from django.urls import reverse
 
 from booking import authz
 
@@ -91,3 +92,57 @@ class SyncRolesTests(TestCase):
         self.assertFalse(authz.user_can(u, authz.P_BOOK_FOR_MEMBER))
         self.assertFalse(authz.user_can(u, authz.P_ADD_WISH_FOR_MEMBER))
         self.assertFalse(authz.user_can(u, authz.P_QUARTIERE))
+
+
+class ViewAccessTests(TestCase):
+    """End-to-End: rollen-gegatete Verwaltungs-Seiten (403 fail-closed) und die
+    rollengefilterte Navigation (ADR 0100)."""
+
+    def setUp(self):
+        call_command("sync_roles", verbosity=0)
+
+    def _login(self, *roles):
+        u = User.objects.create_user(f"v{User.objects.count()}", password="x" * 12)
+        for r in roles:
+            u.groups.add(Group.objects.get(name=r))
+        self.client.force_login(u)
+        return u
+
+    def test_rechnungs_rolle_sieht_nur_finanzen(self):
+        self._login("Rechnungs-Verwaltung")
+        self.assertEqual(self.client.get(reverse("verw_rechnungen")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("verw_konto")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)   # None
+        self.assertEqual(self.client.get(reverse("verw_mitglieder")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("dashboard_products")).status_code, 403)
+
+    def test_mitglieder_rolle_getrennt(self):
+        self._login("Mitglieder-Verwaltung")
+        self.assertEqual(self.client.get(reverse("verw_mitglieder")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("verw_rechnungen")).status_code, 403)
+
+    def test_sperrzeiten_beide_rollen(self):
+        self._login("Quartiers-Verwaltung")
+        self.assertEqual(self.client.get(reverse("verw_sperrzeiten")).status_code, 200)
+        self.client.logout()
+        self._login("Buchungs-Verwaltung")
+        self.assertEqual(self.client.get(reverse("verw_sperrzeiten")).status_code, 200)
+
+    def test_nav_ist_rollengefiltert(self):
+        self._login("Rechnungs-Verwaltung")
+        html = self.client.get(reverse("dashboard")).content.decode()
+        self.assertIn(reverse("verw_rechnungen"), html)        # erlaubt → in der Nav
+        self.assertNotIn(reverse("verw_mitglieder"), html)     # verboten → nicht in der Nav
+
+    def test_export_je_kind_gegated(self):
+        self._login("Rechnungs-Verwaltung")
+        self.assertEqual(self.client.get("/verwaltung/export/rechnungen.csv").status_code, 200)
+        self.assertEqual(self.client.get("/verwaltung/export/buchungen.csv").status_code, 403)
+
+    def test_ohne_rolle_403(self):
+        # Mitglied (passiert das Aktivierungs-Gate) OHNE Verwaltungsrolle → 403.
+        from booking.models import Member
+        u = User.objects.create_user("plain", password="x" * 12)
+        Member.objects.create(user=u, display_name="Plain")
+        self.client.force_login(u)
+        self.assertEqual(self.client.get(reverse("verw_rechnungen")).status_code, 403)

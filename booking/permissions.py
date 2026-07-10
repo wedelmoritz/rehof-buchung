@@ -20,15 +20,13 @@ def is_admin(user) -> bool:
 
 
 def is_verwaltung(user) -> bool:
-    """Verwaltung = Mitglied der Gruppe „Verwaltung" ODER Admin (Superuser).
-    Berechtigt zum Verwaltungs-Dashboard – ändert aber Buchungen/Losung nicht.
-    Bewusst NICHT an `is_staff` gekoppelt: ein reines Staff-Flag (für ein
-    enges Backend-Recht) soll nicht das ganze Dashboard freischalten."""
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if user.is_superuser:
-        return True
-    return user.groups.filter(name=VERWALTUNG_GROUP).exists()
+    """Verwaltung = **irgendeine** native Verwaltungsrolle ODER Admin (Superuser)
+    ODER (Übergang) die Legacy-Rolle „Verwaltung" (ADR 0100). Reines **Bereichs-Gate**
+    fürs Dashboard; welche Unterseite jemand sehen/aufrufen darf, entscheidet die
+    Capability der Rolle (`booking.authz`, Durchsetzung per `requires_capability`).
+    Bewusst NICHT an `is_staff` gekoppelt."""
+    from . import authz
+    return authz.is_any_verwaltung(user)
 
 
 def ensure_verwaltung_group():
