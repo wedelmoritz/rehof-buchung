@@ -36,8 +36,9 @@
   </p>
   {% endif %}
   {% if review_phase %}
-  {# Entzerrungsphase (ADR 0101): Einreiche-Frist vorbei, Anpassen weiter möglich;
-     zwei Marken – Anzeige friert 24 h vor der Losung ein, Änderungen zählen bis dahin. #}
+  {% comment %}Entzerrungsphase (ADR 0101): Einreiche-Frist vorbei, Anpassen weiter
+  möglich; zwei Marken – Anzeige friert 24 h vor der Losung ein, Änderungen zählen
+  bis dahin.{% endcomment %}
   <p class="msg {% if display_frozen %}info{% else %}warn{% endif %}" style="margin-top:0">
     🔀 <strong>Entzerrungsphase</strong> – die Einreiche-Frist ist vorbei, aber du kannst
     deine Wünsche noch <strong>anpassen</strong> (zurückziehen &amp; neu einreichen), um
