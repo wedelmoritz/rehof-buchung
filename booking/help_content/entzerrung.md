@@ -2,7 +2,7 @@
 
 Vor der Auslosung gibt es eine eigene **Entzerrungsphase**. Sie beginnt mit der **Einreiche-Frist** (rund $review_days Tage vor der Losung) und endet mit der Ziehung. In dieser Zeit siehst du deine **realistische Chance** und kannst deine Wünsche gezielt **anpassen**.
 
-**Warum gibt es sie?** Wenn sich alle auf dieselben Zeiten drängen, gewinnen wenige und viele gehen leer aus. Sieht jede:r früh, wo es eng wird, weichen einige freiwillig aus. So gibt es **weniger unnötige Losungen** und am Ende **mehr erfüllte Wünsche** – ohne dass jemand benachteiligt wird. Für unsere Genossenschaft ist dieser Schritt neu; er ersetzt kein bewährtes Verfahren, sondern macht die vorhandene Nachfrage nur früher sichtbar.
+**Warum gibt es sie?** Wenn sich alle auf dieselben Zeiten drängen, gewinnen wenige und viele gehen leer aus. Sieht jede:r früh, wo es eng wird, weichen einige freiwillig aus. So gibt es **weniger unnötige Losungen** und am Ende **mehr erfüllte Wünsche** – ohne dass jemand benachteiligt wird.
 
 ## Zwei Fristen, klar getrennt
 
