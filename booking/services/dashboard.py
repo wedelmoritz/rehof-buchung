@@ -20,6 +20,7 @@ __all__ = [
     'CLEANING_COLUMNS', 'cleaning_rows', 'bookings_text', 'cleaning_text',
     'notify_admins_upcoming', 'users_without_membership',
     'onboard_as_member', 'onboard_as_terminal', 'deactivate_account',
+    'set_member_passive',
     'ensure_personal_membership', 'run_scheduled_notifications',
     'send_status_warnings', 'send_bookings_overview', 'send_occupancy_overview',
     'send_overdue_overview', 'send_lottery_reminder', 'notify_booking_activity',
@@ -197,6 +198,25 @@ def deactivate_account(user):
     return user
 
 
+def set_member_passive(member, passive: bool, *, on_date=None):
+    """Mitglied **passiv** oder wieder **aktiv** schalten (ADR 0087) – die flache,
+    reversible Status-Aktion der Mitglieder-Verwaltung. Passiv setzt `passive_from`
+    auf heute (Login/Hofladen bleiben, keine neuen Buchungen/Wünsche); aktiv löscht
+    das Datum. **Ausgeschiedene** Mitglieder bleiben unberührt – das Ausscheiden
+    (mit dem Lösch-Workflow für Zukunftsbuchungen) ist bewusst dem Backend
+    vorbehalten. Idempotent; gibt zurück, ob sich etwas geändert hat."""
+    from datetime import date as _date
+    if member is None or member.status == "excluded":
+        return False
+    today = on_date or _date.today()
+    target = today if passive else None
+    if member.passive_from == target:
+        return False
+    member.passive_from = target
+    member.save(update_fields=["passive_from"])
+    return True
+
+
 def users_without_membership():
     """Aktive Login-Konten, die **noch keinem Mitglieds-Anteil** (`Share`) zugeordnet
     sind – also die frisch registrierten Benutzer, die die Verwaltung im Backend noch
@@ -207,9 +227,13 @@ def users_without_membership():
     from django.contrib.auth.models import User
     from django.db.models import Count
     from ..permissions import VERWALTUNG_GROUP
+    from .. import authz
+    # Alle Verwaltungs-Rollen (Legacy „Verwaltung" + native Rollen, ADR 0100) brauchen
+    # kein Buchungs-Profil und dürfen daher nicht als „freizuschalten" erscheinen.
+    verw_groups = [VERWALTUNG_GROUP, *authz.ROLES]
     return (
         User.objects.filter(is_active=True, is_superuser=False, is_staff=False)
-        .exclude(groups__name=VERWALTUNG_GROUP)
+        .exclude(groups__name__in=verw_groups)
         .exclude(member__is_external=True)
         .annotate(_n_shares=Count("member__shares"))
         .filter(_n_shares=0)

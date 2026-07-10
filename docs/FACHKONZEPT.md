@@ -442,7 +442,10 @@ und **additiv** sind (mehrere Rollen = Summe der Rechte):
 - **Buchungs-Verwaltung-Erweitert** – zusätzlich Buchungen **im Namen von
   Mitgliedern** anlegen/ändern und Wünsche nachtragen (auditiert).
 - **Mitglieder-Verwaltung** – freischalten, Anteile zuordnen, passiv/aktiv,
-  Kontaktliste.
+  Kontaktliste. **Nativ verfügbar** unter „Verwaltung → Mitglieder"
+  (`/verwaltung/mitglieder/`): Onboarding-Warteschlange (als Mitglied · nur Hofladen ·
+  deaktivieren) und der Status-Umschalter passiv/aktiv. Ausscheiden, PII- und
+  Anteils-Umbauten sowie Löschen bleiben bewusst dem Backend vorbehalten.
 - **Quartiers-Verwaltung** – Quartiere/Preise/Saison, Sperrzeiten.
 - **Rechnungs-Verwaltung** – Rechnungen, Kontoabgleich, Mahnungen.
 

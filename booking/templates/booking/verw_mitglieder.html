@@ -1,8 +1,89 @@
 {% extends "booking/verw_base.html" %}
 {% block verw_title %}Mitglieder · Verwaltung{% endblock %}
-{% block verw_h1 %}Mitglieder &amp; Kontakt{% endblock %}
+{% block verw_h1 %}Mitglieder{% endblock %}
 
 {% block verw_body %}
+{# Onboarding-Warteschlange: frisch registrierte Konten ohne Mitglieds-Anteil (ADR 0100). #}
+<div class="card">
+  <div class="sec-head">
+    <h2 style="margin:0">Neue Konten freischalten</h2>
+    <span class="spacer"></span>
+    {% if pending %}<span class="tag warn">{{ pending|length }} offen</span>{% endif %}
+  </div>
+  {% if pending %}
+  <p class="muted" style="margin:.2rem 0 .9rem">Diese Konten haben sich registriert,
+    sind aber noch keinem Mitglieds-Anteil zugeordnet – sie können noch nicht buchen.
+    Ordne sie mit wenigen Klicks zu.</p>
+  {% for u in pending %}
+  <div class="ob-card">
+    <div class="ob-head">
+      <span class="ob-name">{{ u.suggested_name }}</span>
+      <span class="ob-meta">Benutzername: {{ u.username }} ·
+        {{ u.email|default:"ohne E-Mail" }} · registriert {{ u.date_joined|date:"d.m.Y" }}</span>
+    </div>
+    <div class="ob-paths">
+      {# Weg 1: Mitglied #}
+      <form method="post" class="ob-path">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ u.pk }}">
+        <input type="hidden" name="action" value="member">
+        <input type="hidden" name="q" value="{{ q }}">
+        <h3>① Als Mitglied</h3>
+        <p class="ob-hint">Kann Quartiere buchen. Ordnet die Person mit einem
+          Tage-Anteil einem Mitglieds-Anteil zu.</p>
+        <label class="ob-f">Anzeigename
+          <input type="text" name="display_name" value="{{ u.suggested_name }}" required></label>
+        <label class="ob-f">Mitglieds-Anteil
+          <select name="membership">
+            <option value="new">➕ Neuen Anteil anlegen (Voll-Mitglied, 50 Tage)</option>
+            {% for ms in memberships %}<option value="{{ ms.pk }}">{{ ms }} – {{ ms.allocated_budget }}/{{ ms.annual_night_budget }} vergeben{% if ms.free_nights > 0 %}, noch {{ ms.free_nights }} frei (Tandem){% else %}, voll{% endif %}</option>{% endfor %}
+          </select></label>
+        <label class="ob-f ob-newlabel">Bezeichnung des neuen Anteils
+          <input type="text" name="new_label" placeholder="z. B. {{ u.suggested_name }}"></label>
+        <label class="ob-f">Tage/Jahr
+          <input type="number" name="night_budget" value="{{ default_budget }}" min="0" step="1"></label>
+        <p class="ob-hint"><strong>Voll-Mitglied:</strong> neuen Anteil wählen, volle
+          Tage lassen. <strong>Tandem:</strong> einen Anteil mit „noch frei“ wählen und
+          nur den freien Teil eintragen. Wunsch-Tage = die Hälfte davon (automatisch).</p>
+        <button type="submit" class="btn small">Als Mitglied zuordnen</button>
+      </form>
+
+      {# Weg 2: Hofladen / Terminal #}
+      <form method="post" class="ob-path">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ u.pk }}">
+        <input type="hidden" name="action" value="terminal">
+        <input type="hidden" name="q" value="{{ q }}">
+        <h3>② Nur Hofladen / Terminal</h3>
+        <p class="ob-hint">Hofladen-Gast (kein Buchungs-Mitglied). Darf am Vor-Ort-
+          Terminal einkaufen; die <strong>PIN</strong> setzt die Person selbst im Profil.</p>
+        <label class="ob-f">Anzeigename
+          <input type="text" name="display_name" value="{{ u.suggested_name }}" required></label>
+        <button type="submit" class="btn small sage">Für Hofladen/Terminal freischalten</button>
+      </form>
+
+      {# Weg 3: Unbekannt #}
+      <form method="post" class="ob-path ob-end">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ u.pk }}">
+        <input type="hidden" name="action" value="deactivate">
+        <input type="hidden" name="q" value="{{ q }}">
+        <h3>③ Unbekannt?</h3>
+        <p class="ob-hint">Wenn nicht klar ist, wer das ist. Sperrt den Login
+          (reversibel im Backend). Endgültiges Löschen bleibt dem Backend vorbehalten.</p>
+        <button type="submit" class="btn small ghost"
+                data-confirm="Konto {{ u.suggested_name }} deaktivieren (Login sperren)?">Konto deaktivieren</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted" style="margin:.2rem 0 0">✅ Alles erledigt – aktuell keine offenen
+    neuen Konten.</p>
+  {% endif %}
+</div>
+
+{# Mitgliederliste mit Status + Kontakt (#65) und flacher Status-Aktion. #}
 <div class="card monthbar">
   <form method="get" data-ajax class="inline-form" style="flex:1 1 auto">
     <label style="flex:1 1 16rem">Suchen
@@ -27,17 +108,34 @@
   {% if members %}
   <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>Name</th><th>E-Mail</th><th>Telefon</th><th>Anschrift</th><th>Anteil(e)</th><th>Tage/Jahr</th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>E-Mail</th><th>Telefon</th><th>Anteil(e)</th><th>Tage/Jahr</th><th></th></tr></thead>
       <tbody>
         {% for m in members %}
         <tr>
           <td>{% if is_admin %}<a href="/admin/auth/user/{{ m.user_id }}/change/">{{ m.display_name }}</a>{% else %}{{ m.display_name }}{% endif %}
             {% if m.legal_name and m.legal_name != m.display_name %}<br><span class="muted">{{ m.legal_name }}</span>{% endif %}</td>
+          <td>{% if m.status == "excluded" %}<span class="tag danger">ausgeschieden</span>{% elif m.status == "passive" %}<span class="tag warn">passiv</span>{% else %}<span class="tag ok">aktiv</span>{% endif %}</td>
           <td>{% if m.user.email %}<a href="mailto:{{ m.user.email }}">{{ m.user.email }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
           <td>{% if m.phone %}<a href="tel:{{ m.phone }}">{{ m.phone }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
-          <td>{% if m.street or m.city %}{{ m.street }}{% if m.street and m.city %}, {% endif %}{{ m.zip_code }} {{ m.city }}{% else %}<span class="muted">—</span>{% endif %}</td>
           <td>{% for s in m.shares.all %}{{ s.membership.eg_number|default:s.membership.label }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">—</span>{% endfor %}</td>
           <td>{{ m.annual_night_budget }}</td>
+          <td>
+            {% if m.status == "active" %}
+            <form method="post" class="inline" data-confirm="{{ m.display_name }} passiv setzen? Kann dann nicht mehr neu buchen (Hofladen/Login bleiben).">{% csrf_token %}
+              <input type="hidden" name="action" value="passive">
+              <input type="hidden" name="member_id" value="{{ m.id }}">
+              <input type="hidden" name="q" value="{{ q }}">
+              <button class="btn small ghost" type="submit">passiv setzen</button>
+            </form>
+            {% elif m.status == "passive" %}
+            <form method="post" class="inline">{% csrf_token %}
+              <input type="hidden" name="action" value="active">
+              <input type="hidden" name="member_id" value="{{ m.id }}">
+              <input type="hidden" name="q" value="{{ q }}">
+              <button class="btn small" type="submit">wieder aktiv</button>
+            </form>
+            {% else %}<span class="muted sm">im Backend</span>{% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -45,6 +143,29 @@
   </div>
   {% else %}<p class="muted">Keine Mitglieder gefunden{% if q %} zu „{{ q }}“{% endif %}.</p>{% endif %}
   <p class="muted sm" style="margin:.7rem 0 0">Telefon und weitere Kontaktdaten pflegt
-    das Mitglied selbst im Profil.</p>
+    das Mitglied selbst im Profil. Ausscheiden, PII- und Anteils-Umbauten laufen über
+    das Backend{% if not is_admin %} (Admin){% endif %}.</p>
 </div>
+
+<style>
+  .ob-card { border:1px solid var(--line); border-left:4px solid var(--accent);
+    border-radius:14px; margin:0 0 1rem; overflow:hidden; background:var(--card); }
+  .ob-head { display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap;
+    padding:.7rem 1rem; background:var(--accent-soft); }
+  .ob-name { font-weight:800; }
+  .ob-meta { color:var(--muted); font-size:.8rem; }
+  .ob-paths { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:0; }
+  .ob-path { padding:.9rem 1rem; border-top:1px solid var(--line); }
+  .ob-path + .ob-path { border-left:1px solid var(--line); }
+  .ob-path h3 { margin:0 0 .35rem; font-size:.95rem; font-weight:800; color:var(--ink); }
+  .ob-hint { color:var(--muted); font-size:.8rem; margin:0 0 .6rem; line-height:1.5; }
+  .ob-f { display:block; font-size:.78rem; color:var(--muted); margin:0 0 .55rem; }
+  .ob-f input, .ob-f select { display:block; width:100%; box-sizing:border-box;
+    margin-top:.2rem; padding:.45rem .6rem; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink); font:inherit; }
+  /* „Bezeichnung" nur zeigen, wenn „Neuen Anteil anlegen" gewählt ist – rein per CSS
+     (:has), CSP-konform. Browser ohne :has zeigen es immer (harmloser Fallback). */
+  .ob-newlabel { display:none; }
+  .ob-path:has(select[name="membership"] option[value="new"]:checked) .ob-newlabel { display:block; }
+</style>
 {% endblock %}
