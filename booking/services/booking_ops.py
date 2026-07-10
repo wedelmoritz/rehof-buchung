@@ -25,6 +25,7 @@ __all__ = [
     'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
     'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
     'short_notice_days', 'is_short_notice', 'notify_member_of_staff_booking',
+    'book_for_member',
 ]
 
 
@@ -48,6 +49,78 @@ def notify_member_of_staff_booking(alloc: Allocation, action: str) -> None:
         + ("" if action == "cancel" else
            "Du findest sie unter „Meine Buchungen“ in der App.\n\n")
         + "Bei Fragen wende dich bitte an die Betriebsleitung.\n\nViele Grüße\nRe:Hof")
+
+@transaction.atomic
+def book_for_member(
+    actor, member: Member, quarter: Quarter, start: date, end: date,
+    persons: int = 1, *, override: bool = False, reason: str = "",
+    companions: str = "", special_requests: str = "", membership_id=None,
+) -> tuple[Allocation | None, str | None]:
+    """Buchung, die die **Verwaltung im Namen eines Mitglieds** anlegt (ADR 0100).
+
+    **Standard (strikt):** dieselben Regeln wie bei einer Eigenbuchung des Mitglieds
+    (Tage-Budget, Vorlauf, Mindestnächte, nur aktive Mitglieder) – über
+    `book_spontaneous`.
+
+    **`override=True` (bewusste BL-Ausnahme):** die genannten Soft-Regeln werden
+    übergangen (Überbuchung/passiv/kurzfristig erlaubt); erzwungen bleibt allein die
+    **Datenintegrität** über `Allocation.full_clean` (gültiger Zeitraum, Personen-
+    Rahmen laut Richtlinie, **keine Doppelbuchung**). Der Grund wird als interne Notiz
+    protokolliert.
+
+    In beiden Fällen wird die Buchung dem `actor` als Urheber zugeordnet
+    (`created_by`, ADR 0094) und das Mitglied benachrichtigt. **Defense in depth:**
+    die Capability `book_for_member` wird hier zusätzlich geprüft (nicht nur in der
+    View). Gibt `(Allocation, None)` bzw. `(None, Fehlermeldung)` zurück."""
+    from django.core.exceptions import PermissionDenied, ValidationError
+    from .. import authz
+    if not authz.user_can(actor, authz.P_BOOK_FOR_MEMBER):
+        raise PermissionDenied("Keine Berechtigung für Buchungen im Namen von Mitgliedern.")
+    if member is None or member.is_external:
+        return None, "Kein gültiges Mitglied gewählt."
+    reason = V.strip_controls(reason, max_len=200)
+
+    if not override:
+        alloc, err = book_spontaneous(
+            member, quarter, start, end, persons, companions=companions,
+            special_requests=special_requests, membership_id=membership_id)
+        if err:
+            return None, err
+    else:
+        nights = (end - start).days
+        if nights <= 0:
+            return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+        persons = int(persons or 0)
+        if persons < 1:
+            return None, "Bitte mindestens 1 Person angeben."
+        # Quartier-Zeile sperren (serialisiert Buchungen desselben Quartiers gegen
+        # Doppelbuchung; unter SQLite ein No-Op – nur für Tests).
+        Quarter.objects.select_for_update().filter(pk=quarter.pk).first()
+        alloc = Allocation(
+            member=member, quarter=quarter, start=start, end=end, persons=persons,
+            source="spontaneous", membership=member.membership_for(membership_id),
+            companions=V.strip_controls(companions, max_len=255),
+            special_requests=V.strip_controls(special_requests, max_len=255))
+        try:
+            # Datenintegrität erzwingen (v. a. keine Doppelbuchung), Soft-Regeln aus.
+            alloc.full_clean(exclude=["period", "created_by", "membership"])
+        except ValidationError as exc:
+            msgs = [m for lst in exc.message_dict.values() for m in lst]
+            return None, " ".join(msgs) or "Buchung nicht möglich."
+        alloc.save()
+
+    # Audit (created_by) + optional Ausnahme-Notiz + Benachrichtigung des Mitglieds.
+    fields = ["created_by"]
+    alloc.created_by = actor
+    if override:
+        note = f"BL-Ausnahme (Regeln übergangen): {reason}" if reason \
+            else "BL-Ausnahme (Regeln übergangen)"
+        alloc.internal_note = note[:500]
+        fields.append("internal_note")
+    alloc.save(update_fields=fields)
+    notify_member_of_staff_booking(alloc, "new")
+    return alloc, None
+
 
 @transaction.atomic
 def book_spontaneous(

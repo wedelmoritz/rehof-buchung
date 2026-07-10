@@ -1476,13 +1476,58 @@ def dashboard(request):
 
 @authz.requires_capability("buchungen")
 def verw_buchungen(request):
-    """Unterseite: anstehende Buchungen des Monats (Ansehen/Export/Versand)."""
+    """Unterseite: anstehende Buchungen des Monats (Ansehen/Export/Versand). Trägt
+    für die **erweiterte** Buchungs-Verwaltung zusätzlich das Formular „Buchung für
+    Mitglied anlegen" (BL-Buchung, ADR 0100)."""
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
         return _verw_post(request, year, month, m_from, m_to, only_cleaning)
     ctx = _verw_nav_ctx(request, today, year, month)
     ctx["arrivals"] = list(svc.arrivals_in_range(m_from, m_to))
+    # BL-Buchung (nur mit Recht book_for_member): Mitglieds- und Quartierwahl.
+    if authz.user_can(request.user, authz.P_BOOK_FOR_MEMBER):
+        ctx["can_book_for_member"] = True
+        ctx["bl_members"] = list(Member.objects.filter(is_external=False)
+                                 .select_related("user").order_by("display_name"))
+        ctx["bl_quarters"] = list(Quarter.objects.order_by("sort_order", "name"))
     return render(request, "booking/verw_buchungen.html", ctx)
+
+
+@authz.requires(authz.P_BOOK_FOR_MEMBER)
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
+def verw_book_for_member(request):
+    """Legt eine Buchung im Namen eines Mitglieds an (BL-Buchung, ADR 0100). Strikt
+    wie eine Eigenbuchung; mit „Regeln übergehen" als auditierte BL-Ausnahme. Das
+    Recht `book_for_member` wird hier UND im Service geprüft (Defense in depth)."""
+    if request.method != "POST":
+        return redirect("verw_buchungen")
+    today, year, month, *_ = _verw_month(request)
+    back = f"{reverse('verw_buchungen')}?year={year}&month={month}"
+    m = Member.objects.filter(pk=request.POST.get("member_id"),
+                              is_external=False).first()
+    q = Quarter.objects.filter(pk=request.POST.get("quarter_id")).first()
+    start = _parse_date(request.POST.get("start"))
+    end = _parse_date(request.POST.get("end"))
+    if not (m and q and start and end):
+        messages.error(request, "Bitte Mitglied, Quartier, Anreise und Abreise wählen.")
+        return redirect(back)
+    try:
+        persons = int(request.POST.get("persons") or 1)
+    except ValueError:
+        persons = 0
+    override = request.POST.get("override") == "on"
+    reason = (request.POST.get("reason") or "").strip()
+    alloc, err = svc.book_for_member(
+        request.user, m, q, start, end, persons, override=override, reason=reason,
+        special_requests=(request.POST.get("special_requests") or "").strip())
+    if err:
+        messages.error(request, err)
+    else:
+        note = " (BL-Ausnahme)" if override else ""
+        messages.success(request, f"Buchung für {m.display_name} angelegt{note}: "
+                         f"{q.name}, {start:%d.%m.%Y}–{end:%d.%m.%Y}. Das Mitglied "
+                         "wurde benachrichtigt.")
+    return redirect(back)
 
 
 @authz.requires_capability("reinigung")

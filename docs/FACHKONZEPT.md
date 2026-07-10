@@ -440,7 +440,12 @@ und **additiv** sind (mehrere Rollen = Summe der Rechte):
 - **Buchungs-Verwaltung** – Buchungen sehen/annotieren, Reinigung, Sperrzeiten,
   Auslastung, Wunsch-Export.
 - **Buchungs-Verwaltung-Erweitert** – zusätzlich Buchungen **im Namen von
-  Mitgliedern** anlegen/ändern und Wünsche nachtragen (auditiert).
+  Mitgliedern** anlegen/ändern und Wünsche nachtragen (auditiert). **Nativ
+  verfügbar:** „Buchung für ein Mitglied anlegen" unter „Verwaltung → Buchungen" –
+  standardmäßig mit denselben Regeln wie eine Eigenbuchung, mit bewusstem Häkchen
+  „Regeln übergehen" als **auditierte BL-Ausnahme** (nur Doppelbuchung bleibt
+  gesperrt; Grund wird als interne Notiz protokolliert). Das Mitglied wird über jede
+  BL-Buchung benachrichtigt (`created_by`/`by_management`, ADR 0094).
 - **Mitglieder-Verwaltung** – freischalten, Anteile zuordnen, passiv/aktiv,
   Kontaktliste.
 - **Quartiers-Verwaltung** – Quartiere/Preise/Saison, Sperrzeiten.
