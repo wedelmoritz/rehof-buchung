@@ -74,3 +74,62 @@ class DemandGridTests(TestCase):
         self.client.force_login(a.user)
         html = self.client.get(reverse("wishlist")).content.decode()
         self.assertIn("Nachfrage-Übersicht", html)
+
+
+class CoordinationTests(TestCase):
+    def setUp(self):
+        self.cls = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(name="Turm", eq_class=self.cls,
+                                        min_occupancy=1, max_occupancy=4)
+        self.q2 = Quarter.objects.create(name="Hütte", eq_class=self.cls,
+                                         min_occupancy=1, max_occupancy=4)
+        self.period = _period()
+        self.a = _member("anna")
+        self.a.phone = "0170 111"
+        self.a.save(update_fields=["phone"])
+        self.b = _member("bea")
+        self.b.phone = "0170 222"
+        self.b.save(update_fields=["phone"])
+
+    def _wish(self, m, q, s, e):
+        svc.add_wish(m, self.period, q, s, e)
+        svc.submit_wishlist(m, self.period)
+
+    def test_ueberlappende_nachbarn_sichtbar_mit_telefon(self):
+        self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
+        self._wish(self.b, self.q, date(NEXT, 5, 8), date(NEXT, 5, 12))  # überlappt
+        rows = svc.wish_neighbors(self.period, self.a)
+        self.assertEqual(len(rows), 1)
+        names = [n["name"] for n in rows[0]["neighbors"]]
+        self.assertIn("bea", names)
+        self.assertEqual(rows[0]["neighbors"][0]["phone"], "0170 222")
+
+    def test_opt_out_verbirgt(self):
+        self.b.coordination_opt_out = True
+        self.b.save(update_fields=["coordination_opt_out"])
+        self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
+        self._wish(self.b, self.q, date(NEXT, 5, 8), date(NEXT, 5, 12))
+        rows = svc.wish_neighbors(self.period, self.a)
+        self.assertEqual(rows, [])   # bea ausgeblendet → kein Nachbar
+
+    def test_nicht_ueberlappend_kein_nachbar(self):
+        self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 6))
+        self._wish(self.b, self.q, date(NEXT, 5, 20), date(NEXT, 5, 24))  # disjunkt
+        self.assertEqual(svc.wish_neighbors(self.period, self.a), [])
+
+    def test_anderes_quartier_kein_nachbar(self):
+        self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
+        self._wish(self.b, self.q2, date(NEXT, 5, 8), date(NEXT, 5, 12))
+        self.assertEqual(svc.wish_neighbors(self.period, self.a), [])
+
+    def test_profil_opt_out_umschalten(self):
+        self.client.force_login(self.a.user)
+        # Häkchen NICHT gesetzt → opt_out = True (nicht sichtbar)
+        self.client.post(reverse("profile"), {"action": "notify_prefs"})
+        self.a.refresh_from_db()
+        self.assertTrue(self.a.coordination_opt_out)
+        # Häkchen gesetzt → wieder sichtbar
+        self.client.post(reverse("profile"),
+                         {"action": "notify_prefs", "coordination_visible": "on"})
+        self.a.refresh_from_db()
+        self.assertFalse(self.a.coordination_opt_out)

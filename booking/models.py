@@ -235,6 +235,12 @@ class Member(models.Model):
         help_text="Wenn aus, erscheint das Mitglied für andere nicht als "
                   "Tausch-Partner und kann keine Tausch-Anfrage erhalten (ADR 0078). "
                   "Die reine Anzeige „wer ist zur gleichen Zeit da“ bleibt.")
+    coordination_opt_out = models.BooleanField(
+        "Absprachen-Sichtbarkeit abgeschaltet", default=False,
+        help_text="In der Entzerrungsphase vor der Losung sind Mitgliedern mit einem "
+                  "überlappenden Wunsch Name + Telefon sichtbar, damit sie sich privat "
+                  "absprechen können (Standard: sichtbar, ADR 0101). Wenn AN, erscheint "
+                  "dieses Mitglied dort NICHT (1-Klick-Opt-out im Profil).")
     # Profil-/Rechnungsdaten (vom Nutzer selbst pflegbar; nur eigene Sicht)
     legal_name = models.CharField("Vollständiger Name", max_length=160, blank=True)
     phone = models.CharField(

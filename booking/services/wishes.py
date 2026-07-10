@@ -14,7 +14,48 @@ from .slots import _in_season_range, wish_rule_error
 __all__ = [
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
     'delete_wish', 'submit_wishlist', 'withdraw_wishlist', 'wishes_editable',
+    'wish_neighbors',
 ]
+
+
+def wish_neighbors(period, member) -> list[dict]:
+    """**Wunsch-Nachbarn** für private Absprachen (ADR 0101): für jeden EINGEREICHTEN
+    Wunsch des Mitglieds die anderen Mitglieder mit einem **überlappenden** eingereichten
+    Wunsch fürs **selbe Quartier** – mit Anzeigename **+ Telefon**, damit man sich
+    außerhalb der App abstimmen kann.
+
+    **Datenschutz (ADR 0101, DSGVO Art. 5/25):** Es erscheinen NUR Mitglieder, die die
+    Sichtbarkeit nicht abgeschaltet haben (`coordination_opt_out=False`, Default sichtbar);
+    nur die zwei Felder (Name/Telefon), nur überlappende Wünsche. Nur während der
+    Entzerrungsphase aufzurufen (die View steuert Status/Login). Zwei DB-Abfragen.
+
+    Gibt `[{"wish": Wish, "neighbors": [{"name","phone","start","end"}]}]`."""
+    mine = list(Wish.objects.filter(period=period, member=member, submitted=True)
+                .select_related("quarter").order_by("priority", "id"))
+    if not mine:
+        return []
+    others = list(
+        Wish.objects.filter(period=period, submitted=True)
+        .exclude(member=member)
+        .select_related("member", "member__user"))
+    out: list[dict] = []
+    for w in mine:
+        neigh: list[dict] = []
+        seen: set = set()
+        for o in others:
+            if o.quarter_id != w.quarter_id:
+                continue
+            if not (o.start < w.end and o.end > w.start):
+                continue
+            om = o.member
+            if om.coordination_opt_out or om.id in seen:
+                continue
+            seen.add(om.id)
+            neigh.append({"name": om.display_name, "phone": om.phone,
+                          "start": o.start, "end": o.end})
+        if neigh:
+            out.append({"wish": w, "neighbors": neigh})
+    return out
 
 
 def wishes_editable(period: BookingPeriod, member: Member) -> tuple[bool, str | None]:

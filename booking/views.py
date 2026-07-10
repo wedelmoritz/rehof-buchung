@@ -881,6 +881,11 @@ def wishlist(request):
         "memberships": member.memberships if member else [],
         "wishes": wishes,
         "wishlist_submitted": wishlist_submitted,
+        # Wunsch-Nachbarn für private Absprachen (ADR 0101): nur bei eingereichten
+        # Wünschen; nur Mitglieder, die die Sichtbarkeit nicht abgeschaltet haben.
+        "wish_neighbors": (svc.wish_neighbors(period, member)
+                           if member and period and wishlist_submitted else []),
+        "coordination_opt_out": bool(member and member.coordination_opt_out),
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "wish_cap": wish_cap,
@@ -1027,7 +1032,12 @@ def profile(request):
             # Tausch-Anfragen an/aus (#8/ADR 0078): steuert, ob andere Mitglieder
             # dieses Konto als Tausch-Partner anfragen dürfen.
             member.accept_swap_requests = bool(request.POST.get("accept_swap_requests"))
-            member.save(update_fields=["email_opt_in", "accept_swap_requests"])
+            # Absprachen-Sichtbarkeit in der Entzerrungsphase (ADR 0101): Checkbox
+            # „sichtbar sein" → opt_out = NICHT angehakt. Default sichtbar.
+            member.coordination_opt_out = not bool(
+                request.POST.get("coordination_visible"))
+            member.save(update_fields=["email_opt_in", "accept_swap_requests",
+                                       "coordination_opt_out"])
             messages.success(request, "Einstellungen gespeichert.")
             return redirect("profile")
         elif action == "terminal_prefs":
