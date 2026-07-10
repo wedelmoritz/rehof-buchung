@@ -22,8 +22,91 @@ __all__ = [
     'run_period_lottery', '_restore_factors', 'confirm_lottery',
     'rollback_lottery', '_build_lottery_notices', 'run_fairness_simulation',
     'ensure_seed_commit', 'verify_period_lottery', 'send_wish_reminders',
-    'lottery_retrospective',
+    'lottery_retrospective', 'wish_prognosis', 'PROGNOSIS_RUNS',
 ]
+
+# Anzahl Monte-Carlo-Trockenläufe für die Wunsch-Prognose (ADR 0101). 200 ist für
+# ~50 Mitglieder/~100 Wünsche günstig und liefert stabile Bänder.
+PROGNOSIS_RUNS = 200
+
+
+def _prognosis_inputs(period):
+    """Baut die reinen Los-Eingaben für die Prognose (ADR 0101): alle Mitglieder als
+    Parteien (Karma!), aktive Quartiere und die **eingereichten**, saisonal buchbaren
+    Wünsche buchungsberechtigter Mitglieder – identisch zur echten Ziehung
+    (`run_period_lottery`), damit die Schätzung dieselben Regeln sieht. Gibt
+    `(parties, quarters_payload, wishes_payload, submitted_wishes, rule_check)`."""
+    members = list(Member.objects.filter(is_external=False))
+    quarters = list(Quarter.objects.filter(active=True))
+    subs = [
+        w for w in Wish.objects.filter(period=period, submitted=True)
+        .select_related("member", "quarter")
+        if _in_season_range(w.quarter, w.start, w.end) and w.member.can_book
+    ]
+    parties = [
+        L.Party(id=str(m.id), name=m.display_name, factor=m.factor,
+                wish_night_budget=m.wish_night_budget)
+        for m in members
+    ]
+    q_payload = [
+        L.Quarter(id=str(q.id), name=q.name, eq_class=str(q.eq_class_id))
+        for q in quarters
+    ]
+    w_payload = [
+        L.Wish(party_id=str(w.member_id), priority=w.priority,
+               quarter_id=str(w.quarter_id), start=w.start, end=w.end,
+               rule_group=str(w.membership_id) if w.membership_id else str(w.member_id))
+        for w in subs
+    ]
+    policy = BookingPolicy.get_solo()
+    if subs:
+        _seasons = _materialized_seasons(min(w.start for w in subs),
+                                         max(w.end for w in subs))
+    else:
+        _seasons = []
+
+    def _rule_check(_pid, start, end, existing):
+        stays = [R.Stay(start=s, end=e) for (s, e) in existing]
+        return R.validate_booking(_seasons, policy.default_min_nights,
+                                  start, end, stays)
+
+    return parties, q_payload, w_payload, subs, _rule_check
+
+
+def wish_prognosis(period) -> dict:
+    """Gewinn-Prognose je **eingereichtem** Wunsch der Periode (ADR 0101): schätzt per
+    Monte-Carlo-Trockenlauf der echten RSD die Chance und ordnet sie einem
+    qualitativen Band zu. Gibt `{wish_id: {"prob": <0-100>, "band": good|open|tight}}`.
+
+    **Precompute/Cache:** kurz gecacht (10 Min), der Cache-Schlüssel enthält eine
+    Signatur des eingereichten Wunsch-Stands (Quartier/Zeitraum/Priorität) – ändert
+    jemand seine Wünsche, wird automatisch neu gerechnet. Der Simulations-Seed wird aus
+    dieser Signatur abgeleitet (stabile Anzeige) und ist **nie** der committete
+    Los-Seed (der bleibt geheim, ADR 0062)."""
+    import hashlib
+    from django.core.cache import cache
+    parties, q_payload, w_payload, subs, rule_check = _prognosis_inputs(period)
+    if not subs:
+        return {}
+    sig_src = "|".join(sorted(
+        f"{w.member_id}:{w.quarter_id}:{w.start}:{w.end}:{w.priority}" for w in subs))
+    sig = hashlib.sha256(sig_src.encode("utf-8")).hexdigest()[:16]
+    ckey = f"wish_prognosis:{period.id}:{sig}"
+    cached = cache.get(ckey)
+    if cached is not None:
+        return cached
+    probs = L.simulate_win_probabilities(
+        parties, q_payload, w_payload, n_runs=PROGNOSIS_RUNS,
+        seed=int(sig[:8], 16), rule_check=rule_check)
+    out = {
+        w.id: {"prob": round(100 * probs.get(
+            (str(w.member_id), str(w.quarter_id), w.start, w.end), 0.0)),
+            "band": L.win_band(probs.get(
+                (str(w.member_id), str(w.quarter_id), w.start, w.end), 0.0))}
+        for w in subs
+    }
+    cache.set(ckey, out, 600)
+    return out
 
 
 def lottery_retrospective(period, result, quarters, karma_before) -> dict:

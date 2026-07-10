@@ -469,6 +469,70 @@ def _median(values: list) -> float:
     return int(avg) if avg == int(avg) else round(avg, 1)
 
 
+# --------------------------------------------------------------------------- #
+# Prognose (ADR 0101): Monte-Carlo-Trockenlauf der echten RSD
+# --------------------------------------------------------------------------- #
+
+# Grenzen für das qualitative Chancen-Band (positiv formuliert, ADR 0072).
+WIN_BAND_GOOD = 0.75
+WIN_BAND_OPEN = 0.40
+
+
+def win_band(p: float) -> str:
+    """Qualitatives Chancen-Band einer Gewinnwahrscheinlichkeit `p` ∈ [0,1]:
+    ``'good'`` (gute Chance) · ``'open'`` (offen) · ``'tight'`` (knapp)."""
+    if p >= WIN_BAND_GOOD:
+        return "good"
+    if p >= WIN_BAND_OPEN:
+        return "open"
+    return "tight"
+
+
+def simulate_win_probabilities(
+    parties: list[Party],
+    quarters: list[Quarter],
+    wishes: list[Wish],
+    *,
+    n_runs: int = 200,
+    seed: int = 0,
+    factor_step: float = 0.1,
+    factor_cap: float = 1.5,
+    reset_on_contested_win: bool = True,
+    rule_check: Callable[[str, date, date, list[tuple[date, date]]], str | None]
+    | None = None,
+) -> dict[tuple[str, str, date, date], float]:
+    """Schätzt je Wunsch die **Gewinnwahrscheinlichkeit** per Monte-Carlo-Trockenlauf
+    der echten RSD (ADR 0101): führt `run_lottery` `n_runs`-mal mit **Zufalls-Seeds**
+    aus und zählt, wie oft jeder Wunsch zugeteilt wurde. Berücksichtigt damit Karma,
+    Ausweich-Äquivalenzklassen, Budget und (über `rule_check`) Saison-Regeln – wie die
+    echte Ziehung.
+
+    **Wichtig (Sicherheit):** hier werden **nur Zufalls-Seeds** verwendet – der
+    committete Los-Seed bleibt geheim (Commit-Reveal, ADR 0062). `seed` steuert nur
+    den PRNG dieser Simulation (Reproduzierbarkeit für Tests/stabile Anzeige) und darf
+    **nicht** der committete Seed sein. Django-frei/deterministisch bei festem `seed`.
+
+    Gibt `{(party_id, quarter_id, start, end): p}` für jeden Eingabe-Wunsch zurück
+    (`quarter_id` = ursprünglich gewünschtes Quartier; ein per Ausweichquartier
+    erfüllter Wunsch zählt als gewonnen)."""
+    keys = [(w.party_id, w.quarter_id, w.start, w.end) for w in wishes]
+    if n_runs <= 0 or not wishes:
+        return {k: 0.0 for k in keys}
+    wins: dict[tuple[str, str, date, date], int] = {k: 0 for k in keys}
+    rng = random.Random(seed)
+    for _ in range(n_runs):
+        s = rng.randrange(1, 2**31)
+        result = run_lottery(
+            parties, quarters, wishes, seed=s, factor_step=factor_step,
+            factor_cap=factor_cap, reset_on_contested_win=reset_on_contested_win,
+            rule_check=rule_check)
+        for a in result.allocations:
+            k = (a.party_id, a.original_quarter_id, a.start, a.end)
+            if k in wins:
+                wins[k] += 1
+    return {k: wins[k] / n_runs for k in keys}
+
+
 def summarize_run(
     won: list[dict],
     lost: list[dict],
