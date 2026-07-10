@@ -65,4 +65,5 @@ class NormalMemberBlockedTests(TestCase):
         Member.objects.create(user=u, display_name="U")
         self.client.force_login(u)
         r = self.client.get(reverse("dashboard"))
-        self.assertRedirects(r, reverse("overview"))
+        # Fail-closed: ohne Verwaltungsrolle 403 statt Redirect (ADR 0100).
+        self.assertEqual(r.status_code, 403)

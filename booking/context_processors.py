@@ -1,5 +1,7 @@
-"""Stellt die Rollen-Flags `is_admin`/`is_verwaltung` allen Templates bereit
-(für Navigation und bedingte Anzeige)."""
+"""Stellt die Rollen-Flags `is_admin`/`is_verwaltung` und die freigeschalteten
+Verwaltungs-Capabilities (`verw_caps`) allen Templates bereit – für die
+**rollengefilterte** Navigation und bedingte Anzeige (ADR 0100)."""
+from . import authz
 from .permissions import is_admin, is_verwaltung
 
 
@@ -13,6 +15,8 @@ def roles(request):
     member_has_bookings = bool(member and (can_book or member.has_bookings))
     return {
         "is_admin": is_admin(user), "is_verwaltung": is_verwaltung(user),
+        # Datengetriebene, rollengefilterte Verwaltungs-Nav: nur erlaubte Seiten.
+        "verw_caps": authz.allowed_capabilities(user) if user is not None else [],
         "can_book": can_book, "is_passive": is_passive,
         "member_has_bookings": member_has_bookings,
     }

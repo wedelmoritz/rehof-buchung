@@ -76,15 +76,16 @@ class DashboardTests(TestCase):
     # --- Zugriffsschutz ---------------------------------------------------- #
     def test_dashboard_nur_fuer_staff(self):
         self.client.force_login(self.member.user)
-        self.assertEqual(self.client.get(reverse("dashboard")).status_code, 302)
+        # Fail-closed: ohne Verwaltungsrolle 403 statt Redirect (ADR 0100).
+        self.assertEqual(self.client.get(reverse("dashboard")).status_code, 403)
         self.client.force_login(self.staff.user)
         self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)
 
     # --- Mitgliederliste für die BL (#65) --------------------------------- #
     def test_mitgliederliste_nur_staff_und_kontakt(self):
-        # Mitglied kommt nicht rein.
+        # Mitglied kommt nicht rein (fail-closed 403, ADR 0100).
         self.client.force_login(self.member.user)
-        self.assertEqual(self.client.get(reverse("verw_mitglieder")).status_code, 302)
+        self.assertEqual(self.client.get(reverse("verw_mitglieder")).status_code, 403)
         # Verwaltung sieht Name + E-Mail; IBAN wird NICHT gelistet.
         self.member.iban = "DE02120300000000202051"
         self.member.city = "Musterstadt"
@@ -213,7 +214,7 @@ class InvoiceDashboardTests(TestCase):
     def test_export_nur_fuer_staff(self):
         url = reverse("dashboard_export", args=["rechnungen", "csv"]) + "?status=all"
         self.client.force_login(self.member.user)
-        self.assertEqual(self.client.get(url).status_code, 302)   # abgewiesen
+        self.assertEqual(self.client.get(url).status_code, 403)   # abgewiesen (ADR 0100)
         self.client.force_login(self.staff.user)
         r = self.client.get(url)
         self.assertEqual(r.status_code, 200)

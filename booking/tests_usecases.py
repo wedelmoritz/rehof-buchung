@@ -587,9 +587,9 @@ class BuchungsFlowTests(UseCaseBase):
         self.assertIn("alice", html)
         self.assertIn("Anreisen", html)
         url = reverse("plan_pdf") + f"?from={date(NEXT_YEAR,6,1):%Y-%m-%d}&weeks=2"
-        # Mitglied ohne Verwaltungsrolle → weggeleitet
+        # Mitglied ohne Verwaltungsrolle → fail-closed 403 (ADR 0100)
         self.client.force_login(self.alice.user)
-        self.assertEqual(self.client.get(url).status_code, 302)
+        self.assertEqual(self.client.get(url).status_code, 403)
         # Verwaltung → PDF (oder 503, falls WeasyPrint auf dieser Umgebung fehlt)
         from booking.permissions import ensure_verwaltung_group
         self.bob.user.groups.add(ensure_verwaltung_group())

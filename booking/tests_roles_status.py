@@ -207,7 +207,8 @@ class RollenMatrixTests(TestCase):
         muser, _ = mk_account("z_m")
         vuser, _ = mk_account("z_v2", verwaltung=True, member=False)
         self.client.force_login(muser)
-        self.assertEqual(self.client.get(reverse("dashboard")).status_code, 302)  # weg
+        # Fail-closed: ohne Verwaltungsrolle 403 (kein Info-Leak-Redirect, ADR 0100).
+        self.assertEqual(self.client.get(reverse("dashboard")).status_code, 403)
         self.client.force_login(vuser)
         self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)
 

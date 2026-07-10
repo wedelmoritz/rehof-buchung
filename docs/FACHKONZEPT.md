@@ -432,6 +432,28 @@ ADR 0087). Admin = Django-Superuser. „Admin" und „Mitglied" sind **keine** R
 Gruppen-Sinn: Admin = Superuser-Flag, Mitglied = vorhandenes Buchungs-Profil – ein
 Superuser ist daher immer auch Verwaltung.
 
+**Feinere Verwaltungsrollen (ADR 0100, im Aufbau).** Statt der einen groben Rolle
+„Verwaltung" entstehen **mehrere native Rollen**, die sich **überschneiden** dürfen
+und **additiv** sind (mehrere Rollen = Summe der Rechte):
+
+- **Hofladen-Verwaltung** – Hofladen-Katalog.
+- **Buchungs-Verwaltung** – Buchungen sehen/annotieren, Reinigung, Sperrzeiten,
+  Auslastung, Wunsch-Export.
+- **Buchungs-Verwaltung-Erweitert** – zusätzlich Buchungen **im Namen von
+  Mitgliedern** anlegen/ändern und Wünsche nachtragen (auditiert).
+- **Mitglieder-Verwaltung** – freischalten, Anteile zuordnen, passiv/aktiv,
+  Kontaktliste.
+- **Quartiers-Verwaltung** – Quartiere/Preise/Saison, Sperrzeiten.
+- **Rechnungs-Verwaltung** – Rechnungen, Kontoabgleich, Mahnungen.
+
+**Rundnachricht** und die **Auslastungs-Ansicht** sind in jeder Rolle enthalten.
+Sehr seltene, **unumkehrbare** Aufgaben – Losung ziehen/bestätigen, Regeln/Perioden,
+Löschen/Anonymisieren, Betriebs-Einstellungen – bleiben dem **Admin/Superuser**
+vorbehalten. Die bisherige Rolle „Verwaltung" wird beim Umstieg auf die passenden
+**Basis**-Rollen abgebildet (kein Zugriffsverlust, kein stilles Mehr an Rechten).
+Zuordnung wie bisher per Häkchen im Backend; das Anlegen/Abgleichen übernimmt
+`manage.py sync_roles` (idempotent).
+
 **Mitgliedsstatus (aktiv/passiv/ausgeschieden, ADR 0087).** Datumsgesteuert über
 „Passiv ab" / „Ausgeschieden ab" am Benutzer (Backend):
 - **aktiv** – normaler Zugang.

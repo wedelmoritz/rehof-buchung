@@ -1908,3 +1908,25 @@ class Rolle(Group):
         proxy = True
         verbose_name = "Rolle"
         verbose_name_plural = "Rollen"
+
+
+class VerwaltungAccess(models.Model):
+    """Träger der Verwaltungs-**Capabilities** (ADR 0100). `managed=False` → **keine
+    Tabelle**; das Modell existiert nur, um seine `permissions` zu registrieren.
+    Diese Rechte bündeln die Rollen-Gruppen (idempotent geseedet über
+    `manage.py sync_roles`); die Registry + Durchsetzung liegen in `booking.authz`.
+    So lebt Least Privilege in den Permissions, die Ergonomie in den Rollen."""
+    class Meta:
+        managed = False
+        default_permissions = ()
+        permissions = [
+            ("access_buchungen",    "Verwaltung: Buchungen/Reinigung/Sperrzeiten"),
+            ("book_for_member",     "Verwaltung: Buchungen für Mitglieder anlegen/ändern"),
+            ("export_wishes",       "Verwaltung: Wunsch-Export (Entzerrungsphase)"),
+            ("add_wish_for_member", "Verwaltung: Wunsch für Mitglied nachtragen"),
+            ("access_mitglieder",   "Verwaltung: Mitglieder freischalten/zuordnen"),
+            ("access_quartiere",    "Verwaltung: Quartiere/Sperrzeiten"),
+            ("access_rechnungen",   "Verwaltung: Rechnungen/Kontoabgleich"),
+            ("access_hofladen",     "Verwaltung: Hofladen-Katalog"),
+            ("send_broadcast",      "Verwaltung: Rundnachricht senden"),
+        ]

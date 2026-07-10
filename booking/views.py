@@ -13,6 +13,7 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.contrib.auth.forms import PasswordChangeForm
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -28,6 +29,7 @@ from .forms import (
 )
 from .models import Allocation, BookingPeriod, Member, Quarter, Wish
 from . import services as svc
+from . import authz
 from .validation import strip_controls
 
 
@@ -1183,16 +1185,10 @@ def member_search(request):
 
 
 # --------------------------------------------------------------------------- #
-# Verwaltungs-Dashboard (nur Staff): anstehende Buchungen, Reinigung, Rechnungen
+# Verwaltungs-Dashboard: Zugriff je Unterseite über die Capability der Rolle
+# (booking.authz, ADR 0100) – Enforcement per @requires_capability an den Views.
 # --------------------------------------------------------------------------- #
 
-def _staff_required(request):
-    """Zugang zum Verwaltungs-Dashboard: Verwaltung-Gruppe oder Admin."""
-    from .permissions import is_verwaltung
-    return is_verwaltung(request.user)
-
-
-@login_required
 # --------------------------------------------------------------------------- #
 # Verwaltung: Handlungsbedarf-Dashboard + eigene Unterseiten (ADR 0085).
 # Statt Tabs auf einer langen Seite ist jede Sektion eine echte Seite (eigener
@@ -1421,14 +1417,11 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
                     + ("&only_cleaning=1" if only_cleaning else "") + extra)
 
 
-@login_required
+@authz.requires_capability("dashboard")
 def dashboard(request):
     """Handlungsbedarf-Übersicht der Verwaltung: was ist reingekommen / muss jetzt
     getan werden (Endreinigungs-Anfragen, überfällige Rechnungen, neue/geänderte
     Buchungen, Kennzahlen). Die vollen Listen liegen auf den Unterseiten."""
-    if not _staff_required(request):
-        messages.error(request, "Dieser Bereich ist der Verwaltung vorbehalten.")
-        return redirect("overview")
     from shop import services as shop_svc
     from shop.models import Invoice
     from decimal import Decimal
@@ -1474,14 +1467,16 @@ def dashboard(request):
             {"url": "dashboard_products", "label": "Hofladen-Katalog", "icon": "ic-shop"},
         ],
     })
+    # Bereiche-Kacheln rollengefiltert: nur Seiten, die der Nutzer aufrufen darf
+    # (deckungsgleich mit der Nav, ADR 0100).
+    _allowed = {c.url_name for c in authz.allowed_capabilities(request.user)}
+    ctx["tiles"] = [t for t in ctx["tiles"] if t["url"] in _allowed]
     return render(request, "booking/verw_dashboard.html", ctx)
 
 
-@login_required
+@authz.requires_capability("buchungen")
 def verw_buchungen(request):
     """Unterseite: anstehende Buchungen des Monats (Ansehen/Export/Versand)."""
-    if not _staff_required(request):
-        return redirect("overview")
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
         return _verw_post(request, year, month, m_from, m_to, only_cleaning)
@@ -1490,14 +1485,12 @@ def verw_buchungen(request):
     return render(request, "booking/verw_buchungen.html", ctx)
 
 
-@login_required
+@authz.requires_capability("reinigung")
 def verw_reinigung(request):
     """Unterseite: **Reinigung** – alle Abreisen (= Reinigungstage) UND die
     bezahlpflichtige Endreinigung (Freigabe #28 + Revidieren #45) auf EINER Seite.
     Kein getrennter Menüpunkt: die normale Reinigung nach jeder Abreise und die
     gebuchte Endreinigung gehören zusammen."""
-    if not _staff_required(request):
-        return redirect("overview")
     from shop import services as shop_svc
     from .models import BookingPolicy
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
@@ -1518,13 +1511,11 @@ def verw_reinigung(request):
     return render(request, "booking/verw_reinigung.html", ctx)
 
 
-@login_required
+@authz.requires_capability("sperrzeiten")
 def verw_sperrzeiten(request):
     """Unterseite: **Sperrzeiten** je Quartier (Reinigung/Reparatur, #61/ADR 0086) –
     eigene Seite (nicht mehr unter „Reinigung"): Sperren sind Planung, kein tägliches
     Handeln. Anlegen/Aufheben über den zentralen POST-Dispatcher."""
-    if not _staff_required(request):
-        return redirect("overview")
     from .models import Quarter, QuarterBlock
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
@@ -1558,11 +1549,9 @@ def verw_sperrzeiten(request):
     return render(request, "booking/verw_sperrzeiten.html", ctx)
 
 
-@login_required
+@authz.requires_capability("rechnungen")
 def verw_rechnungen(request):
     """Unterseite: Rechnungen (filterbar) + Zahlungserinnerungen."""
-    if not _staff_required(request):
-        return redirect("overview")
     from shop import services as shop_svc
     from shop.models import Invoice, ShopConfig
     from decimal import Decimal
@@ -1609,11 +1598,9 @@ def verw_rechnungen(request):
     return render(request, "booking/verw_rechnungen.html", ctx)
 
 
-@login_required
+@authz.requires_capability("konto")
 def verw_konto(request):
     """Unterseite: Kontoabgleich (Zahlungseingänge importieren)."""
-    if not _staff_required(request):
-        return redirect("overview")
     from shop.models import BankImport, BankTransaction
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
@@ -1627,11 +1614,9 @@ def verw_konto(request):
     return render(request, "booking/verw_konto.html", ctx)
 
 
-@login_required
+@authz.requires_capability("auslastung")
 def verw_auslastung(request):
     """Unterseite: Statistik + Auslastung je Unterkunft (Ziel-Ampel)."""
-    if not _staff_required(request):
-        return redirect("overview")
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     ctx = _verw_nav_ctx(request, today, year, month)
     ctx.update({"stats": svc.dashboard_stats(),
@@ -1639,13 +1624,11 @@ def verw_auslastung(request):
     return render(request, "booking/verw_auslastung.html", ctx)
 
 
-@login_required
+@authz.requires_capability("mitglieder")
 def verw_mitglieder(request):
     """Unterseite: Mitgliederliste mit Kontaktdaten für Rückfragen der BL (#65).
     Nur buchende Mitglieder (keine externen Gäste); IBAN bleibt der Backend-
     Detailansicht vorbehalten (Datensparsamkeit)."""
-    if not _staff_required(request):
-        return redirect("overview")
     from .models import Member
     q = (request.GET.get("q") or "").strip()
     members = (Member.objects.filter(is_external=False)
@@ -1667,12 +1650,10 @@ def verw_mitglieder(request):
     return render(request, "booking/verw_mitglieder.html", ctx)
 
 
-@login_required
+@authz.requires_capability("rundnachricht")
 def verw_rundnachricht(request):
     """Unterseite: **Rundnachricht** an eine Rolle (In-App + Mail + Push) und
     **Rollen-Export** (CSV für externe Verteilerlisten) – ADR 0090/B4."""
-    if not _staff_required(request):
-        return redirect("overview")
     import csv as _csv
     # Export je Rolle als CSV (für externe Verteilerlisten).
     exp = request.GET.get("export")
@@ -1708,12 +1689,10 @@ def verw_rundnachricht(request):
     return render(request, "booking/verw_rundnachricht.html", ctx)
 
 
-@login_required
+@authz.requires(authz.P_BUCHUNGEN)
 def plan_pdf(request):
     """Belegungsplan als Druck-PDF (Querformat) – nur Verwaltung/BL (#39, ADR 0083).
     Liest denselben Datums-Anker/Bereich wie der Plan (`from`/`weeks`)."""
-    if not _staff_required(request):
-        return redirect("overview")
     from . import plan_pdf as pp
     today = date.today()
     anchor = _parse_date(request.GET.get("from")) or today
@@ -1735,9 +1714,12 @@ def plan_pdf(request):
 @login_required
 def dashboard_export(request, kind: str, fmt: str):
     """Export der Dashboard-Listen als xlsx oder CSV (Buchungen, Reinigung,
-    Rechnungen)."""
-    if not _staff_required(request):
-        return redirect("overview")
+    Rechnungen) – je Liste das passende Recht (Buchungen/Reinigung → Buchungs-,
+    Rechnungen → Rechnungs-Verwaltung)."""
+    _EXPORT_PERM = {"buchungen": authz.P_BUCHUNGEN, "reinigung": authz.P_BUCHUNGEN,
+                    "rechnungen": authz.P_RECHNUNGEN}
+    if kind not in _EXPORT_PERM or not authz.user_can(request.user, _EXPORT_PERM[kind]):
+        raise PermissionDenied
     from . import exports
     from shop import services as shop_svc
     from shop.models import Invoice
@@ -1776,13 +1758,10 @@ def dashboard_export(request, kind: str, fmt: str):
     return redirect("dashboard")
 
 
-@login_required
+@authz.requires_capability("produkte")
 def dashboard_products(request):
     """Hofladen-Katalog im Verwaltungs-Dashboard pflegen (Verwaltung-Rolle):
     Produkte anlegen/ändern/aktiv schalten und Gruppen anlegen – ohne Backend."""
-    if not _staff_required(request):
-        messages.error(request, "Dieser Bereich ist der Verwaltung vorbehalten.")
-        return redirect("overview")
     from decimal import Decimal, InvalidOperation
     from shop.models import Product, ProductGroup
 
