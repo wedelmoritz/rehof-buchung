@@ -17,9 +17,15 @@ Proposed (2026-07-10) · erweitert [ADR 0003](0003-losverfahren-weighted-rsd.md)
 > Fristen `review_open`/`freeze_start` und der `display_frozen`-Zustand, `compute_status`/
 > Scheduler, `submission_deadline = review_open`, der Phasen-Hinweis mit den zwei Marken
 > (Übersicht + Wunschliste) und der serverseitige Wunsch-Guard (`wishes_editable`).
-> **Offen (Folge-PRs):** Prognose/Heatmap (Abschnitt 3), Absprachen + Opt-out
-> (Abschnitt 4), Wunsch-Export + Admin-Nachtrag (Abschnitt 5/2), Snapshots + dringende
-> Erinnerung + Hilfeseite/Diagramm (Abschnitt 6).
+> **Batch B (Prognose) umgesetzt (2026-07):** reine Logik
+> `lottery.simulate_win_probabilities` (Monte-Carlo-Trockenlauf der echten RSD, nur
+> Zufalls-Seeds) + `lottery.win_band`; Service `wish_prognosis(period)` (kurz gecacht,
+> Cache-Schlüssel aus dem Wunsch-Stand, Seed daraus abgeleitet – **nie** der committete
+> Seed); Anzeige des Chancen-Bandes je eingereichtem Wunsch auf der Wunschliste
+> (positiv: „Gute Chance/Offen/Knapp“ + ≈ %).
+> **Offen (Folge-PRs):** Nachfrage-**Heatmap** (Abschnitt 3, Quartier × Zeit), Absprachen
+> + Opt-out (Abschnitt 4), Wunsch-Export + Admin-Nachtrag (Abschnitt 5/2), Snapshots +
+> dringende Erinnerung + Hilfeseite/Diagramm (Abschnitt 6).
 >
 > **Präzisierung zu Abschnitt 2 (Edits in der Phase).** In der Entzerrungsphase bleibt
 > die Wunschliste **bearbeitbar** (Anpassen/Zurückziehen+Neu-Einreichen), ohne **harte**

@@ -809,6 +809,13 @@ def wishlist(request):
             alts = svc.wish_alternatives(period, member, wishes)
             for w in wishes:
                 w.alt = alts.get(w.id)
+        # Gewinn-Prognose je eingereichtem Wunsch (ADR 0101): realistische Chance als
+        # qualitatives Band. Nur sinnvoll für eingereichte Wünsche (die im Lostopf
+        # sind) und im Wunsch-Fenster/der Entzerrungsphase (kurz gecacht, ein Aufruf).
+        if wishlist_submitted:
+            prog = svc.wish_prognosis(period)
+            for w in wishes:
+                w.prognosis = prog.get(w.id) if w.submitted else None
         # Sanfter Hinweis JE WUNSCH bei überlappenden Wünschen fürs SELBE Quartier
         # (Feedback #2b): überlappende Wünsche bleiben bewusst zulässig (das
         # Losverfahren berücksichtigt jeweils nur einen), aber ein Hinweis macht die

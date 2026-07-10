@@ -180,12 +180,18 @@
   {% if wishlist_submitted %}
     <div class="msg success">Deine Wünsche sind im Lostopf eingereicht. Zum Bearbeiten erst zurückziehen.</div>
     <div class="table-wrap"><table>
-      <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
+      <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th><th>Chance</th></tr>
       {% for w in wishes %}
       <tr><td>{{ forloop.counter }}</td><td>{{ w.quarter.name }}</td>
-          <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td></tr>
+          <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td>
+          <td>{% if w.prognosis %}<span class="wish-prog band-{{ w.prognosis.band }}" title="Geschätzt aus einem Trockenlauf der Auslosung – berücksichtigt Karma, gleichwertige Ausweichquartiere und Budget. Kein garantiertes Ergebnis.">{% if w.prognosis.band == 'good' %}✅ Gute Chance{% elif w.prognosis.band == 'open' %}🟡 Offen{% else %}🔸 Knapp{% endif %} <span class="wp-pct">≈ {{ w.prognosis.prob }} %</span></span>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
       {% endfor %}
     </table></div>
+    <p class="muted sm" style="margin:.5rem 0 0">Die Chance ist eine <strong>Schätzung</strong>
+      aus vielen Trockenläufen der echten Auslosung (mit Karma, gleichwertigen
+      Ausweichquartieren und Budget) – kein garantiertes Ergebnis. Bei „🔸 Knapp“ lohnt
+      sich das <strong>Entzerren</strong>: zurückziehen, Zeitraum/Unterkunft leicht
+      anpassen, neu einreichen.</p>
     <form method="post" style="margin-top:.8rem">{% csrf_token %}
       <input type="hidden" name="action" value="withdraw_wishlist">
       <button class="btn ghost" type="submit">Zurückziehen &amp; bearbeiten</button>
@@ -318,6 +324,13 @@
   .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
     display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto; }
   .wish-main { flex:1 1 auto; } .wish-actions { display:flex; gap:.25rem; align-items:center; }
+  /* Prognose-Band je Wunsch (ADR 0101): positiv formuliert, HTML/CSS (kein SVG). */
+  .wish-prog { display:inline-flex; align-items:center; gap:.4rem; white-space:nowrap;
+    font-size:.82rem; font-weight:600; border-radius:8px; padding:.15rem .5rem; }
+  .wish-prog .wp-pct { font-variant-numeric:tabular-nums; opacity:.85; font-weight:700; }
+  .wish-prog.band-good { background:var(--good-soft); color:var(--good); }
+  .wish-prog.band-open { background:var(--warn-soft); color:var(--warn); }
+  .wish-prog.band-tight { background:var(--accent-soft); color:var(--accent-deep); }
   .hint-entzerren { font-size:.9rem; color:#5b5347; background:#f7f1e3;
     border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; margin:.2rem 0 .7rem; }
   /* „So funktioniert die Auslosung (kurz)" leicht abheben (besser lesbar). */
