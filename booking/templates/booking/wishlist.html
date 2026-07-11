@@ -6,7 +6,35 @@
 {% if not member %}
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% elif not period %}
-<div class="card"><p class="muted">Zurzeit ist kein Losverfahren zur Anmeldung geöffnet.</p></div>
+<div class="card">
+  <p class="msg info" style="margin-top:0">Zurzeit ist <strong>kein Losverfahren</strong> zur Anmeldung
+    geöffnet. Sobald die nächste Wunsch-Periode startet, kannst du hier deine Wünsche eintragen.</p>
+  {% if member and not member.is_external %}
+  <div class="karma-card">
+    <div class="wo-kpi"><span class="wo-num">{{ member.factor|floatformat:1 }}</span><span class="wo-lbl">Ausgleichsfaktor (Karma)</span></div>
+    <div class="karma-text">
+      <p style="margin:0 0 .3rem"><strong>So steht dein Karma für die nächste Auslosung.</strong>
+        {% if member.factor > 1.0 %}Es ist <strong>erhöht</strong> – du bist in einer früheren Auslosung
+        bei einem sehr beliebten Wunsch leer ausgegangen und rückst dafür beim nächsten Mal mit
+        <strong>größerer Wahrscheinlichkeit nach vorn</strong>.{% else %}<strong>1,0</strong> ist der
+        Normalstand.{% endif %}</p>
+      <p class="muted" style="margin:0">Geht dir in einer Auslosung ein sehr beliebter Wunsch nicht auf,
+        steigt dein Faktor fürs nächste Jahr um&nbsp;0,1 (höchstens&nbsp;1,5); nach dem Gewinn eines sehr
+        beliebten Wunsches geht er wieder auf&nbsp;1,0. So gleicht die Losung Glück über die Jahre aus –
+        <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis</a> ·
+        <a href="{% url 'community' %}">Gemeinschafts-Spiegel</a>.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+<style>
+  .karma-card { display:flex; gap:1rem; align-items:flex-start; border:1px solid var(--line);
+    border-radius:12px; padding:.8rem .9rem; background:var(--bg); margin-top:.4rem; }
+  .karma-card .wo-kpi { display:flex; flex-direction:column; line-height:1.05; flex:0 0 auto; }
+  .karma-card .wo-num { font-size:2rem; font-weight:800; color:var(--accent-deep); }
+  .karma-card .wo-lbl { font-size:.74rem; color:var(--muted); }
+  .karma-card .karma-text { font-size:.9rem; line-height:1.5; }
+</style>
 {% else %}
 
 <div class="card">

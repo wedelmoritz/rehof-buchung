@@ -121,3 +121,15 @@ class CommunityViewTests(TestCase):
         self.assertContains(r, "Ausgleichsfaktor")      # im Tooltip erklärt
         # nicht mehr im Profil
         self.assertNotContains(self.client.get(reverse("profile")), "Ausgleichsfaktor")
+
+    def test_wunschliste_zeigt_karma_auch_ohne_offene_periode(self):
+        # Auch NACH der Verlosung (keine offene Periode) sichtbar, damit man den
+        # Karma-Gewinn aus Verlusten fürs nächste Jahr sieht.
+        self.m.factor = 1.3
+        self.m.save(update_fields=["factor"])
+        self.client.force_login(self.u)
+        r = self.client.get(reverse("wishlist"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "kein Losverfahren")           # Hinweis
+        self.assertContains(r, "Ausgleichsfaktor (Karma)")    # Faktor sichtbar
+        self.assertContains(r, "nächste Auslosung")
