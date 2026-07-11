@@ -23,9 +23,24 @@ Proposed (2026-07-10) · erweitert [ADR 0003](0003-losverfahren-weighted-rsd.md)
 > Cache-Schlüssel aus dem Wunsch-Stand, Seed daraus abgeleitet – **nie** der committete
 > Seed); Anzeige des Chancen-Bandes je eingereichtem Wunsch auf der Wunschliste
 > (positiv: „Gute Chance/Offen/Knapp“ + ≈ %).
-> **Offen (Folge-PRs):** Nachfrage-**Heatmap** (Abschnitt 3, Quartier × Zeit), Absprachen
-> + Opt-out (Abschnitt 4), Wunsch-Export + Admin-Nachtrag (Abschnitt 5/2), Snapshots +
-> dringende Erinnerung + Hilfeseite/Diagramm (Abschnitt 6).
+> **Batch C–F umgesetzt (2026-07):**
+> * **C – Nachfrage-Heatmap** (`wish_demand_grid`): anonyme Quartier×Monat-Heatmap auf
+>   der Wunschliste (HTML/CSS).
+> * **D – Absprachen + Opt-out** (`Member.coordination_opt_out`, `wish_neighbors`):
+>   überlappende Wunsch-Nachbarn mit Name+Telefon, Default sichtbar, 1-Klick-Opt-out im
+>   Profil, DSGVO-Hinweise. Governance-Entscheidung (Telefon by default) bewusst so.
+> * **E – Wunsch-Export + Admin-Nachtrag**: Capability `wuensche`/Unterseite
+>   `verw_wuensche` (`export_wishes`) mit xlsx/CSV-Export; `add_wish_for_member`
+>   (auditiert, `Wish.created_by`).
+> * **F – Snapshots + Hilfe**: `demand_snapshot` (Freeze-Anzeige + „vor"-Export),
+>   `capture_wish_snapshots`/Kommando `capture_demand_snapshots` (Scheduler);
+>   ausführliche, prosa-geprüfte Hilfeseite `help_content/entzerrung.md` + HTML/CSS-
+>   Ablauf-Zeitleiste.
+> * **Dringende Erinnerung:** bereits durch Batch A abgedeckt – `submission_deadline =
+>   review_open` lässt die bestehenden zweistufigen Wunsch-Erinnerungen (ADR 0080)
+>   automatisch auf die Einreiche-Frist greifen (kein separater Mechanismus nötig).
+>
+> Damit ist ADR 0101 **vollständig umgesetzt.**
 >
 > **Präzisierung zu Abschnitt 2 (Edits in der Phase).** In der Entzerrungsphase bleibt
 > die Wunschliste **bearbeitbar** (Anpassen/Zurückziehen+Neu-Einreichen), ohne **harte**

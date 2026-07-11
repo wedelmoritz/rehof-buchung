@@ -12,6 +12,7 @@
   <a href="#aendern">Buchung ändern</a>
   <a href="#warteliste">Warteliste</a>
   <a href="#losung">Wunschliste &amp; Auslosung</a>
+  <a href="#entzerrung">Entzerrungsphase</a>
   <a href="#gemeinschaft">Gemeinschaft &amp; Transparenz</a>
   <a href="#hofladen">Hofladen &amp; Zahlung</a>
   <a href="#tage">Tage übertragen</a>
@@ -374,6 +375,27 @@
   </p>
 </div>
 
+<div class="card content-md" id="entzerrung">
+  <h2>{{ help.entzerrung.title }}</h2>
+
+  {% comment %}Ablauf der Wunsch-Phase als HTML/CSS-Zeitleiste (ADR 0095: HTML/CSS
+  statt SVG, engine-neutral und theme-fähig). Zeigt die zwei Fristen und den Freeze.{% endcomment %}
+  <ol class="phase-flow" aria-label="Ablauf: Wünsche eintragen und einreichen bis zur Einreiche-Frist; danach Entzerrungsphase mit Prognose, Nachfrage und Absprachen, Anpassen weiter möglich; die letzten Stunden vor der Losung ist die Anzeige eingefroren; dann die Losung; danach das Ergebnis.">
+    <li class="pf-step"><span class="pf-ico">✍️</span><span class="pf-txt"><strong>Wünsche eintragen &amp; einreichen</strong><span class="pf-sub">in Prioritäts-Reihenfolge</span></span></li>
+    <li class="pf-mark"><span>Einreiche-Frist<span class="pf-sub">Teilnehmerkreis steht fest</span></span></li>
+    <li class="pf-step accent"><span class="pf-ico">🔀</span><span class="pf-txt"><strong>Entzerrungsphase</strong><span class="pf-sub">Chance, Nachfrage &amp; Absprachen sehen · Wünsche anpassen</span></span></li>
+    <li class="pf-step"><span class="pf-ico">🧊</span><span class="pf-txt"><strong>Freeze (letzte Stunden)</strong><span class="pf-sub">Anzeige fix · Änderungen zählen weiter</span></span></li>
+    <li class="pf-mark"><span>Losung<span class="pf-sub">einmalige Ziehung</span></span></li>
+    <li class="pf-step good"><span class="pf-ico">🎉</span><span class="pf-txt"><strong>Ergebnis</strong><span class="pf-sub">unter „Meine Buchungen“</span></span></li>
+  </ol>
+
+  {{ help.entzerrung.html|safe }}
+
+  <p class="muted sm" style="margin:.6rem 0 0">Wie die Ziehung im Detail vergibt, steht
+    oben unter <a href="#losung">Wunschliste &amp; Auslosung</a> (inklusive Ablauf-Diagramm
+    des Lostopfs).</p>
+</div>
+
 <div class="card content-md" id="gemeinschaft">
   <h2>{{ help.gemeinschaft.title }}</h2>
   {{ help.gemeinschaft.html|safe }}
@@ -470,6 +492,30 @@
   .formula { font-family:"DejaVu Serif",Georgia,serif; font-size:1.05rem; text-align:center;
     background:#faf7f1; border:1px solid var(--line); border-radius:8px; padding:.5rem .6rem; margin:.5rem 0; }
   .formula sup, .formula sub, .formula-inline sup { font-size:.72em; }
+  /* Phasen-Zeitleiste (ADR 0101): HTML/CSS, kein SVG. Waagerecht auf breiten
+     Schirmen, senkrecht am Handy. Verbindungspfeile über ::after. */
+  .phase-flow { list-style:none; display:flex; flex-wrap:wrap; align-items:stretch;
+    gap:.5rem .2rem; margin:.5rem 0 1rem; padding:0; }
+  .phase-flow .pf-step, .phase-flow .pf-mark { display:flex; align-items:center;
+    gap:.5rem; flex:1 1 8rem; border-radius:12px; padding:.55rem .7rem;
+    border:1px solid var(--line); background:var(--card); position:relative; }
+  .phase-flow .pf-step.accent { border-color:var(--accent); background:var(--accent-soft); }
+  .phase-flow .pf-step.good { border-color:var(--good); background:var(--good-soft); }
+  .phase-flow .pf-mark { flex:0 1 7rem; justify-content:center; text-align:center;
+    background:var(--bg); border-style:dashed; font-weight:700; }
+  .phase-flow .pf-ico { font-size:1.25rem; line-height:1; }
+  .phase-flow .pf-txt { display:flex; flex-direction:column; line-height:1.25; }
+  .phase-flow .pf-sub { font-size:.76rem; color:var(--muted); font-weight:400; }
+  /* Pfeil zwischen den Schritten (waagerecht ›, am Handy ˅) */
+  .phase-flow > li::after { content:"›"; position:absolute; right:-.62rem; top:50%;
+    transform:translateY(-50%); color:var(--muted); font-weight:700; z-index:1; }
+  .phase-flow > li:last-child::after { content:none; }
+  @media (max-width:640px){
+    .phase-flow { flex-direction:column; }
+    .phase-flow .pf-step, .phase-flow .pf-mark { flex:1 1 auto; }
+    .phase-flow > li::after { content:"˅"; right:50%; top:auto; bottom:-.62rem;
+      transform:translateX(50%); }
+  }
   .flow { display:block; width:100%; max-width:560px; height:auto; margin:.4rem auto .2rem; }
   .flow .bx rect { fill:#fff; stroke:var(--line); }
   .flow .acc { fill:var(--accent-soft); stroke:var(--accent); }

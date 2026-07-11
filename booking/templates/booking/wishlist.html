@@ -75,6 +75,28 @@
     {% endif %}
   </details>
 
+  {% if demand_grid and demand_grid.max %}
+  <details class="card demand" style="margin:.8rem 0 0">
+    <summary><strong>Nachfrage-Übersicht (anonym)</strong> – wo drängen sich die Wünsche?</summary>
+    <p class="muted sm" style="margin:.4rem 0 .6rem">Anzahl bereits <strong>eingereichter</strong>
+      Wünsche je Quartier und Monat – ohne Namen. Dunklere Felder = mehr Nachfrage. So
+      siehst du, wohin du zum <strong>Entzerren</strong> ausweichen kannst (hellere Felder =
+      bessere Chancen).</p>
+    <div class="table-wrap">
+      <table class="heat">
+        <thead><tr><th class="hq">Quartier</th>{% for m in demand_grid.months %}<th>{{ m }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for r in demand_grid.rows %}
+          <tr><th class="hq">{{ r.quarter }}</th>
+            {% for c in r.cells %}<td class="heat-cell" style="--h:{{ c.pct }}" title="{{ r.quarter }} · {{ c.count }} Wunsch/Wünsche">{% if c.count %}{{ c.count }}{% endif %}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
   {% include "booking/_calnav.html" %}
 
   <table class="cal wish-cal">
@@ -196,6 +218,32 @@
       <input type="hidden" name="action" value="withdraw_wishlist">
       <button class="btn ghost" type="submit">Zurückziehen &amp; bearbeiten</button>
     </form>
+
+    {% if wish_neighbors %}
+    <div class="neighbors">
+      <h3 style="margin:1rem 0 .3rem;font-size:1rem">🤝 Wunsch-Nachbarn – gemeinsam entzerren</h3>
+      <p class="muted sm" style="margin:0 0 .6rem">Diese Mitglieder wünschen sich dieselbe
+        Unterkunft in einem überlappenden Zeitraum. <strong>Sprecht euch gern direkt ab</strong>
+        (z. B. wer welche Woche nimmt) – das entzerrt die Losung, bevor sie zieht. Die
+        Absprache ist <strong>privat und außerhalb der App</strong>; sie ändert nichts am
+        fairen Losverfahren.</p>
+      {% for row in wish_neighbors %}
+      <div class="nb-wish">
+        <div class="nb-head">{{ row.wish.quarter.name }} <span class="muted">· {{ row.wish.start }} – {{ row.wish.end }}</span></div>
+        <ul class="nb-list">
+          {% for n in row.neighbors %}
+          <li><strong>{{ n.name }}</strong> <span class="muted">({{ n.start|date:"d.m." }}–{{ n.end|date:"d.m." }})</span>
+            {% if n.phone %}· <a href="tel:{{ n.phone }}">{{ n.phone }}</a>{% else %}· <span class="muted">keine Telefonnummer hinterlegt</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+      <p class="muted sm" style="margin:.5rem 0 0">Datenschutz: Sichtbar sind nur Name und
+        Telefon von Mitgliedern mit überlappendem Wunsch, nur in dieser Phase, nur zur
+        Absprache. Du kannst deine eigene Sichtbarkeit jederzeit im
+        <a href="{% url 'profile' %}#absprachen">Profil</a> abschalten.</p>
+    </div>
+    {% endif %}
   {% else %}
     {% if wishes %}
     <p class="muted" style="margin-top:0">Reihenfolge per Ziehen (oder &#9650;&#9660;) – Priorität 1 oben.</p>
@@ -331,6 +379,23 @@
   .wish-prog.band-good { background:var(--good-soft); color:var(--good); }
   .wish-prog.band-open { background:var(--warn-soft); color:var(--warn); }
   .wish-prog.band-tight { background:var(--accent-soft); color:var(--accent-deep); }
+  /* Nachfrage-Heatmap (ADR 0101): HTML/CSS-Zellen (kein SVG). Heat über --h (0-100)
+     als Deckkraft des Akzents; Text bleibt lesbar (near-black). */
+  .demand summary { cursor:pointer; font-size:1rem; }
+  table.heat { border-collapse:separate; border-spacing:2px; font-size:.8rem; }
+  table.heat th { font-weight:600; color:var(--muted); padding:.15rem .3rem; font-size:.72rem; }
+  table.heat th.hq { text-align:left; white-space:nowrap; position:sticky; left:0;
+    background:var(--card); z-index:1; }
+  .heat-cell { width:2rem; height:1.7rem; text-align:center; border-radius:5px;
+    font-variant-numeric:tabular-nums; font-weight:700; color:var(--ink);
+    background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
+  /* Wunsch-Nachbarn (ADR 0101) */
+  .neighbors { margin-top:.8rem; border-top:1px dashed var(--line); padding-top:.6rem; }
+  .nb-wish { margin:.4rem 0; }
+  .nb-head { font-weight:700; }
+  .nb-list { list-style:none; margin:.15rem 0 0; padding:0; }
+  .nb-list li { padding:.15rem 0; font-size:.92rem; }
+  .nb-list a { color:var(--accent-deep); font-weight:700; }
   .hint-entzerren { font-size:.9rem; color:#5b5347; background:#f7f1e3;
     border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; margin:.2rem 0 .7rem; }
   /* „So funktioniert die Auslosung (kurz)" leicht abheben (besser lesbar). */

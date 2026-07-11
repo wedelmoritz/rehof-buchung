@@ -99,6 +99,7 @@ class Capability:
 CAPABILITIES: list[Capability] = [
     Capability("dashboard",   "Verwaltung",       "ic-admin",     "dashboard",          None,          "Übersicht"),
     Capability("buchungen",   "Buchungen",        "ic-mybookings","verw_buchungen",     P_BUCHUNGEN,   "Buchung"),
+    Capability("wuensche",    "Wünsche & Losung", "ic-wish",      "verw_wuensche",      P_EXPORT_WISHES, "Buchung"),
     Capability("reinigung",   "Reinigung",        "ic-clean",     "verw_reinigung",     P_BUCHUNGEN,   "Buchung"),
     Capability("sperrzeiten", "Sperrzeiten",      "ic-lock",      "verw_sperrzeiten",   (P_BUCHUNGEN, P_QUARTIERE), "Buchung"),
     Capability("rechnungen",  "Rechnungen",       "ic-invoices",  "verw_rechnungen",    P_RECHNUNGEN,  "Finanzen"),

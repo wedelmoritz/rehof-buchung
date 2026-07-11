@@ -235,6 +235,12 @@ class Member(models.Model):
         help_text="Wenn aus, erscheint das Mitglied für andere nicht als "
                   "Tausch-Partner und kann keine Tausch-Anfrage erhalten (ADR 0078). "
                   "Die reine Anzeige „wer ist zur gleichen Zeit da“ bleibt.")
+    coordination_opt_out = models.BooleanField(
+        "Absprachen-Sichtbarkeit abgeschaltet", default=False,
+        help_text="In der Entzerrungsphase vor der Losung sind Mitgliedern mit einem "
+                  "überlappenden Wunsch Name + Telefon sichtbar, damit sie sich privat "
+                  "absprechen können (Standard: sichtbar, ADR 0101). Wenn AN, erscheint "
+                  "dieses Mitglied dort NICHT (1-Klick-Opt-out im Profil).")
     # Profil-/Rechnungsdaten (vom Nutzer selbst pflegbar; nur eigene Sicht)
     legal_name = models.CharField("Vollständiger Name", max_length=160, blank=True)
     phone = models.CharField(
@@ -525,6 +531,9 @@ class BookingPeriod(models.Model):
         "Entzerrungsphase (Tage vor Losung)", null=True, blank=True,
         help_text="Überschreibt für diese Periode die Länge der Entzerrungsphase "
                   "(ADR 0101). Leer = Vorgabe aus den Buchungsrichtlinien.")
+    # Nachfrage-Snapshots (ADR 0101): vom Scheduler festgehalten – „review_open" als
+    # „vor"-Stand (Export) und „frozen" als eingefrorene Anzeige der letzten Stunden.
+    demand_snapshot = models.JSONField("Nachfrage-Snapshots", default=dict, blank=True)
     status = models.CharField("Status", max_length=20, choices=STATUS, default=DRAFT)
     seed = models.BigIntegerField("Zufalls-Seed", null=True, blank=True)
     # Verifizierbarkeit (Commit-Reveal, ADR 0062): Die Prüfsumme des Seeds wird
@@ -652,6 +661,11 @@ class Wish(models.Model):
     end = models.DateField("Abreise (exkl.)")
     submitted = models.BooleanField("Im Lostopf", default=False)
     submitted_at = models.DateTimeField("Eingereicht am", null=True, blank=True)
+    # Audit: wer den Wunsch stellvertretend eingetragen hat (Verwaltung, ADR 0101).
+    # Leer, wenn das Mitglied den Wunsch selbst angelegt hat.
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Nachgetragen von (Verwaltung)")
 
     class Meta:
         verbose_name = "Wunsch"

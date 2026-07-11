@@ -14,7 +14,100 @@ from .slots import _in_season_range, wish_rule_error
 __all__ = [
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
     'delete_wish', 'submit_wishlist', 'withdraw_wishlist', 'wishes_editable',
+    'wish_neighbors', 'add_wish_for_member', 'WISH_EXPORT_COLUMNS', 'wish_export_rows',
 ]
+
+
+def add_wish_for_member(actor, member, period, quarter, start, end,
+                        membership_id=None) -> tuple["Wish | None", str | None]:
+    """Trägt die Verwaltung stellvertretend einen Wunsch für ein Mitglied nach und
+    reicht ihn ein (ADR 0101, für Vergessene – auch in der Entzerrungsphase). Auditiert
+    (`Wish.created_by = actor`, analog `book_for_member`). **Defense in depth:** das
+    Recht `add_wish_for_member` wird hier zusätzlich geprüft (nicht nur in der View)."""
+    from django.core.exceptions import PermissionDenied
+    from .. import authz
+    if not authz.user_can(actor, authz.P_ADD_WISH_FOR_MEMBER):
+        raise PermissionDenied("Keine Berechtigung, Wünsche nachzutragen.")
+    if member is None or member.is_external:
+        return None, "Kein gültiges Mitglied gewählt."
+    wish, err = add_wish(member, period, quarter, start, end,
+                         membership_id=membership_id)
+    if err:
+        return None, err
+    wish.created_by = actor
+    wish.submitted = True
+    wish.submitted_at = timezone.now()
+    wish.save(update_fields=["created_by", "submitted", "submitted_at"])
+    return wish, None
+
+
+WISH_EXPORT_COLUMNS = [
+    "Mitglied", "Benutzername", "Quartier", "Anreise", "Abreise", "Nächte",
+    "Priorität", "Eingereicht am", "Nachgetragen von",
+]
+
+
+def wish_export_rows(period, *, submitted_only=True) -> list[list]:
+    """Zeilen für den Wunsch-Export der Verwaltung (ADR 0101): je Wunsch eine Zeile.
+    Standardmäßig nur eingereichte Wünsche (der Lostopf). Neueste Priorität zuerst je
+    Mitglied. Effizient über `select_related`."""
+    qs = Wish.objects.filter(period=period).select_related(
+        "member", "member__user", "quarter", "created_by").order_by(
+        "member__display_name", "priority")
+    if submitted_only:
+        qs = qs.filter(submitted=True)
+    rows = []
+    for w in qs:
+        rows.append([
+            w.member.display_name,
+            w.member.user.username if w.member.user_id else "",
+            w.quarter.name,
+            w.start.isoformat(), w.end.isoformat(), (w.end - w.start).days,
+            w.priority,
+            w.submitted_at.strftime("%Y-%m-%d %H:%M") if w.submitted_at else "",
+            w.created_by.get_username() if w.created_by_id else "",
+        ])
+    return rows
+
+
+def wish_neighbors(period, member) -> list[dict]:
+    """**Wunsch-Nachbarn** für private Absprachen (ADR 0101): für jeden EINGEREICHTEN
+    Wunsch des Mitglieds die anderen Mitglieder mit einem **überlappenden** eingereichten
+    Wunsch fürs **selbe Quartier** – mit Anzeigename **+ Telefon**, damit man sich
+    außerhalb der App abstimmen kann.
+
+    **Datenschutz (ADR 0101, DSGVO Art. 5/25):** Es erscheinen NUR Mitglieder, die die
+    Sichtbarkeit nicht abgeschaltet haben (`coordination_opt_out=False`, Default sichtbar);
+    nur die zwei Felder (Name/Telefon), nur überlappende Wünsche. Nur während der
+    Entzerrungsphase aufzurufen (die View steuert Status/Login). Zwei DB-Abfragen.
+
+    Gibt `[{"wish": Wish, "neighbors": [{"name","phone","start","end"}]}]`."""
+    mine = list(Wish.objects.filter(period=period, member=member, submitted=True)
+                .select_related("quarter").order_by("priority", "id"))
+    if not mine:
+        return []
+    others = list(
+        Wish.objects.filter(period=period, submitted=True)
+        .exclude(member=member)
+        .select_related("member", "member__user"))
+    out: list[dict] = []
+    for w in mine:
+        neigh: list[dict] = []
+        seen: set = set()
+        for o in others:
+            if o.quarter_id != w.quarter_id:
+                continue
+            if not (o.start < w.end and o.end > w.start):
+                continue
+            om = o.member
+            if om.coordination_opt_out or om.id in seen:
+                continue
+            seen.add(om.id)
+            neigh.append({"name": om.display_name, "phone": om.phone,
+                          "start": o.start, "end": o.end})
+        if neigh:
+            out.append({"wish": w, "neighbors": neigh})
+    return out
 
 
 def wishes_editable(period: BookingPeriod, member: Member) -> tuple[bool, str | None]:

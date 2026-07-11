@@ -41,6 +41,11 @@
     <label class="opt"><input type="checkbox" name="accept_swap_requests" {% if member.accept_swap_requests %}checked{% endif %}>
       <span>Tausch-Anfragen erlauben (andere dürfen dir bei gleichem Zeitraum einen
       Unterkunfts-Tausch vorschlagen)</span></label>
+    <label class="opt" id="absprachen"><input type="checkbox" name="coordination_visible" {% if not member.coordination_opt_out %}checked{% endif %}>
+      <span>In der <strong>Entzerrungsphase</strong> vor der Losung für Absprachen sichtbar sein –
+      Mitglieder mit einem überlappenden Wunsch sehen dann deinen Namen und deine Telefonnummer,
+      um sich mit dir abzustimmen (nur in dieser Phase, nur bei überlappendem Wunsch). Wenn du
+      das Häkchen entfernst, erscheinst du dort nicht.</span></label>
     <button class="btn small" type="submit">Speichern</button>
   </form>
 

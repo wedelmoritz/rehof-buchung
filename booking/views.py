@@ -704,6 +704,18 @@ def my_bookings(request):
 # Wunschliste fürs nächste Jahr
 # --------------------------------------------------------------------------- #
 
+def _wishlist_demand_grid(period):
+    """Nachfrage-Heatmap für die Wunschliste (ADR 0101): in den letzten Stunden vor der
+    Losung die EINGEFRORENE Anzeige (Freeze-Snapshot von `freeze_start`), sonst live."""
+    if not period:
+        return None
+    if period.display_frozen(timezone.now()):
+        frozen = (period.demand_snapshot or {}).get("frozen", {}).get("grid")
+        if frozen:
+            return frozen
+    return svc.wish_demand_grid(period)
+
+
 @login_required
 def wishlist(request):
     """Wunschliste fürs Losverfahren der nächsten Periode. Anders als beim
@@ -881,11 +893,20 @@ def wishlist(request):
         "memberships": member.memberships if member else [],
         "wishes": wishes,
         "wishlist_submitted": wishlist_submitted,
+        # Wunsch-Nachbarn für private Absprachen (ADR 0101): nur bei eingereichten
+        # Wünschen; nur Mitglieder, die die Sichtbarkeit nicht abgeschaltet haben.
+        "wish_neighbors": (svc.wish_neighbors(period, member)
+                           if member and period and wishlist_submitted else []),
+        "coordination_opt_out": bool(member and member.coordination_opt_out),
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "wish_cap": wish_cap,
         # Entzerrungsphase (ADR 0101): Phasen-Marken für den Status-Hinweis.
         "review_phase": bool(period and period.status == BookingPeriod.WISHES_REVIEW),
+        # Anonyme Nachfrage-Heatmap (ADR 0101): welche Quartiere/Monate sind begehrt.
+        # In den letzten Stunden vor der Losung ist die Anzeige EINGEFROREN – dann den
+        # Freeze-Snapshot zeigen (Stand von `freeze_start`), sonst live.
+        "demand_grid": _wishlist_demand_grid(period),
         "submission_deadline": period.submission_deadline if period else None,
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,
@@ -1025,7 +1046,12 @@ def profile(request):
             # Tausch-Anfragen an/aus (#8/ADR 0078): steuert, ob andere Mitglieder
             # dieses Konto als Tausch-Partner anfragen dürfen.
             member.accept_swap_requests = bool(request.POST.get("accept_swap_requests"))
-            member.save(update_fields=["email_opt_in", "accept_swap_requests"])
+            # Absprachen-Sichtbarkeit in der Entzerrungsphase (ADR 0101): Checkbox
+            # „sichtbar sein" → opt_out = NICHT angehakt. Default sichtbar.
+            member.coordination_opt_out = not bool(
+                request.POST.get("coordination_visible"))
+            member.save(update_fields=["email_opt_in", "accept_swap_requests",
+                                       "coordination_opt_out"])
             messages.success(request, "Einstellungen gespeichert.")
             return redirect("profile")
         elif action == "terminal_prefs":
@@ -1476,6 +1502,7 @@ def dashboard(request):
         # Verwaltungs-Unterseiten, mit „Handlungsbedarf"-Badges an den relevanten.
         "tiles": [
             {"url": "verw_buchungen", "label": "Buchungen", "icon": "ic-mybookings"},
+            {"url": "verw_wuensche", "label": "Wünsche & Losung", "icon": "ic-wish"},
             {"url": "verw_reinigung", "label": "Reinigung", "icon": "ic-clean",
              "badge": len(service_requests), "level": "warn"},
             {"url": "verw_sperrzeiten", "label": "Sperrzeiten", "icon": "ic-lock",
@@ -1549,6 +1576,86 @@ def verw_book_for_member(request):
         messages.success(request, f"Buchung für {m.display_name} angelegt{note}: "
                          f"{q.name}, {start:%d.%m.%Y}–{end:%d.%m.%Y}. Das Mitglied "
                          "wurde benachrichtigt.")
+    return redirect(back)
+
+
+def _lottery_period():
+    """Die aktuell relevante Los-Periode (offen/in Entzerrung/zur Auslosung) für die
+    Verwaltungs-Wunschseite; sonst die jüngste."""
+    q = BookingPeriod.objects.filter(status__in=[
+        BookingPeriod.WISHES_OPEN, BookingPeriod.WISHES_REVIEW,
+        BookingPeriod.LOTTERY_READY]).order_by("draw_at").first()
+    return q or BookingPeriod.objects.order_by("-target_year").first()
+
+
+@authz.requires_capability("wuensche")
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
+def verw_wuensche(request):
+    """Unterseite: **Wünsche & Losung** (ADR 0101). Zeigt den eingereichten Lostopf,
+    erlaubt den **Wunsch-Export** (xlsx/CSV; Recht `export_wishes`) und – mit dem Recht
+    `add_wish_for_member` – das **stellvertretende Nachtragen** eines Wunsches für ein
+    Mitglied (auditiert)."""
+    from . import exports
+    period = _lottery_period()
+    if request.method == "POST":
+        return _verw_wuensche_post(request, period)
+    exp = request.GET.get("export")
+    if exp in ("csv", "xlsx") and period:
+        # „vor der Entzerrung" nutzt den review_open-Snapshot (ADR 0101), sonst aktuell.
+        if request.GET.get("state") == "before":
+            rows = (period.demand_snapshot or {}).get("review_open", {}).get("rows") or []
+            fname = f"wuensche-vor-{period.target_year}"
+        else:
+            rows = svc.wish_export_rows(period)
+            fname = f"wuensche-{period.target_year}"
+        return exports.table_response(
+            exp, fname, f"Wünsche {period.target_year}", svc.WISH_EXPORT_COLUMNS, rows)
+    today = date.today()
+    ny, nm = svc.next_month(today)
+    year, month = _month_from_request(request, today, ny, nm)
+    ctx = _verw_nav_ctx(request, today, year, month)
+    wishes = []
+    if period:
+        wishes = list(Wish.objects.filter(period=period, submitted=True)
+                      .select_related("member", "quarter", "created_by")
+                      .order_by("member__display_name", "priority"))
+    can_add = authz.user_can(request.user, authz.P_ADD_WISH_FOR_MEMBER)
+    has_before = bool(period and (period.demand_snapshot or {}).get("review_open"))
+    ctx.update({
+        "lot_period": period, "wishes": wishes, "wish_count": len(wishes),
+        "can_add_wish": can_add, "has_before_snapshot": has_before,
+        "bl_members": (list(Member.objects.filter(is_external=False)
+                            .select_related("user").order_by("display_name"))
+                       if can_add else []),
+        "bl_quarters": (list(Quarter.objects.filter(active=True)
+                             .order_by("sort_order", "name")) if can_add else []),
+    })
+    return render(request, "booking/verw_wuensche.html", ctx)
+
+
+def _verw_wuensche_post(request, period):
+    """Verarbeitet das stellvertretende Nachtragen eines Wunsches (Recht wird in der
+    View über die Capability UND im Service geprüft – Defense in depth)."""
+    back = reverse("verw_wuensche")
+    if not authz.user_can(request.user, authz.P_ADD_WISH_FOR_MEMBER):
+        raise PermissionDenied
+    if not period:
+        messages.error(request, "Keine offene Los-Periode.")
+        return redirect(back)
+    m = Member.objects.filter(pk=request.POST.get("member_id"),
+                              is_external=False).first()
+    q = Quarter.objects.filter(pk=request.POST.get("quarter_id")).first()
+    start = _parse_date(request.POST.get("start"))
+    end = _parse_date(request.POST.get("end"))
+    if not (m and q and start and end):
+        messages.error(request, "Bitte Mitglied, Quartier, Anreise und Abreise wählen.")
+        return redirect(back)
+    wish, err = svc.add_wish_for_member(request.user, m, period, q, start, end)
+    if err:
+        messages.error(request, err)
+    else:
+        messages.success(request, f"Wunsch für {m.display_name} nachgetragen und "
+                         f"eingereicht: {q.name}, {start:%d.%m.}–{end:%d.%m.}.")
     return redirect(back)
 
 
