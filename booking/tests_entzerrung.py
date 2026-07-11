@@ -216,14 +216,17 @@ class WishExportAndNachtragTests(TestCase):
 
 
 class HelpPageTests(TestCase):
-    def test_hilfe_zeigt_entzerrungsphase_und_zeitleiste(self):
+    def test_hilfe_zeigt_entzerrung_im_losungsabschnitt(self):
+        # Die Entzerrungsphase ist in „Wunschliste & Auslosung" eingegliedert
+        # (ADR 0101 Batch 4): Zeitleiste + Anzeige-Stopp, kein eigener Abschnitt mehr.
         m = _member("hilde")
         self.client.force_login(m.user)
         html = self.client.get(reverse("help")).content.decode()
-        self.assertIn("Entzerrungsphase vor der Losung", html)   # Abschnittstitel
+        self.assertIn("Entzerrungsphase", html)                  # im Losungsabschnitt
         self.assertIn("phase-flow", html)                        # HTML/CSS-Zeitleiste
-        self.assertIn("Einreiche-Frist", html)
-        self.assertIn("Freeze", html)
+        self.assertIn("Frist zum Eintragen", html)               # neue Frist-Marke
+        self.assertIn("Anzeige-Stopp", html)                     # statt „Freeze"
+        self.assertNotIn('id="entzerrung"', html)                # kein eigener Abschnitt
 
 
 class SnapshotTests(TestCase):

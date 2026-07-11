@@ -474,9 +474,13 @@ def booking_policy_summary() -> dict:
         ms = r.max_stay_nights
         if ms is not None and (stay_cap is None or ms < stay_cap):
             stay_cap, stay_cap_name = ms, r.name
+    from ..models import BookingPeriod
     return {
         "default_min_nights": p.default_min_nights,
         "min_lead_days": p.min_lead_days,
+        # Entzerrungsphase (ADR 0101): echte Werte für die Hilfeseite.
+        "review_days": p.review_days,
+        "freeze_hours": BookingPeriod.FREEZE_HOURS,
         "allow_gap_fill": p.allow_gap_fill,
         "allow_undersized": p.allow_undersized_units,
         "group_min_persons": p.group_min_persons,

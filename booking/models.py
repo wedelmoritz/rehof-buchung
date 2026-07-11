@@ -1535,9 +1535,9 @@ class BookingPolicy(models.Model):
     review_days = models.PositiveSmallIntegerField(
         "Entzerrungsphase (Tage vor der Losung)", default=7,
         help_text="Länge der Entzerrungs-/Review-Phase VOR der Losung (ADR 0101): "
-                  "Ab „Losdatum − diese Tage“ ist die Einreiche-Frist vorbei "
-                  "(Teilnehmerkreis fest); Teilnehmer können ihre Wünsche noch "
-                  "anpassen und sehen die Nachfrage. Je Periode überschreibbar.",
+                  "Ab „Losdatum − diese Tage“ beginnt die Entzerrungsphase; "
+                  "Mitglieder können ihre Wünsche noch anpassen und sehen die "
+                  "Nachfrage. Je Periode überschreibbar.",
     )
     er_decision_lock_days = models.PositiveSmallIntegerField(
         "Endreinigung: Frist zum Revidieren (Tage vor Anreise)", default=7,
