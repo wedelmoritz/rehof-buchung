@@ -26,9 +26,14 @@ Proposed (2026-07-10) · erweitert [ADR 0003](0003-losverfahren-weighted-rsd.md)
 > **Batch C–F umgesetzt (2026-07):**
 > * **C – Nachfrage-Heatmap** (`wish_demand_grid`): anonyme Quartier×Monat-Heatmap auf
 >   der Wunschliste (HTML/CSS).
-> * **D – Absprachen + Opt-out** (`Member.coordination_opt_out`, `wish_neighbors`):
->   überlappende Wunsch-Nachbarn mit Name+Telefon, Default sichtbar, 1-Klick-Opt-out im
->   Profil, DSGVO-Hinweise. Governance-Entscheidung (Telefon by default) bewusst so.
+> * **D – Absprachen + Opt-out** (`Member.coordination_hide_phone/_email`,
+>   `wish_coordination`): überlappende Wunsch-Nachbarn je Wunsch mit Name (immer sichtbar,
+>   Begegnung) + Kontaktkanälen; Default sichtbar, **je Kanal (Telefon/E-Mail) einzeln
+>   verbergbar** im Profil, DSGVO-Hinweise. Governance-Entscheidung (Kontakt by default)
+>   bewusst so. *(Batch 2, 2026-07: aus der Einzel-Sichtbarkeit `coordination_opt_out`
+>   wurde per-Kanal-Opt-out; die Nachbarn stehen jetzt je Wunsch unter „Details &
+>   Aktionen" statt in einem eigenen Abschnitt, samt Chancen-Begründung = Zahl der
+>   Überlappungen + eigene Priorität.)*
 > * **E – Wunsch-Export + Admin-Nachtrag**: Capability `wuensche`/Unterseite
 >   `verw_wuensche` (`export_wishes`) mit xlsx/CSV-Export; `add_wish_for_member`
 >   (auditiert, `Wish.created_by`).

@@ -223,28 +223,65 @@
             <button class="btn small ghost danger" type="submit" aria-label="Wunsch entfernen" title="Wunsch entfernen">&#10005;</button>
           </form>
         </span>
-        {% if w.overlap_same_quarter %}
-        <div class="wish-hint">ℹ️ <strong>Überlappt mit einem anderen Wunsch für „{{ w.quarter.name }}“.</strong>
-          Das ist erlaubt – die Losung berücksichtigt in einem überlappenden Zeitraum immer nur einen davon.
-          Wenn das nicht gewollt ist, kannst du einen der beiden entfernen.</div>
-        {% endif %}
-        {% if w.alt %}
-        <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist im gewählten Zeitraum sehr beliebt</strong>
-          ({{ w.alt.base }}&times; von anderen gewünscht). Weniger beliebte Alternativen &ndash; dort hast du bessere Chancen:
-          <ul class="wish-alt">
-            {% if w.alt.time %}
-            <li>gleiche Unterkunft, etwas anderer Zeitraum:
-              <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.alt.time.start|date:'Y-m-d' }}&end={{ w.alt.time.end|date:'Y-m-d' }}">{{ w.alt.time.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.alt.time.end|date:'d.m.' }}</a>
-              &ndash; dort {% if w.alt.time.count %}erst {{ w.alt.time.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
+        <details class="wish-det">
+          <summary>Details &amp; Aktionen</summary>
+          <div class="wish-det-body">
+            {# Chancen-Begründung: Zahl der überlappenden Wünsche + eigene Priorität. #}
+            <p class="wd-chance"><strong>Deine Chance auf diesen Wunsch:</strong>
+              {% if w.coord %}{{ w.coord.overlap_count }} andere{{ w.coord.overlap_count|pluralize:"s,r" }}
+              {{ w.coord.overlap_count|pluralize:"Mitglied wünscht,Mitglieder wünschen" }} sich „{{ w.quarter.name }}“
+              zur gleichen Zeit.{% else %}Zurzeit überlappt <strong>kein anderer Wunsch</strong> mit
+              „{{ w.quarter.name }}“ in diesem Zeitraum – gute Ausgangslage.{% endif %}
+              Deine Priorität hier ist <strong>{{ forloop.counter }}</strong> (1 = wichtigster).
+              {% if w.prognosis %}<br>Geschätzte Chance: <strong>≈ {{ w.prognosis.prob }} %</strong>
+              (Trockenlauf der Auslosung, kein garantiertes Ergebnis).{% endif %}</p>
+
+            {% if w.coord %}
+            <div class="wd-neighbors">
+              <strong>🤝 Wer wünscht sich dasselbe?</strong>
+              <p class="muted sm" style="margin:.15rem 0 .4rem">Sprecht euch gern direkt ab (z.&nbsp;B.
+                wer welche Woche nimmt) – das entzerrt die Losung. Die Absprache ist <strong>privat
+                und außerhalb der App</strong>; sie ändert nichts am fairen Losverfahren.</p>
+              <ul class="nb-list">
+                {% for n in w.coord.neighbors %}
+                <li><strong>{{ n.name }}</strong> <span class="muted">({{ n.start|date:"d.m." }}–{{ n.end|date:"d.m." }})</span>
+                  {% if n.phone %} · <a href="tel:{{ n.phone }}">{{ n.phone }}</a>{% endif %}
+                  {% if n.email %} · <a href="mailto:{{ n.email }}">{{ n.email }}</a>{% endif %}
+                  {% if not n.phone and not n.email %} · <span class="muted">kein Kontakt freigegeben</span>{% endif %}</li>
+                {% endfor %}
+              </ul>
+              <p class="muted sm" style="margin:.3rem 0 0">Der <strong>Name</strong> ist immer sichtbar
+                (wir setzen auf Begegnung); <strong>Telefon/E-Mail</strong> gibt jede:r selbst frei. Deine
+                eigenen Kanäle stellst du im <a href="{% url 'profile' %}#absprachen">Profil</a> ein.</p>
+            </div>
             {% endif %}
-            {% if w.alt.quarter %}
-            <li>gleichwertige Unterkunft zur gleichen Zeit:
-              <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.start|date:'Y-m-d' }}&end={{ w.end|date:'Y-m-d' }}">{{ w.alt.quarter.name }}</a>
-              &ndash; dort {% if w.alt.quarter.count %}erst {{ w.alt.quarter.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
+
+            {% if w.alt %}
+            <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist im gewählten Zeitraum sehr beliebt</strong>
+              ({{ w.alt.base }}&times; von anderen gewünscht). Weniger beliebte Alternativen &ndash; dort hast du bessere Chancen:
+              <ul class="wish-alt">
+                {% if w.alt.time %}
+                <li>gleiche Unterkunft, etwas anderer Zeitraum:
+                  <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.alt.time.start|date:'Y-m-d' }}&end={{ w.alt.time.end|date:'Y-m-d' }}">{{ w.alt.time.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.alt.time.end|date:'d.m.' }}</a>
+                  &ndash; dort {% if w.alt.time.count %}erst {{ w.alt.time.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
+                {% endif %}
+                {% if w.alt.quarter %}
+                <li>gleichwertige Unterkunft zur gleichen Zeit:
+                  <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.start|date:'Y-m-d' }}&end={{ w.end|date:'Y-m-d' }}">{{ w.alt.quarter.name }}</a>
+                  &ndash; dort {% if w.alt.quarter.count %}erst {{ w.alt.quarter.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
+                {% endif %}
+              </ul>
+              <span class="muted">Tipp: Ein Klick übernimmt den Zeitraum oben – dann kannst du den Wunsch
+              anpassen (alten entfernen, neuen eintragen). Ganz freiwillig; die Auslosung bleibt unberührt.</span></div>
             {% endif %}
-          </ul>
-          <span class="muted">Ganz freiwillig &ndash; die Auslosung bleibt davon unberührt.</span></div>
-        {% endif %}
+
+            {% if w.overlap_same_quarter %}
+            <div class="wish-hint">ℹ️ <strong>Überlappt mit einem eigenen anderen Wunsch für „{{ w.quarter.name }}“.</strong>
+              Das ist erlaubt – die Losung berücksichtigt in einem überlappenden Zeitraum immer nur einen davon.
+              Wenn das nicht gewollt ist, kannst du einen der beiden entfernen.</div>
+            {% endif %}
+          </div>
+        </details>
       </li>
       {% endfor %}
     </ul>
@@ -273,32 +310,8 @@
       oder ein gleichwertiges Quartier wählen. Das erhöht für alle die Chance.</p>
     <p class="muted sm" style="margin:.5rem 0 0">Die <strong>Chance</strong> je Wunsch ist
       eine Schätzung aus vielen Trockenläufen der echten Auslosung (mit Karma, gleichwertigen
-      Ausweichquartieren und Budget) – kein garantiertes Ergebnis.</p>
-
-    {% if wish_neighbors %}
-    <div class="neighbors">
-      <h3 style="margin:1rem 0 .3rem;font-size:1rem">🤝 Wunsch-Nachbarn – gemeinsam entzerren</h3>
-      <p class="muted sm" style="margin:0 0 .6rem">Diese Mitglieder wünschen sich dieselbe
-        Unterkunft in einem überlappenden Zeitraum. <strong>Sprecht euch gern direkt ab</strong>
-        (z. B. wer welche Woche nimmt) – das entzerrt die Losung, bevor sie zieht. Die
-        Absprache ist <strong>privat und außerhalb der App</strong>; sie ändert nichts am
-        fairen Losverfahren.</p>
-      {% for row in wish_neighbors %}
-      <div class="nb-wish">
-        <div class="nb-head">{{ row.wish.quarter.name }} <span class="muted">· {{ row.wish.start }} – {{ row.wish.end }}</span></div>
-        <ul class="nb-list">
-          {% for n in row.neighbors %}
-          <li><strong>{{ n.name }}</strong> <span class="muted">({{ n.start|date:"d.m." }}–{{ n.end|date:"d.m." }})</span>
-            {% if n.phone %}· <a href="tel:{{ n.phone }}">{{ n.phone }}</a>{% else %}· <span class="muted">keine Telefonnummer hinterlegt</span>{% endif %}</li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endfor %}
-      <p class="muted sm" style="margin:.5rem 0 0">Datenschutz: Sichtbar sind nur Name und
-        Telefon von Mitgliedern mit überlappendem Wunsch, nur zur Absprache. Du kannst deine
-        eigene Sichtbarkeit jederzeit im <a href="{% url 'profile' %}#absprachen">Profil</a> abschalten.</p>
-    </div>
-    {% endif %}
+      Ausweichquartieren und Budget) – kein garantiertes Ergebnis. <strong>Details, Nachbarn
+      &amp; Alternativen</strong> stehen je Wunsch unter „Details &amp; Aktionen“.</p>
     {% else %}
     <p class="muted">Noch keine Wünsche eingetragen – wähle oben im Kalender einen Zeitraum.</p>
     {% endif %}
@@ -366,9 +379,14 @@
     font-variant-numeric:tabular-nums; font-weight:700; color:var(--ink);
     background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
   /* Wunsch-Nachbarn (ADR 0101) */
-  .neighbors { margin-top:.8rem; border-top:1px dashed var(--line); padding-top:.6rem; }
-  .nb-wish { margin:.4rem 0; }
-  .nb-head { font-weight:700; }
+  /* Wunsch-Details je Wunsch (ADR 0101, Batch 2): „Details & Aktionen"-Aufklapper. */
+  .wish-det { flex:1 1 100%; margin-top:.15rem; }
+  .wish-det > summary { cursor:pointer; font-size:.86rem; font-weight:600;
+    color:var(--sage-deep); padding:.2rem 0; }
+  .wish-det-body { padding:.3rem 0 .1rem; }
+  .wd-chance { font-size:.88rem; line-height:1.45; margin:.1rem 0 .5rem; }
+  .wd-neighbors { background:var(--sage-soft); border-radius:8px; padding:.5rem .65rem;
+    margin:.2rem 0 .5rem; font-size:.9rem; }
   .nb-list { list-style:none; margin:.15rem 0 0; padding:0; }
   .nb-list li { padding:.15rem 0; font-size:.92rem; }
   .nb-list a { color:var(--accent-deep); font-weight:700; }

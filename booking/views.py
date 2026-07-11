@@ -801,9 +801,14 @@ def wishlist(request):
         alts = svc.wish_alternatives(period, member, wishes)
         # Gewinn-Prognose je Wunsch (ADR 0101): realistische Chance als Band.
         prog = svc.wish_prognosis(period) if wishes else {}
+        # Wunsch-Details je Wunsch (ADR 0101, Batch 2): überlappende Wunsch-Nachbarn
+        # (Name + nicht verborgene Kontaktkanäle) + Zahl der Überlappungen als
+        # Chancen-Begründung. Nur eine Absprache-Basis, kein Eingriff in die Losung.
+        coord = svc.wish_coordination(period, member) if wishes else {}
         for w in wishes:
             w.alt = alts.get(w.id)
             w.prognosis = prog.get(w.id)
+            w.coord = coord.get(w.id)
         # Sanfter Hinweis JE WUNSCH bei überlappenden Wünschen fürs SELBE Quartier
         # (Feedback #2b): überlappende Wünsche bleiben bewusst zulässig (das
         # Losverfahren berücksichtigt jeweils nur einen), aber ein Hinweis macht die
@@ -868,11 +873,6 @@ def wishlist(request):
         "wish_form": WishForm(),
         "memberships": member.memberships if member else [],
         "wishes": wishes,
-        # Wunsch-Nachbarn für private Absprachen (ADR 0101): sobald das Mitglied
-        # Wünsche hat; nur Mitglieder, die die Sichtbarkeit nicht abgeschaltet haben.
-        "wish_neighbors": (svc.wish_neighbors(period, member)
-                           if member and period and wishes else []),
-        "coordination_opt_out": bool(member and member.coordination_opt_out),
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "wish_cap": wish_cap,
@@ -1021,12 +1021,16 @@ def profile(request):
             # Tausch-Anfragen an/aus (#8/ADR 0078): steuert, ob andere Mitglieder
             # dieses Konto als Tausch-Partner anfragen dürfen.
             member.accept_swap_requests = bool(request.POST.get("accept_swap_requests"))
-            # Absprachen-Sichtbarkeit in der Entzerrungsphase (ADR 0101): Checkbox
-            # „sichtbar sein" → opt_out = NICHT angehakt. Default sichtbar.
-            member.coordination_opt_out = not bool(
-                request.POST.get("coordination_visible"))
+            # Absprachen-Kontakt in der Entzerrungsphase (ADR 0101): der Name bleibt
+            # immer sichtbar (Begegnung), Telefon/E-Mail sind je Kanal verbergbar.
+            # Checkbox „Telefon zeigen" → hide_phone = NICHT angehakt. Default sichtbar.
+            member.coordination_hide_phone = not bool(
+                request.POST.get("coordination_show_phone"))
+            member.coordination_hide_email = not bool(
+                request.POST.get("coordination_show_email"))
             member.save(update_fields=["email_opt_in", "accept_swap_requests",
-                                       "coordination_opt_out"])
+                                       "coordination_hide_phone",
+                                       "coordination_hide_email"])
             messages.success(request, "Einstellungen gespeichert.")
             return redirect("profile")
         elif action == "terminal_prefs":

@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from booking import services as svc
 from booking.models import (
-    BookingPeriod, EquivalenceClass, Member, Membership, Quarter, Share,
+    BookingPeriod, EquivalenceClass, Member, Membership, Quarter, Share, Wish,
 )
 
 NEXT = date.today().year + 1
@@ -94,44 +94,59 @@ class CoordinationTests(TestCase):
     def _wish(self, m, q, s, e):
         svc.add_wish(m, self.period, q, s, e)
 
-    def test_ueberlappende_nachbarn_sichtbar_mit_telefon(self):
+    def _mine(self, m):
+        return list(Wish.objects.filter(period=self.period, member=m)
+                    .order_by("priority", "id"))
+
+    def test_ueberlappende_nachbarn_sichtbar_mit_kontakt(self):
         self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
         self._wish(self.b, self.q, date(NEXT, 5, 8), date(NEXT, 5, 12))  # überlappt
-        rows = svc.wish_neighbors(self.period, self.a)
-        self.assertEqual(len(rows), 1)
-        names = [n["name"] for n in rows[0]["neighbors"]]
-        self.assertIn("bea", names)
-        self.assertEqual(rows[0]["neighbors"][0]["phone"], "0170 222")
+        coord = svc.wish_coordination(self.period, self.a)
+        wid = self._mine(self.a)[0].id
+        self.assertIn(wid, coord)
+        self.assertEqual(coord[wid]["overlap_count"], 1)
+        neigh = coord[wid]["neighbors"][0]
+        self.assertEqual(neigh["name"], "bea")
+        self.assertEqual(neigh["phone"], "0170 222")
 
-    def test_opt_out_verbirgt(self):
-        self.b.coordination_opt_out = True
-        self.b.save(update_fields=["coordination_opt_out"])
+    def test_pro_kanal_opt_out_verbirgt_kontakt_nicht_namen(self):
+        # Telefon verborgen, E-Mail sichtbar: der Name bleibt sichtbar (Begegnung).
+        self.b.coordination_hide_phone = True
+        self.b.user.email = "bea@example.org"
+        self.b.user.save(update_fields=["email"])
+        self.b.save(update_fields=["coordination_hide_phone"])
         self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
         self._wish(self.b, self.q, date(NEXT, 5, 8), date(NEXT, 5, 12))
-        rows = svc.wish_neighbors(self.period, self.a)
-        self.assertEqual(rows, [])   # bea ausgeblendet → kein Nachbar
+        coord = svc.wish_coordination(self.period, self.a)
+        neigh = coord[self._mine(self.a)[0].id]["neighbors"][0]
+        self.assertEqual(neigh["name"], "bea")     # Name immer sichtbar
+        self.assertEqual(neigh["phone"], "")       # Telefon verborgen
+        self.assertEqual(neigh["email"], "bea@example.org")  # E-Mail sichtbar
 
     def test_nicht_ueberlappend_kein_nachbar(self):
         self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 6))
         self._wish(self.b, self.q, date(NEXT, 5, 20), date(NEXT, 5, 24))  # disjunkt
-        self.assertEqual(svc.wish_neighbors(self.period, self.a), [])
+        self.assertEqual(svc.wish_coordination(self.period, self.a), {})
 
     def test_anderes_quartier_kein_nachbar(self):
         self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
         self._wish(self.b, self.q2, date(NEXT, 5, 8), date(NEXT, 5, 12))
-        self.assertEqual(svc.wish_neighbors(self.period, self.a), [])
+        self.assertEqual(svc.wish_coordination(self.period, self.a), {})
 
-    def test_profil_opt_out_umschalten(self):
+    def test_profil_pro_kanal_umschalten(self):
         self.client.force_login(self.a.user)
-        # Häkchen NICHT gesetzt → opt_out = True (nicht sichtbar)
+        # Kein Häkchen → beide Kanäle verborgen (Name bleibt sichtbar).
         self.client.post(reverse("profile"), {"action": "notify_prefs"})
         self.a.refresh_from_db()
-        self.assertTrue(self.a.coordination_opt_out)
-        # Häkchen gesetzt → wieder sichtbar
-        self.client.post(reverse("profile"),
-                         {"action": "notify_prefs", "coordination_visible": "on"})
+        self.assertTrue(self.a.coordination_hide_phone)
+        self.assertTrue(self.a.coordination_hide_email)
+        # Beide Häkchen → beide Kanäle sichtbar.
+        self.client.post(reverse("profile"), {
+            "action": "notify_prefs",
+            "coordination_show_phone": "on", "coordination_show_email": "on"})
         self.a.refresh_from_db()
-        self.assertFalse(self.a.coordination_opt_out)
+        self.assertFalse(self.a.coordination_hide_phone)
+        self.assertFalse(self.a.coordination_hide_email)
 
 
 class WishExportAndNachtragTests(TestCase):
