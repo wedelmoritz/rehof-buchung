@@ -895,7 +895,10 @@ def wishlist(request):
         "period": period,
         "cal": cal,
         "sel_qs": sel_qs,
-        "nav_qs": sel_qs,
+        # Der Kalender steht nur im Reiter „Neue Wünsche eintragen" – seine Blätter-
+        # Navigation (Monat/Jahr) muss den Reiter mitführen, sonst landet man beim
+        # Blättern wieder auf „Meine Wünsche".
+        "nav_qs": "&view=neu" + sel_qs,
         "show_today": False,
         **_cal_nav(cal),
         "sel_start": sel_start,
