@@ -173,27 +173,27 @@
   <p class="muted">Das Ergebnis erscheint nach dem (von der Verwaltung terminierten) Losungstermin unter
     <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</p>
 
-  {% comment %}Ablauf der Wunsch-Phase als HTML/CSS-Zeitleiste (ADR 0095: HTML/CSS statt SVG,
-  engine-neutral und theme-fähig). Drei Etappen mit Fristen dazwischen; der Anzeige-Stopp
-  in den letzten Stunden ist eigens markiert.{% endcomment %}
-  <ol class="phase-flow" aria-label="Ablauf über die Zeit: Erst das Wunsch-Fenster – Wünsche eintragen und ordnen. Dann die Frist zum Eintragen. Danach die Entzerrungsphase – Chance, Nachfrage und Nachbarn sehen und Wünsche anpassen; in ihren letzten Stunden gilt ein Anzeige-Stopp, die Anzeige wird festgehalten, eigene Änderungen zählen weiter. Dann die Losung, eine einmalige Ziehung. Zuletzt das Ergebnis unter Meine Buchungen.">
-    <li class="pf-phase">
-      <span class="pf-badge">1</span>
-      <span class="pf-body"><strong>Wunsch-Fenster</strong>
-        <span class="pf-sub">Wünsche eintragen &amp; ordnen · sofort dabei</span></span>
+  {% comment %}Ablauf der Wunsch-Phase als moderne HTML/CSS-Zeitleiste („Stepper", ADR 0095:
+  HTML/CSS statt SVG, engine-neutral + theme-fähig). Durchgehende Schiene mit nummerierten
+  Etappen; dazwischen kleine Fristen-Punkte; der Anzeige-Stopp ist eigens markiert.{% endcomment %}
+  <ol class="flow-timeline" aria-label="Ablauf über die Zeit: Erst das Wunsch-Fenster – Wünsche eintragen und ordnen. Dann die Frist zum Eintragen. Danach die Entzerrungsphase – Chance, Nachfrage und Nachbarn sehen und Wünsche anpassen; in ihren letzten Stunden gilt ein Anzeige-Stopp, die Anzeige wird festgehalten, eigene Änderungen zählen weiter. Dann die Losung, eine einmalige Ziehung. Zuletzt das Ergebnis unter Meine Buchungen.">
+    <li class="ft-step">
+      <span class="ft-node">1</span>
+      <span class="ft-label"><strong>Wunsch-Fenster</strong>
+        <span class="ft-sub">Wünsche eintragen &amp; ordnen – jeder sofort dabei</span></span>
     </li>
-    <li class="pf-gate"><span>⏳ Frist zum Eintragen</span></li>
-    <li class="pf-phase accent">
-      <span class="pf-badge">2</span>
-      <span class="pf-body"><strong>Entzerrungsphase</strong>
-        <span class="pf-sub">Chance, Nachfrage &amp; Nachbarn sehen · Wünsche anpassen</span>
-        <span class="pf-freeze">🛑 letzte Stunden: <strong>Anzeige-Stopp</strong> – Anzeige fix, deine Änderungen zählen weiter</span></span>
+    <li class="ft-gate"><span class="ft-gate-dot">⏳</span><span class="ft-gate-label">Frist zum Eintragen</span></li>
+    <li class="ft-step accent">
+      <span class="ft-node">2</span>
+      <span class="ft-label"><strong>Entzerrungsphase</strong>
+        <span class="ft-sub">Chance, Nachfrage &amp; Nachbarn sehen · Wünsche anpassen</span>
+        <span class="ft-freeze">🛑 letzte Stunden: <strong>Anzeige-Stopp</strong> – Anzeige fix, Änderungen zählen weiter</span></span>
     </li>
-    <li class="pf-gate"><span>🎲 Losung</span></li>
-    <li class="pf-phase good">
-      <span class="pf-badge">3</span>
-      <span class="pf-body"><strong>Ergebnis</strong>
-        <span class="pf-sub">unter „Meine Buchungen“</span></span>
+    <li class="ft-gate"><span class="ft-gate-dot">🎲</span><span class="ft-gate-label">Losung</span></li>
+    <li class="ft-step good">
+      <span class="ft-node">3</span>
+      <span class="ft-label"><strong>Ergebnis</strong>
+        <span class="ft-sub">unter „Meine Buchungen“</span></span>
     </li>
   </ol>
 
@@ -329,8 +329,8 @@
 
   <details class="deep">
     <summary>Ablauf als Diagramm</summary>
-    <svg class="flow" viewBox="0 0 600 600" role="img"
-         aria-label="Ablauf: Wünsche eintragen, dabei die Nachfrage der anderen prüfen und entzerren – jeder Wunsch ist sofort dabei; Reihenfolge einmal auslosen; in Runden den höchsten möglichen Wunsch zuteilen oder Ausweichquartier, sonst diesmal nichts; höchstens eine Buchung pro Runde; bei offenen Wünschen nächste Runde mit gleicher Reihenfolge; am Ende Karma neu berechnen und Ergebnis veröffentlichen.">
+    <svg class="flow" viewBox="0 0 600 660" role="img"
+         aria-label="Ablauf: Wünsche eintragen – jeder Wunsch ist sofort dabei; danach die Entzerrungsphase, in der man Chance und Nachfrage sieht und die Wünsche anpassen kann, mit Anzeige-Stopp kurz vor der Losung; dann Reihenfolge einmal auslosen; in Runden den höchsten möglichen Wunsch zuteilen oder ein Ausweichquartier, sonst diesmal nichts; höchstens eine Buchung pro Runde; bei offenen Wünschen nächste Runde mit gleicher Reihenfolge; am Ende Karma neu berechnen und Ergebnis veröffentlichen.">
       <defs>
         <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
           <path d="M0,0 L7,3 L0,6 z" fill="#8a8076"/>
@@ -338,54 +338,58 @@
       </defs>
       <g class="ln">
         <line x1="300" y1="54"  x2="300" y2="64"  marker-end="url(#arr)"/>
-        <line x1="300" y1="112" x2="300" y2="130" marker-end="url(#arr)"/>
-        <line x1="300" y1="168" x2="300" y2="186" marker-end="url(#arr)"/>
-        <line x1="300" y1="224" x2="124" y2="244" marker-end="url(#arr)"/>
-        <line x1="300" y1="224" x2="300" y2="244" marker-end="url(#arr)"/>
-        <line x1="300" y1="224" x2="478" y2="244" marker-end="url(#arr)"/>
-        <line x1="124" y1="292" x2="298" y2="330" marker-end="url(#arr)"/>
-        <line x1="300" y1="292" x2="300" y2="330" marker-end="url(#arr)"/>
-        <line x1="478" y1="292" x2="302" y2="330" marker-end="url(#arr)"/>
-        <line x1="300" y1="366" x2="300" y2="378" marker-end="url(#arr)"/>
-        <line x1="300" y1="434" x2="300" y2="456" marker-end="url(#arr)"/>
-        <polyline points="186,406 90,406 90,148 158,148" marker-end="url(#arr)"/>
-        <line x1="300" y1="502" x2="300" y2="522" marker-end="url(#arr)"/>
+        <line x1="300" y1="112" x2="300" y2="122" marker-end="url(#arr)"/>
+        <line x1="300" y1="170" x2="300" y2="188" marker-end="url(#arr)"/>
+        <line x1="300" y1="226" x2="300" y2="244" marker-end="url(#arr)"/>
+        <line x1="300" y1="282" x2="124" y2="302" marker-end="url(#arr)"/>
+        <line x1="300" y1="282" x2="300" y2="302" marker-end="url(#arr)"/>
+        <line x1="300" y1="282" x2="478" y2="302" marker-end="url(#arr)"/>
+        <line x1="124" y1="350" x2="298" y2="388" marker-end="url(#arr)"/>
+        <line x1="300" y1="350" x2="300" y2="388" marker-end="url(#arr)"/>
+        <line x1="478" y1="350" x2="302" y2="388" marker-end="url(#arr)"/>
+        <line x1="300" y1="424" x2="300" y2="436" marker-end="url(#arr)"/>
+        <line x1="300" y1="492" x2="300" y2="514" marker-end="url(#arr)"/>
+        <polyline points="186,464 90,464 90,206 158,206" marker-end="url(#arr)"/>
+        <line x1="300" y1="560" x2="300" y2="580" marker-end="url(#arr)"/>
       </g>
       <g class="bx">
         <rect x="100" y="10"  width="400" height="44" rx="9"/>
-        <rect x="100" y="64"  width="400" height="48" rx="9"/>
-        <rect x="158" y="130" width="284" height="36" rx="9"/>
-        <rect x="100" y="186" width="400" height="38" rx="9"/>
-        <rect x="150" y="330" width="300" height="36" rx="9"/>
-        <rect x="100" y="456" width="400" height="46" rx="9"/>
+        <rect x="100" y="122" width="400" height="48" rx="9"/>
+        <rect x="158" y="188" width="284" height="36" rx="9"/>
+        <rect x="100" y="244" width="400" height="38" rx="9"/>
+        <rect x="150" y="388" width="300" height="36" rx="9"/>
+        <rect x="100" y="514" width="400" height="46" rx="9"/>
       </g>
-      <rect class="acc" x="100" y="522" width="400" height="40" rx="9"/>
-      <rect class="win" x="36"  y="246" width="172" height="46" rx="9"/>
-      <rect class="win" x="214" y="246" width="172" height="46" rx="9"/>
-      <rect class="loss" x="392" y="246" width="172" height="46" rx="9"/>
-      <polygon class="dec" points="186,406 300,378 414,406 300,434"/>
+      <rect class="acc" x="100" y="64"  width="400" height="48" rx="9"/>
+      <rect class="acc" x="100" y="580" width="400" height="40" rx="9"/>
+      <rect class="win" x="36"  y="304" width="172" height="46" rx="9"/>
+      <rect class="win" x="214" y="304" width="172" height="46" rx="9"/>
+      <rect class="loss" x="392" y="304" width="172" height="46" rx="9"/>
+      <polygon class="dec" points="186,464 300,436 414,464 300,492"/>
       <g class="tx">
         <text x="300" y="28">① Wünsche eintragen</text>
-        <text x="300" y="45" class="sm">Nachfrage prüfen &amp; entzerren · jeder Wunsch sofort dabei</text>
-        <text x="300" y="84">② Reihenfolge EINMAL auslosen</text>
-        <text x="300" y="100" class="sm">Karma (Vorjahr) = Gewicht für vordere Plätze</text>
-        <text x="300" y="153">③ Runde: Parteien der Reihe nach</text>
-        <text x="300" y="209">höchster noch möglicher Wunsch der Partei</text>
-        <text x="122" y="266">Wunschquartier frei</text>
-        <text x="122" y="282" class="b">✓ zuteilen</text>
-        <text x="300" y="266">gleichwertiges frei</text>
-        <text x="300" y="282" class="b">✓ Ausweichquartier</text>
-        <text x="478" y="266">nichts frei</text>
-        <text x="478" y="282" class="b">✗ diesmal nicht (Karma +0,1)</text>
-        <text x="300" y="313" class="sm">Wunsch-Budget voll? Wunsch übersprungen – zählt nicht negativ.</text>
-        <text x="300" y="352">höchstens EINE Buchung pro Partei &amp; Runde</text>
-        <text x="300" y="404">offene</text>
-        <text x="300" y="418">Wünsche?</text>
-        <text x="300" y="450" class="sm">nein</text>
-        <text x="120" y="120" class="sm">ja · nächste Runde</text>
-        <text x="300" y="475">④ Karma neu berechnen (fürs nächste Jahr):</text>
-        <text x="300" y="491" class="sm">nicht erfüllt → +0,1 (max 1,5) · beliebter Gewinn → 1,0</text>
-        <text x="300" y="546">⑤ Ergebnis veröffentlicht → Benachrichtigung</text>
+        <text x="300" y="45" class="sm">jeder Wunsch ist sofort dabei (kein Einreichen)</text>
+        <text x="300" y="84">② Entzerrungsphase</text>
+        <text x="300" y="100" class="sm">Chance &amp; Nachfrage sehen · anpassen · Anzeige-Stopp</text>
+        <text x="300" y="142">③ Reihenfolge EINMAL auslosen</text>
+        <text x="300" y="158" class="sm">Karma (Vorjahr) = Gewicht für vordere Plätze</text>
+        <text x="300" y="211">④ Runde: Parteien der Reihe nach</text>
+        <text x="300" y="267">höchster noch möglicher Wunsch der Partei</text>
+        <text x="122" y="324">Wunschquartier frei</text>
+        <text x="122" y="340" class="b">✓ zuteilen</text>
+        <text x="300" y="324">gleichwertiges frei</text>
+        <text x="300" y="340" class="b">✓ Ausweichquartier</text>
+        <text x="478" y="324">nichts frei</text>
+        <text x="478" y="340" class="b">✗ diesmal nicht (Karma +0,1)</text>
+        <text x="300" y="371" class="sm">Wunsch-Budget voll? Wunsch übersprungen – zählt nicht negativ.</text>
+        <text x="300" y="410">höchstens EINE Buchung pro Partei &amp; Runde</text>
+        <text x="300" y="462">offene</text>
+        <text x="300" y="476">Wünsche?</text>
+        <text x="300" y="508" class="sm">nein</text>
+        <text x="120" y="178" class="sm">ja · nächste Runde</text>
+        <text x="300" y="533">⑤ Karma neu berechnen (fürs nächste Jahr):</text>
+        <text x="300" y="549" class="sm">nicht erfüllt → +0,1 (max 1,5) · beliebter Gewinn → 1,0</text>
+        <text x="300" y="604">⑥ Ergebnis veröffentlicht → Benachrichtigung</text>
       </g>
     </svg>
   </details>
@@ -542,33 +546,43 @@
   .formula { font-family:"DejaVu Serif",Georgia,serif; font-size:1.05rem; text-align:center;
     background:#faf7f1; border:1px solid var(--line); border-radius:8px; padding:.5rem .6rem; margin:.5rem 0; }
   .formula sup, .formula sub, .formula-inline sup { font-size:.72em; }
-  /* Phasen-Zeitleiste (ADR 0101): HTML/CSS, kein SVG (ADR 0095, engine-neutral +
-     theme-fähig). Drei nummerierte Etappen, dazwischen kleine Fristen-Marken.
-     Waagerecht auf breiten Schirmen, senkrecht am Handy. */
-  .phase-flow { list-style:none; display:flex; flex-wrap:wrap; align-items:stretch;
-    gap:.45rem; margin:.6rem 0 1rem; padding:0; }
-  .phase-flow .pf-phase { display:flex; align-items:flex-start; gap:.55rem;
-    flex:1 1 12rem; border-radius:14px; padding:.6rem .75rem;
-    border:1px solid var(--line); background:var(--card); }
-  .phase-flow .pf-phase.accent { border-color:var(--accent); background:var(--accent-soft); }
-  .phase-flow .pf-phase.good { border-color:var(--good); background:var(--good-soft); }
-  .phase-flow .pf-badge { flex:0 0 auto; width:1.5rem; height:1.5rem; border-radius:50%;
-    background:var(--sage); color:#fff; font-weight:700; font-size:.85rem;
-    display:flex; align-items:center; justify-content:center; margin-top:.05rem; }
-  .phase-flow .pf-phase.accent .pf-badge { background:var(--accent); }
-  .phase-flow .pf-phase.good .pf-badge { background:var(--good); }
-  .phase-flow .pf-body { display:flex; flex-direction:column; line-height:1.3; }
-  .phase-flow .pf-sub { font-size:.78rem; color:var(--muted); font-weight:400; margin-top:.1rem; }
-  .phase-flow .pf-freeze { font-size:.76rem; margin-top:.35rem; padding:.25rem .4rem;
-    border-radius:7px; background:var(--bad-soft); color:var(--bad); line-height:1.3; }
-  /* Fristen-Marke zwischen den Etappen (kompakt, gestrichelt). */
-  .phase-flow .pf-gate { flex:0 0 auto; align-self:center; display:flex; align-items:center;
-    justify-content:center; text-align:center; font-weight:700; font-size:.82rem;
-    color:var(--muted); border:1px dashed var(--line); border-radius:999px;
-    padding:.3rem .6rem; background:var(--bg); }
+  /* Ablauf-Zeitleiste als moderner „Stepper" (ADR 0095: HTML/CSS, kein SVG,
+     engine-neutral + theme-fähig). Durchgehende Schiene (::before) mit nummerierten
+     Etappen-Kreisen; dazwischen kleine gestrichelte Fristen-Punkte. Waagerecht auf
+     breiten Schirmen, als linke Schiene am Handy. */
+  .flow-timeline { list-style:none; display:flex; align-items:flex-start; gap:0;
+    margin:1rem 0 1.3rem; padding:0; position:relative; }
+  .flow-timeline::before { content:""; position:absolute; left:6%; right:6%; top:1.15rem;
+    height:3px; background:var(--line); border-radius:2px; z-index:0; }
+  .flow-timeline .ft-step, .flow-timeline .ft-gate { display:flex; flex-direction:column;
+    align-items:center; text-align:center; position:relative; z-index:1; padding:0 .35rem; }
+  .flow-timeline .ft-step { flex:1 1 0; }
+  .flow-timeline .ft-gate { flex:0 0 auto; }
+  .flow-timeline .ft-node { width:2.3rem; height:2.3rem; border-radius:50%;
+    background:var(--sage); color:#fff; font-weight:800; font-size:1.05rem;
+    display:flex; align-items:center; justify-content:center; border:3px solid var(--bg);
+    box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .flow-timeline .ft-step.accent .ft-node { background:var(--accent); }
+  .flow-timeline .ft-step.good .ft-node { background:var(--good); }
+  .flow-timeline .ft-gate-dot { width:1.7rem; height:1.7rem; border-radius:50%;
+    background:var(--bg); border:2px dashed var(--muted); display:flex; align-items:center;
+    justify-content:center; font-size:.9rem; margin-top:.3rem; }
+  .flow-timeline .ft-label { margin-top:.5rem; font-size:.92rem; line-height:1.3; max-width:12rem; }
+  .flow-timeline .ft-sub { display:block; font-size:.76rem; color:var(--muted); margin-top:.12rem; }
+  .flow-timeline .ft-gate-label { margin-top:.35rem; font-size:.74rem; font-weight:700; color:var(--muted); }
+  .flow-timeline .ft-freeze { display:inline-block; font-size:.72rem; margin-top:.35rem;
+    padding:.2rem .45rem; border-radius:7px; background:var(--bad-soft); color:var(--bad); line-height:1.35; }
   @media (max-width:640px){
-    .phase-flow { flex-direction:column; align-items:stretch; }
-    .phase-flow .pf-phase, .phase-flow .pf-gate { flex:1 1 auto; }
+    .flow-timeline { flex-direction:column; align-items:stretch; gap:.15rem; }
+    .flow-timeline::before { left:1.15rem; right:auto; top:1.1rem; bottom:1.1rem;
+      width:3px; height:auto; }
+    .flow-timeline .ft-step, .flow-timeline .ft-gate { flex-direction:row;
+      align-items:flex-start; text-align:left; gap:.7rem; padding:.35rem 0; }
+    .flow-timeline .ft-label { margin-top:0; padding-top:.25rem; max-width:none;
+      flex:1 1 auto; min-width:0; }
+    .flow-timeline .ft-gate-label { margin-top:0; padding-top:.35rem; }
+    .flow-timeline .ft-node, .flow-timeline .ft-gate-dot { margin-top:0; flex:0 0 auto; }
+    .flow-timeline .ft-gate-dot { margin-left:.3rem; }
   }
   .flow { display:block; width:100%; max-width:560px; height:auto; margin:.4rem auto .2rem; }
   .flow .bx rect { fill:#fff; stroke:var(--line); }

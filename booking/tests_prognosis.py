@@ -66,7 +66,9 @@ class WishPrognosisTests(TestCase):
         self.assertIn(w.id, svc.wish_prognosis(self.period))
 
     def test_wishlist_seite_zeigt_prognose(self):
+        # Die Los-Chance steht je Wunsch qualitativ (ohne %) unter „Details & Aktionen".
         svc.add_wish(self.alice, self.period, self.q, self.s, self.e)
         self.client.force_login(self.alice.user)
         html = self.client.get(reverse("wishlist")).content.decode()
-        self.assertIn("Gute Chance", html)
+        self.assertIn("gute Chance", html)
+        self.assertNotIn("wp-pct", html)   # die frühere Prozent-Anzeige ist raus
