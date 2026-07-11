@@ -8,12 +8,12 @@
 {% else %}
 <div class="card">
   <div class="sec-head">
-    <h2 style="margin:0">Eingereichte Wünsche · {{ lot_period.target_year }}</h2>
+    <h2 style="margin:0">Eingetragene Wünsche · {{ lot_period.target_year }}</h2>
     <span class="spacer"></span>
-    <span class="muted">{{ wish_count }} im Lostopf</span>
+    <span class="muted">{{ wish_count }} für die Losung</span>
   </div>
   <p class="muted" style="margin:.2rem 0 .7rem">Status: {{ lot_period.get_status_display }}.
-    {% if lot_period.submission_deadline %}Einreiche-Frist: {{ lot_period.submission_deadline|date:"d.m.Y" }}.{% endif %}
+    {% if lot_period.submission_deadline %}Frist zum Eintragen: {{ lot_period.submission_deadline|date:"d.m.Y" }}.{% endif %}
     {% if lot_period.draw_at %}Losung: {{ lot_period.draw_at|date:"d.m.Y H:i" }}.{% endif %}
     Der Export eignet sich als Momentaufnahme <strong>vor</strong> (zu Beginn der
     Entzerrungsphase) und <strong>nach</strong> der Entzerrung (kurz vor der Losung).</p>
@@ -44,8 +44,8 @@
     <label>Anreise<input type="date" name="start" required></label>
     <label>Abreise<input type="date" name="end" required></label>
     <div class="bl-full">
-      <button class="btn" type="submit">Wunsch nachtragen &amp; einreichen</button>
-      <span class="muted sm">Der Wunsch wird sofort in den Lostopf eingereicht und als
+      <button class="btn" type="submit">Wunsch nachtragen</button>
+      <span class="muted sm">Der Wunsch nimmt sofort an der Losung teil und wird als
         „von der Verwaltung nachgetragen“ vermerkt.</span>
     </div>
   </form>
@@ -56,7 +56,7 @@
   {% if wishes %}
   <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>Mitglied</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th><th>Prio</th><th>Eingereicht</th><th>Quelle</th></tr></thead>
+      <thead><tr><th>Mitglied</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th><th>Prio</th><th>Aufgenommen</th><th>Quelle</th></tr></thead>
       <tbody>
         {% for w in wishes %}
         <tr>
@@ -66,7 +66,7 @@
           <td>{{ w.end|date:"d.m.Y" }}</td>
           <td>{{ w.nights }}</td>
           <td>{{ w.priority }}</td>
-          <td>{{ w.submitted_at|date:"d.m. H:i"|default:"–" }}</td>
+          <td>{{ w.added_at|date:"d.m. H:i"|default:"–" }}</td>
           <td>{% if w.created_by_id %}<span class="tag warn">nachgetragen</span>{% else %}<span class="muted">Mitglied</span>{% endif %}</td>
         </tr>
         {% endfor %}

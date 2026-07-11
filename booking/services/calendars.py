@@ -190,10 +190,10 @@ def build_wish_calendar(
     first, last = weeks[0][0], weeks[-1][-1]
 
     n_quarters = max(1, Quarter.objects.filter(active=True).count())
-    submitted, own = [], []
+    all_wishes, own = [], []
     if period:
-        submitted = list(Wish.objects.filter(
-            period=period, submitted=True, start__lte=last, end__gt=first))
+        all_wishes = list(Wish.objects.filter(
+            period=period, start__lte=last, end__gt=first))
         if member:
             own = list(Wish.objects.filter(
                 period=period, member=member, start__lte=last, end__gt=first))
@@ -204,7 +204,7 @@ def build_wish_calendar(
     for week in weeks:
         row = []
         for d in week:
-            demand = sum(1 for w in submitted if w.start <= d < w.end)
+            demand = sum(1 for w in all_wishes if w.start <= d < w.end)
             if demand == 0:
                 level = "free"
             elif demand <= n_quarters // 2 or demand == 1:
@@ -213,8 +213,9 @@ def build_wish_calendar(
                 level = "few"
             else:
                 level = "full"
-            own_sub = any(w.start <= d < w.end for w in own if w.submitted)
-            own_draft = any(w.start <= d < w.end for w in own if not w.submitted)
+            # Wünsche sind ab dem Eintragen verbindlich (kein Entwurf mehr): jeder
+            # eigene Wunsch ist markiert (own_sub).
+            own_sub = any(w.start <= d < w.end for w in own)
             in_range = bool(
                 sel_start and ((sel_end and sel_start <= d < sel_end)
                                or (not sel_end and d == sel_start)))
@@ -224,7 +225,7 @@ def build_wish_calendar(
                 "is_weekend": d.weekday() >= 5, "is_past": d < today,
                 "holiday": next((h.name for h in hols if h.start <= d < h.end), None),
                 "level": level, "demand": demand,
-                "own_sub": own_sub, "own_draft": own_draft,
+                "own_sub": own_sub,
                 "in_range": in_range, "is_start": sel_start == d,
                 "is_end": bool(sel_end) and sel_end == d,
             })
@@ -248,7 +249,7 @@ def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
     if not period or end <= start:
         return counts
     for w in Wish.objects.filter(
-        period=period, submitted=True, start__lt=end, end__gt=start,
+        period=period, start__lt=end, end__gt=start,
     ):
         counts[str(w.quarter_id)] += 1
     return counts
@@ -273,7 +274,7 @@ def wish_demand_grid(period) -> dict:
     qidx = {q.id: i for i, q in enumerate(quarters)}
     grid = [[0] * 12 for _ in quarters]
     for qid, ws, we in Wish.objects.filter(
-            period=period, submitted=True).values_list("quarter_id", "start", "end"):
+            period=period).values_list("quarter_id", "start", "end"):
         i = qidx.get(qid)
         if i is None:
             continue
@@ -340,7 +341,7 @@ def wish_deconfliction(period, start: date, end: date, *, max_shift: int = 2) ->
     win_e = end + timedelta(days=max_shift)
     by_q: dict[str, list] = defaultdict(list)
     for qid, ws, we in Wish.objects.filter(
-        period=period, submitted=True, start__lt=win_e, end__gt=win_s,
+        period=period, start__lt=win_e, end__gt=win_s,
     ).values_list("quarter_id", "start", "end"):
         by_q[str(qid)].append((ws, we))
 
@@ -385,7 +386,7 @@ def wish_alternatives(period, member, wishes, *, max_shift: int = 2) -> dict:
     out: dict = {}
     if not period or not member or not wishes:
         return out
-    rows = (Wish.objects.filter(period=period, submitted=True)
+    rows = (Wish.objects.filter(period=period)
             .exclude(member_id=member.id)
             .values_list("quarter_id", "start", "end"))
     by_q: dict[int, list] = defaultdict(list)

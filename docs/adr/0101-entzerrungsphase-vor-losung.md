@@ -51,6 +51,22 @@ Proposed (2026-07-10) · erweitert [ADR 0003](0003-losverfahren-weighted-rsd.md)
 > strengere Cutoff-Variante bleibt später nachrüstbar (`wishes_editable` trägt die
 > Mitglieds-Signatur bereits).
 
+> **Nachtrag (2026-07): „Einreichen“ abgeschafft.** Der frühere Zwischenschritt
+> „Wünsche einreichen/zurückziehen“ (Entwurf `submitted=False` → Lostopf
+> `submitted=True`) entfällt. Wünsche sind jetzt **ab dem Eintragen verbindlich** und
+> nehmen sofort an der Losung teil – genau wie eine Buchung ab dem Anlegen gilt. Grund:
+> Der Submit-Schritt war vor allem eine **Fußangel** („Wunsch eingetragen, aber
+> vergessen einzureichen → nicht dabei“); mechanisch braucht die Losung nur den
+> **finalen** Wunsch-Stand zum Ziehungszeitpunkt, und die Entzerrungsphase erlaubt
+> Anpassen ohnehin bis zur Ziehung. Umsetzung: Feld `Wish.submitted` entfernt,
+> `submitted_at`→`added_at` umbenannt (Migration 0072); Services `submit_wishlist`/
+> `withdraw_wishlist` gestrichen; `add_wish` setzt `added_at`; alle Zähler/Prognosen/
+> Heatmap/Nachbarn/Erinnerungen zählen **alle eingetragenen** Wünsche. Die zweistufige
+> Wunsch-Erinnerung (ADR 0080) geht nun an Mitglieder **ohne eingetragenen Wunsch**.
+> [ADR 0007](0007-nur-eingereichte-wuensche.md) („nur eingereichte Wünsche“) ist damit
+> überholt: es nehmen **alle eingetragenen** Wünsche teil (der Schutz gegen versehentliche
+> Teilnahme liegt jetzt im bewussten Eintrag-Schritt, nicht in einem separaten Submit).
+
 > **Fachlicher Bezug:** Der Perioden-Lebenszyklus und die Losregeln stehen im
 > [Fachkonzept](../FACHKONZEPT.md); dieser ADR ergänzt eine **Phase** darin. Die
 > Regelwerte (Vorlauf, Freeze) werden bei der Umsetzung dort nachgezogen.

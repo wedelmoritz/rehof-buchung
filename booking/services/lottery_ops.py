@@ -32,14 +32,14 @@ PROGNOSIS_RUNS = 200
 
 def _prognosis_inputs(period):
     """Baut die reinen Los-Eingaben für die Prognose (ADR 0101): alle Mitglieder als
-    Parteien (Karma!), aktive Quartiere und die **eingereichten**, saisonal buchbaren
+    Parteien (Karma!), aktive Quartiere und die eingetragenen, saisonal buchbaren
     Wünsche buchungsberechtigter Mitglieder – identisch zur echten Ziehung
     (`run_period_lottery`), damit die Schätzung dieselben Regeln sieht. Gibt
-    `(parties, quarters_payload, wishes_payload, submitted_wishes, rule_check)`."""
+    `(parties, quarters_payload, wishes_payload, wishes, rule_check)`."""
     members = list(Member.objects.filter(is_external=False))
     quarters = list(Quarter.objects.filter(active=True))
     subs = [
-        w for w in Wish.objects.filter(period=period, submitted=True)
+        w for w in Wish.objects.filter(period=period)
         .select_related("member", "quarter")
         if _in_season_range(w.quarter, w.start, w.end) and w.member.can_book
     ]
@@ -160,19 +160,19 @@ def lottery_retrospective(period, result, quarters, karma_before) -> dict:
     return retro
 
 
-def _members_without_submitted_wishes(period: BookingPeriod):
+def _members_without_wishes(period: BookingPeriod):
     """Buchungsberechtigte Mitglieder (nicht extern, mit Tage-Anteil, aktives Login),
-    die für `period` NOCH KEINEN Wunsch eingereicht haben (submitted=True). Wenige
-    Abfragen: eine Mitglieder-Abfrage + eine Menge der bereits Eingereichten."""
-    submitted_ids = set(
-        Wish.objects.filter(period=period, submitted=True)
+    die für `period` NOCH KEINEN Wunsch eingetragen haben. Wenige Abfragen: eine
+    Mitglieder-Abfrage + eine Menge der bereits Eingetragenen."""
+    with_wishes = set(
+        Wish.objects.filter(period=period)
         .values_list("member_id", flat=True)
     )
     return [
         m for m in Member.objects.filter(
             is_external=False, shares__isnull=False, user__is_active=True)
         .select_related("user").distinct()
-        if m.id not in submitted_ids
+        if m.id not in with_wishes
     ]
 
 
@@ -210,19 +210,20 @@ def send_wish_reminders(force: bool = False) -> int:
     if stage is None:
         return 0
 
-    recipients = _members_without_submitted_wishes(period)
+    recipients = _members_without_wishes(period)
     url = reverse("wishlist")
     days_left = (deadline - today).days
     when = ("morgen" if days_left == 1 else "heute" if days_left == 0
             else f"in {days_left} Tagen")
     urgency = "Letzte Erinnerung: " if stage == 2 else ""
-    msg = (f"{urgency}Die Auslosung {period.target_year} steht an – Einreichen bis "
-           f"{deadline:%d.%m.%Y} ({when}). Du hast noch keinen Wunsch im Lostopf. "
-           f"Trage deine Wünsche ein und reiche sie ein, sonst nimmst du nicht teil.")
+    msg = (f"{urgency}Die Auslosung {period.target_year} steht an – Wünsche eintragen bis "
+           f"{deadline:%d.%m.%Y} ({when}). Du hast noch keinen Wunsch eingetragen. "
+           f"Trage deine Wünsche ein, sonst nimmst du nicht teil (jeder Wunsch ist "
+           f"sofort dabei).")
     for m in recipients:
         Notification.objects.create(member=m, message=msg, url=url)
         email_member(
-            m, f"Re:Hof: Wünsche einreichen bis {deadline:%d.%m.%Y}",
+            m, f"Re:Hof: Wünsche eintragen bis {deadline:%d.%m.%Y}",
             f"Hallo {m.display_name},\n\n{msg}\n\nZur Wunschliste: "
             f"{absolute_url(url)}\n\nViele Grüße\nRe:Hof")
     if stage == 2:
@@ -297,7 +298,7 @@ def run_period_lottery(
     # auch wenn sie vor der Passivierung noch Wünsche eingereicht hatten. Dieselbe
     # Filterung gilt bei der Verifikation, damit die Ziehung reproduzierbar bleibt.
     wishes_qs = [
-        w for w in Wish.objects.filter(period=period, submitted=True)
+        w for w in Wish.objects.filter(period=period)
         .select_related("member", "quarter")
         if _in_season_range(w.quarter, w.start, w.end) and w.member.can_book
     ]
@@ -486,7 +487,7 @@ def _build_lottery_notices(period, members, result, old_factors, quarter_names):
             rule_skips_by[e["party"]] += 1
 
     participant_ids = {
-        str(mid) for mid in Wish.objects.filter(period=period, submitted=True)
+        str(mid) for mid in Wish.objects.filter(period=period)
         .values_list("member_id", flat=True).distinct()
     }
     year = period.target_year
@@ -578,7 +579,7 @@ def verify_period_lottery(period: BookingPeriod) -> dict:
     # auch wenn sie vor der Passivierung noch Wünsche eingereicht hatten. Dieselbe
     # Filterung gilt bei der Verifikation, damit die Ziehung reproduzierbar bleibt.
     wishes_qs = [
-        w for w in Wish.objects.filter(period=period, submitted=True)
+        w for w in Wish.objects.filter(period=period)
         .select_related("member", "quarter")
         if _in_season_range(w.quarter, w.start, w.end) and w.member.can_book
     ]

@@ -108,7 +108,8 @@ abgerundet**, ADR 0073; **Mitgliedsstatus** `passive_from`/`excluded_from` +
 „Rolle" statt „Gruppe", ADR 0087), `Share` (Through-Modell Nutzer↔Anteil mit festem
 `night_budget`; ein Nutzer kann mehreren Anteilen angehören → Budgets summieren
 sich, ganze Tage; `wish_night_budget` ist obsolet/abgeleitet), `BookingPeriod` (zusammengeführt: Jahres-Losung **und**
-buchbarer Zeitraum, gesteuert über `status`), `Wish` (mit `submitted`/`submitted_at`
+buchbarer Zeitraum, gesteuert über `status`), `Wish` (verbindlich ab dem Eintragen –
+kein „Einreichen"/Entwurf mehr, `added_at`; ADR 0101-Nachtrag
 + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066), `Allocation`
 (mit `persons` + `membership` = zugerechneter Mitglieds-Anteil, ADR 0066;
 `special_requests` = optionale **Besonderheiten** beim Buchen [Hund/Kinder/
@@ -201,8 +202,8 @@ Online-Bezahlung) und gilt für Gäste wie Mitglieder gleichermaßen.
 
 Frontend-Seiten (`booking/views.py`): `overview` (Community-Übersicht, aufgeräumt
 nach ADR 0059): oben schlanke **Status-Chips** (Tage frei / offene Losung **mit
-Einreiche-Frist** `BookingPeriod.submission_deadline`; wer noch **nichts eingereicht**
-hat, sieht stattdessen einen **Warn-Chip** „Noch keine Wünsche eingereicht · bis …",
+Frist zum Eintragen** `BookingPeriod.submission_deadline`; wer noch **nichts eingetragen**
+hat, sieht stattdessen einen **Warn-Chip** „Noch keine Wünsche eingetragen · bis …",
 ADR 0080) + eingeklappte **Benachrichtigungen** (`<details>`); darunter die kompakte
 **„Diese Woche"-Agenda** (`services.week_agenda`: je Tag An-/Abreisen + freie
 Quartiere, mobil der Schnell-Überblick) – **standardmäßig eingeklappt** (`<details>`),
@@ -642,7 +643,7 @@ Kontoabgleich) + Benachrichtigung. Konfiguriert am `ShopConfig` (`payments_activ
 (monatlich), `run_due_lotteries` (Perioden/Losungen), `notify_admins_upcoming`
 (Monats-Mail an die Verwaltung mit den Buchungen des Folgemonats, idempotent am
 `OpsConfig.notify_day`), `send_wish_reminders` (täglich, **zweistufige Wunsch-
-Erinnerung** vor der Losung an Mitglieder ohne eingereichten Wunsch;
+Erinnerung** vor der Losung an Mitglieder ohne eingetragenen Wunsch;
 `services.send_wish_reminders`, idempotent je Stufe über
 `BookingPeriod.wish_reminder1_at/2_at`; Vorlauf konfigurierbar
 `BookingPolicy.wish_reminder_lead1/2`, Default 7/2 Tage, ADR 0080),
@@ -796,8 +797,9 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 - **Losverfahren:** gewichtete Zufallsreihenfolge im Runden-Prinzip
   (strategiesicher, über Seed reproduzierbar). Ausweichen auf gleichwertige
   Quartiere derselben `EquivalenceClass`. Karma: +0,1 pro echtem Verlust,
-  Deckel 1,5, Reset auf 1,0 bei Gewinn eines sehr beliebten Slots. **Nur
-  eingereichte Wünsche (`submitted=True`) nehmen teil.** Die Strategiesicherheit
+  Deckel 1,5, Reset auf 1,0 bei Gewinn eines sehr beliebten Slots. **Alle
+  eingetragenen Wünsche nehmen teil** (verbindlich ab dem Eintragen, kein „Einreichen"
+  mehr – ADR 0101-Nachtrag). Die Strategiesicherheit
   ist deterministisch getestet (`test_strategieproof_ueber_alle_reihenfolgen`) —
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
   sich über `BookingPeriod.draw_at` terminieren; das Kommando
@@ -867,8 +869,8 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   materialisiert sie pro Jahr zu konkreten Daten (`services._materialized_seasons`,
   Helfer `availability.recurring_range`), die reine Logik in `rules.py` bleibt
   datumsbasiert. **Mindestnächte** (+ Einzel-Aufenthaltsdeckel) werden bei der
-  normalen Buchung, **beim Eintragen/Einreichen der Wunschliste**
-  (`services.wish_rule_error` in `add_wish`/`submit_wishlist`) **und bei externen
+  normalen Buchung, **beim Eintragen der Wunschliste**
+  (`services.wish_rule_error` in `add_wish`) **und bei externen
   Buchungen** erzwungen. Der Externen-Mindestaufenthalt ist im Backend einstellbar
   (`services.external_min_nights`): **Default identisch zu intern** (inkl. Saison),
   per `ExternalConfig.min_nights_follow_internal` auf einen abweichenden festen Wert
@@ -1098,7 +1100,7 @@ Backend der Rolle „Verwaltung“ hinzufügen. **Rollen-Matrix getestet** in
 `excluded_from` (Daten, leer = aktiv). `Member.status_on(datum)`→`active`/`passive`/
 `excluded`; `status`/`can_book`/`is_passive`/`has_bookings` als Properties. **passiv**
 = Login/Hofladen an, **keine neuen Buchungen/Wünsche/Losung** (serverseitig gesperrt
-in `book_spontaneous`/`add_wish`/`submit_wishlist`/`run_period_lottery` + Views-Guard
+in `book_spontaneous`/`add_wish`/`run_period_lottery` + Views-Guard
 `_block_if_not_bookable`), bestehende Buchungen bleiben; Nav zeigt „Meine Buchungen"/
 „Übersicht" nur bei vorhandenen Buchungen. **ausgeschieden** = `User.is_active=False`
 (Login aus) – der tägliche Scheduler-Schritt `apply_member_status`
@@ -1136,7 +1138,7 @@ ist der **oberste** Admin-Filter (`MemberStatusFilter`).
 ## Offene Punkte / Roadmap (Kandidaten für Change-Requests)
 
 - Saison-Regeln gelten jetzt vollständig auch für Wunschliste/Losung: **Mindest-
-  nächte** beim Einreichen, **Parallel-Limit/Aufenthaltsdeckel** im Los-Algorithmus
+  nächte** beim Eintragen, **Parallel-Limit/Aufenthaltsdeckel** im Los-Algorithmus
   (`run_lottery`-`rule_check`, gedeckelte Wünsche werden übersprungen) sowie für
   externe Buchungen (**erledigt**, s. ADR 0009).
 - **Zahlungsanbindung:** Voll-Bezahlung der Rechnung ist umgesetzt (Mollie/Sandbox).

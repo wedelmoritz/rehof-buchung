@@ -237,11 +237,9 @@ class LotteryWindowIndependenceTests(BaseData):
             status=BookingPeriod.WISHES_OPEN)
         s = date(next_year, 5, 24)
         Wish.objects.create(period=period, member=self.alice, priority=1,
-                            quarter=self.q1, start=s, end=s + timedelta(days=5),
-                            submitted=True)
+                            quarter=self.q1, start=s, end=s + timedelta(days=5))
         Wish.objects.create(period=period, member=self.bob, priority=1,
-                            quarter=self.q1, start=s, end=s + timedelta(days=5),
-                            submitted=True)
+                            quarter=self.q1, start=s, end=s + timedelta(days=5))
         # KEINE freigeschaltete Periode fürs Folgejahr (nur Wunsch-Phase)
         self.assertEqual(
             BookingPeriod.objects.filter(
@@ -335,7 +333,7 @@ class SeasonRuleTests(BaseData):
 
 
 class CalendarAndWishlistTests(BaseData):
-    """Stornierung, Wunschlisten-Einreichung (Lostopf) und Reihenfolge."""
+    """Stornierung, Wunschliste (verbindlich ab Eintragen) und Reihenfolge."""
 
     def setUp(self):
         super().setUp()
@@ -362,18 +360,18 @@ class CalendarAndWishlistTests(BaseData):
         ok, err = svc.cancel_allocation(self.bob, a.id)  # Bob ist nicht Eigentümer
         self.assertFalse(ok)
 
-    def test_nur_eingereichte_wuensche_kommen_in_die_losung(self):
+    def test_alle_eingetragenen_wuensche_kommen_in_die_losung(self):
         s = date(YEAR + 1, 5, 24)
-        # Alice reicht ein, Bob bleibt Entwurf
+        # Beide Wünsche nehmen sofort teil (kein Einreichen mehr, ADR 0101). Q1..Q3
+        # sind gleichwertig (eine Äquivalenzklasse): eine:r bekommt Q1, die:der andere
+        # weicht auf ein gleichwertiges Quartier aus – beide sind dabei.
         svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=5))
         svc.add_wish(self.bob, self.period, self.q1, s, s + timedelta(days=5))
-        svc.submit_wishlist(self.alice, self.period)
         run = run_period_lottery(self.period, seed=1)
         winners = set(
             Allocation.objects.filter(period=self.period, source="lottery")
             .values_list("member__display_name", flat=True))
-        self.assertIn("alice", winners)
-        self.assertNotIn("bob", winners)  # Entwurf nimmt nicht teil
+        self.assertEqual(winners, {"alice", "bob"})
 
     def test_losung_erzwingt_saison_parallel_limit_NICHT(self):
         """Charakterisierung des bekannten offenen Punkts (Roadmap): die Losung
@@ -388,7 +386,6 @@ class CalendarAndWishlistTests(BaseData):
         carol = make_member("carol")
         for m in (self.alice, self.bob, carol):
             svc.add_wish(m, self.period, self.q1, s, e)
-            svc.submit_wishlist(m, self.period)
         run_period_lottery(self.period, seed=1)
         # Drei parallele Einheiten trotz max_parallel_units=2 → Limit nicht erzwungen.
         n = Allocation.objects.filter(period=self.period, source="lottery",
@@ -412,15 +409,15 @@ class CalendarAndWishlistTests(BaseData):
         self.assertEqual(w1.priority, 1)
         self.assertEqual(w2.priority, 2)
 
-    def test_zuruckziehen_macht_wieder_bearbeitbar(self):
+    def test_wunsch_ist_ab_eintragen_verbindlich(self):
+        """Seit ADR 0101 gibt es kein Einreichen/Zurückziehen mehr: ein Wunsch nimmt
+        ab dem Eintragen an der Losung teil."""
         s = date(YEAR + 1, 6, 1)
-        svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=3))
-        svc.submit_wishlist(self.alice, self.period)
+        w, _ = svc.add_wish(self.alice, self.period, self.q1, s, s + timedelta(days=3))
+        self.assertIsNotNone(w)
+        self.assertIsNotNone(w.added_at)
         self.assertTrue(
-            Wish.objects.filter(member=self.alice, submitted=True).exists())
-        svc.withdraw_wishlist(self.alice, self.period)
-        self.assertFalse(
-            Wish.objects.filter(member=self.alice, submitted=True).exists())
+            Wish.objects.filter(member=self.alice, period=self.period).exists())
 
     def test_kalender_zeigt_ferien_und_buchung(self):
         from booking.models import SchoolHoliday

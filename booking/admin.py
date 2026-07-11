@@ -825,8 +825,8 @@ class BookingPeriodAdmin(admin.ModelAdmin):
 @admin.register(Wish)
 class WishAdmin(admin.ModelAdmin):
     list_display = ("member", "membership", "period", "priority", "quarter",
-                    "start", "end", "submitted")
-    list_filter = ("period", "quarter", "submitted")
+                    "start", "end", "added_at")
+    list_filter = ("period", "quarter")
     search_fields = ("member__display_name", "member__user__username",
                      "quarter__name")
     date_hierarchy = "start"

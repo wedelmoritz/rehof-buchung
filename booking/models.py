@@ -659,8 +659,9 @@ class Wish(models.Model):
     )
     start = models.DateField("Anreise")
     end = models.DateField("Abreise (exkl.)")
-    submitted = models.BooleanField("Im Lostopf", default=False)
-    submitted_at = models.DateTimeField("Eingereicht am", null=True, blank=True)
+    # Wünsche sind ab dem Eintragen verbindlich und nehmen an der Losung teil (kein
+    # Entwurf/„Einreichen" mehr, wie beim Buchen). `added_at` = wann aufgenommen.
+    added_at = models.DateTimeField("Aufgenommen am", null=True, blank=True)
     # Audit: wer den Wunsch stellvertretend eingetragen hat (Verwaltung, ADR 0101).
     # Leer, wenn das Mitglied den Wunsch selbst angelegt hat.
     created_by = models.ForeignKey(
@@ -672,7 +673,7 @@ class Wish(models.Model):
         verbose_name_plural = "Wünsche"
         ordering = ["member", "priority"]
         indexes = [
-            models.Index(fields=["period", "submitted"]),
+            models.Index(fields=["period"]),
             models.Index(fields=["member", "period"]),
         ]
 
@@ -681,8 +682,7 @@ class Wish(models.Model):
         return (self.end - self.start).days
 
     def __str__(self) -> str:
-        flag = "" if self.submitted else " (Entwurf)"
-        return f"{self.member} P{self.priority}: {self.quarter} {self.start}–{self.end}{flag}"
+        return f"{self.member} P{self.priority}: {self.quarter} {self.start}–{self.end}"
 
 
 class Allocation(models.Model):

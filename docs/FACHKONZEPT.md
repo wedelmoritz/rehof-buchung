@@ -82,16 +82,16 @@ Inhalt:
   ihren **Status**:
 
   `draft` (Entwurf) → `wishes_open` (Wünsche offen) → `wishes_review`
-  (**Entzerrungsphase**: Einreiche-Frist vorbei, Anpassen möglich) → `lottery_review`
+  (**Entzerrungsphase**: Frist zum Eintragen vorbei, Anpassen möglich) → `lottery_review`
   (Losung gelaufen, **unbestätigt**) → `lottery_done` (bestätigt/veröffentlicht) →
   `free_booking` (freie Bebuchbarkeit) → `ended` (beendet). `suspended` (unterbrochen)
   sperrt vorläufig. (`lottery_ready` = Rückfall-Zustand nach zurückgenommener Losung,
   wieder ziehbar.)
 
-- **Entzerrungsphase (`wishes_review`, ADR 0101).** Zwischen Wunsch-Einreichung und
-  Losung liegt eine eigene Phase: die **Einreiche-Frist** (`review_open` = „Losdatum −
+- **Entzerrungsphase (`wishes_review`, ADR 0101).** Zwischen Wunsch-Fenster und
+  Losung liegt eine eigene Phase: die **Frist zum Eintragen** (`review_open` = „Losdatum −
   Entzerrungstage“, Vorgabe **7** Tage, je Periode überschreibbar) markiert das Ende
-  der Neu-Einreichung; danach können Mitglieder ihre Wünsche noch **anpassen**
+  des normalen Wunsch-Fensters; danach können Mitglieder ihre Wünsche noch **anpassen**
   (entzerren), um begehrten Zeiten auszuweichen. Die **angezeigte** Nachfrage friert
   **24 h vor der Losung** ein (`freeze_start`); **Änderungen zählen** aber bis zur
   Ziehung – zwei kommunizierte Marken „Nachfrage sichtbar bis …“ und „Änderungen
@@ -127,7 +127,7 @@ optional:
 **Wo die Regeln greifen:**
 
 - **Mindestnächte** (+ Einzel-Aufenthaltsdeckel): bei der normalen Buchung, beim
-  **Eintragen/Einreichen der Wunschliste** und bei **externen Buchungen**.
+  **Eintragen der Wunschliste** und bei **externen Buchungen**.
 - **Parallel-Limit** und **Aufenthaltsdeckel über mehrere Buchungen**: bei der
   normalen Buchung **und in der Losung** (ein gedeckelter Wunsch wird dort
   **übersprungen** – kein Verlust, kein Karma; siehe § 5).
@@ -269,9 +269,11 @@ bleiben leer.
 ## 8. Wunschliste
 
 - Mitglieder tragen Wünsche fürs Folgejahr ein und **priorisieren** sie.
-- Ein Wunsch hat den Zustand **Entwurf** oder **eingereicht**. **Nur eingereichte
-  Wünsche** (`submitted=True`) nehmen am Losverfahren teil (§ 5).
-- Wünsche bleiben bewusst **änderbar**, solange das Wunsch-Fenster offen ist.
+- Ein Wunsch ist **ab dem Eintragen verbindlich** und nimmt am Losverfahren teil (§ 5) –
+  wie eine Buchung ab dem Anlegen gilt. Es gibt **kein separates „Einreichen“** mehr
+  (ADR 0101-Nachtrag; die frühere Entwurf/Lostopf-Trennung, ADR 0007, entfällt).
+- Wünsche bleiben bewusst **änderbar**, solange das Wunsch-Fenster (bzw. die
+  Entzerrungsphase) offen ist.
 - Höchstens **25 Tage** des Jahresbudgets laufen über die Wunschliste (§ 1).
 - **Keine exakten Doppel-Wünsche:** Dieselbe Unterkunft im **exakt gleichen**
   Zeitraum lässt sich nicht zweimal eintragen. **Überlappende** Wünsche fürs selbe
@@ -281,17 +283,17 @@ bleiben leer.
 - **Optionale Obergrenze:** Die Verwaltung kann im Backend eine **Höchstzahl an
   Wünschen je Periode** festlegen (`BookingPolicy.max_wishes_per_period`); Standard ist
   **0 = unbegrenzt** (bewusst, damit Rückfall-Wünsche möglich bleiben, § 1/ADR 0078).
-- **Frist sichtbar & Erinnerung (ADR 0080):** Der **Einreiche-Schluss**
+- **Frist sichtbar & Erinnerung (ADR 0080):** Die **Frist zum Eintragen**
   (`submission_deadline` = „Wünsche bis" bzw. der Tag des Losdatums) steht konkret auf
-  der **Übersicht** (Chip; wer noch nichts eingereicht hat, sieht einen Warn-Chip) und
+  der **Übersicht** (Chip; wer noch nichts eingetragen hat, sieht einen Warn-Chip) und
   auf der **Wunschliste** (Banner). Zusätzlich erinnert das System **zweistufig**
   (Default 7 und 2 Tage vorher, konfigurierbar) automatisch **nur** die Mitglieder,
-  die **noch keinen Wunsch eingereicht** haben (In-App + Push + E-Mail).
-- **Mindestnächte** werden bereits beim Eintragen/Einreichen geprüft (§ 4).
-- **Nachfrage sichtbar & Entzerren vor dem Einreichen:** Schon beim Eintragen zeigt
+  die **noch keinen Wunsch eingetragen** haben (In-App + Push + E-Mail).
+- **Mindestnächte** werden bereits beim Eintragen geprüft (§ 4).
+- **Nachfrage sichtbar & Entzerren:** Schon beim Eintragen zeigt
   der Kalender, **wie umkämpft** ein Zeitraum ist (Nachfrage der anderen Mitglieder).
-  Daraus ergibt sich ein bewusster **Zwischenschritt vor dem Einreichen** in den
-  Lostopf: prüfen, ob sich die eigenen Wünsche so **anpassen** lassen, dass **keine
+  Daraus ergibt sich ein bewusster Blick auf die eigene Liste: prüfen, ob sich die
+  eigenen Wünsche so **anpassen** lassen, dass **keine
   oder möglichst wenige Konflikte** entstehen – etwa die **Anreise um einen Tag
   verschieben** oder ein gleichwertiges, weniger gefragtes Quartier wählen. Das ist
   freiwillig (das Verfahren bleibt strategiesicher, § 5), erhöht aber für alle die
