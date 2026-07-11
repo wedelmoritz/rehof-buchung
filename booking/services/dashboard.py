@@ -475,13 +475,27 @@ def community_stats() -> dict:
         })
     # Rückblick der jüngsten bestätigten Losung (ADR 0102): schon vorberechnet am
     # Lauf, hier nur der neueste nicht-leere. Altläufe ohne Rückblick bleiben leer.
-    retro = next((r.retrospective for r in runs if r.retrospective), None)
+    retro_run = next((r for r in runs if r.retrospective), None)
+    retro = retro_run.retrospective if retro_run else None
+    # Verlinkung des vollständigen Ergebnisses (period_result) + Nachfrage-Heatmap
+    # der Losung (Quartier × Monat) aus den – noch vorhandenen – Wünschen der Periode.
+    lottery_result = None
+    lottery_demand = None
+    if retro_run:
+        from .calendars import wish_demand_grid
+        p = retro_run.period
+        lottery_result = {"period_id": p.id, "year": p.target_year}
+        grid = wish_demand_grid(p)
+        if grid and grid.get("max"):
+            lottery_demand = grid
     stats = {
         "occ_current": _month_occupancy(today.year, today.month),
         "occ_next": _month_occupancy(ny, nm),
         "occ_curve": year_occupancy_curve(today.year),
         "lottery_history": history,
         "lottery_retro": retro,
+        "lottery_result": lottery_result,
+        "lottery_demand": lottery_demand,
         "karma": karma_distribution(),
         "n_members": Member.objects.filter(is_external=False).count(),
     }

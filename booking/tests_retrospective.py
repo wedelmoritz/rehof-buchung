@@ -80,3 +80,20 @@ class RetrospectiveTests(TestCase):
         html = self.client.get(reverse("community")).content.decode()
         self.assertIn(f"Rückblick Losung {NEXT}", html)
         self.assertIn("Am meisten gewünscht", html)
+
+    def test_community_verlinkt_vollstaendiges_ergebnis_und_heatmap(self):
+        # Der Gemeinschaftsspiegel verlinkt das vollständige Losergebnis (period_result)
+        # und zeigt eine Nachfrage-Heatmap der Losung.
+        run = svc.run_period_lottery(self.period, seed=1)
+        svc.confirm_lottery(run)
+        cache.clear()
+        stats = svc.community_stats()
+        self.assertEqual(stats["lottery_result"]["period_id"], self.period.id)
+        self.assertIsNotNone(stats["lottery_demand"])   # Wünsche der Periode existieren
+        u = User.objects.create_user("viewer2", password="x" * 12)
+        Member.objects.create(user=u, display_name="Viewer2")
+        self.client.force_login(u)
+        html = self.client.get(reverse("community")).content.decode()
+        self.assertIn(reverse("period_result", args=[self.period.id]), html)
+        self.assertIn("Vollständiges Ergebnis", html)
+        self.assertIn("Nachfrage der Losung", html)
