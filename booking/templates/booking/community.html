@@ -101,15 +101,53 @@
     durch, bei <strong>{{ retro.contested.contested_wins }}</strong> hat das Los
     entschieden.</p>
 
+  {% if stats.lottery_demand %}
+  <h3 class="retro-h3">Nachfrage der Losung (Quartier × Monat)</h3>
+  <p class="sm muted" style="margin:.1rem 0 .5rem">Wo sich die Wünsche dieser Auslosung gedrängt
+    haben – dunklere Felder = mehr Nachfrage. Reine Aggregat-Zahlen, keine Namen.</p>
+  <div class="table-wrap">
+    <table class="heat">
+      <thead><tr><th class="hq">Quartier</th>{% for m in stats.lottery_demand.months %}<th>{{ m }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in stats.lottery_demand.rows %}
+        <tr><th class="hq">{{ r.quarter }}</th>
+          {% for c in r.cells %}<td class="heat-cell" style="--h:{{ c.pct }}" title="{{ r.quarter }} · {{ c.count }} Wunsch/Wünsche">{% if c.count %}{{ c.count }}{% endif %}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
   <h3 class="retro-h3">Ausgleich (Karma) durch diese Losung</h3>
   <p class="sm" style="margin:.1rem 0 0">Bei <strong>{{ retro.karma.increased }}</strong>
     Mitgliedern stieg der Ausgleichsfaktor (leer ausgegangen → bessere Chancen nächstes
     Mal){% if retro.karma.reset %}, bei <strong>{{ retro.karma.reset }}</strong> wurde er
     nach einem sehr beliebten Gewinn zurückgesetzt{% endif %}.
     <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis &amp; Seed-Offenlegung →</a></p>
+
+  {% if stats.lottery_result %}
+  <p style="margin:.9rem 0 0">
+    <a class="btn small" href="{% url 'period_result' stats.lottery_result.period_id %}">
+      Vollständiges Ergebnis der Losung {{ stats.lottery_result.year }} ansehen →</a>
+  </p>
+  <p class="sm muted" style="margin:.3rem 0 0">Wer wo einen Platz bekommen hat – für die
+    Mitglieder, die teilgenommen haben, und die Verwaltung.</p>
+  {% endif %}
 </div>
 {% endif %}
 {% endwith %}
+
+<style>
+  /* Nachfrage-Heatmap im Rückblick (ADR 0102, wie auf der Wunschliste). */
+  table.heat { border-collapse:separate; border-spacing:2px; font-size:.8rem; }
+  table.heat th { font-weight:600; color:var(--muted); padding:.15rem .3rem; font-size:.72rem; }
+  table.heat th.hq { text-align:left; white-space:nowrap; position:sticky; left:0;
+    background:var(--card); z-index:1; }
+  .heat-cell { width:2rem; height:1.7rem; text-align:center; border-radius:5px;
+    font-variant-numeric:tabular-nums; font-weight:700; color:var(--ink);
+    background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
+</style>
 
 <div class="card">
   <h2 style="margin-top:0">Ausgleich (Karma) in der Gemeinschaft</h2>
