@@ -11,8 +11,7 @@
   <a href="#regeln">Regeln &amp; faire Nutzung</a>
   <a href="#aendern">Buchung ändern</a>
   <a href="#warteliste">Warteliste</a>
-  <a href="#losung">Wunschliste &amp; Auslosung</a>
-  <a href="#entzerrung">Entzerrungsphase</a>
+  <a href="#losung">Wunschliste, Entzerrung &amp; Auslosung</a>
   <a href="#gemeinschaft">Gemeinschaft &amp; Transparenz</a>
   <a href="#hofladen">Hofladen &amp; Zahlung</a>
   <a href="#tage">Tage übertragen</a>
@@ -153,13 +152,20 @@
 </div>
 
 <div class="card" id="losung">
-  <h2>Wunschliste &amp; Auslosung</h2>
+  <h2>Wunschliste, Entzerrung &amp; Auslosung</h2>
   <p style="margin-top:0">Begehrte Zeiträume fürs nächste Jahr werden nicht „wer zuerst klickt“,
     sondern <strong>fair per Los</strong> vergeben. Das Wichtigste:</p>
   <ul class="tight">
-    <li><strong>Wünsche eintragen &amp; einreichen</strong> (in deiner Prioritäts-Reihenfolge). Nur eingereichte Wünsche nehmen teil; bis zum Stichtag änderbar.</li>
-    <li><strong>Vor dem Einreichen kurz entzerren:</strong> Schon beim Eintragen siehst du im Kalender, <strong>wie beliebt</strong> ein Zeitraum ist (die Nachfrage der anderen). Prüfe vor dem Bestätigen, ob du deine Wünsche auf <strong>weniger beliebte</strong> Zeiten legen kannst – z.&nbsp;B. die <strong>Anreise um einen Tag verschieben</strong> oder ein gleichwertiges, weniger gefragtes Quartier wählen. Das ist freiwillig, erhöht aber für alle die Chance auf einen Wunsch.</li>
-    <li>Es gelten dieselben <strong>Mindestnächte</strong> wie beim Buchen (z.&nbsp;B. 7 Nächte im Sommer): Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen/einreichen – so kann ein Losgewinn nie an den Mindestnächten scheitern.</li>
+    <li><strong>Wünsche eintragen</strong> (in deiner Prioritäts-Reihenfolge). <strong>Jeder Wunsch
+      nimmt ab dem Eintragen an der Losung teil</strong> – kein extra „Einreichen“. Bis zur Ziehung
+      kannst du jederzeit ändern, ergänzen oder entfernen.</li>
+    <li><strong>Entzerren – gemeinsam Platz schaffen:</strong> Schon beim Eintragen siehst du, <strong>wie
+      beliebt</strong> ein Zeitraum ist (die Nachfrage der anderen). Danach folgt eine eigene
+      <strong>Entzerrungsphase</strong> (siehe unten): Prüfe, ob du auf <strong>weniger beliebte</strong>
+      Zeiten ausweichen kannst – z.&nbsp;B. die <strong>Anreise um einen Tag verschieben</strong> oder ein
+      gleichwertiges, weniger gefragtes Quartier wählen. Das ist freiwillig, erhöht aber für alle die
+      Chance auf einen Wunsch.</li>
+    <li>Es gelten dieselben <strong>Mindestnächte</strong> wie beim Buchen (z.&nbsp;B. 7 Nächte im Sommer): Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen – so kann ein Losgewinn nie an den Mindestnächten scheitern.</li>
     <li>Die <strong>Reihenfolge wird genau einmal</strong> gewichtet gezogen. <strong>Karma</strong> (Ausgleich aus Vorjahren) verbessert deine Chance auf einen vorderen Platz – ersetzt aber nie den Zufall.</li>
     <li>Reihum bekommt jede:r den <strong>höchsten noch freien</strong> Wunsch; ist dein Quartier belegt, wird auf ein <strong>gleichwertiges</strong> ausgewichen.</li>
     <li><strong>Ehrlich angeben lohnt sich</strong> – Taktieren bringt nichts (das Verfahren ist „strategiesicher“). Über die Losung werden höchstens <strong>25 Nächte</strong> vergeben.</li>
@@ -167,11 +173,76 @@
   <p class="muted">Das Ergebnis erscheint nach dem (von der Verwaltung terminierten) Losungstermin unter
     <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</p>
 
+  {% comment %}Ablauf der Wunsch-Phase als HTML/CSS-Zeitleiste (ADR 0095: HTML/CSS statt SVG,
+  engine-neutral und theme-fähig). Drei Etappen mit Fristen dazwischen; der Anzeige-Stopp
+  in den letzten Stunden ist eigens markiert.{% endcomment %}
+  <ol class="phase-flow" aria-label="Ablauf über die Zeit: Erst das Wunsch-Fenster – Wünsche eintragen und ordnen. Dann die Frist zum Eintragen. Danach die Entzerrungsphase – Chance, Nachfrage und Nachbarn sehen und Wünsche anpassen; in ihren letzten Stunden gilt ein Anzeige-Stopp, die Anzeige wird festgehalten, eigene Änderungen zählen weiter. Dann die Losung, eine einmalige Ziehung. Zuletzt das Ergebnis unter Meine Buchungen.">
+    <li class="pf-phase">
+      <span class="pf-badge">1</span>
+      <span class="pf-body"><strong>Wunsch-Fenster</strong>
+        <span class="pf-sub">Wünsche eintragen &amp; ordnen · sofort dabei</span></span>
+    </li>
+    <li class="pf-gate"><span>⏳ Frist zum Eintragen</span></li>
+    <li class="pf-phase accent">
+      <span class="pf-badge">2</span>
+      <span class="pf-body"><strong>Entzerrungsphase</strong>
+        <span class="pf-sub">Chance, Nachfrage &amp; Nachbarn sehen · Wünsche anpassen</span>
+        <span class="pf-freeze">🛑 letzte Stunden: <strong>Anzeige-Stopp</strong> – Anzeige fix, deine Änderungen zählen weiter</span></span>
+    </li>
+    <li class="pf-gate"><span>🎲 Losung</span></li>
+    <li class="pf-phase good">
+      <span class="pf-badge">3</span>
+      <span class="pf-body"><strong>Ergebnis</strong>
+        <span class="pf-sub">unter „Meine Buchungen“</span></span>
+    </li>
+  </ol>
+
+  <details class="deep">
+    <summary>Die Entzerrungsphase – was passiert vor der Losung?</summary>
+    <p style="margin-top:0">Zwischen dem Wunsch-Fenster und der Ziehung liegt eine eigene
+      <strong>Entzerrungsphase</strong> (rund <strong>{{ p.review_days }} Tage</strong> vor der Losung).
+      <strong>Warum?</strong> Wenn sich alle auf dieselben Zeiten drängen, gewinnen wenige und viele
+      gehen leer aus. Sieht jede:r früh, wo es eng wird, weichen einige freiwillig aus – so gibt es
+      <strong>weniger unnötige Losungen</strong> und am Ende <strong>mehr erfüllte Wünsche</strong>,
+      ohne dass jemand benachteiligt wird.</p>
+    <p>In dieser Zeit zeigt dir die Wunschliste je Wunsch:</p>
+    <ul class="tight">
+      <li><strong>Deine Chance</strong> („Gute Chance / Offen / Knapp“) – geschätzt aus vielen
+        Trockenläufen der echten Auslosung (mit Karma, gleichwertigen Ausweichquartieren und Budget).
+        Kein garantiertes Ergebnis.</li>
+      <li><strong>Wie viele</strong> sich denselben Wunsch zur gleichen Zeit eintragen (die
+        <strong>Nachfrage</strong>) – plus die <strong>Nachfrage-Übersicht</strong> je Quartier und Monat.</li>
+      <li><strong>Wunsch-Nachbarn:</strong> Wer sich dieselbe Unterkunft in einem überlappenden Zeitraum
+        wünscht, steht je Wunsch unter „Details &amp; Aktionen“. So könnt ihr euch <strong>privat
+        absprechen</strong> (z.&nbsp;B. wer welche Woche nimmt). Der <strong>Name</strong> ist immer
+        sichtbar (wir setzen auf Begegnung); <strong>Telefon/E-Mail</strong> gibt jede:r im
+        <a href="{% url 'profile' %}#absprachen">Profil</a> selbst frei (Voreinstellung: beide sichtbar).
+        Nur bei überlappenden Wünschen, nur zur Absprache – die läuft <strong>außerhalb der App</strong>.</li>
+    </ul>
+    <p class="muted" style="margin-bottom:0"><strong>Bleibt alles fair?</strong> Ja. Das Losverfahren ist
+      <strong>strategiesicher</strong>: Anpassen kann deine Chance verbessern, aber niemandem schaden.
+      Deshalb darfst du in der ganzen Phase frei anpassen. Der Zufalls-Schlüssel der Ziehung bleibt bis
+      zuletzt geheim – niemand kann das Ergebnis vorab kennen.</p>
+  </details>
+
+  <details class="deep">
+    <summary>Anzeige-Stopp kurz vor der Losung – warum?</summary>
+    <p style="margin-top:0">In den letzten <strong>{{ p.freeze_hours }} Stunden</strong> vor der Losung
+      gilt ein <strong>Anzeige-Stopp</strong>: Die <em>angezeigte</em> Nachfrage (Heatmap, Chance,
+      Nachbarn) wird <strong>festgehalten</strong> – Stand kurz vor der Ziehung.</p>
+    <p><strong>Warum?</strong> Ohne den Stopp würde ein hektisches Hin und Her kurz vor Schluss entstehen:
+      jede:r reagiert in letzter Sekunde auf die Züge der anderen. Der Anzeige-Stopp nimmt diesen
+      Zeitdruck heraus – in Ruhe entzerren statt Wettlauf.</p>
+    <p class="muted" style="margin-bottom:0"><strong>Wichtig:</strong> Nur die <em>Anzeige</em> ruht.
+      <strong>Deine Änderungen zählen weiter</strong> bis zur Ziehung – du kannst also bis zuletzt
+      anpassen, du siehst nur die Nachfrage der anderen nicht mehr in Echtzeit.</p>
+  </details>
+
   <details class="deep" id="regeln-losung">
     <summary>Welche Buchungsregeln gelten für Wünsche &amp; Auslosung?</summary>
     <p style="margin-top:0">Nicht jede Regel greift an derselben Stelle – das ist Absicht:</p>
     <ul class="tight">
-      <li><strong>Schon beim Eintragen/Einreichen</strong> eines Wunsches prüft das System die
+      <li><strong>Schon beim Eintragen</strong> eines Wunsches prüft das System die
         <strong>Mindestnächte</strong> (Standard + Saison{% if p.season_min_nights %}, z.&nbsp;B. {{ p.season_min_nights }} Nächte{% endif %})
         und den <strong>Aufenthaltsdeckel einer einzelnen Buchung</strong>{% if p.stay_cap_nights %} (z.&nbsp;B. {{ p.stay_cap_nights }} Nächte){% endif %}.
         Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen – so kann ein Losgewinn nie an den
@@ -233,7 +304,7 @@
       ihn auszublenden würde die echte Nachfrage <strong>verschleiern</strong> und das Entzerren in
       die Irre führen. Und <strong>welche</strong> Wünsche am Ende zählen, steht vorher gar nicht
       fest – es hängt vom Ausgang der ganzen Ziehung ab, nicht von einer festen Top-Liste je Person.
-      Darum zeigt der Kalender <strong>alle eingereichten Wünsche</strong> – das ist das ehrlichste
+      Darum zeigt der Kalender <strong>alle eingetragenen Wünsche</strong> – das ist das ehrlichste
       Bild davon, wo es wirklich eng wird.</p>
   </details>
 
@@ -259,7 +330,7 @@
   <details class="deep">
     <summary>Ablauf als Diagramm</summary>
     <svg class="flow" viewBox="0 0 600 600" role="img"
-         aria-label="Ablauf: Wünsche eintragen, dabei die Nachfrage der anderen prüfen und entzerren, dann einreichen; Reihenfolge einmal auslosen; in Runden den höchsten möglichen Wunsch zuteilen oder Ausweichquartier, sonst diesmal nichts; höchstens eine Buchung pro Runde; bei offenen Wünschen nächste Runde mit gleicher Reihenfolge; am Ende Karma neu berechnen und Ergebnis veröffentlichen.">
+         aria-label="Ablauf: Wünsche eintragen, dabei die Nachfrage der anderen prüfen und entzerren – jeder Wunsch ist sofort dabei; Reihenfolge einmal auslosen; in Runden den höchsten möglichen Wunsch zuteilen oder Ausweichquartier, sonst diesmal nichts; höchstens eine Buchung pro Runde; bei offenen Wünschen nächste Runde mit gleicher Reihenfolge; am Ende Karma neu berechnen und Ergebnis veröffentlichen.">
       <defs>
         <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
           <path d="M0,0 L7,3 L0,6 z" fill="#8a8076"/>
@@ -295,7 +366,7 @@
       <polygon class="dec" points="186,406 300,378 414,406 300,434"/>
       <g class="tx">
         <text x="300" y="28">① Wünsche eintragen</text>
-        <text x="300" y="45" class="sm">Nachfrage der anderen prüfen &amp; entzerren, dann einreichen</text>
+        <text x="300" y="45" class="sm">Nachfrage prüfen &amp; entzerren · jeder Wunsch sofort dabei</text>
         <text x="300" y="84">② Reihenfolge EINMAL auslosen</text>
         <text x="300" y="100" class="sm">Karma (Vorjahr) = Gewicht für vordere Plätze</text>
         <text x="300" y="153">③ Runde: Parteien der Reihe nach</text>
@@ -373,27 +444,6 @@
     („Commit-Reveal"). Du kannst das Ergebnis selbst nachrechnen
     (<a href="{% url 'lottery_fairness' %}">Abschnitt 3 im Fairness-Nachweis</a>).
   </p>
-</div>
-
-<div class="card content-md" id="entzerrung">
-  <h2>{{ help.entzerrung.title }}</h2>
-
-  {% comment %}Ablauf der Wunsch-Phase als HTML/CSS-Zeitleiste (ADR 0095: HTML/CSS
-  statt SVG, engine-neutral und theme-fähig). Zeigt die zwei Fristen und den Freeze.{% endcomment %}
-  <ol class="phase-flow" aria-label="Ablauf: Wünsche eintragen und einreichen bis zur Einreiche-Frist; danach Entzerrungsphase mit Prognose, Nachfrage und Absprachen, Anpassen weiter möglich; die letzten Stunden vor der Losung ist die Anzeige eingefroren; dann die Losung; danach das Ergebnis.">
-    <li class="pf-step"><span class="pf-ico">✍️</span><span class="pf-txt"><strong>Wünsche eintragen &amp; einreichen</strong><span class="pf-sub">in Prioritäts-Reihenfolge</span></span></li>
-    <li class="pf-mark"><span>Einreiche-Frist<span class="pf-sub">Teilnehmerkreis steht fest</span></span></li>
-    <li class="pf-step accent"><span class="pf-ico">🔀</span><span class="pf-txt"><strong>Entzerrungsphase</strong><span class="pf-sub">Chance, Nachfrage &amp; Absprachen sehen · Wünsche anpassen</span></span></li>
-    <li class="pf-step"><span class="pf-ico">🧊</span><span class="pf-txt"><strong>Freeze (letzte Stunden)</strong><span class="pf-sub">Anzeige fix · Änderungen zählen weiter</span></span></li>
-    <li class="pf-mark"><span>Losung<span class="pf-sub">einmalige Ziehung</span></span></li>
-    <li class="pf-step good"><span class="pf-ico">🎉</span><span class="pf-txt"><strong>Ergebnis</strong><span class="pf-sub">unter „Meine Buchungen“</span></span></li>
-  </ol>
-
-  {{ help.entzerrung.html|safe }}
-
-  <p class="muted sm" style="margin:.6rem 0 0">Wie die Ziehung im Detail vergibt, steht
-    oben unter <a href="#losung">Wunschliste &amp; Auslosung</a> (inklusive Ablauf-Diagramm
-    des Lostopfs).</p>
 </div>
 
 <div class="card content-md" id="gemeinschaft">
@@ -492,29 +542,33 @@
   .formula { font-family:"DejaVu Serif",Georgia,serif; font-size:1.05rem; text-align:center;
     background:#faf7f1; border:1px solid var(--line); border-radius:8px; padding:.5rem .6rem; margin:.5rem 0; }
   .formula sup, .formula sub, .formula-inline sup { font-size:.72em; }
-  /* Phasen-Zeitleiste (ADR 0101): HTML/CSS, kein SVG. Waagerecht auf breiten
-     Schirmen, senkrecht am Handy. Verbindungspfeile über ::after. */
+  /* Phasen-Zeitleiste (ADR 0101): HTML/CSS, kein SVG (ADR 0095, engine-neutral +
+     theme-fähig). Drei nummerierte Etappen, dazwischen kleine Fristen-Marken.
+     Waagerecht auf breiten Schirmen, senkrecht am Handy. */
   .phase-flow { list-style:none; display:flex; flex-wrap:wrap; align-items:stretch;
-    gap:.5rem .2rem; margin:.5rem 0 1rem; padding:0; }
-  .phase-flow .pf-step, .phase-flow .pf-mark { display:flex; align-items:center;
-    gap:.5rem; flex:1 1 8rem; border-radius:12px; padding:.55rem .7rem;
-    border:1px solid var(--line); background:var(--card); position:relative; }
-  .phase-flow .pf-step.accent { border-color:var(--accent); background:var(--accent-soft); }
-  .phase-flow .pf-step.good { border-color:var(--good); background:var(--good-soft); }
-  .phase-flow .pf-mark { flex:0 1 7rem; justify-content:center; text-align:center;
-    background:var(--bg); border-style:dashed; font-weight:700; }
-  .phase-flow .pf-ico { font-size:1.25rem; line-height:1; }
-  .phase-flow .pf-txt { display:flex; flex-direction:column; line-height:1.25; }
-  .phase-flow .pf-sub { font-size:.76rem; color:var(--muted); font-weight:400; }
-  /* Pfeil zwischen den Schritten (waagerecht ›, am Handy ˅) */
-  .phase-flow > li::after { content:"›"; position:absolute; right:-.62rem; top:50%;
-    transform:translateY(-50%); color:var(--muted); font-weight:700; z-index:1; }
-  .phase-flow > li:last-child::after { content:none; }
+    gap:.45rem; margin:.6rem 0 1rem; padding:0; }
+  .phase-flow .pf-phase { display:flex; align-items:flex-start; gap:.55rem;
+    flex:1 1 12rem; border-radius:14px; padding:.6rem .75rem;
+    border:1px solid var(--line); background:var(--card); }
+  .phase-flow .pf-phase.accent { border-color:var(--accent); background:var(--accent-soft); }
+  .phase-flow .pf-phase.good { border-color:var(--good); background:var(--good-soft); }
+  .phase-flow .pf-badge { flex:0 0 auto; width:1.5rem; height:1.5rem; border-radius:50%;
+    background:var(--sage); color:#fff; font-weight:700; font-size:.85rem;
+    display:flex; align-items:center; justify-content:center; margin-top:.05rem; }
+  .phase-flow .pf-phase.accent .pf-badge { background:var(--accent); }
+  .phase-flow .pf-phase.good .pf-badge { background:var(--good); }
+  .phase-flow .pf-body { display:flex; flex-direction:column; line-height:1.3; }
+  .phase-flow .pf-sub { font-size:.78rem; color:var(--muted); font-weight:400; margin-top:.1rem; }
+  .phase-flow .pf-freeze { font-size:.76rem; margin-top:.35rem; padding:.25rem .4rem;
+    border-radius:7px; background:var(--bad-soft); color:var(--bad); line-height:1.3; }
+  /* Fristen-Marke zwischen den Etappen (kompakt, gestrichelt). */
+  .phase-flow .pf-gate { flex:0 0 auto; align-self:center; display:flex; align-items:center;
+    justify-content:center; text-align:center; font-weight:700; font-size:.82rem;
+    color:var(--muted); border:1px dashed var(--line); border-radius:999px;
+    padding:.3rem .6rem; background:var(--bg); }
   @media (max-width:640px){
-    .phase-flow { flex-direction:column; }
-    .phase-flow .pf-step, .phase-flow .pf-mark { flex:1 1 auto; }
-    .phase-flow > li::after { content:"˅"; right:50%; top:auto; bottom:-.62rem;
-      transform:translateX(50%); }
+    .phase-flow { flex-direction:column; align-items:stretch; }
+    .phase-flow .pf-phase, .phase-flow .pf-gate { flex:1 1 auto; }
   }
   .flow { display:block; width:100%; max-width:560px; height:auto; margin:.4rem auto .2rem; }
   .flow .bx rect { fill:#fff; stroke:var(--line); }

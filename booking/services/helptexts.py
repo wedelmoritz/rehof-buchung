@@ -19,7 +19,9 @@ HELP_CONTENT_DIR = Path(__file__).resolve().parent.parent / "help_content"
 
 # Ausgelagerte Abschnitte (Datei help_content/<key>.md, erste Zeile „# Titel").
 # Der `key` ist zugleich der Anker (#<key>) in der Hilfe-Seite/TOC.
-HELP_SECTION_KEYS = ["entzerrung", "warteliste", "gemeinschaft", "hofladen", "tage"]
+# („entzerrung" wurde in den Abschnitt „Wunschliste & Auslosung" der help.html
+#  eingegliedert, ADR 0101 Batch 4 – kein eigener Abschnitt mehr.)
+HELP_SECTION_KEYS = ["warteliste", "gemeinschaft", "hofladen", "tage"]
 
 
 _MONTHS_DE = ("", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
@@ -36,7 +38,6 @@ def _help_context() -> dict:
     pool_time_note = (
         f" Entnahmen sind außerdem erst **ab {_MONTHS_DE[month]}** möglich – so zeigt "
         f"sich zuerst, wer bis dahin wirklich zu wenig Tage hat." if month else "")
-    from ..models import BookingPeriod
     return {
         "url_my_bookings": reverse("my_bookings"),
         "url_shop": reverse("shop_index"),
@@ -44,9 +45,6 @@ def _help_context() -> dict:
         "pool_threshold": p.pool_eligible_remaining,
         "pool_cap": p.pool_withdraw_cap,
         "pool_time_note": pool_time_note,
-        # Entzerrungsphase (ADR 0101): konfigurierte Werte in den Hilfetext einsetzen.
-        "review_days": p.review_days,
-        "freeze_hours": BookingPeriod.FREEZE_HOURS,
     }
 
 

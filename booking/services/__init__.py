@@ -69,7 +69,7 @@ __all__ = [
     'wish_prognosis',
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
     'delete_wish', 'wishes_editable',
-    'wish_neighbors', 'add_wish_for_member', 'WISH_EXPORT_COLUMNS', 'wish_export_rows',
+    'wish_coordination', 'add_wish_for_member', 'WISH_EXPORT_COLUMNS', 'wish_export_rows',
     'book_spontaneous', 'add_waitlist_entry', 'waiters_for_allocation',
     'notify_waitlist_if_free', 'concurrent_allocations', 'free_quarters_for',
     'concurrent_split', 'create_swap_request', 'respond_swap_request',

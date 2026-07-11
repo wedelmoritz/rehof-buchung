@@ -17,7 +17,7 @@ from .slots import _in_season_range, wish_rule_error
 __all__ = [
     '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
     'delete_wish', 'wishes_editable',
-    'wish_neighbors', 'add_wish_for_member', 'WISH_EXPORT_COLUMNS', 'wish_export_rows',
+    'wish_coordination', 'add_wish_for_member', 'WISH_EXPORT_COLUMNS', 'wish_export_rows',
 ]
 
 
@@ -70,27 +70,30 @@ def wish_export_rows(period) -> list[list]:
     return rows
 
 
-def wish_neighbors(period, member) -> list[dict]:
-    """**Wunsch-Nachbarn** für private Absprachen (ADR 0101): für jeden Wunsch des
-    Mitglieds die anderen Mitglieder mit einem **überlappenden** Wunsch fürs **selbe
-    Quartier** – mit Anzeigename **+ Telefon**, damit man sich außerhalb der App
-    abstimmen kann.
+def wish_coordination(period, member) -> dict:
+    """**Wunsch-Details je Wunsch** für die Entzerrung (ADR 0101, Batch 2): für jeden
+    Wunsch des Mitglieds die anderen Mitglieder mit einem **überlappenden** Wunsch fürs
+    **selbe Quartier** (für private Absprachen) UND die Zahl dieser Überlappungen (als
+    Chancen-Begründung, zusammen mit der eigenen Priorität).
 
-    **Datenschutz (ADR 0101, DSGVO Art. 5/25):** Es erscheinen NUR Mitglieder, die die
-    Sichtbarkeit nicht abgeschaltet haben (`coordination_opt_out=False`, Default sichtbar);
-    nur die zwei Felder (Name/Telefon), nur überlappende Wünsche. Nur während der
-    Entzerrungsphase aufzurufen (die View steuert Status/Login). Zwei DB-Abfragen.
+    **Wir setzen auf Begegnung:** Der **Anzeigename** überlappender Mitglieder ist immer
+    sichtbar. **Kontaktkanäle je einzeln verbergbar** (`coordination_hide_phone`/
+    `coordination_hide_email`, Default beide sichtbar) – so kann man sich außerhalb der
+    App abstimmen. **Datenschutz (DSGVO Art. 5/25):** nur überlappende Wünsche, nur
+    Name + die nicht verborgenen Kanäle. Nur in der Entzerrungsphase aufzurufen (die
+    View steuert Status/Login). Zwei DB-Abfragen.
 
-    Gibt `[{"wish": Wish, "neighbors": [{"name","phone","start","end"}]}]`."""
+    Gibt `{wish_id: {"neighbors": [{"name","phone","email","start","end"}],
+    "overlap_count": int}}` (nur Wünsche mit mindestens einer Überlappung)."""
     mine = list(Wish.objects.filter(period=period, member=member)
                 .select_related("quarter").order_by("priority", "id"))
     if not mine:
-        return []
+        return {}
     others = list(
         Wish.objects.filter(period=period)
         .exclude(member=member)
         .select_related("member", "member__user"))
-    out: list[dict] = []
+    out: dict = {}
     for w in mine:
         neigh: list[dict] = []
         seen: set = set()
@@ -100,13 +103,18 @@ def wish_neighbors(period, member) -> list[dict]:
             if not (o.start < w.end and o.end > w.start):
                 continue
             om = o.member
-            if om.coordination_opt_out or om.id in seen:
+            if om.id in seen:
                 continue
             seen.add(om.id)
-            neigh.append({"name": om.display_name, "phone": om.phone,
-                          "start": o.start, "end": o.end})
+            neigh.append({
+                "name": om.display_name,
+                "phone": "" if om.coordination_hide_phone else om.phone,
+                "email": "" if om.coordination_hide_email else (
+                    om.user.email if om.user_id else ""),
+                "start": o.start, "end": o.end,
+            })
         if neigh:
-            out.append({"wish": w, "neighbors": neigh})
+            out[w.id] = {"neighbors": neigh, "overlap_count": len(neigh)}
     return out
 
 
