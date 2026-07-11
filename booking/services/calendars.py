@@ -19,7 +19,7 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
 
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
-    'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
+    'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid', 'wish_demand_ranking',
     'capture_wish_snapshots',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_plan_print', 'build_external_calendar', 'week_agenda',
@@ -292,6 +292,28 @@ def wish_demand_grid(period) -> dict:
     } for i, q in enumerate(quarters)]
     months = [MONTHS_DE[m][:3] for m in range(1, 13)]
     return {"rows": rows, "months": months, "max": mx}
+
+
+def wish_demand_ranking(period, *, top: int = 8) -> dict:
+    """Beliebteste **Unterkünfte** und **Zeiträume** für die Nachfrage-Ansicht
+    (ADR 0101 Batch 2-Nachtrag, Feedback e): tabellarische Ranglisten aus den
+    eingetragenen Wünschen. Nutzt das Heatmap-Raster (eine Wunsch-Abfrage) und rankt
+    daraus – nur Aggregate, keine Namen.
+
+    Gibt `{"quarters": [{name,count}], "slots": [{quarter,month,count}]}`."""
+    grid = wish_demand_grid(period) if period else {"rows": [], "months": []}
+    quarters = sorted(
+        ({"name": r["quarter"], "count": r["total"]}
+         for r in grid["rows"] if r["total"]),
+        key=lambda x: (-x["count"], x["name"]))[:top]
+    slots = []
+    for r in grid["rows"]:
+        for j, cell in enumerate(r["cells"]):
+            if cell["count"]:
+                slots.append({"quarter": r["quarter"],
+                              "month": grid["months"][j], "count": cell["count"]})
+    slots.sort(key=lambda x: (-x["count"], x["quarter"]))
+    return {"quarters": quarters, "slots": slots[:top]}
 
 
 def capture_wish_snapshots(period, now) -> bool:

@@ -72,6 +72,24 @@ Proposed (2026-07-10) · erweitert [ADR 0003](0003-losverfahren-weighted-rsd.md)
 > überholt: es nehmen **alle eingetragenen** Wünsche teil (der Schutz gegen versehentliche
 > Teilnahme liegt jetzt im bewussten Eintrag-Schritt, nicht in einem separaten Submit).
 
+> **Nachtrag (2026-07): Wunschlisten-UX aufgeräumt.** Feedback aus der Genossenschaft:
+> * **Aufgeräumte Wunsch-Karten:** je Wunsch nur Quartier/Zeitraum + Aufklapper „Details
+>   & Aktionen“; **Chance und alle Aktionen** (Priorität, **Zeitraum/Unterkunft ändern**
+>   via neuem Service `adjust_wish`, entfernen) stehen **erst dort**.
+> * **Ampel statt Prozent:** Die missverständliche Gewinn-Prozentzahl (100 % trotz
+>   Mitbewerbern durch gleichwertige Ausweichquartiere) ist raus. Je Wunsch nun eine
+>   **Nachfrage-/Beliebtheits-Ampel** aus überlappenden Fremd-Wünschen
+>   (`wish_demand_band`: keine/wenige/beliebt/sehr beliebt) **plus** die Los-Chance nur
+>   noch **qualitativ** (gut/offen/knapp, ohne %).
+> * **Eigen-Überlappung sichtbar:** je Wunsch **ganz oben** im Detail + ein Sammel-Hinweis
+>   über der Liste („Einige deiner Wünsche überlappen sich …“).
+> * **Zwei Reiter auf einer Seite** (`?view=`, data-ajax): „Meine Wünsche“ (Default) und
+>   „Nachfrage & Heatmap“ – Letzterer trägt die Heatmap **und** tabellarische Ranglisten
+>   der beliebtesten Unterkünfte/Zeiträume (`wish_demand_ranking`). Das entlastet die
+>   Wunsch-Ansicht.
+> * **Hilfe:** Ablauf-Zeitleiste als moderner **Stepper** (durchgehende Schiene, `flow-timeline`),
+>   und das „Ablauf als Diagramm“ zeigt die **Entzerrungsphase** jetzt als eigenen Schritt.
+
 > **Fachlicher Bezug:** Der Perioden-Lebenszyklus und die Losregeln stehen im
 > [Fachkonzept](../FACHKONZEPT.md); dieser ADR ergänzt eine **Phase** darin. Die
 > Regelwerte (Vorlauf, Freeze) werden bei der Umsetzung dort nachgezogen.

@@ -256,7 +256,16 @@ einem eigenen `data-ajax`-GET-Formular und **prüft bei Änderung sofort neu** [
 Personen → klarer „Platz für höchstens N"-Hinweis + gesperrter Knopf, Korrektur bleibt
 auf der Seite statt Rauswurf zur Auswahl, #32]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
-bleiben bewusst änderbar; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
+bleiben bewusst änderbar; **zwei Reiter auf EINER Seite** [`?view=`, data-ajax, ADR 0101-
+Nachtrag]: „Meine Wünsche" [Default, Kalender + Liste] und „Nachfrage & Heatmap"
+[`wish_demand_grid` + Ranglisten `wish_demand_ranking` der beliebtesten Unterkünfte/
+Zeiträume]. Je Wunsch nur Quartier/Zeitraum + Aufklapper **„Details & Aktionen"** –
+**erst dort** die **Nachfrage-Ampel** [`wish_demand_band`: keine/wenige/beliebt/sehr
+beliebt aus überlappenden Fremd-Wünschen, OHNE Prozent] + Los-Chance qualitativ [gut/
+offen/knapp], die **Nachbarn** [`wish_coordination`, Name immer + Telefon/E-Mail je Kanal
+frei] und die **Aktionen**: Zeitraum/Unterkunft **ändern** [`adjust_wish`, behält Prio],
+Priorität, entfernen; Eigen-Überlappung steht **ganz oben** im Detail + als Sammel-Hinweis
+über der Liste; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
 [`quarter_wish_counts`]; **je eingetragenem, sehr beliebtem Wunsch** steht in „Meine
 Wünsche“ ein markanter **Entzerrungs-Hinweis** [`services.wish_alternatives`,
 P2.4/ADR 0064] auf **weniger beliebte Alternativen mit besseren Chancen**: ein

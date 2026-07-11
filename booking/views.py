@@ -125,8 +125,11 @@ def _cal_nav(cal) -> dict:
     return {"months": months, "years": list(range(yr - 2, yr + 3))}
 
 
-def _redirect_month(name: str, year, month):
-    return redirect(f"{reverse(name)}?year={year}&month={month}")
+def _redirect_month(name: str, year, month, view=None):
+    url = f"{reverse(name)}?year={year}&month={month}"
+    if view:
+        url += f"&view={view}"
+    return redirect(url)
 
 
 # --------------------------------------------------------------------------- #
@@ -771,21 +774,41 @@ def wishlist(request):
                 url += f"&end={request.POST['end']}"
             return redirect(url)
 
+        if action == "adjust_wish":
+            # Wunsch an Ort und Stelle ändern (anderer Zeitraum/andere Unterkunft),
+            # ohne die Priorität zu verlieren (Feedback a).
+            q = Quarter.objects.filter(id=request.POST.get("quarter")).first()
+            s = _parse_date(request.POST.get("start"))
+            e = _parse_date(request.POST.get("end"))
+            if not (q and s and e):
+                messages.error(request, "Bitte Unterkunft, Anreise und Abreise wählen.")
+            else:
+                _w, werr = svc.adjust_wish(member, period, request.POST.get("wish_id"),
+                                           q, s, e)
+                messages.error(request, werr) if werr else messages.success(
+                    request, f"Wunsch geändert: „{q.name}“ ({s:%d.%m.}–{e:%d.%m.}).")
+            return _redirect_month("wishlist", p_year, p_month,
+                                   view=request.POST.get("view"))
+
         if action == "delete_wish":
             svc.delete_wish(member, period, request.POST.get("wish_id"))
-            return _redirect_month("wishlist", p_year, p_month)
+            return _redirect_month("wishlist", p_year, p_month,
+                                   view=request.POST.get("view"))
 
         if action == "move_wish":
             svc.move_wish(member, period, request.POST.get("wish_id"),
                           request.POST.get("direction", "up"))
-            return _redirect_month("wishlist", p_year, p_month)
+            return _redirect_month("wishlist", p_year, p_month,
+                                   view=request.POST.get("view"))
 
         if action == "reorder":
             ids = [x for x in request.POST.get("order", "").split(",") if x]
             svc.reorder_wishes(member, period, ids)
-            return _redirect_month("wishlist", p_year, p_month)
+            return _redirect_month("wishlist", p_year, p_month,
+                                   view=request.POST.get("view"))
 
-        return _redirect_month("wishlist", p_year, p_month)
+        return _redirect_month("wishlist", p_year, p_month,
+                               view=request.POST.get("view"))
 
     wishes = []
     wish_nights = 0
@@ -809,6 +832,10 @@ def wishlist(request):
             w.alt = alts.get(w.id)
             w.prognosis = prog.get(w.id)
             w.coord = coord.get(w.id)
+            # Nachfrage-/Beliebtheits-Ampel je Wunsch (Feedback b): aus der Zahl
+            # überlappender Fremd-Wünsche, ohne Prozent (die Gewinn-Chance ist separat).
+            w.demand = svc.wish_demand_band(
+                w.coord["overlap_count"] if w.coord else 0)
         # Sanfter Hinweis JE WUNSCH bei überlappenden Wünschen fürs SELBE Quartier
         # (Feedback #2b): überlappende Wünsche bleiben bewusst zulässig (das
         # Losverfahren berücksichtigt jeweils nur einen), aber ein Hinweis macht die
@@ -817,6 +844,9 @@ def wishlist(request):
             w.overlap_same_quarter = any(
                 o.id != w.id and o.quarter_id == w.quarter_id
                 and o.start < w.end and o.end > w.start for o in wishes)
+    # Überlappen sich IRGENDWELCHE eigenen Wünsche? Dann ein Sammel-Hinweis über der
+    # Liste (Feedback c).
+    wishes_overlap_any = any(getattr(w, "overlap_same_quarter", False) for w in wishes)
 
     # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
     sel_start = _parse_date(request.GET.get("start"))
@@ -872,16 +902,23 @@ def wishlist(request):
         "wish_winter": wish_winter,
         "wish_form": WishForm(),
         "memberships": member.memberships if member else [],
+        # Für das Inline-Ändern eines Wunsches (Feedback a): Unterkunfts-Auswahl.
+        "all_quarters": list(Quarter.objects.filter(active=True).order_by("name")),
         "wishes": wishes,
+        "wishes_overlap_any": wishes_overlap_any,
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "wish_cap": wish_cap,
+        # Reiter „Meine Wünsche" (Default) vs. „Nachfrage & Heatmap" (Feedback d):
+        # ein Umschalter auf EINER Seite (?view=nachfrage), ohne Neuladen (data-ajax).
+        "view": "nachfrage" if request.GET.get("view") == "nachfrage" else "wuensche",
         # Entzerrungsphase (ADR 0101): Phasen-Marken für den Status-Hinweis.
         "review_phase": bool(period and period.status == BookingPeriod.WISHES_REVIEW),
         # Nachfrage-Heatmap (ADR 0101): welche Quartiere/Monate sind begehrt.
         # In den letzten Stunden vor der Losung greift der Anzeige-Stopp – dann den
         # festgehaltenen Snapshot zeigen (Stand von `freeze_start`), sonst live.
         "demand_grid": _wishlist_demand_grid(period),
+        "demand_ranking": svc.wish_demand_ranking(period) if period else None,
         "submission_deadline": period.submission_deadline if period else None,
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,

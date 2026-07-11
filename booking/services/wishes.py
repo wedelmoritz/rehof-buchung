@@ -15,8 +15,8 @@ from ..models import (
 from .slots import _in_season_range, wish_rule_error
 
 __all__ = [
-    '_renumber_wishes', 'add_wish', 'move_wish', 'reorder_wishes',
-    'delete_wish', 'wishes_editable',
+    '_renumber_wishes', 'add_wish', 'adjust_wish', 'move_wish', 'reorder_wishes',
+    'delete_wish', 'wishes_editable', 'wish_demand_band',
     'wish_coordination', 'add_wish_for_member', 'WISH_EXPORT_COLUMNS', 'wish_export_rows',
 ]
 
@@ -118,6 +118,22 @@ def wish_coordination(period, member) -> dict:
     return out
 
 
+def wish_demand_band(overlap_count: int) -> dict:
+    """Nachfrage-/Beliebtheits-Ampel je Wunsch (ADR 0101 Batch 2-Nachtrag): leitet aus
+    der Zahl der Mitglieder mit einem **überlappenden** Wunsch fürs selbe Quartier ein
+    verständliches Band ab – bewusst OHNE Prozentzahl (die Los-Gewinn-Chance ist eine
+    andere Größe und wird separat qualitativ gezeigt). Positive Wortwahl (ADR 0072).
+
+    Gibt `{"key","label","tone"}` – tone steuert die Farbe (good/open/warn/bad)."""
+    if overlap_count <= 0:
+        return {"key": "none", "label": "Keine anderen Wünsche", "tone": "good"}
+    if overlap_count <= 2:
+        return {"key": "few", "label": "Wenige andere Wünsche", "tone": "open"}
+    if overlap_count <= 4:
+        return {"key": "popular", "label": "Beliebt", "tone": "warn"}
+    return {"key": "hot", "label": "Sehr beliebt", "tone": "bad"}
+
+
 def wishes_editable(period: BookingPeriod, member: Member) -> tuple[bool, str | None]:
     """Darf `member` in `period` seine Wünsche eintragen/anpassen? (ADR 0101)
 
@@ -202,6 +218,42 @@ def add_wish(member, period, quarter, start, end,
         priority=next_prio, added_at=timezone.now(),
         membership=member.membership_for(membership_id),
     )
+    return wish, None
+
+
+@transaction.atomic
+def adjust_wish(member, period, wish_id, quarter, start, end) -> tuple["Wish | None", str | None]:
+    """Ändert einen bestehenden Wunsch (anderer Zeitraum und/oder andere Unterkunft)
+    an Ort und Stelle – ohne die Priorität zu verlieren. Es gelten dieselben Prüfungen
+    wie beim Eintragen (Phase bearbeitbar, gültiger Zeitraum, Quartier-Saison,
+    Mindestnächte/Deckel, keine exakte Doppelung). ADR 0101 Batch 2-Nachtrag."""
+    if not member.can_book:
+        return None, ("Dein Konto ist derzeit nicht buchungsberechtigt "
+                      "(passives/ausgeschiedenes Mitglied).")
+    ok, reason = wishes_editable(period, member)
+    if not ok:
+        return None, reason
+    wish = Wish.objects.filter(id=wish_id, member=member, period=period).first()
+    if wish is None:
+        return None, "Wunsch nicht gefunden."
+    if (end - start).days <= 0:
+        return None, "Ungültiger Zeitraum (Abreise muss nach Anreise liegen)."
+    if not _in_season_range(quarter, start, end):
+        return None, (f"{quarter.name} ist in diesem Zeitraum nicht durchgängig "
+                      "buchbar (Quartier-Saison). Bitte den gesamten Zeitraum "
+                      "innerhalb der Saison wählen.")
+    rule_err = wish_rule_error(start, end)
+    if rule_err:
+        return None, rule_err
+    # Exakte Doppelung mit einem ANDEREN eigenen Wunsch verhindern.
+    if Wish.objects.filter(member=member, period=period, quarter=quarter,
+                           start=start, end=end).exclude(id=wish.id).exists():
+        return None, ("Diesen Wunsch hast du schon eingetragen (gleiche Unterkunft "
+                      "und gleicher Zeitraum).")
+    wish.quarter = quarter
+    wish.start = start
+    wish.end = end
+    wish.save(update_fields=["quarter", "start", "end"])
     return wish, None
 
 

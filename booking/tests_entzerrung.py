@@ -69,11 +69,84 @@ class DemandGridTests(TestCase):
         self.assertEqual(grid["max"], 1)
 
     def test_wishlist_zeigt_heatmap(self):
+        # Die Heatmap liegt auf dem Reiter „Nachfrage & Heatmap" (?view=nachfrage).
+        a = _member("a")
+        svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
+        self.client.force_login(a.user)
+        html = self.client.get(reverse("wishlist") + "?view=nachfrage").content.decode()
+        self.assertIn("Nachfrage-Heatmap", html)
+        self.assertIn("Beliebteste Unterkünfte", html)   # Ranglisten (Feedback e)
+
+    def test_wuensche_reiter_hat_keine_heatmap(self):
+        # Default-Reiter „Meine Wünsche" zeigt die Heatmap NICHT (aufgeräumt, Feedback d).
         a = _member("a")
         svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
         self.client.force_login(a.user)
         html = self.client.get(reverse("wishlist")).content.decode()
-        self.assertIn("Nachfrage-Übersicht", html)
+        self.assertNotIn('<table class="heat">', html)   # Heatmap-Tabelle nur im Nachfrage-Reiter
+        self.assertIn("Meine Wünsche", html)
+
+    def test_demand_ranking_listet_top(self):
+        a = _member("a"); b = _member("b")
+        svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
+        svc.add_wish(b, self.period, self.q, date(NEXT, 5, 10), date(NEXT, 5, 14))
+        svc.add_wish(a, self.period, self.q2, date(NEXT, 7, 1), date(NEXT, 7, 5))
+        rank = svc.wish_demand_ranking(self.period)
+        self.assertEqual(rank["quarters"][0]["name"], "Turm")   # meiste Wünsche
+        self.assertEqual(rank["quarters"][0]["count"], 2)
+        self.assertTrue(rank["slots"])
+
+
+class WishUxTests(TestCase):
+    def setUp(self):
+        self.cls = EquivalenceClass.objects.create(name="K")
+        self.q = Quarter.objects.create(name="Turm", eq_class=self.cls,
+                                        min_occupancy=1, max_occupancy=4)
+        self.q2 = Quarter.objects.create(name="Hütte", eq_class=self.cls,
+                                         min_occupancy=1, max_occupancy=4)
+        self.period = _period()
+        self.a = _member("anna")
+
+    def test_demand_band_stufen(self):
+        self.assertEqual(svc.wish_demand_band(0)["key"], "none")
+        self.assertEqual(svc.wish_demand_band(1)["key"], "few")
+        self.assertEqual(svc.wish_demand_band(3)["key"], "popular")
+        self.assertEqual(svc.wish_demand_band(9)["key"], "hot")
+
+    def test_adjust_wish_aendert_zeit_und_quartier_behaelt_prio(self):
+        w1, _ = svc.add_wish(self.a, self.period, self.q,
+                             date(NEXT, 5, 3), date(NEXT, 5, 7))
+        w2, _ = svc.add_wish(self.a, self.period, self.q2,
+                             date(NEXT, 6, 3), date(NEXT, 6, 7))
+        self.assertEqual(w2.priority, 2)
+        out, err = svc.adjust_wish(self.a, self.period, w2.id, self.q,
+                                   date(NEXT, 8, 1), date(NEXT, 8, 5))
+        self.assertIsNone(err, err)
+        out.refresh_from_db()
+        self.assertEqual(out.quarter_id, self.q.id)
+        self.assertEqual(out.start, date(NEXT, 8, 1))
+        self.assertEqual(out.priority, 2)   # Priorität bleibt
+
+    def test_adjust_wish_blockt_exakte_doppelung(self):
+        svc.add_wish(self.a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
+        w2, _ = svc.add_wish(self.a, self.period, self.q2,
+                             date(NEXT, 6, 3), date(NEXT, 6, 7))
+        # w2 auf denselben Wunsch wie w1 ändern → abgelehnt.
+        out, err = svc.adjust_wish(self.a, self.period, w2.id, self.q,
+                                   date(NEXT, 5, 3), date(NEXT, 5, 7))
+        self.assertIsNone(out)
+        self.assertIn("schon eingetragen", err)
+
+    def test_adjust_wish_via_view(self):
+        w, _ = svc.add_wish(self.a, self.period, self.q,
+                            date(NEXT, 5, 3), date(NEXT, 5, 7))
+        self.client.force_login(self.a.user)
+        r = self.client.post(reverse("wishlist"), {
+            "action": "adjust_wish", "wish_id": w.id, "quarter": self.q2.id,
+            "start": date(NEXT, 5, 10).isoformat(), "end": date(NEXT, 5, 14).isoformat()})
+        self.assertEqual(r.status_code, 302)
+        w.refresh_from_db()
+        self.assertEqual(w.quarter_id, self.q2.id)
 
 
 class CoordinationTests(TestCase):
@@ -223,7 +296,7 @@ class HelpPageTests(TestCase):
         self.client.force_login(m.user)
         html = self.client.get(reverse("help")).content.decode()
         self.assertIn("Entzerrungsphase", html)                  # im Losungsabschnitt
-        self.assertIn("phase-flow", html)                        # HTML/CSS-Zeitleiste
+        self.assertIn("flow-timeline", html)                     # HTML/CSS-Zeitleiste (Stepper)
         self.assertIn("Frist zum Eintragen", html)               # neue Frist-Marke
         self.assertIn("Anzeige-Stopp", html)                     # statt „Freeze"
         self.assertNotIn('id="entzerrung"', html)                # kein eigener Abschnitt
