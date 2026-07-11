@@ -3,28 +3,38 @@
 {% block content %}
 <h1>Wunschliste fürs nächste Jahr</h1>
 
-{% if member and not member.is_external %}
-<div class="card">
-  <h2 style="margin-top:0">Dein Ausgleichsfaktor (Karma)</h2>
-  <p style="margin:.2rem 0 .4rem;font-size:1.15rem">
-    Aktuell: <strong>{{ member.factor|floatformat:1 }}</strong>
-    {% if member.factor > 1.0 %}<span class="tag" style="background:var(--good-soft);color:var(--good)">erhöht</span>{% endif %}
-  </p>
-  <p class="muted" style="margin:0">Hier zählt dein Ausgleichsfaktor: Er sorgt dafür, dass die
-    Auslosung über die Jahre fair bleibt. <strong>1,0</strong> ist der Normalstand. Geht dir in
-    einer Auslosung ein sehr beliebter Wunsch nicht auf, steigt dein Faktor fürs nächste Jahr
-    um&nbsp;0,1 (je Auslosung, höchstens&nbsp;1,5) – mit höherem Faktor rückst du dann mit
-    größerer Wahrscheinlichkeit nach vorn. Nach dem Gewinn eines sehr beliebten Wunsches geht er
-    wieder auf&nbsp;1,0. So gleicht die Losung Glück über die Jahre aus. Wie das nachweislich
-    fair ist, zeigt der <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis</a> – die
-    Verteilung über alle Mitglieder im <a href="{% url 'community' %}">Gemeinschafts-Spiegel</a>.</p>
-</div>
-{% endif %}
-
 {% if not member %}
 <div class="card"><p>Für dieses Konto ist kein Mitglied hinterlegt. Bitte an die Verwaltung wenden.</p></div>
 {% elif not period %}
-<div class="card"><p class="muted">Zurzeit ist kein Losverfahren zur Anmeldung geöffnet.</p></div>
+<div class="card">
+  <p class="msg info" style="margin-top:0">Zurzeit ist <strong>kein Losverfahren</strong> zur Anmeldung
+    geöffnet. Sobald die nächste Wunsch-Periode startet, kannst du hier deine Wünsche eintragen.</p>
+  {% if member and not member.is_external %}
+  <div class="karma-card">
+    <div class="wo-kpi"><span class="wo-num">{{ member.factor|floatformat:1 }}</span><span class="wo-lbl">Ausgleichsfaktor (Karma)</span></div>
+    <div class="karma-text">
+      <p style="margin:0 0 .3rem"><strong>So steht dein Karma für die nächste Auslosung.</strong>
+        {% if member.factor > 1.0 %}Es ist <strong>erhöht</strong> – du bist in einer früheren Auslosung
+        bei einem sehr beliebten Wunsch leer ausgegangen und rückst dafür beim nächsten Mal mit
+        <strong>größerer Wahrscheinlichkeit nach vorn</strong>.{% else %}<strong>1,0</strong> ist der
+        Normalstand.{% endif %}</p>
+      <p class="muted" style="margin:0">Geht dir in einer Auslosung ein sehr beliebter Wunsch nicht auf,
+        steigt dein Faktor fürs nächste Jahr um&nbsp;0,1 (höchstens&nbsp;1,5); nach dem Gewinn eines sehr
+        beliebten Wunsches geht er wieder auf&nbsp;1,0. So gleicht die Losung Glück über die Jahre aus –
+        <a href="{% url 'lottery_fairness' %}">Fairness-Nachweis</a> ·
+        <a href="{% url 'community' %}">Gemeinschafts-Spiegel</a>.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+<style>
+  .karma-card { display:flex; gap:1rem; align-items:flex-start; border:1px solid var(--line);
+    border-radius:12px; padding:.8rem .9rem; background:var(--bg); margin-top:.4rem; }
+  .karma-card .wo-kpi { display:flex; flex-direction:column; line-height:1.05; flex:0 0 auto; }
+  .karma-card .wo-num { font-size:2rem; font-weight:800; color:var(--accent-deep); }
+  .karma-card .wo-lbl { font-size:.74rem; color:var(--muted); }
+  .karma-card .karma-text { font-size:.9rem; line-height:1.5; }
+</style>
 {% else %}
 
 <div class="card">
@@ -32,60 +42,37 @@
   <p class="msg {% if has_wishes %}info{% else %}warn{% endif %}" style="margin-top:0">
     ⏳ <strong>Wünsche eintragen bis {{ period.submission_deadline|date:"d.m.Y" }}</strong>{% if period.draw_at %}
     · Ziehung {{ period.draw_at|date:"d.m.Y" }}{% endif %}.
-    {% if has_wishes %}Deine Wünsche nehmen an der Losung teil – du kannst sie bis dahin jederzeit ändern.{% else %}<strong>Bisher hast du keine Wünsche eingetragen</strong> – trage sie unten ein, sonst nimmst du nicht teil. Jeder Wunsch ist sofort dabei (kein Einreichen nötig).{% endif %}
+    {% if has_wishes %}Deine Wünsche nehmen an der Losung teil – du kannst sie bis dahin jederzeit ändern.{% else %}<strong>Bisher hast du keine Wünsche eingetragen</strong> – trage sie unter „Neue Wünsche eintragen“ ein. Jeder Wunsch ist sofort dabei (kein Einreichen nötig).{% endif %}
   </p>
   {% endif %}
   {% if review_phase %}
-  {% comment %}Entzerrungsphase (ADR 0101): Anpassen weiter möglich; zwei Marken –
-  kurz vor der Losung greift der Anzeige-Stopp, Änderungen zählen bis dahin.{% endcomment %}
+  {% comment %}Entzerrungsphase (ADR 0101): Anpassen weiter möglich; kurz vor der Losung
+  greift der Anzeige-Stopp, Änderungen zählen bis dahin.{% endcomment %}
   <p class="msg {% if display_frozen %}info{% else %}warn{% endif %}" style="margin-top:0">
     🔀 <strong>Entzerrungsphase</strong> – du kannst deine Wünsche noch
-    <strong>anpassen</strong>, um begehrten Zeiten auszuweichen. Jede Änderung zählt
-    sofort.
+    <strong>anpassen</strong>, um begehrten Zeiten auszuweichen. Jede Änderung zählt sofort.
     {% if freeze_start %}Nachfrage sichtbar bis {{ freeze_start|date:"d.m. H:i" }} (danach Anzeige-Stopp){% endif %}{% if draw_at %} · Änderungen möglich bis {{ draw_at|date:"d.m. H:i" }} (Losung){% endif %}.
     {% if display_frozen %}<br><em><strong>Anzeige-Stopp:</strong> Die angezeigte Nachfrage ist jetzt festgehalten (Stand kurz vor der Losung), damit niemand in letzter Sekunde auf die Züge der anderen reagiert – deine Änderungen zählen aber weiter.</em>{% endif %}
   </p>
   {% endif %}
-  <p class="muted" style="margin-top:0">
-    Periode <strong>{{ period }}</strong>. Die Ampel im Kalender zeigt, wie beliebt ein Zeitraum
-    ist (rot = besonders gefragt) – eintragen kannst du trotzdem überall.
-    Deine Wünsche sind mit &#9679; markiert.
-  </p>
-  <details class="explain">
-    <summary>So funktioniert die Auslosung (kurz)</summary>
-    <p class="muted">Trage deine echten Wünsche in echter Reihenfolge ein (Priorität 1 = wichtigster).
-      <strong>Alle eingetragenen</strong> Wünsche nehmen teil – ohne extra Einreichen.
-      Vergeben wird im Runden-Prinzip (erst alle Erstwünsche, dann Zweitwünsche …); die
-      Reihenfolge ist fair gewichtet (wer früher verloren hat, hat mehr Gewicht).
-      Taktieren bringt nichts – <a href="{% url 'help' %}#losung">ausführliche Erklärung →</a></p>
-    <p class="muted" style="margin:.3rem 0 0">Mindestnächte und Saison-Grenzen gelten wie
-      beim Buchen; das <strong>Parallel-Limit</strong> in begehrten Zeiten wirkt erst in der
-      Auslosung. Wie die Regeln auf Wünsche &amp; Losung wirken, steht
-      <a href="{% url 'help' %}#regeln-losung">in der Hilfe</a>.</p>
-    {% if period.seed_commit %}
-    <div class="muted" style="margin-top:.4rem"><strong>Verifizierbar:</strong> Der Zufalls-Seed
-      der Ziehung steht bereits fest – seine Prüfsumme (SHA-256):
-      <code>{{ period.seed_commit|slice:":10" }}…{{ period.seed_commit|slice:"-6:" }}</code>.
-      Nach der Ziehung legen wir den Seed offen; du kannst das Ergebnis selbst nachrechnen
-      (<a href="{% url 'lottery_fairness' %}">mehr</a>).
-      <details style="margin-top:.2rem"><summary class="sm">vollständige Prüfsumme</summary>
-        <code style="word-break:break-all;font-size:.8rem">{{ period.seed_commit }}</code></details>
-    </div>
-    {% endif %}
-  </details>
 
-  {% comment %}Zwei Reiter auf EINER Seite (Feedback d): „Meine Wünsche" (Default) und
-  „Nachfrage & Heatmap". Umschalten ohne Neuladen (data-ajax, ?view=).{% endcomment %}
-  <div class="wl-tabs" role="tablist">
-    <a data-ajax class="wl-tab{% if view == 'wuensche' %} active{% endif %}"
-       href="?year={{ cal.year }}&month={{ cal.month }}{{ sel_qs }}">📝 Meine Wünsche</a>
+  {% comment %}Drei präsente Reiter (Feedback B), Wechsel ohne Neuladen (data-ajax).{% endcomment %}
+  <nav class="wl-tabs" role="tablist" aria-label="Wunschliste-Bereiche">
+    <a data-ajax class="wl-tab{% if view == 'meine' %} active{% endif %}"
+       href="?view=meine&year={{ cal.year }}&month={{ cal.month }}">📋 Meine Wünsche{% if wishes %} <span class="wl-count">{{ wishes|length }}</span>{% endif %}</a>
+    <a data-ajax class="wl-tab{% if view == 'neu' %} active{% endif %}"
+       href="?view=neu&year={{ cal.year }}&month={{ cal.month }}{{ sel_qs }}">➕ Neue Wünsche eintragen</a>
     <a data-ajax class="wl-tab{% if view == 'nachfrage' %} active{% endif %}"
        href="?view=nachfrage&year={{ cal.year }}&month={{ cal.month }}">📊 Nachfrage &amp; Heatmap</a>
-  </div>
+  </nav>
 </div>
 
-{% if view == 'wuensche' %}
+{% if view == 'neu' %}
+{% comment %}Reiter „Neue Wünsche eintragen": Kalender + Direkteingabe + Auswahl.{% endcomment %}
 <div class="card">
+  <p class="muted" style="margin-top:0">Die Ampel im Kalender zeigt, wie beliebt ein Zeitraum ist
+    (rot = besonders gefragt) – eintragen kannst du trotzdem überall. Deine eigenen Wünsche sind
+    mit &#9679; markiert. Wähle Anreise und Abreise – darunter erscheinen die passenden Unterkünfte.</p>
   {% include "booking/_calnav.html" %}
   <table class="cal wish-cal">
     <thead><tr><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th></tr></thead>
@@ -98,7 +85,7 @@
           {% if d.is_start %}<span class="cap-flag start">Anreise</span>{% endif %}
           {% if d.is_end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.in_month %}
-          <a class="dlink" data-ajax href="{% if sel_start and not sel_end and d.date > sel_start %}?year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}">
+          <a class="dlink" data-ajax href="{% if sel_start and not sel_end and d.date > sel_start %}?view=neu&year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?view=neu&year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}">
             <span class="d-num">{{ d.day }}{% if d.own_sub %} <span class="own sub" title="dein Wunsch">&#9679;</span>{% endif %}</span>
             <span class="free-badge">{{ d.demand }}&times;</span>
           </a>
@@ -118,26 +105,26 @@
     <span><i class="sw lvl-full"></i> sehr beliebt</span>
     <span>&#9679; dein Wunsch</span>
   </div>
-</div>
-
-<div class="card">
-  <strong>Oder Zeitraum direkt eingeben</strong>
-  <form method="get" class="filters" style="margin-top:.5rem">
-    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-    <label class="pers">Anreise <input type="date" name="start" value="{{ sel_start|date:'Y-m-d' }}"></label>
-    <label class="pers">Abreise <input type="date" name="end" value="{{ sel_end|date:'Y-m-d' }}"></label>
-    <button class="btn small" type="submit">Übernehmen</button>
-  </form>
+  <div style="margin-top:.7rem">
+    <strong>Oder Zeitraum direkt eingeben</strong>
+    <form method="get" class="filters" style="margin-top:.5rem">
+      <input type="hidden" name="view" value="neu">
+      <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+      <label class="pers">Anreise <input type="date" name="start" value="{{ sel_start|date:'Y-m-d' }}"></label>
+      <label class="pers">Abreise <input type="date" name="end" value="{{ sel_end|date:'Y-m-d' }}"></label>
+      <button class="btn small" type="submit">Übernehmen</button>
+    </form>
+  </div>
 </div>
 
 {% if sel_start %}
 <div class="card">
   <div style="display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap">
-    <h2 style="margin:0">Wunsch eintragen</h2>
+    <h2 style="margin:0">Passende Unterkünfte</h2>
     <span>Anreise <strong>{{ eff_start }}</strong>
       {% if sel_end %}&ndash; Abreise <strong>{{ eff_end }}</strong> ({{ nights_selected }} Nächte){% else %}
       &ndash; <span class="muted">Abreisetag wählen (oder 1 Nacht)</span>{% endif %}</span>
-    <a class="muted" data-ajax style="margin-left:auto" href="?year={{ cal.year }}&month={{ cal.month }}">Auswahl zurücksetzen</a>
+    <a class="muted" data-ajax style="margin-left:auto" href="?view=neu&year={{ cal.year }}&month={{ cal.month }}">Auswahl zurücksetzen</a>
   </div>
   <p class="muted" style="margin-top:.2rem">Die Zahl zeigt, wie oft das Quartier in dem Zeitraum schon gewünscht ist.</p>
   {% include "booking/_high_demand_note.html" %}
@@ -167,175 +154,10 @@
 </div>
 {% endif %}
 
-<div class="card" id="wunschliste">
-  <h2>Meine Wünsche</h2>
-  {% if wish_winter and wish_winter.target %}
-  <p class="muted" style="margin:.1rem 0 .35rem;font-size:.9rem">🌙 Deine Wünsche legen
-    <strong>{{ wish_winter.booked }}</strong>/{{ wish_winter.target }} Tage ins Winterhalbjahr
-    (Okt–März){% if wish_winter.reached %} ✓{% endif %}. <span class="muted">Richtwert:
-    <strong>mindestens</strong> so viele – das verteilt die Nutzung übers Jahr (kein Limit).</span></p>
-  {% endif %}
-  {% if wish_weekends and wish_weekends.booked %}
-  <p class="muted" style="margin:.1rem 0 .5rem;font-size:.9rem">📅 Deine Wünsche umfassen
-    <strong>{{ wish_weekends.booked }}</strong> Wochenende{{ wish_weekends.booked|pluralize:"n" }}{% if wish_weekends.target %}
-    (Richtwert höchstens {{ wish_weekends.target }}){% endif %}.{% if wish_weekends.over %}
-    <strong>Das ist völlig in Ordnung</strong> – du darfst ruhig mehr wünschen, als am Ende
-    erfüllt wird: Über die Losung gehen höchstens <strong>{{ wish_budget }} Nächte</strong>,
-    der Rest ist Rückfall.{% else %} <span class="muted">Reine Orientierung – kein Limit; über die
-    Losung werden ohnehin höchstens {{ wish_budget }} Nächte vergeben.</span>{% endif %}</p>
-  {% endif %}
-
-  {% if wishes_overlap_any %}
-  <div class="msg warn overlap-note" style="margin:.2rem 0 .6rem">ℹ️ <strong>Einige deiner Wünsche
-    überlappen sich zeitlich.</strong> Das ist erlaubt – die Losung berücksichtigt in einem
-    überlappenden Zeitraum aber immer nur <strong>einen</strong> davon. Prüfe, ob das gewollt ist
-    (z.&nbsp;B. als Rückfall) oder ob du einen anpassen/entfernen möchtest. Welche das sind, steht
-    je Wunsch ganz oben unter „Details &amp; Aktionen“.</div>
-  {% endif %}
-
-  {% if wishes %}
-  <p class="muted" style="margin-top:0">Reihenfolge per Ziehen (Priorität 1 oben). Jeder Wunsch
-    nimmt sofort an der Losung teil. <strong>Chance, Nachbarn und Aktionen</strong> (ändern,
-    entfernen) findest du je Wunsch unter „Details &amp; Aktionen“.</p>
-  <ul class="wishlist" id="wishlist">
-    {% for w in wishes %}
-    <li class="wish" draggable="true" data-id="{{ w.id }}">
-      <span class="drag" title="Ziehen zum Sortieren">&#10287;</span>
-      <span class="wish-prio">{{ forloop.counter }}</span>
-      <span class="wish-main">{{ w.quarter.name }}<br>
-        <span class="muted">{{ w.start }} &ndash; {{ w.end }} &middot; {{ w.nights }} Nächte{% if memberships|length > 1 and w.membership %} &middot; Anteil: {{ w.membership }}{% endif %}</span></span>
-      <details class="wish-det">
-        <summary>Details &amp; Aktionen</summary>
-        <div class="wish-det-body">
-          {% if w.overlap_same_quarter %}
-          {% comment %}Feedback c: Eigen-Überlappung zuerst – sie ist wichtig.{% endcomment %}
-          <div class="wish-hint warn-hint">⚠️ <strong>Überlappt mit einem anderen deiner Wünsche für „{{ w.quarter.name }}“.</strong>
-            Erlaubt – die Losung nimmt in einem überlappenden Zeitraum aber nur einen davon.
-            Wenn das nicht gewollt ist, ändere oder entferne einen der beiden (unten).</div>
-          {% endif %}
-
-          {% comment %}Feedback b: Beliebtheits-Ampel (aus überlappenden Fremd-Wünschen) +
-          qualitative Los-Chance OHNE Prozent – die beiden Größen sind verschieden.{% endcomment %}
-          <p class="wd-chance">
-            <span class="wish-demand tone-{{ w.demand.tone }}">{{ w.demand.label }}</span>
-            {% if w.coord %}<span class="muted sm">· {{ w.coord.overlap_count }} weitere{% if w.coord.overlap_count == 1 %}s Mitglied{% else %} Mitglieder{% endif %} mit überlappendem Wunsch</span>{% endif %}
-            {% if w.prognosis %}<br><span class="muted sm">Deine Los-Chance (Schätzung aus vielen Trockenläufen, kein garantiertes Ergebnis):</span>
-            <span class="wish-chance chance-{{ w.prognosis.band }}">{% if w.prognosis.band == 'good' %}✅ gute Chance{% elif w.prognosis.band == 'open' %}🟡 offen{% else %}🔸 knapp{% endif %}</span>{% endif %}
-          </p>
-
-          {% if w.coord %}
-          <div class="wd-neighbors">
-            <strong>🤝 Wer wünscht sich dasselbe?</strong>
-            <p class="muted sm" style="margin:.15rem 0 .4rem">Sprecht euch gern direkt ab (z.&nbsp;B.
-              wer welche Woche nimmt) – das entzerrt die Losung. Die Absprache ist <strong>privat
-              und außerhalb der App</strong>; sie ändert nichts am fairen Losverfahren.</p>
-            <ul class="nb-list">
-              {% for n in w.coord.neighbors %}
-              <li><strong>{{ n.name }}</strong> <span class="muted">({{ n.start|date:"d.m." }}–{{ n.end|date:"d.m." }})</span>
-                {% if n.phone %} · <a href="tel:{{ n.phone }}">{{ n.phone }}</a>{% endif %}
-                {% if n.email %} · <a href="mailto:{{ n.email }}">{{ n.email }}</a>{% endif %}
-                {% if not n.phone and not n.email %} · <span class="muted">kein Kontakt freigegeben</span>{% endif %}</li>
-              {% endfor %}
-            </ul>
-            <p class="muted sm" style="margin:.3rem 0 0">Der <strong>Name</strong> ist immer sichtbar
-              (wir setzen auf Begegnung); <strong>Telefon/E-Mail</strong> gibt jede:r selbst frei. Deine
-              eigenen Kanäle stellst du im <a href="{% url 'profile' %}#absprachen">Profil</a> ein.</p>
-          </div>
-          {% endif %}
-
-          {% comment %}Feedback a: die eigentlichen Aktionen (ändern, entfernen, Priorität)
-          stehen erst hier unter „Details & Aktionen".{% endcomment %}
-          <div class="wd-actions">
-            <strong class="wd-actions-h">Aktionen</strong>
-            <div class="wd-act-row">
-              <form method="post" class="inline">{% csrf_token %}
-                <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
-                <input type="hidden" name="direction" value="up"><input type="hidden" name="view" value="{{ view }}">
-                <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-                <button class="btn small ghost" type="submit" {% if forloop.first %}disabled{% endif %}>&#9650; höher</button>
-              </form>
-              <form method="post" class="inline">{% csrf_token %}
-                <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
-                <input type="hidden" name="direction" value="down"><input type="hidden" name="view" value="{{ view }}">
-                <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-                <button class="btn small ghost" type="submit" {% if forloop.last %}disabled{% endif %}>&#9660; tiefer</button>
-              </form>
-              <form method="post" class="inline" data-confirm="Wunsch wirklich entfernen?">{% csrf_token %}
-                <input type="hidden" name="action" value="delete_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
-                <input type="hidden" name="view" value="{{ view }}">
-                <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-                <button class="btn small ghost danger" type="submit">&#10005; entfernen</button>
-              </form>
-            </div>
-            <details class="wd-edit">
-              <summary>Zeitraum / Unterkunft ändern</summary>
-              <form method="post" class="wd-edit-form">{% csrf_token %}
-                <input type="hidden" name="action" value="adjust_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
-                <input type="hidden" name="view" value="{{ view }}">
-                <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-                <label>Unterkunft
-                  <select name="quarter">
-                    {% for q in all_quarters %}<option value="{{ q.id }}"{% if q.id == w.quarter_id %} selected{% endif %}>{{ q.name }}</option>{% endfor %}
-                  </select></label>
-                <label>Anreise <input type="date" name="start" value="{{ w.start|date:'Y-m-d' }}"></label>
-                <label>Abreise <input type="date" name="end" value="{{ w.end|date:'Y-m-d' }}"></label>
-                <button class="btn small" type="submit">Änderung speichern</button>
-              </form>
-            </details>
-          </div>
-
-          {% if w.alt %}
-          <div class="wish-hint">💡 <strong>„{{ w.quarter.name }}“ ist im gewählten Zeitraum sehr beliebt</strong>
-            ({{ w.alt.base }}&times; von anderen gewünscht). Weniger beliebte Alternativen &ndash; dort hast du bessere Chancen:
-            <ul class="wish-alt">
-              {% if w.alt.time %}
-              <li>gleiche Unterkunft, etwas anderer Zeitraum:
-                <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.alt.time.start|date:'Y-m-d' }}&end={{ w.alt.time.end|date:'Y-m-d' }}">{{ w.alt.time.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.alt.time.end|date:'d.m.' }}</a>
-                &ndash; dort {% if w.alt.time.count %}erst {{ w.alt.time.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
-              {% endif %}
-              {% if w.alt.quarter %}
-              <li>gleichwertige Unterkunft zur gleichen Zeit:
-                <a data-ajax href="?year={{ cal.year }}&month={{ cal.month }}&start={{ w.start|date:'Y-m-d' }}&end={{ w.end|date:'Y-m-d' }}">{{ w.alt.quarter.name }}</a>
-                &ndash; dort {% if w.alt.quarter.count %}erst {{ w.alt.quarter.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
-              {% endif %}
-            </ul>
-            <span class="muted">Klick übernimmt den Zeitraum in den Kalender oben – oder ändere den Wunsch direkt hier. Ganz freiwillig; die Auslosung bleibt unberührt.</span></div>
-          {% endif %}
-        </div>
-      </details>
-    </li>
-    {% endfor %}
-  </ul>
-  <form method="post" id="reorder-form">{% csrf_token %}
-    <input type="hidden" name="action" value="reorder"><input type="hidden" name="order" id="reorder-order">
-    <input type="hidden" name="view" value="{{ view }}">
-    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
-  </form>
-  {% if wish_nights > wish_budget %}
-  <div class="msg info" style="margin:.6rem 0">Du hast <strong>{{ wish_nights }} Nächte</strong>
-    gewünscht – mehr als dein <strong>Wunsch-Budget</strong> von {{ wish_budget }} Nächten (das ist
-    die Hälfte deiner Jahres-Tage, die über die Losung vergeben wird). <strong>Das ist erlaubt:</strong>
-    Über die Losung bekommst du höchstens {{ wish_budget }} Nächte zugeteilt; alles darüber sind
-    <strong>Rückfall-Wünsche</strong>, die nur greifen, wenn ein wichtigerer Wunsch belegt ist –
-    in deiner Prioritäts-Reihenfolge (oben = wichtiger).</div>
-  {% else %}
-  <p class="muted" style="margin:.6rem 0">Summe: <strong>{{ wish_nights }}</strong> von
-    {{ wish_budget }} Nächten deines <strong>Wunsch-Budgets</strong> (die Hälfte deiner Jahres-Tage,
-    die über die Losung vergeben wird).</p>
-  {% endif %}
-  {% if wish_cap %}
-  <p class="muted" style="margin:.6rem 0">Du hast <strong>{{ wishes|length }}</strong> von
-    höchstens <strong>{{ wish_cap }}</strong> zulässigen Wünschen je Periode eingetragen.</p>
-  {% endif %}
-  {% else %}
-  <p class="muted">Noch keine Wünsche eingetragen – wähle oben im Kalender einen Zeitraum.</p>
-  {% endif %}
-</div>
-
-{% else %}
+{% elif view == 'nachfrage' %}
 {% comment %}Reiter „Nachfrage & Heatmap" (Feedback d/e).{% endcomment %}
 {% if demand_grid and demand_grid.max %}
-<div class="card demand-card">
+<div class="card">
   <h2 style="margin-top:0">Nachfrage-Heatmap</h2>
   <p class="muted sm" style="margin:.2rem 0 .6rem">Anzahl bereits <strong>eingetragener</strong>
     Wünsche je Quartier und Monat. Dunklere Felder = mehr Nachfrage. So siehst du, wohin du zum
@@ -365,9 +187,7 @@
       <table class="rank">
         <thead><tr><th>Unterkunft</th><th>Wünsche</th></tr></thead>
         <tbody>
-          {% for q in demand_ranking.quarters %}
-          <tr><td>{{ q.name }}</td><td class="num">{{ q.count }}</td></tr>
-          {% endfor %}
+          {% for q in demand_ranking.quarters %}<tr><td>{{ q.name }}</td><td class="num">{{ q.count }}</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>
@@ -376,29 +196,230 @@
       <table class="rank">
         <thead><tr><th>Unterkunft · Monat</th><th>Wünsche</th></tr></thead>
         <tbody>
-          {% for s in demand_ranking.slots %}
-          <tr><td>{{ s.quarter }} · {{ s.month }}</td><td class="num">{{ s.count }}</td></tr>
-          {% endfor %}
+          {% for s in demand_ranking.slots %}<tr><td>{{ s.quarter }} · {{ s.month }}</td><td class="num">{{ s.count }}</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>
   </div>
   <p class="muted sm" style="margin:.6rem 0 0">Reine Nachfrage-Zahlen (keine Namen). Sie helfen dir
-    beim <strong>Entzerren</strong>: Gefragte Unterkünfte/Zeiten meiden, wo es geht – das erhöht für
-    alle die Chance.</p>
+    beim <strong>Entzerren</strong>: gefragte Unterkünfte/Zeiten meiden, wo es geht.</p>
   {% else %}
   <p class="muted" style="margin:0">Noch keine Wünsche eingetragen.</p>
   {% endif %}
 </div>
+
+{% else %}
+{% comment %}Reiter „Meine Wünsche" (Default): Übersicht/Info-Section + Liste.{% endcomment %}
+<div class="card" id="wunschliste">
+  <h2 style="margin-top:0">Meine Wünsche</h2>
+
+  {% comment %}Wunsch-Übersicht (Feedback D): Kennzahlen + Handlungsbedarf + Richtschnüre
+  + Karma an EINER Stelle.{% endcomment %}
+  <div class="wish-ov">
+    <div class="wo-kpis">
+      <div class="wo-kpi"><span class="wo-num">{{ wishes|length }}</span><span class="wo-lbl">Wünsche</span></div>
+      <div class="wo-kpi"><span class="wo-num">{{ wish_nights }}</span><span class="wo-lbl">Tage gewünscht</span></div>
+      <div class="wo-kpi"><span class="wo-num">{{ wish_budget }}</span><span class="wo-lbl">Wunsch-Budget</span></div>
+      {% if member and not member.is_external %}
+      <div class="wo-kpi"><span class="wo-num">{{ member.factor|floatformat:1 }}</span><span class="wo-lbl">Karma <a href="{% url 'help' %}#losung" title="Ausgleichsfaktor (Karma) – wie er die Losung fair hält">?</a></span></div>
+      {% endif %}
+    </div>
+
+    <div class="wo-status">
+      {% if not wishes %}
+      <p class="wo-msg warn">⚠️ <strong>Noch keine Wünsche eingetragen</strong> – so nimmst du an der
+        Losung nicht teil. Wechsle zu <a data-ajax href="?view=neu&year={{ cal.year }}&month={{ cal.month }}">„Neue Wünsche eintragen“</a>.</p>
+      {% else %}
+        {% if wish_nights < wish_budget %}
+        <p class="wo-msg warn">🟡 Du wünschst <strong>{{ wish_nights }} von {{ wish_budget }}</strong> Wunsch-Tagen –
+          es ist noch Platz für mehr (über die Losung werden bis zu {{ wish_budget }} Nächte vergeben).</p>
+        {% elif wish_nights > wish_budget %}
+        <p class="wo-msg warn">🟡 Du wünschst <strong>{{ wish_nights }} Tage</strong> – mehr als dein
+          Wunsch-Budget ({{ wish_budget }}). <strong>Das ist ok:</strong> alles über {{ wish_budget }} sind
+          <strong>Rückfall-Wünsche</strong> (greifen nur, wenn ein wichtigerer belegt ist).</p>
+        {% else %}
+        <p class="wo-msg good">✓ Dein Wunsch-Budget ist genau ausgeschöpft ({{ wish_budget }} Tage).</p>
+        {% endif %}
+        {% if wishes_overlap_any %}
+        <p class="wo-msg bad">🔴 <strong>Einige Wünsche überlappen sich zeitlich.</strong> Erlaubt, aber
+          bitte prüfen: die Losung nimmt in einem überlappenden Zeitraum nur <strong>einen</strong> davon –
+          die anderen wirken dann nur als Rückfall. Welche das sind, steht je Wunsch unter „Details“.</p>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {% if wish_winter and wish_winter.target or wish_weekends and wish_weekends.booked or wish_cap %}
+    <div class="wo-guides">
+      {% if wish_winter and wish_winter.target %}<span>🌙 Winterhalbjahr <strong>{{ wish_winter.booked }}</strong>/{{ wish_winter.target }}{% if wish_winter.reached %} ✓{% endif %} <span class="muted">(Richtwert: mindestens)</span></span>{% endif %}
+      {% if wish_weekends and wish_weekends.booked %}<span>📅 <strong>{{ wish_weekends.booked }}</strong> Wochenende{{ wish_weekends.booked|pluralize:"n" }}{% if wish_weekends.target %} <span class="muted">(Richtwert höchstens {{ wish_weekends.target }})</span>{% endif %}</span>{% endif %}
+      {% if wish_cap %}<span><strong>{{ wishes|length }}</strong>/{{ wish_cap }} <span class="muted">zulässige Wünsche</span></span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if wishes %}
+  <p class="muted sm" style="margin:.6rem 0 .3rem">Nach <strong>Priorität</strong> sortiert (1 = wichtigster) –
+    per Ziehen umsortieren. Chance, Nachbarn und Aktionen je Wunsch unter „Details &amp; Aktionen“.</p>
+  <ul class="wishlist" id="wishlist">
+    {% for w in wishes %}
+    <li class="wish" draggable="true" data-id="{{ w.id }}">
+      <span class="drag" title="Ziehen zum Sortieren">&#10287;</span>
+      <span class="wish-prio">{{ forloop.counter }}</span>
+      <span class="wish-dot dot-{% if w.overlap_same_quarter %}bad{% elif w.prognosis %}{{ w.prognosis.band }}{% else %}none{% endif %}"
+            title="{% if w.overlap_same_quarter %}überlappt mit eigenem Wunsch{% elif w.prognosis %}Chance: {{ w.prognosis.band }}{% else %}—{% endif %}"></span>
+      <span class="wish-main">{{ w.quarter.name }}<br>
+        <span class="muted">{{ w.start }} &ndash; {{ w.end }} &middot; {{ w.nights }} Nächte{% if memberships|length > 1 and w.membership %} &middot; Anteil: {{ w.membership }}{% endif %}</span></span>
+      <details class="wish-det">
+        <summary>Details &amp; Aktionen</summary>
+        <div class="wd-body">
+          {% comment %}Kompakte Status-Zeile (Feedback C): wenige Farben, klare Abzeichen.{% endcomment %}
+          <div class="wd-badges">
+            {% if w.prognosis %}<span class="badge b-{{ w.prognosis.band }}" title="Geschätzte Los-Chance aus vielen Trockenläufen – kein garantiertes Ergebnis.">{% if w.prognosis.band == 'good' %}✅ gute Chance{% elif w.prognosis.band == 'open' %}🟡 offene Chance{% else %}🔸 knappe Chance{% endif %}</span>{% endif %}
+            <span class="badge d-{{ w.demand.tone }}">{{ w.demand.label }}</span>
+            {% if w.overlap_same_quarter %}<span class="badge b-tight">⚠️ überlappt mit eigenem Wunsch</span>{% endif %}
+          </div>
+          {% if w.chance_reason %}
+          <p class="wd-reason">{% if w.chance_reason == 'nachgefragt' %}Diese Einschätzung kommt vor allem daher, dass der Zeitraum <strong>stark nachgefragt</strong> ist.{% else %}Kein anderer will genau diesen Zeitraum – die Einschätzung liegt an der <strong>Zahl und Reihenfolge deiner eigenen Wünsche</strong> (nachrangiger Rückfall-Wunsch), nicht an anderen. <a href="{% url 'help' %}#chance">Wie das gemeint ist →</a>{% endif %}</p>
+          {% endif %}
+
+          <div class="wd-acts">
+            <form method="post" class="inline">{% csrf_token %}
+              <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
+              <input type="hidden" name="direction" value="up"><input type="hidden" name="view" value="meine">
+              <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+              <button class="btn small ghost" type="submit" title="Priorität höher" {% if forloop.first %}disabled{% endif %}>&#9650;</button>
+            </form>
+            <form method="post" class="inline">{% csrf_token %}
+              <input type="hidden" name="action" value="move_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
+              <input type="hidden" name="direction" value="down"><input type="hidden" name="view" value="meine">
+              <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+              <button class="btn small ghost" type="submit" title="Priorität niedriger" {% if forloop.last %}disabled{% endif %}>&#9660;</button>
+            </form>
+            <form method="post" class="inline" data-confirm="Wunsch wirklich entfernen?">{% csrf_token %}
+              <input type="hidden" name="action" value="delete_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
+              <input type="hidden" name="view" value="meine">
+              <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+              <button class="btn small ghost danger" type="submit" title="Wunsch entfernen">&#10005; entfernen</button>
+            </form>
+          </div>
+
+          <details class="wd-more">
+            <summary>✏️ Zeitraum / Unterkunft ändern</summary>
+            <form method="post" class="wd-edit-form">{% csrf_token %}
+              <input type="hidden" name="action" value="adjust_wish"><input type="hidden" name="wish_id" value="{{ w.id }}">
+              <input type="hidden" name="view" value="meine">
+              <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+              <label>Unterkunft
+                <select name="quarter">
+                  {% for q in all_quarters %}<option value="{{ q.id }}"{% if q.id == w.quarter_id %} selected{% endif %}>{{ q.name }}</option>{% endfor %}
+                </select></label>
+              <label>Anreise <input type="date" name="start" value="{{ w.start|date:'Y-m-d' }}"></label>
+              <label>Abreise <input type="date" name="end" value="{{ w.end|date:'Y-m-d' }}"></label>
+              <button class="btn small" type="submit">Speichern</button>
+            </form>
+          </details>
+
+          {% if w.coord %}
+          <details class="wd-more">
+            <summary>👥 {{ w.coord.overlap_count }} {% if w.coord.overlap_count == 1 %}wünscht{% else %}wünschen{% endif %} sich dasselbe – Absprache</summary>
+            <p class="muted sm" style="margin:.15rem 0 .4rem">Sprecht euch gern direkt ab (z.&nbsp;B. wer welche
+              Woche nimmt) – privat und außerhalb der App; das ändert nichts am fairen Losverfahren.</p>
+            <ul class="nb-list">
+              {% for n in w.coord.neighbors %}
+              <li><strong>{{ n.name }}</strong> <span class="muted">({{ n.start|date:"d.m." }}–{{ n.end|date:"d.m." }})</span>
+                {% if n.phone %} · <a href="tel:{{ n.phone }}">{{ n.phone }}</a>{% endif %}
+                {% if n.email %} · <a href="mailto:{{ n.email }}">{{ n.email }}</a>{% endif %}
+                {% if not n.phone and not n.email %} · <span class="muted">kein Kontakt freigegeben</span>{% endif %}</li>
+              {% endfor %}
+            </ul>
+            <p class="muted sm" style="margin:.3rem 0 0">Der Name ist immer sichtbar; Telefon/E-Mail gibt jede:r
+              im <a href="{% url 'profile' %}#absprachen">Profil</a> selbst frei.</p>
+          </details>
+          {% endif %}
+
+          {% if w.alt %}
+          <details class="wd-more">
+            <summary>💡 Entzerren-Vorschläge (bessere Chancen)</summary>
+            <p class="muted sm" style="margin:.15rem 0 .3rem">„{{ w.quarter.name }}“ ist im gewählten Zeitraum
+              sehr beliebt ({{ w.alt.base }}× gewünscht). Weniger gefragte Alternativen:</p>
+            <ul class="wish-alt">
+              {% if w.alt.time %}
+              <li>gleiche Unterkunft, etwas anderer Zeitraum:
+                <a data-ajax href="?view=neu&year={{ cal.year }}&month={{ cal.month }}&start={{ w.alt.time.start|date:'Y-m-d' }}&end={{ w.alt.time.end|date:'Y-m-d' }}">{{ w.alt.time.start|date:'D, d.m.' }}&nbsp;&ndash;&nbsp;{{ w.alt.time.end|date:'d.m.' }}</a>
+                &ndash; dort {% if w.alt.time.count %}erst {{ w.alt.time.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
+              {% endif %}
+              {% if w.alt.quarter %}
+              <li>gleichwertige Unterkunft zur gleichen Zeit:
+                <a data-ajax href="?view=neu&year={{ cal.year }}&month={{ cal.month }}&start={{ w.start|date:'Y-m-d' }}&end={{ w.end|date:'Y-m-d' }}">{{ w.alt.quarter.name }}</a>
+                &ndash; dort {% if w.alt.quarter.count %}erst {{ w.alt.quarter.count }} weitere{% else %}<strong>noch keine</strong> weiteren{% endif %} Wünsche.</li>
+              {% endif %}
+            </ul>
+            <span class="muted sm">Ganz freiwillig; die Auslosung bleibt davon unberührt. Du kannst den Wunsch
+              oben unter „✏️ ändern“ direkt anpassen.</span>
+          </details>
+          {% endif %}
+        </div>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" id="reorder-form">{% csrf_token %}
+    <input type="hidden" name="action" value="reorder"><input type="hidden" name="order" id="reorder-order">
+    <input type="hidden" name="view" value="meine">
+    <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
+  </form>
+  {% else %}
+  <p class="muted">Noch keine Wünsche eingetragen – wechsle zu
+    <a data-ajax href="?view=neu&year={{ cal.year }}&month={{ cal.month }}">„Neue Wünsche eintragen“</a>.</p>
+  {% endif %}
+
+  <details class="explain" style="margin-top:.9rem">
+    <summary>So funktioniert die Auslosung (kurz)</summary>
+    <p class="muted">Trage deine echten Wünsche in echter Reihenfolge ein (Priorität 1 = wichtigster).
+      <strong>Alle eingetragenen</strong> Wünsche nehmen teil – ohne extra Einreichen. Vergeben wird im
+      Runden-Prinzip; die Reihenfolge ist fair gewichtet (wer früher verloren hat, hat mehr Gewicht).
+      Taktieren bringt nichts – <a href="{% url 'help' %}#losung">ausführliche Erklärung →</a></p>
+    <p class="muted" style="margin:.3rem 0 0">Mindestnächte und Saison-Grenzen gelten wie beim Buchen;
+      das <strong>Parallel-Limit</strong> in begehrten Zeiten wirkt erst in der Auslosung. Was die
+      <strong>Chance</strong>-Anzeige bedeutet, steht <a href="{% url 'help' %}#chance">in der Hilfe</a>.</p>
+    {% if period.seed_commit %}
+    <div class="muted" style="margin-top:.4rem"><strong>Verifizierbar:</strong> Der Zufalls-Seed der Ziehung
+      steht bereits fest – Prüfsumme (SHA-256):
+      <code>{{ period.seed_commit|slice:":10" }}…{{ period.seed_commit|slice:"-6:" }}</code>.
+      Nach der Ziehung legen wir den Seed offen (<a href="{% url 'lottery_fairness' %}">mehr</a>).</div>
+    {% endif %}
+  </details>
+</div>
 {% endif %}
 
 <style>
-  /* Reiter (Feedback d) */
+  /* Präsente Reiter (Feedback B): segmentierte Leiste, aktiver Reiter im Akzent. */
   .wl-tabs { display:flex; gap:.4rem; margin:.9rem 0 0; flex-wrap:wrap; }
-  .wl-tab { display:inline-flex; align-items:center; gap:.3rem; padding:.45rem .85rem;
-    border:1px solid var(--line); border-radius:999px; text-decoration:none; color:var(--muted);
-    font-weight:600; font-size:.92rem; background:var(--bg); }
+  .wl-tab { display:inline-flex; align-items:center; gap:.4rem; padding:.6rem 1.05rem;
+    border:1.5px solid var(--line); border-radius:12px; text-decoration:none; color:var(--ink);
+    font-weight:700; font-size:1rem; background:var(--bg); }
+  .wl-tab:hover { border-color:var(--sage); }
   .wl-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .wl-count { display:inline-flex; align-items:center; justify-content:center; min-width:1.4rem;
+    height:1.4rem; padding:0 .35rem; border-radius:999px; background:var(--sage); color:#fff;
+    font-size:.8rem; }
+  .wl-tab.active .wl-count { background:rgba(255,255,255,.28); }
+  /* Wunsch-Übersicht (Feedback D) */
+  .wish-ov { border:1px solid var(--line); border-radius:12px; padding:.7rem .8rem; margin:.2rem 0 .6rem;
+    background:var(--bg); }
+  .wo-kpis { display:flex; gap:1.4rem; flex-wrap:wrap; }
+  .wo-kpi { display:flex; flex-direction:column; line-height:1.1; }
+  .wo-num { font-size:1.5rem; font-weight:800; }
+  .wo-lbl { font-size:.76rem; color:var(--muted); }
+  .wo-lbl a { color:var(--accent-deep); text-decoration:none; font-weight:700; }
+  .wo-status { margin-top:.5rem; display:flex; flex-direction:column; gap:.3rem; }
+  .wo-msg { margin:0; font-size:.9rem; line-height:1.45; border-radius:8px; padding:.5rem .65rem; }
+  .wo-msg.warn { background:var(--warn-soft); color:var(--warn); }
+  .wo-msg.good { background:var(--good-soft); color:var(--good); }
+  .wo-msg.bad { background:var(--bad-soft); color:var(--bad); }
+  .wo-msg a { color:inherit; font-weight:800; }
+  .wo-guides { display:flex; gap:1.1rem; flex-wrap:wrap; margin-top:.5rem; font-size:.85rem; color:var(--ink); }
+  /* Kalender */
   table.wish-cal td { padding:0; position:relative; }
   td.lvl-free { background:#d9efce; } td.lvl-many { background:#e8f3dc; }
   td.lvl-few { background:#f9efc9; } td.lvl-full { background:#f6ddd6; }
@@ -427,69 +448,64 @@
   .qrow { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.45rem; }
   .qrow .qname { font-weight:600; } .qrow .qmeta { font-size:.85rem; } .qrow .spacer { margin-left:auto; }
+  /* Wunsch-Liste */
   ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
-  li.wish { display:flex; flex-wrap:wrap; align-items:center; gap:.7rem; background:var(--card);
+  li.wish { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; background:var(--card);
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.4rem; }
-  .wish-hint { flex:1 1 100%; font-size:.86rem; line-height:1.45; background:var(--accent-soft);
-    border-left:3px solid var(--accent); border-radius:8px; padding:.5rem .65rem; margin-top:.4rem; }
-  .wish-hint.warn-hint { background:var(--warn-soft); border-left-color:var(--warn); }
-  .wish-hint a { color:var(--accent-deep); font-weight:700; }
-  .wish-alt { margin:.35rem 0 .3rem; padding-left:1.1rem; }
-  .wish-alt li { margin:.15rem 0; }
   li.wish.dragover { border-color:var(--accent); background:var(--accent-soft); }
   li.wish .drag { cursor:grab; color:var(--muted); font-size:1.1rem; user-select:none; touch-action:none; }
   .wish-prio { background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
     display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; flex:0 0 auto; }
-  .wish-main { flex:1 1 auto; }
-  /* Beliebtheits-Ampel + Chance je Wunsch (Feedback b): HTML/CSS, kein SVG. */
-  .wish-demand { display:inline-block; font-size:.82rem; font-weight:700; border-radius:8px; padding:.15rem .55rem; }
-  .wish-demand.tone-good { background:var(--good-soft); color:var(--good); }
-  .wish-demand.tone-open { background:var(--sage-soft); color:var(--sage-deep); }
-  .wish-demand.tone-warn { background:var(--warn-soft); color:var(--warn); }
-  .wish-demand.tone-bad { background:var(--bad-soft); color:var(--bad); }
-  .wish-chance { font-weight:700; font-size:.85rem; }
-  .wish-chance.chance-good { color:var(--good); }
-  .wish-chance.chance-open { color:var(--warn); }
-  .wish-chance.chance-tight { color:var(--accent-deep); }
-  .wd-chance { font-size:.9rem; line-height:1.6; margin:.1rem 0 .5rem; }
-  /* Aktionen im Detail-Aufklapper (Feedback a) */
-  .wd-actions { margin:.4rem 0 .2rem; border-top:1px dashed var(--line); padding-top:.5rem; }
-  .wd-actions-h { display:block; font-size:.86rem; margin-bottom:.3rem; }
-  .wd-act-row { display:flex; gap:.35rem; flex-wrap:wrap; }
-  .wd-edit { margin-top:.4rem; }
-  .wd-edit > summary { cursor:pointer; font-size:.85rem; font-weight:600; color:var(--accent-deep); }
-  .wd-edit-form { display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end; margin-top:.4rem; }
+  .wish-dot { width:.7rem; height:.7rem; border-radius:50%; flex:0 0 auto; }
+  .wish-dot.dot-good { background:var(--good); } .wish-dot.dot-open { background:var(--warn); }
+  .wish-dot.dot-tight { background:var(--accent); } .wish-dot.dot-bad { background:var(--bad); }
+  .wish-dot.dot-none { background:var(--line); }
+  .wish-main { flex:1 1 auto; min-width:8rem; }
+  /* Detail-Aufklapper (Feedback C): aufgeräumt, wenig Farbe, Symbole klappen mehr auf. */
+  .wish-det { flex:1 1 100%; margin-top:.15rem; }
+  .wish-det > summary { cursor:pointer; font-size:.9rem; font-weight:600;
+    color:var(--accent-deep); padding:.25rem 0; }
+  .wd-body { padding:.35rem 0 .1rem; display:flex; flex-direction:column; gap:.5rem; }
+  .wd-badges { display:flex; flex-wrap:wrap; gap:.35rem; }
+  .badge { display:inline-flex; align-items:center; font-size:.8rem; font-weight:700;
+    border-radius:999px; padding:.2rem .6rem; }
+  .badge.b-good { background:var(--good-soft); color:var(--good); }
+  .badge.b-open { background:var(--warn-soft); color:var(--warn); }
+  .badge.b-tight { background:var(--accent-soft); color:var(--accent-deep); }
+  .badge.d-good { background:var(--good-soft); color:var(--good); }
+  .badge.d-open { background:var(--sage-soft); color:var(--sage-deep); }
+  .badge.d-warn { background:var(--warn-soft); color:var(--warn); }
+  .badge.d-bad { background:var(--bad-soft); color:var(--bad); }
+  .wd-reason { margin:0; font-size:.86rem; line-height:1.45; color:var(--muted); }
+  .wd-reason a { color:var(--accent-deep); font-weight:700; }
+  .wd-acts { display:flex; gap:.35rem; flex-wrap:wrap; }
+  .wd-more { border-top:1px solid var(--line); padding-top:.4rem; }
+  .wd-more > summary { cursor:pointer; font-size:.88rem; font-weight:600; color:var(--ink); }
+  .wd-more[open] > summary { color:var(--accent-deep); }
+  .wd-edit-form { display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end; margin-top:.5rem; }
   .wd-edit-form label { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:.15rem; }
-  /* Nachfrage-Heatmap (ADR 0101): HTML/CSS-Zellen (kein SVG). */
+  .nb-list { list-style:none; margin:.15rem 0 0; padding:0; }
+  .nb-list li { padding:.15rem 0; font-size:.92rem; }
+  .nb-list a { color:var(--accent-deep); font-weight:700; }
+  .wish-alt { margin:.15rem 0 .2rem; padding-left:1.1rem; }
+  .wish-alt li { margin:.15rem 0; }
+  .wish-alt a { color:var(--accent-deep); font-weight:700; }
+  /* Nachfrage-Heatmap (ADR 0101) */
   table.heat { border-collapse:separate; border-spacing:2px; font-size:.8rem; }
   table.heat th { font-weight:600; color:var(--muted); padding:.15rem .3rem; font-size:.72rem; }
-  table.heat th.hq { text-align:left; white-space:nowrap; position:sticky; left:0;
-    background:var(--card); z-index:1; }
+  table.heat th.hq { text-align:left; white-space:nowrap; position:sticky; left:0; background:var(--card); z-index:1; }
   .heat-cell { width:2rem; height:1.7rem; text-align:center; border-radius:5px;
     font-variant-numeric:tabular-nums; font-weight:700; color:var(--ink);
     background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
-  /* Ranglisten (Feedback e) */
   .rank-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
-  @media (max-width:640px){ .rank-grid { grid-template-columns:1fr; } }
+  @media (max-width:640px){ .rank-grid { grid-template-columns:1fr; } .wo-num { font-size:1.3rem; } }
   .rank-col h3 { margin:.2rem 0 .4rem; font-size:1rem; }
   table.rank { width:100%; border-collapse:collapse; font-size:.9rem; }
   table.rank th, table.rank td { text-align:left; padding:.35rem .5rem; border-bottom:1px solid var(--line); }
   table.rank th { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
   table.rank td.num { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
-  /* Wunsch-Nachbarn (ADR 0101) */
-  .wish-det { flex:1 1 100%; margin-top:.15rem; }
-  .wish-det > summary { cursor:pointer; font-size:.9rem; font-weight:600;
-    color:var(--accent-deep); padding:.25rem 0; }
-  .wish-det-body { padding:.3rem 0 .1rem; }
-  .wd-neighbors { background:var(--sage-soft); border-radius:8px; padding:.5rem .65rem;
-    margin:.2rem 0 .5rem; font-size:.9rem; }
-  .nb-list { list-style:none; margin:.15rem 0 0; padding:0; }
-  .nb-list li { padding:.15rem 0; font-size:.92rem; }
-  .nb-list a { color:var(--accent-deep); font-weight:700; }
-  /* „So funktioniert die Auslosung (kurz)" leicht abheben (besser lesbar). */
-  details.explain { background:var(--sage-soft); border:1px solid var(--line);
-    border-radius:10px; padding:.3rem .8rem; }
-  details.explain > summary { padding:.4rem 0; }
+  details.explain { background:var(--sage-soft); border:1px solid var(--line); border-radius:10px; padding:.3rem .8rem; }
+  details.explain > summary { padding:.4rem 0; cursor:pointer; }
 </style>
 
 <script nonce="{{ request.csp_nonce }}">
@@ -514,9 +530,6 @@
     document.getElementById('reorder-form').submit();
   }
   list.addEventListener('drop', function (e) { e.preventDefault(); commit(); });
-
-  // Touch-Geräte: HTML5-Drag feuert dort nicht – daher per Pointer-Events am
-  // Ziehgriff sortieren (nur Touch/Stift; Maus nutzt weiterhin das HTML5-Drag).
   list.querySelectorAll('li.wish').forEach(function (li) {
     var handle = li.querySelector('.drag'); if (!handle) return;
     handle.addEventListener('pointerdown', function (e) {

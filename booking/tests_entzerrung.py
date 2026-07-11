@@ -148,6 +148,30 @@ class WishUxTests(TestCase):
         w.refresh_from_db()
         self.assertEqual(w.quarter_id, self.q2.id)
 
+    def test_drei_reiter_default_ist_meine(self):
+        # Default-Reiter „Meine Wünsche" zeigt die Liste, nicht den Eintrag-Kalender.
+        svc.add_wish(self.a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
+        self.client.force_login(self.a.user)
+        html = self.client.get(reverse("wishlist")).content.decode()
+        self.assertIn("Neue Wünsche eintragen", html)      # Reiter-Beschriftung
+        self.assertIn('class="wish-ov"', html)             # Wunsch-Übersicht (Info-Section)
+        self.assertNotIn('class="cal wish-cal"', html)     # Eintrag-Kalender NICHT hier
+
+    def test_reiter_neu_zeigt_kalender(self):
+        self.client.force_login(self.a.user)
+        html = self.client.get(reverse("wishlist") + "?view=neu").content.decode()
+        self.assertIn('class="cal wish-cal"', html)        # Eintrag-Kalender
+
+    def test_info_section_ueberlappung_und_budget(self):
+        # Zwei überlappende Wünsche + unter Budget → roter Überlappungs-Hinweis + gelber
+        # Budget-Hinweis in der Wunsch-Übersicht (Feedback D).
+        svc.add_wish(self.a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
+        svc.add_wish(self.a, self.period, self.q, date(NEXT, 5, 8), date(NEXT, 5, 12))
+        self.client.force_login(self.a.user)
+        html = self.client.get(reverse("wishlist")).content.decode()
+        self.assertIn("überlappen sich zeitlich", html)    # roter Hinweis
+        self.assertIn("noch Platz für mehr", html)         # gelber Budget-Hinweis
+
 
 class CoordinationTests(TestCase):
     def setUp(self):
@@ -300,6 +324,15 @@ class HelpPageTests(TestCase):
         self.assertIn("Frist zum Eintragen", html)               # neue Frist-Marke
         self.assertIn("Anzeige-Stopp", html)                     # statt „Freeze"
         self.assertNotIn('id="entzerrung"', html)                # kein eigener Abschnitt
+
+    def test_hilfe_erklaert_chance_anzeige(self):
+        # Die Chance-Anzeige ist eigens erklärt (Feedback E), inkl. „knapp ohne Mitbewerber".
+        m = _member("hilde")
+        self.client.force_login(m.user)
+        html = self.client.get(reverse("help")).content.decode()
+        self.assertIn('id="chance"', html)
+        self.assertIn("Chance-Anzeige", html)
+        self.assertIn("Eigene Reihenfolge", html)                # der „knapp ohne Rivalen"-Fall
 
 
 class SnapshotTests(TestCase):

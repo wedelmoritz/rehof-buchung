@@ -766,8 +766,9 @@ def wishlist(request):
                         "Losung teil; unten kannst du ihn ordnen, ändern oder entfernen.")
             else:
                 messages.error(request, "Bitte einen gültigen Wunsch eingeben.")
-            # Auswahl im Kalender erhalten, damit man weitere Wünsche eintragen kann
-            url = f"{reverse('wishlist')}?year={p_year}&month={p_month}"
+            # Auf dem „Neue Wünsche eintragen"-Reiter bleiben + Auswahl erhalten,
+            # damit man gleich weitere Wünsche eintragen kann (Feedback B).
+            url = f"{reverse('wishlist')}?view=neu&year={p_year}&month={p_month}"
             if request.POST.get("start"):
                 url += f"&start={request.POST['start']}"
             if request.POST.get("end"):
@@ -832,10 +833,16 @@ def wishlist(request):
             w.alt = alts.get(w.id)
             w.prognosis = prog.get(w.id)
             w.coord = coord.get(w.id)
+            n_overlap = w.coord["overlap_count"] if w.coord else 0
             # Nachfrage-/Beliebtheits-Ampel je Wunsch (Feedback b): aus der Zahl
             # überlappender Fremd-Wünsche, ohne Prozent (die Gewinn-Chance ist separat).
-            w.demand = svc.wish_demand_band(
-                w.coord["overlap_count"] if w.coord else 0)
+            w.demand = svc.wish_demand_band(n_overlap)
+            # Konkreter Grund je Wunsch (Feedback E): eine knappe Chance kann auch OHNE
+            # Mitbewerber entstehen – dann liegt es an der Zahl/Reihenfolge der eigenen
+            # Wünsche (nachrangiger Rückfall-Wunsch), nicht an anderen.
+            w.chance_reason = None
+            if w.prognosis and w.prognosis["band"] != "good":
+                w.chance_reason = ("nachgefragt" if n_overlap else "eigene_reihenfolge")
         # Sanfter Hinweis JE WUNSCH bei überlappenden Wünschen fürs SELBE Quartier
         # (Feedback #2b): überlappende Wünsche bleiben bewusst zulässig (das
         # Losverfahren berücksichtigt jeweils nur einen), aber ein Hinweis macht die
@@ -909,9 +916,10 @@ def wishlist(request):
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "wish_cap": wish_cap,
-        # Reiter „Meine Wünsche" (Default) vs. „Nachfrage & Heatmap" (Feedback d):
-        # ein Umschalter auf EINER Seite (?view=nachfrage), ohne Neuladen (data-ajax).
-        "view": "nachfrage" if request.GET.get("view") == "nachfrage" else "wuensche",
+        # Drei präsente Reiter auf EINER Seite (Feedback B): „Meine Wünsche" (Default)
+        # · „Neue Wünsche eintragen" · „Nachfrage & Heatmap" (?view=, data-ajax).
+        "view": (request.GET.get("view")
+                 if request.GET.get("view") in ("neu", "nachfrage") else "meine"),
         # Entzerrungsphase (ADR 0101): Phasen-Marken für den Status-Hinweis.
         "review_phase": bool(period and period.status == BookingPeriod.WISHES_REVIEW),
         # Nachfrage-Heatmap (ADR 0101): welche Quartiere/Monate sind begehrt.

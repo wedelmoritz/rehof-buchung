@@ -90,6 +90,21 @@ Proposed (2026-07-10) · erweitert [ADR 0003](0003-losverfahren-weighted-rsd.md)
 > * **Hilfe:** Ablauf-Zeitleiste als moderner **Stepper** (durchgehende Schiene, `flow-timeline`),
 >   und das „Ablauf als Diagramm“ zeigt die **Entzerrungsphase** jetzt als eigenen Schritt.
 
+> **Nachtrag (2026-07, Runde 2): weiterer UX-Feinschliff.**
+> * **Drei präsente Reiter** statt zwei: „Meine Wünsche“ (Default, mit **Wunsch-Übersicht**),
+>   „Neue Wünsche eintragen“ (Kalender), „Nachfrage & Heatmap“ – groß/deutlich oben.
+> * **Wunsch-Übersicht** (`.wish-ov`): Kennzahlen (Anzahl/Tage/Budget/**Karma** – die
+>   Karma-Erklärung ist von der prominenten Top-Karte hierher gewandert) + **Handlungsbedarf-
+>   Ampel** (keine Wünsche → Warnung; unter/über Wunsch-Budget → gelb; überlappende Wünsche →
+>   rot, jeweils mit Erklärung der Konsequenz) + Richtschnüre – alles an EINER Stelle.
+> * **Aufgeräumter Detail-Aufklapper** (Feedback: „zu viele bunte Kästen“): kompakte
+>   Status-Abzeichen oben, dann Aktionen, dann **Symbol-Aufklapper** (👥 Nachbarn · ✏️ ändern ·
+>   💡 Vorschläge) – Progressive Disclosure statt gestapelter farbiger Boxen.
+> * **Chance mit Grund:** eine „knappe“ Chance **ohne** Mitbewerber wird als „eigene Reihenfolge/
+>   Anzahl“ (nachrangiger Rückfall-Wunsch) statt nur „knapp“ erklärt; die **Chance-Anzeige** ist
+>   auf der Hilfeseite unter `#chance` ausführlich beschrieben (Sinn/Zweck/Wirkung + der Fall
+>   ohne Rivalen).
+
 > **Fachlicher Bezug:** Der Perioden-Lebenszyklus und die Losregeln stehen im
 > [Fachkonzept](../FACHKONZEPT.md); dieser ADR ergänzt eine **Phase** darin. Die
 > Regelwerte (Vorlauf, Freeze) werden bei der Umsetzung dort nachgezogen.
