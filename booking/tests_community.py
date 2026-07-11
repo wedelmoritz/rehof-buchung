@@ -108,11 +108,16 @@ class CommunityViewTests(TestCase):
         self.assertEqual(r.status_code, 302)  # Login-Redirect
 
     def test_wunschliste_zeigt_eigenen_faktor(self):
-        # Der Ausgleichsfaktor steht jetzt auf der Wunschliste (ADR 0073),
-        # nicht mehr im Profil/unter Buchungen.
+        # Der Ausgleichsfaktor (Karma) steht auf der Wunschliste (ADR 0073) – seit dem
+        # UX-Feinschliff in der Wunsch-Übersicht (Kennzahl „Karma"), nicht mehr im Profil.
+        ny = date.today().year + 1
+        BookingPeriod.objects.create(
+            name="Losung", target_year=ny, start=date(ny, 1, 1), end=date(ny + 1, 1, 1),
+            wishlist_open=date.today(), status=BookingPeriod.WISHES_OPEN)
         self.client.force_login(self.u)
         r = self.client.get(reverse("wishlist"))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Ausgleichsfaktor")
+        self.assertContains(r, "Karma")                 # Kennzahl in der Wunsch-Übersicht
+        self.assertContains(r, "Ausgleichsfaktor")      # im Tooltip erklärt
         # nicht mehr im Profil
         self.assertNotContains(self.client.get(reverse("profile")), "Ausgleichsfaktor")

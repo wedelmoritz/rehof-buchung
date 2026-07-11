@@ -256,16 +256,20 @@ einem eigenen `data-ajax`-GET-Formular und **prüft bei Änderung sofort neu** [
 Personen → klarer „Platz für höchstens N"-Hinweis + gesperrter Knopf, Korrektur bleibt
 auf der Seite statt Rauswurf zur Auswahl, #32]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
-bleiben bewusst änderbar; **zwei Reiter auf EINER Seite** [`?view=`, data-ajax, ADR 0101-
-Nachtrag]: „Meine Wünsche" [Default, Kalender + Liste] und „Nachfrage & Heatmap"
+bleiben bewusst änderbar; **drei präsente Reiter auf EINER Seite** [`?view=`, data-ajax,
+ADR 0101-Nachtrag]: „Meine Wünsche" [Default: **Wunsch-Übersicht** `.wish-ov` mit
+Kennzahlen (Anzahl/Tage/Budget/**Karma**) + Handlungsbedarf-Ampel (0 Wünsche→warn ·
+unter/über Budget→gelb · Überlappung→rot, jeweils erklärt) + Richtschnüre; darunter die
+Liste], „Neue Wünsche eintragen" [Kalender + Kandidaten] und „Nachfrage & Heatmap"
 [`wish_demand_grid` + Ranglisten `wish_demand_ranking` der beliebtesten Unterkünfte/
-Zeiträume]. Je Wunsch nur Quartier/Zeitraum + Aufklapper **„Details & Aktionen"** –
-**erst dort** die **Nachfrage-Ampel** [`wish_demand_band`: keine/wenige/beliebt/sehr
-beliebt aus überlappenden Fremd-Wünschen, OHNE Prozent] + Los-Chance qualitativ [gut/
-offen/knapp], die **Nachbarn** [`wish_coordination`, Name immer + Telefon/E-Mail je Kanal
-frei] und die **Aktionen**: Zeitraum/Unterkunft **ändern** [`adjust_wish`, behält Prio],
-Priorität, entfernen; Eigen-Überlappung steht **ganz oben** im Detail + als Sammel-Hinweis
-über der Liste; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
+Zeiträume]. Je Wunsch nur Quartier/Zeitraum (+ Status-Punkt) + Aufklapper **„Details &
+Aktionen"** – **erst dort** kompakte Status-Abzeichen [**Nachfrage-Ampel** `wish_demand_band`:
+keine/wenige/beliebt/sehr beliebt aus überlappenden Fremd-Wünschen, OHNE Prozent · **Los-Chance**
+qualitativ gut/offen/knapp mit **konkretem Grund** „stark nachgefragt" vs. „eigene Reihenfolge/
+Anzahl" wenn ohne Rivalen knapp], dann die **Aktionen** und je als Symbol-Aufklapper
+[Progressive Disclosure] die **Nachbarn** [`wish_coordination`, Name immer + Telefon/E-Mail je
+Kanal frei], **✏️ ändern** [`adjust_wish`, behält Prio] und **💡 Vorschläge**; die
+Chance-Anzeige ist auf der Hilfe unter `#chance` erklärt; je gewähltem Zeitraum zeigt eine Ampel die **Nachfrage**
 [`quarter_wish_counts`]; **je eingetragenem, sehr beliebtem Wunsch** steht in „Meine
 Wünsche“ ein markanter **Entzerrungs-Hinweis** [`services.wish_alternatives`,
 P2.4/ADR 0064] auf **weniger beliebte Alternativen mit besseren Chancen**: ein
