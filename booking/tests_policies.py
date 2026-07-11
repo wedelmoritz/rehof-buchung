@@ -259,11 +259,11 @@ class GuidelineBasisTests(PolicyBase):
             status=BookingPeriod.WISHES_OPEN)
         Wish.objects.create(                                   # 4 Winter-Nächte (Nov)
             period=period, member=self.alice, priority=1, quarter=self.q,
-            start=date(y, 11, 10), end=date(y, 11, 14), submitted=True,
+            start=date(y, 11, 10), end=date(y, 11, 14),
             membership=self.alice.membership_for())
         Wish.objects.create(                                   # 3 Sommer-Nächte (Jul)
             period=period, member=self.alice, priority=2, quarter=self.q,
-            start=date(y, 7, 10), end=date(y, 7, 13), submitted=True,
+            start=date(y, 7, 10), end=date(y, 7, 13),
             membership=self.alice.membership_for())
         w = svc.wish_winter_usage(self.alice, period)
         self.assertEqual(w["booked"], 4)                       # nur die Nov-Nächte

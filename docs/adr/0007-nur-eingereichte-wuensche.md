@@ -2,7 +2,13 @@
 
 ## Status
 
-Accepted (2026-06-26)
+Accepted (2026-06-26) · **Überholt (2026-07)** durch den Nachtrag in
+[ADR 0101](0101-entzerrungsphase-vor-losung.md): Das „Einreichen“ wurde abgeschafft.
+Wünsche sind **ab dem Eintragen** verbindlich und nehmen sofort teil (Feld
+`Wish.submitted` entfernt, `submit_wishlist`/`withdraw_wishlist` gestrichen). Der
+Entwurfs-/Lostopf-Zustand aus diesem ADR existiert nicht mehr; der Schutz gegen
+versehentliche Teilnahme liegt jetzt im bewussten Eintrag-Schritt. Der übrige Text
+bleibt als Historie stehen.
 
 > **Fachlicher Bezug:** Die zugrundeliegenden fachlichen Regeln stehen im
 > [Fachkonzept § 8 – Wunschliste](../FACHKONZEPT.md#8-wunschliste) (sowie

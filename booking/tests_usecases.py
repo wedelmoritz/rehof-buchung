@@ -250,8 +250,6 @@ class LosungPrioritaetTests(UseCaseBase):
         svc.add_wish(self.alice, period, self.qa, s, e)   # Prio 1
         svc.add_wish(self.alice, period, self.qb, s, e)   # Prio 2
         svc.add_wish(self.bob, period, self.qb, s, e)     # Prio 1
-        svc.submit_wishlist(self.alice, period)
-        svc.submit_wishlist(self.bob, period)
 
         # Über alle Seeds stabil prüfen
         for seed in range(8):
@@ -280,8 +278,6 @@ class LosungTransparenzTests(UseCaseBase):
         e = s + timedelta(days=5)
         svc.add_wish(self.alice, period, self.qa, s, e)
         svc.add_wish(self.bob, period, self.qa, s, e)
-        svc.submit_wishlist(self.alice, period)
-        svc.submit_wishlist(self.bob, period)
 
         run = svc.run_period_lottery(period, seed=1)
 
@@ -311,7 +307,7 @@ class LosungTransparenzTests(UseCaseBase):
 
 
 # --------------------------------------------------------------------------- #
-# Use-Case 6: Nur eingereichte Wünsche + Idempotenz der Losung
+# Use-Case 6: Alle eingetragenen Wünsche nehmen teil + Idempotenz der Losung
 # --------------------------------------------------------------------------- #
 
 class LosungEinreichungUndIdempotenzTests(UseCaseBase):
@@ -361,7 +357,7 @@ class LosungEinreichungUndIdempotenzTests(UseCaseBase):
         w3b, e3b = svc.add_wish(self.alice, period, self.k3, s, s + timedelta(days=4))
         self.assertIsNotNone(w3b, e3b)
 
-    def test_entwuerfe_nehmen_nicht_teil_und_rerun_ist_idempotent(self):
+    def test_alle_wuensche_nehmen_teil_und_rerun_ist_idempotent(self):
         period = BookingPeriod.objects.create(
             name="Losung", target_year=NEXT_YEAR,
             start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
@@ -369,18 +365,18 @@ class LosungEinreichungUndIdempotenzTests(UseCaseBase):
             status=BookingPeriod.WISHES_OPEN)
         s = date(NEXT_YEAR, 6, 7)
         e = s + timedelta(days=4)
-        # Alice reicht ein, Bob bleibt Entwurf
+        # Beide Wünsche nehmen teil (kein Einreichen mehr, ADR 0101). K1..K3 sind
+        # gleichwertig (eine Äquivalenzklasse): eine Partei bekommt K1, die andere
+        # weicht auf ein gleichwertiges Quartier aus – beide sind dabei.
         svc.add_wish(self.alice, period, self.k1, s, e)
         svc.add_wish(self.bob, period, self.k1, s, e)
-        svc.submit_wishlist(self.alice, period)
 
         svc.run_period_lottery(period, seed=5)
         first = sorted(
             (a.member.display_name, a.quarter.name, a.start, a.end)
             for a in Allocation.objects.filter(period=period, source="lottery"))
         names = {x[0] for x in first}
-        self.assertIn("alice", names)
-        self.assertNotIn("bob", names)  # Entwurf nimmt nicht teil
+        self.assertEqual(names, {"alice", "bob"})
 
         # Re-Run mit gleichem Seed: gleiches Ergebnis, keine Doppelzuteilung
         svc.run_period_lottery(period, seed=5)
@@ -414,7 +410,6 @@ class KarmaPersistenzTests(UseCaseBase):
             e = s + timedelta(days=5)
             for m in members:
                 svc.add_wish(m, period, self.qa, s, e)
-                svc.submit_wishlist(m, period)
             svc.run_period_lottery(period, seed=seed)
             return period
 
@@ -861,31 +856,32 @@ class WunschErinnerungTests(UseCaseBase):
             wishlist_close=date.today() + timedelta(days=close_in_days),
             status=BookingPeriod.WISHES_OPEN)
 
-    def test_erinnerung_nur_an_nicht_eingereichte_und_idempotent(self):
+    def test_erinnerung_nur_an_mitglieder_ohne_wunsch_und_idempotent(self):
         """send_wish_reminders (ADR 0080): erinnert zweistufig nur Mitglieder ohne
-        eingereichten Wunsch, jede Stufe genau einmal je Periode."""
+        eingetragenen Wunsch, jede Stufe genau einmal je Periode. (Seit ADR 0101
+        nimmt jeder eingetragene Wunsch sofort teil – kein „Einreichen“ mehr.)"""
         from booking.models import BookingPolicy
         pol = BookingPolicy.get_solo()
         pol.wish_reminder_lead1, pol.wish_reminder_lead2 = 7, 2
         pol.save(update_fields=["wish_reminder_lead1", "wish_reminder_lead2"])
         period = self._open_period(close_in_days=5)   # Stufe-1-Fenster
-        # Alice hat eingereicht, Bob nur Entwurf, Carla gar nichts.
+        # Alice und Bob haben je einen Wunsch, Carla gar keinen.
         Wish.objects.create(member=self.alice, period=period, quarter=self.qa,
                             start=date(NEXT_YEAR, 6, 7), end=date(NEXT_YEAR, 6, 12),
-                            priority=1, submitted=True)
+                            priority=1)
         Wish.objects.create(member=self.bob, period=period, quarter=self.qa,
                             start=date(NEXT_YEAR, 6, 7), end=date(NEXT_YEAR, 6, 12),
-                            priority=1, submitted=False)
+                            priority=1)
         n = svc.send_wish_reminders()
-        self.assertEqual(n, 2)   # Bob (Entwurf) + Carla (nichts)
-        self.assertEqual(self.bob.notifications.count(), 1)
+        self.assertEqual(n, 1)   # nur Carla (ohne Wunsch)
         self.assertEqual(self.carla.notifications.count(), 1)
+        self.assertEqual(self.bob.notifications.count(), 0)
         self.assertEqual(self.alice.notifications.count(), 0)
         period.refresh_from_db()
         self.assertIsNotNone(period.wish_reminder1_at)
         # Zweiter Lauf: Stufe 1 schon versendet, Stufe-2-Fenster noch nicht → nichts.
         self.assertEqual(svc.send_wish_reminders(), 0)
-        self.assertEqual(self.bob.notifications.count(), 1)
+        self.assertEqual(self.carla.notifications.count(), 1)
 
     def test_stufe_zwei_kurz_vor_schluss(self):
         from booking.models import BookingPolicy
@@ -963,7 +959,6 @@ class TerminierteLosungTests(UseCaseBase):
         period = self._period(timezone.now() - timedelta(hours=1))
         s = date(NEXT_YEAR, 5, 24)
         svc.add_wish(self.alice, period, self.qa, s, s + timedelta(days=5))
-        svc.submit_wishlist(self.alice, period)
         call_command("run_due_lotteries")
         period.refresh_from_db()
         # Nach dem Lauf nur „zur Prüfung“ – die Veröffentlichung ist manuell.
@@ -1014,7 +1009,6 @@ class TerminierteLosungTests(UseCaseBase):
         period = self._period(timezone.now() - timedelta(hours=1))
         s = date(NEXT_YEAR, 5, 24)
         svc.add_wish(self.alice, period, self.qa, s, s + timedelta(days=5))
-        svc.submit_wishlist(self.alice, period)
         call_command("run_scheduler", once=True)
         period.refresh_from_db()
         self.assertEqual(period.status, BookingPeriod.LOTTERY_REVIEW)
@@ -1047,7 +1041,6 @@ class WunschKalenderTests(UseCaseBase):
         s, e = date(NEXT_YEAR, 5, 10), date(NEXT_YEAR, 5, 14)
         for who in (self.alice, self.bob):
             svc.add_wish(who, period, self.k1, s, e)
-            svc.submit_wishlist(who, period)
         # Zähler je Quartier
         counts = svc.quarter_wish_counts(period, s, e)
         self.assertEqual(counts[str(self.k1.id)], 2)
@@ -1138,8 +1131,6 @@ class TandemTests(UseCaseBase):
         s, e = date(yr, 5, 10), date(yr, 5, 15)
         svc.add_wish(self.alice, period, self.qa, s, e)
         svc.add_wish(self.bob, period, self.qb, s, e)
-        svc.submit_wishlist(self.alice, period)
-        svc.submit_wishlist(self.bob, period)
         # Beide Wünsche tragen den gemeinsamen Anteil.
         self.assertEqual(
             set(Wish.objects.filter(period=period)
@@ -1427,11 +1418,11 @@ class WunschSaisonTests(UseCaseBase):
 
     def test_losung_ueberspringt_wunsch_ausserhalb_saison(self):
         # Direkt (unter Umgehung von add_wish) einen Alt-Wunsch außerhalb der
-        # Saison einreichen – die Losung darf ihn nicht zuteilen.
+        # Saison eintragen – die Losung darf ihn nicht zuteilen.
         Wish.objects.create(
             member=self.alice, period=self.period, quarter=self.qa,
             start=date(NEXT_YEAR, 6, 28), end=date(NEXT_YEAR, 7, 3),
-            priority=1, submitted=True)
+            priority=1)
         svc.run_period_lottery(self.period, seed=1)
         self.assertEqual(
             Allocation.objects.filter(period=self.period, source="lottery").count(),
@@ -1475,8 +1466,6 @@ class LosungBestaetigungTests(UseCaseBase):
         e = s + timedelta(days=4)
         svc.add_wish(self.alice, period, self.qa, s, e)
         svc.add_wish(self.bob, period, self.qa, s, e)
-        svc.submit_wishlist(self.alice, period)
-        svc.submit_wishlist(self.bob, period)
         return s, e
 
     def test_unbestaetigt_ist_unsichtbar_aber_blockiert(self):
@@ -1566,8 +1555,6 @@ class LosungVerifizierbarkeitTests(UseCaseBase):
         s = date(NEXT_YEAR, 5, 24); e = s + timedelta(days=4)
         svc.add_wish(self.alice, period, self.qa, s, e)
         svc.add_wish(self.bob, period, self.qa, s, e)
-        svc.submit_wishlist(self.alice, period)
-        svc.submit_wishlist(self.bob, period)
 
     def test_commit_vorab_und_passt_zum_seed(self):
         period = self._period()
@@ -1646,8 +1633,6 @@ class LosErgebnisErklaerungTests(UseCaseBase):
         s = date(NEXT_YEAR, 5, 24); e = s + timedelta(days=4)
         svc.add_wish(self.alice, period, self.qa, s, e)
         svc.add_wish(self.bob, period, self.qa, s, e)
-        svc.submit_wishlist(self.alice, period)
-        svc.submit_wishlist(self.bob, period)
         run = svc.run_period_lottery(period, seed=1)
         svc.confirm_lottery(run)
         url = reverse("period_result", args=[period.id])
@@ -1676,7 +1661,7 @@ class WunschKoordinationTests(UseCaseBase):
         s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=1)
         for m in (self.alice, self.bob, self.carla):
             Wish.objects.create(member=m, period=period, quarter=self.qa,
-                                start=s, end=e, priority=1, submitted=True)
+                                start=s, end=e, priority=1)
         decon = svc.wish_deconfliction(period, s, e)
         qid = str(self.qa.id)
         self.assertIn(qid, decon)
@@ -1698,10 +1683,10 @@ class WunschKoordinationTests(UseCaseBase):
         # Konkurrenz ANDERER Mitglieder auf k1 im selben Zeitraum
         for m in (self.bob, self.carla):
             Wish.objects.create(member=m, period=period, quarter=self.k1,
-                                start=s, end=e, priority=1, submitted=True)
+                                start=s, end=e, priority=1)
         # Alice' eigener (noch änderbarer) Wunsch auf k1
         aw = Wish.objects.create(member=self.alice, period=period, quarter=self.k1,
-                                 start=s, end=e, priority=1, submitted=False)
+                                 start=s, end=e, priority=1)
         alts = svc.wish_alternatives(period, self.alice, [aw])
         self.assertIn(aw.id, alts)
         a = alts[aw.id]
@@ -1719,10 +1704,10 @@ class WunschKoordinationTests(UseCaseBase):
         period = self._period()
         s = date(NEXT_YEAR, 5, 10); e = s + timedelta(days=2)
         aw = Wish.objects.create(member=self.alice, period=period, quarter=self.qa,
-                                 start=s, end=e, priority=1, submitted=False)
-        # zweiter eigener Wunsch auf dasselbe Quartier/Zeit (eingereicht) – zählt NICHT
+                                 start=s, end=e, priority=1)
+        # zweiter eigener Wunsch auf dasselbe Quartier/Zeit – eigene zählen NICHT
         Wish.objects.create(member=self.alice, period=period, quarter=self.qa,
-                            start=s, end=e, priority=2, submitted=True)
+                            start=s, end=e, priority=2)
         self.assertEqual(svc.wish_alternatives(period, self.alice, [aw]), {})
 
 
@@ -1916,25 +1901,23 @@ class WunschSaisonRegelnTests(UseCaseBase):
                               date(NEXT_YEAR, 5, 10), date(NEXT_YEAR, 5, 14))  # 4
         self.assertIsNotNone(w, err)
 
-    def test_einreichen_blockt_regelverletzenden_altwunsch(self):
-        """Wunsch direkt angelegt (Regel danach ergänzt) -> Einreichen blockt alle."""
+    def test_regelverletzender_wunsch_wird_beim_eintragen_geblockt(self):
+        """Wünsche sind ab dem Eintragen verbindlich (kein Einreichen mehr): die
+        Saison-Mindestnächte greifen daher direkt in `add_wish` – ein regelwidriger
+        Wunsch kommt gar nicht erst in die Liste."""
         from booking.models import Wish
-        Wish.objects.create(
-            member=self.alice, period=self.period, quarter=self.qa,
-            start=date(NEXT_YEAR, 7, 10), end=date(NEXT_YEAR, 7, 14),
-            priority=1, submitted=False)
-        n, err = svc.submit_wishlist(self.alice, self.period)
-        self.assertEqual(n, 0)
+        w, err = svc.add_wish(self.alice, self.period, self.qa,
+                              date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 14))  # 4<7
+        self.assertIsNone(w)
         self.assertIn("7 Nächte", err or "")
         self.assertFalse(Wish.objects.filter(
-            member=self.alice, period=self.period, submitted=True).exists())
+            member=self.alice, period=self.period).exists())
 
-    def test_einreichen_ok_wenn_alle_wuensche_regelkonform(self):
-        svc.add_wish(self.alice, self.period, self.qa,
-                     date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 17))  # 7 Nächte
-        n, err = svc.submit_wishlist(self.alice, self.period)
+    def test_regelkonformer_wunsch_wird_aufgenommen(self):
+        w, err = svc.add_wish(self.alice, self.period, self.qa,
+                              date(NEXT_YEAR, 7, 10), date(NEXT_YEAR, 7, 17))  # 7 Nächte
         self.assertIsNone(err)
-        self.assertEqual(n, 1)
+        self.assertIsNotNone(w)
 
 
 # --------------------------------------------------------------------------- #
@@ -1962,8 +1945,6 @@ class LosungDeckelTests(UseCaseBase):
         s, e = date(NEXT_YEAR, 7, 13), date(NEXT_YEAR, 7, 20)  # 7 Nächte
         for q in (self.k1, self.k2, self.k3):
             svc.add_wish(self.alice, self.period, q, s, e)
-        n, err = svc.submit_wishlist(self.alice, self.period)
-        self.assertIsNone(err)
         svc.run_period_lottery(self.period, seed=1)
         allocs = Allocation.objects.filter(period=self.period, member=self.alice)
         self.assertEqual(allocs.count(), 2)        # Parallel-Limit 2
@@ -1977,7 +1958,6 @@ class LosungDeckelTests(UseCaseBase):
                  (date(NEXT_YEAR, 7, 15), date(NEXT_YEAR, 7, 22))]
         for (s, e) in weeks:
             svc.add_wish(self.alice, self.period, self.k1, s, e)
-        svc.submit_wishlist(self.alice, self.period)
         svc.run_period_lottery(self.period, seed=1)
         allocs = Allocation.objects.filter(period=self.period, member=self.alice)
         self.assertEqual(allocs.count(), 2)        # 14-Nächte-Deckel
@@ -2007,7 +1987,6 @@ class LosungDeckelReihenfolgeTests(UseCaseBase):
         svc.add_wish(self.alice, self.period, self.k1, *wa)   # Prio 1 (Woche A)
         svc.add_wish(self.alice, self.period, self.k2, *wa)   # Prio 2 (Woche A -> Deckel)
         svc.add_wish(self.alice, self.period, self.k3, *wc)   # Prio 3 (Woche C)
-        svc.submit_wishlist(self.alice, self.period)
         svc.run_period_lottery(self.period, seed=1)
         allocs = list(Allocation.objects.filter(period=self.period, member=self.alice))
         quarters = {a.quarter_id for a in allocs}

@@ -295,7 +295,7 @@ class Command(BaseCommand):
                 Wish.objects.create(
                     period=period, member=m, priority=prio, quarter=q,
                     start=start, end=start + timedelta(days=length),
-                    submitted=True,  # in der Demo bereits im Lostopf
+                    added_at=timezone.now(),  # nimmt an der Losung teil
                     membership=m.membership_for(),
                 )
                 wish_count += 1
@@ -511,7 +511,7 @@ class Command(BaseCommand):
                     period=period, member=test_member, priority=prio,
                     quarter=rng.choice(quarters), start=start,
                     end=start + timedelta(days=rng.choice([3, 4, 7])),
-                    submitted=True, membership=test_member.membership_for())
+                    added_at=timezone.now(), membership=test_member.membership_for())
         self.stdout.write(self.style.SUCCESS(
             "Test-Konten: admin/admin12345 (Admin/Superuser, volles Backend), "
             "verwaltung/verwaltung12345 (Verwaltung-Gruppe, nur Dashboard), "

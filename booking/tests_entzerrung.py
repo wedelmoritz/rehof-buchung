@@ -45,15 +45,13 @@ class DemandGridTests(TestCase):
                                          min_occupancy=1, max_occupancy=4)
         self.period = _period()
 
-    def test_grid_zaehlt_eingereichte_wuensche_je_monat(self):
+    def test_grid_zaehlt_eingetragene_wuensche_je_monat(self):
         a = _member("a")
         b = _member("b")
-        # Zwei eingereichte Wünsche im Mai für „Turm“, einer im Juli für „Hütte“.
+        # Zwei eingetragene Wünsche im Mai für „Turm“, einer im Juli für „Hütte“.
         svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
         svc.add_wish(b, self.period, self.q, date(NEXT, 5, 20), date(NEXT, 5, 24))
         svc.add_wish(a, self.period, self.q2, date(NEXT, 7, 1), date(NEXT, 7, 5))
-        svc.submit_wishlist(a, self.period)
-        svc.submit_wishlist(b, self.period)
         grid = svc.wish_demand_grid(self.period)
         self.assertEqual(len(grid["months"]), 12)
         turm = next(r for r in grid["rows"] if r["quarter"] == "Turm")
@@ -62,17 +60,17 @@ class DemandGridTests(TestCase):
         self.assertEqual(huette["cells"][6]["count"], 1)  # Juli (Index 6)
         self.assertEqual(grid["max"], 2)
 
-    def test_nur_eingereichte_zaehlen(self):
+    def test_eingetragener_wunsch_zaehlt_sofort(self):
+        # Seit ADR 0101 nimmt jeder eingetragene Wunsch teil (kein Einreichen mehr) –
+        # er zählt daher sofort in die Nachfrage-Heatmap.
         a = _member("a")
         svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
-        # nicht eingereicht → max 0 → keine Heatmap
         grid = svc.wish_demand_grid(self.period)
-        self.assertEqual(grid["max"], 0)
+        self.assertEqual(grid["max"], 1)
 
     def test_wishlist_zeigt_heatmap(self):
         a = _member("a")
         svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
-        svc.submit_wishlist(a, self.period)
         self.client.force_login(a.user)
         html = self.client.get(reverse("wishlist")).content.decode()
         self.assertIn("Nachfrage-Übersicht", html)
@@ -95,7 +93,6 @@ class CoordinationTests(TestCase):
 
     def _wish(self, m, q, s, e):
         svc.add_wish(m, self.period, q, s, e)
-        svc.submit_wishlist(m, self.period)
 
     def test_ueberlappende_nachbarn_sichtbar_mit_telefon(self):
         self._wish(self.a, self.q, date(NEXT, 5, 3), date(NEXT, 5, 10))
@@ -146,7 +143,6 @@ class WishExportAndNachtragTests(TestCase):
         self.period = _period()
         self.a = _member("anna")
         svc.add_wish(self.a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
-        svc.submit_wishlist(self.a, self.period)
 
     def _login(self, role):
         u = User.objects.create_user(f"u_{role}", password="x" * 12)
@@ -182,7 +178,7 @@ class WishExportAndNachtragTests(TestCase):
         w, err = svc.add_wish_for_member(actor, bob, self.period, self.q,
                                          date(NEXT, 6, 1), date(NEXT, 6, 4))
         self.assertIsNotNone(w, err)
-        self.assertTrue(w.submitted)
+        self.assertIsNotNone(w.added_at)
         self.assertEqual(w.created_by_id, actor.id)
 
     def test_add_wish_for_member_defense_in_depth(self):
@@ -201,7 +197,7 @@ class WishExportAndNachtragTests(TestCase):
             "start": date(NEXT, 6, 1).isoformat(), "end": date(NEXT, 6, 4).isoformat()})
         self.assertEqual(r.status_code, 302)
         from booking.models import Wish
-        self.assertTrue(Wish.objects.filter(member=bob, submitted=True).exists())
+        self.assertTrue(Wish.objects.filter(member=bob).exists())
 
 
 class HelpPageTests(TestCase):
@@ -229,7 +225,6 @@ class SnapshotTests(TestCase):
             status=BookingPeriod.WISHES_REVIEW,
             draw_at=timezone.now() + timedelta(**kw))
         svc.add_wish(self.a, p, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
-        svc.submit_wishlist(self.a, p)
         return p
 
     def test_freeze_und_vor_snapshot_werden_gespeichert(self):
@@ -248,7 +243,6 @@ class SnapshotTests(TestCase):
         # Ein zweiter Wunsch danach ändert den bereits eingefrorenen Stand NICHT.
         b = _member("bea")
         svc.add_wish(b, p, self.q, date(NEXT, 5, 4), date(NEXT, 5, 8))
-        svc.submit_wishlist(b, p)
         self.assertFalse(svc.capture_wish_snapshots(p, timezone.now()))
         p.refresh_from_db()
         self.assertEqual(p.demand_snapshot["frozen"]["grid"]["max"], 1)  # unverändert
@@ -268,7 +262,6 @@ class SnapshotTests(TestCase):
         # Nach dem Snapshot ändert sich die Live-Nachfrage, die Anzeige bleibt aber fix.
         b = _member("bea")
         svc.add_wish(b, p, self.q, date(NEXT, 5, 4), date(NEXT, 5, 8))
-        svc.submit_wishlist(b, p)
         self.client.force_login(self.a.user)
         r = self.client.get(reverse("wishlist"))
         # display_frozen → Heatmap kommt aus dem Snapshot (max 1), nicht live (max 2).

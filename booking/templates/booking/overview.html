@@ -9,8 +9,8 @@
   {% if winter and winter.target %}<span class="ov-chip" title="Richtwert (Mindestwert): mindestens so viele Tage ins Winterhalbjahr legen ({{ winter.label }})">🌙 Winter <strong>{{ winter.booked }}</strong>/{{ winter.target }}{% if winter.reached %} ✓{% endif %}</span>{% endif %}
   {% if weekend and weekend.target %}<span class="ov-chip{% if weekend.near %} warn{% endif %}" title="Richtwert (Höchstwert): so viele Wochenenden pro Jahr sind fair">📅 WE <strong>{{ weekend.booked }}</strong>/{{ weekend.target }}</span>{% endif %}
   {% if open_period %}
-    {% if member and not wish_submitted %}
-    <a class="ov-chip warn" href="{% url 'wishlist' %}">⚠️ Noch keine Wünsche eingereicht{% if open_period.submission_deadline %} · bis {{ open_period.submission_deadline|date:"d.m.Y" }}{% endif %} → jetzt eintragen</a>
+    {% if member and not has_wishes %}
+    <a class="ov-chip warn" href="{% url 'wishlist' %}">⚠️ Noch keine Wünsche eingetragen{% if open_period.submission_deadline %} · bis {{ open_period.submission_deadline|date:"d.m.Y" }}{% endif %} → jetzt eintragen</a>
     {% elif review_phase %}
     <a class="ov-chip accent" href="{% url 'wishlist' %}">🔀 Entzerrungsphase {{ open_period }}{% if open_period.draw_at %} · anpassen bis {{ open_period.draw_at|date:"d.m." }}{% endif %} → Wünsche</a>
     {% else %}

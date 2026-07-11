@@ -44,8 +44,6 @@ class RetrospectiveTests(TestCase):
         # Beide wollen dasselbe Einzelquartier → 1 gewinnt, 1 verliert.
         svc.add_wish(self.alice, self.period, self.q, s, e)
         svc.add_wish(self.bob, self.period, self.q, s, e)
-        svc.submit_wishlist(self.alice, self.period)
-        svc.submit_wishlist(self.bob, self.period)
 
     def test_rueckblick_vorberechnet_und_erst_nach_bestaetigung_sichtbar(self):
         run = svc.run_period_lottery(self.period, seed=1)

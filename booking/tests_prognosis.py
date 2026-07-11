@@ -45,7 +45,6 @@ class WishPrognosisTests(TestCase):
 
     def test_ohne_konkurrenz_gute_chance(self):
         w, _ = svc.add_wish(self.alice, self.period, self.q, self.s, self.e)
-        svc.submit_wishlist(self.alice, self.period)
         prog = svc.wish_prognosis(self.period)
         self.assertIn(w.id, prog)
         self.assertEqual(prog[w.id]["prob"], 100)
@@ -54,22 +53,20 @@ class WishPrognosisTests(TestCase):
     def test_zwei_rivalen_geteilte_chance(self):
         wa, _ = svc.add_wish(self.alice, self.period, self.q, self.s, self.e)
         wb, _ = svc.add_wish(self.bob, self.period, self.q, self.s, self.e)
-        svc.submit_wishlist(self.alice, self.period)
-        svc.submit_wishlist(self.bob, self.period)
         prog = svc.wish_prognosis(self.period)
         self.assertTrue(30 <= prog[wa.id]["prob"] <= 70)
         self.assertTrue(30 <= prog[wb.id]["prob"] <= 70)
         # ein Einzelquartier, zwei Rivalen → „offen“ (kein sicheres Ergebnis).
         self.assertEqual(prog[wa.id]["band"], "open")
 
-    def test_nur_eingereichte_wuensche(self):
-        # Entwurf (nicht eingereicht) taucht in der Prognose NICHT auf.
+    def test_eingetragener_wunsch_erscheint_in_prognose(self):
+        # Seit ADR 0101 nimmt jeder eingetragene Wunsch teil (kein Einreichen mehr) –
+        # er erscheint daher direkt in der Prognose.
         w, _ = svc.add_wish(self.alice, self.period, self.q, self.s, self.e)
-        self.assertEqual(svc.wish_prognosis(self.period), {})
+        self.assertIn(w.id, svc.wish_prognosis(self.period))
 
     def test_wishlist_seite_zeigt_prognose(self):
         svc.add_wish(self.alice, self.period, self.q, self.s, self.e)
-        svc.submit_wishlist(self.alice, self.period)
         self.client.force_login(self.alice.user)
         html = self.client.get(reverse("wishlist")).content.decode()
         self.assertIn("Gute Chance", html)

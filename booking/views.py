@@ -225,10 +225,10 @@ def overview(request):
         "open_period": open_period,
         "review_phase": bool(open_period
                              and open_period.status == BookingPeriod.WISHES_REVIEW),
-        # Hat DIESES Mitglied schon Wünsche eingereicht? Wenn nicht, weist die
+        # Hat DIESES Mitglied schon Wünsche eingetragen? Wenn nicht, weist die
         # Übersicht bis zum Losdatum darauf hin (ADR 0080).
-        "wish_submitted": bool(member and open_period and Wish.objects.filter(
-            member=member, period=open_period, submitted=True).exists()),
+        "has_wishes": bool(member and open_period and Wish.objects.filter(
+            member=member, period=open_period).exists()),
         "released_windows": BookingPeriod.objects.filter(
             status=BookingPeriod.FREE_BOOKING, end__gte=today).order_by("start"),
     })
@@ -619,7 +619,7 @@ def my_bookings(request):
 
     upcoming, past = [], []
     incoming_swaps = []
-    submitted_wishes = []
+    my_wishes = []
     my_waitlist = []
     cancellations = []
     wish_period = None
@@ -661,8 +661,8 @@ def my_bookings(request):
             BookingPeriod.WISHES_OPEN, BookingPeriod.WISHES_REVIEW,
             BookingPeriod.LOTTERY_READY]).first()
         if wish_period:
-            submitted_wishes = list(
-                Wish.objects.filter(member=member, period=wish_period, submitted=True)
+            my_wishes = list(
+                Wish.objects.filter(member=member, period=wish_period)
                 .select_related("quarter").order_by("priority", "id"))
         # Kürzlich stornierte Buchungen (#30): zur Sicherheit sichtbar, dass sie raus
         # sind. Nur die jüngsten (90 Tage) – ältere räumt die Aufbewahrung ab.
@@ -692,7 +692,7 @@ def my_bookings(request):
         "past": past,
         "incoming_swaps": incoming_swaps,
         "relocations": svc.pending_relocation_requests(member) if member else [],
-        "submitted_wishes": submitted_wishes,
+        "my_wishes": my_wishes,
         "my_waitlist": my_waitlist,
         "cancellations": cancellations,
         "wish_period": wish_period,
@@ -743,10 +743,10 @@ def wishlist(request):
         action = request.POST.get("action", "")
         p_year = request.POST.get("year", year)
         p_month = request.POST.get("month", month)
-        is_submitted = Wish.objects.filter(
-            member=member, period=period, submitted=True).exists()
+        # Wünsche sind ab dem Eintragen verbindlich (kein Einreichen/Zurückziehen mehr,
+        # wie beim Buchen); alle Wünsche der Periode nehmen an der Losung teil.
 
-        if action == "add_wish" and not is_submitted:
+        if action == "add_wish":
             form = WishForm(request.POST)
             if form.is_valid():
                 _wish, werr = svc.add_wish(
@@ -758,10 +758,9 @@ def wishlist(request):
                 else:
                     messages.success(
                         request,
-                        f"Wunsch „{_wish.quarter.name}“ eingetragen "
-                        f"({_wish.start:%d.%m.}–{_wish.end:%d.%m.}). "
-                        "Noch nicht eingereicht – unten in der Wunschliste "
-                        "ordnen und am Ende einreichen.")
+                        f"Wunsch „{_wish.quarter.name}“ aufgenommen "
+                        f"({_wish.start:%d.%m.}–{_wish.end:%d.%m.}). Er nimmt an der "
+                        "Losung teil; unten kannst du ihn ordnen, ändern oder entfernen.")
             else:
                 messages.error(request, "Bitte einen gültigen Wunsch eingeben.")
             # Auswahl im Kalender erhalten, damit man weitere Wünsche eintragen kann
@@ -772,62 +771,39 @@ def wishlist(request):
                 url += f"&end={request.POST['end']}"
             return redirect(url)
 
-        if action == "delete_wish" and not is_submitted:
+        if action == "delete_wish":
             svc.delete_wish(member, period, request.POST.get("wish_id"))
             return _redirect_month("wishlist", p_year, p_month)
 
-        if action == "move_wish" and not is_submitted:
+        if action == "move_wish":
             svc.move_wish(member, period, request.POST.get("wish_id"),
                           request.POST.get("direction", "up"))
             return _redirect_month("wishlist", p_year, p_month)
 
-        if action == "reorder" and not is_submitted:
+        if action == "reorder":
             ids = [x for x in request.POST.get("order", "").split(",") if x]
             svc.reorder_wishes(member, period, ids)
-            return _redirect_month("wishlist", p_year, p_month)
-
-        if action == "submit_wishlist" and not is_submitted:
-            n, serr = svc.submit_wishlist(member, period)
-            if serr:
-                messages.error(request, serr)
-            else:
-                messages.success(
-                    request, f"{n} Wunsch/Wünsche in den Lostopf eingereicht.")
-            return _redirect_month("wishlist", p_year, p_month)
-
-        if action == "withdraw_wishlist":
-            svc.withdraw_wishlist(member, period)
-            messages.info(request, "Wünsche zurückgezogen – wieder bearbeitbar.")
             return _redirect_month("wishlist", p_year, p_month)
 
         return _redirect_month("wishlist", p_year, p_month)
 
     wishes = []
-    wishlist_submitted = False
     wish_nights = 0
     if member and period:
         wishes = list(
             Wish.objects.filter(member=member, period=period)
             .select_related("quarter", "membership").order_by("priority", "id")
         )
-        wishlist_submitted = any(w.submitted for w in wishes) and len(wishes) > 0
         wish_nights = sum(w.nights for w in wishes)
-        # Entzerrungs-Hinweis JE WUNSCH (P2.4-Erweiterung): für jeden sehr beliebten
-        # Wunsch zeigt ein markanter Hinweis weniger beliebte Alternativen mit
+        # Entzerrungs-Hinweis JE WUNSCH (P2.4): weniger beliebte Alternativen mit
         # besseren Chancen – ein leicht anderer Zeitraum für dieselbe Unterkunft
-        # UND/ODER ein gleichwertiges Quartier zur gleichen Zeit (Frontend-Wortwahl
-        # positiv, ADR 0072). Nur solange änderbar. Effizient: 2 Abfragen gesamt.
-        if not wishlist_submitted:
-            alts = svc.wish_alternatives(period, member, wishes)
-            for w in wishes:
-                w.alt = alts.get(w.id)
-        # Gewinn-Prognose je eingereichtem Wunsch (ADR 0101): realistische Chance als
-        # qualitatives Band. Nur sinnvoll für eingereichte Wünsche (die im Lostopf
-        # sind) und im Wunsch-Fenster/der Entzerrungsphase (kurz gecacht, ein Aufruf).
-        if wishlist_submitted:
-            prog = svc.wish_prognosis(period)
-            for w in wishes:
-                w.prognosis = prog.get(w.id) if w.submitted else None
+        # UND/ODER ein gleichwertiges Quartier zur gleichen Zeit (positiv, ADR 0072).
+        alts = svc.wish_alternatives(period, member, wishes)
+        # Gewinn-Prognose je Wunsch (ADR 0101): realistische Chance als Band.
+        prog = svc.wish_prognosis(period) if wishes else {}
+        for w in wishes:
+            w.alt = alts.get(w.id)
+            w.prognosis = prog.get(w.id)
         # Sanfter Hinweis JE WUNSCH bei überlappenden Wünschen fürs SELBE Quartier
         # (Feedback #2b): überlappende Wünsche bleiben bewusst zulässig (das
         # Losverfahren berücksichtigt jeweils nur einen), aber ein Hinweis macht die
@@ -892,11 +868,10 @@ def wishlist(request):
         "wish_form": WishForm(),
         "memberships": member.memberships if member else [],
         "wishes": wishes,
-        "wishlist_submitted": wishlist_submitted,
-        # Wunsch-Nachbarn für private Absprachen (ADR 0101): nur bei eingereichten
-        # Wünschen; nur Mitglieder, die die Sichtbarkeit nicht abgeschaltet haben.
+        # Wunsch-Nachbarn für private Absprachen (ADR 0101): sobald das Mitglied
+        # Wünsche hat; nur Mitglieder, die die Sichtbarkeit nicht abgeschaltet haben.
         "wish_neighbors": (svc.wish_neighbors(period, member)
-                           if member and period and wishlist_submitted else []),
+                           if member and period and wishes else []),
         "coordination_opt_out": bool(member and member.coordination_opt_out),
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
@@ -1616,7 +1591,7 @@ def verw_wuensche(request):
     ctx = _verw_nav_ctx(request, today, year, month)
     wishes = []
     if period:
-        wishes = list(Wish.objects.filter(period=period, submitted=True)
+        wishes = list(Wish.objects.filter(period=period)
                       .select_related("member", "quarter", "created_by")
                       .order_by("member__display_name", "priority"))
     can_add = authz.user_can(request.user, authz.P_ADD_WISH_FOR_MEMBER)

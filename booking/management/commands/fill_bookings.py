@@ -354,7 +354,7 @@ class Command(BaseCommand):
                 prio += 1
                 Wish.objects.create(
                     period=period, member=m, priority=prio, quarter=q,
-                    start=start, end=end, submitted=True, submitted_at=now,
+                    start=start, end=end, added_at=now,
                     membership=m.membership_for(),
                 )
                 remaining -= length

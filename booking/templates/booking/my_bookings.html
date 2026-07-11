@@ -260,16 +260,16 @@
 </div>
 {% endif %}
 
-{% if submitted_wishes %}
+{% if my_wishes %}
 <div class="card">
   <h2>Wunschliste fürs nächste Jahr</h2>
   <div class="msg info" style="margin-top:0">
-    <strong>Im Lostopf</strong>{% if wish_period.draw_at %} · Losung am {{ wish_period.draw_at|date:"d.m.Y H:i" }}{% else %} · Losungstermin noch offen{% endif %}.
+    <strong>Nimmt an der Losung teil</strong>{% if wish_period.draw_at %} · Losung am {{ wish_period.draw_at|date:"d.m.Y H:i" }}{% else %} · Losungstermin noch offen{% endif %}.
     <a href="{% url 'wishlist' %}">Wunschliste ansehen →</a>
   </div>
   <div class="table-wrap"><table>
     <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
-    {% for w in submitted_wishes %}
+    {% for w in my_wishes %}
     <tr><td>{{ forloop.counter }}</td><td>{{ w.quarter.name }}</td>
         <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td></tr>
     {% endfor %}
