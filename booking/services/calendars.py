@@ -256,10 +256,11 @@ def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
 
 
 def wish_demand_grid(period) -> dict:
-    """Anonyme **Nachfrage-Heatmap** (ADR 0101): je Quartier (Zeile) × **Monat**
-    (Spalte) die Zahl der **eingereichten** Wünsche, die den Monat berühren – zeigt
-    auf einen Blick die begehrten Quartiere/Zeiten. Nur Aggregate (keine Namen,
-    ADR 0063). Eine Wunsch-Abfrage, Rest in Python.
+    """**Nachfrage-Heatmap** (ADR 0101): je Quartier (Zeile) × **Monat** (Spalte) die
+    Zahl der **eingetragenen** Wünsche, die den Monat berühren – zeigt auf einen Blick
+    die begehrten Quartiere/Zeiten. Nur Aggregat-Zahlen (keine Namen; wer wo wünscht,
+    steht je Wunsch unter „Details & Aktionen", ADR 0101 Batch 2). Eine Wunsch-Abfrage,
+    Rest in Python.
 
     Gibt `{"rows": [{quarter, cells:[{count,pct}×12]}], "months": [kurz], "max": n}`."""
     from ..models import Quarter
