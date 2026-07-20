@@ -61,6 +61,9 @@ booking/
   popularity.py         # reine Logik: Beliebtheit RELATIV zur Kapazität je Äquivalenzklasse
                         #  (popularity_band/worse_band/suitability_score; positive Bänder frei/
                         #  etwas gefragt/beliebt/sehr beliebt; Wunsch-Kalender + Vorschläge, ADR 0103/0105)
+  wish_nl.py            # reine Logik: regelbasierter NL-Parser für Kurz-Eingaben (parse_wish_text/
+                        #  parse_booking_text → WishIntent; Stammdaten injiziert, KEINE hartcodierten
+                        #  Quartiere/Ferien; security-hart: Längenlimit/kein ReDoS/SSTI; ADR 0103/0108)
   help_content/*.md     # ausgelagerte, editierbare Hilfe-Prosa (Warteliste/Gemeinschaft/Hofladen/Tage)
   services/             # Brücke DB <-> Logik (gesamte Geschäftslogik; Paket, ADR 0050)
     __init__.py         #  re-exportiert alles → `svc.*` bleibt unverändert
