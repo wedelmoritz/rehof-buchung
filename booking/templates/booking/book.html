@@ -10,18 +10,13 @@
 <div class="card">
   <p class="muted" style="margin-top:0"><strong>{{ nights_remaining }}</strong> Tage deines
     Kontingents verfügbar. Im Kalender Anreise (1. Klick) und Abreise (2. Klick) wählen.</p>
+  {% comment %}Richtwerte kompakt als eine Zeile – die ausführliche Erklärung (Mindest-/
+  Höchstwert) steht in der Hilfe unter #regeln-losung; hier reicht der Kurz-Hinweis.{% endcomment %}
   {% if winter and winter.target %}
-  <p class="muted" style="margin:.2rem 0 0;font-size:.88rem">🌙 Winter ({{ winter.label }}):
-    <strong>{{ winter.booked }}</strong>/{{ winter.target }} Tage{% if winter.reached %} ✓{% endif %}.
-    <span class="muted">Richtwert: <strong>mindestens</strong> so viele Tage ins Winterhalbjahr
-    legen – das verteilt die Nutzung übers Jahr (kein Maximum).</span></p>
+  <p class="muted" style="margin:.2rem 0 0;font-size:.88rem" title="Richtwert (Mindestwert): mindestens so viele Tage ins Winterhalbjahr legen – verteilt die Nutzung übers Jahr (kein Maximum)">🌙 Winter ({{ winter.label }}): <strong>{{ winter.booked }}</strong>/{{ winter.target }} Tage{% if winter.reached %} ✓{% endif %}</p>
   {% endif %}
   {% if weekend and weekend.target %}
-  <p style="margin:.2rem 0 0;font-size:.88rem;color:{% if weekend.near %}var(--warn){% else %}var(--muted){% endif %}">
-    📅 Wochenenden {{ weekend.year }}: <strong>{{ weekend.booked }}</strong>/{{ weekend.target }}.
-    {% if weekend.over %}<strong>Richtwert erreicht</strong> – bitte den anderen die begehrten Wochenenden lassen.
-    {% elif weekend.near %}Du näherst dich dem Richtwert (<strong>Höchstwert</strong>).
-    {% else %}<span class="muted">Richtwert: <strong>höchstens</strong> so viele Wochenenden im Jahr.</span>{% endif %}</p>
+  <p style="margin:.2rem 0 0;font-size:.88rem;color:{% if weekend.near %}var(--warn){% else %}var(--muted){% endif %}" title="Richtwert (Höchstwert): so viele Wochenenden im Jahr sind fair">📅 Wochenenden {{ weekend.year }}: <strong>{{ weekend.booked }}</strong>/{{ weekend.target }}{% if weekend.over %} · Richtwert erreicht{% elif weekend.near %} · fast erreicht{% endif %}</p>
   {% endif %}
   <form method="get" class="filters">
     <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
@@ -34,28 +29,32 @@
     <button class="btn small" type="submit">Anwenden</button>
   </form>
   {% comment %}Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108): füllt Personen/
-  barrierefrei/Zeitraum vor – gebucht wird wie gewohnt (parse-and-confirm).{% endcomment %}
-  <form method="get" class="nl-form" data-ajax style="margin-top:.6rem">
-    <label for="nlq"><strong>Oder mit eigenen Worten</strong> <span class="muted">(optional)</span></label>
-    <div class="nl-row">
-      <input type="text" id="nlq" name="nlq" maxlength="400" autocomplete="off"
-             placeholder="z. B. „ab 12.7. für eine Woche, 4 Personen, barrierefrei"
-             value="{{ request.GET.nlq }}">
-      <button class="btn small" type="submit">Vorschlag</button>
+  barrierefrei/Zeitraum vor – gebucht wird wie gewohnt (parse-and-confirm). Eingeklappt,
+  damit der Kanon-Weg (Kalender + Personen) die Karte nicht mit einem zweiten
+  Eingabeweg überlädt; öffnet sich automatisch, sobald ein Vorschlag vorliegt.{% endcomment %}
+  <details class="nl-details" style="margin-top:.6rem"{% if nl_result %} open{% endif %}>
+    <summary><strong>Oder mit eigenen Worten</strong> <span class="muted">(optional)</span></summary>
+    <form method="get" class="nl-form" data-ajax style="margin-top:.4rem">
+      <div class="nl-row">
+        <input type="text" id="nlq" name="nlq" maxlength="400" autocomplete="off"
+               placeholder="z. B. „ab 12.7. für eine Woche, 4 Personen, barrierefrei"
+               value="{{ request.GET.nlq }}">
+        <button class="btn small" type="submit">Vorschlag</button>
+      </div>
+    </form>
+    {% if nl_result %}
+    <div class="nl-preview">
+      {% if nl_result.matched %}
+      <p class="nl-ok">✓ Verstanden: {% for m in nl_result.matched %}<span class="nl-chip">{{ m }}</span>{% endfor %}</p>
+      {% else %}
+      <p class="nl-warn">Konnte daraus nichts ableiten – bitte oben/​im Kalender wählen.</p>
+      {% endif %}
+      {% if nl_result.unresolved %}
+      <p class="muted sm">Nicht übernommen: {% for u in nl_result.unresolved %}{{ u }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+      {% endif %}
     </div>
-  </form>
-  {% if nl_result %}
-  <div class="nl-preview">
-    {% if nl_result.matched %}
-    <p class="nl-ok">✓ Verstanden: {% for m in nl_result.matched %}<span class="nl-chip">{{ m }}</span>{% endfor %}</p>
-    {% else %}
-    <p class="nl-warn">Konnte daraus nichts ableiten – bitte oben/​im Kalender wählen.</p>
     {% endif %}
-    {% if nl_result.unresolved %}
-    <p class="muted sm">Nicht übernommen: {% for u in nl_result.unresolved %}{{ u }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
-    {% endif %}
-  </div>
-  {% endif %}
+  </details>
 </div>
 <style>
   .nl-form { margin:0; }
@@ -239,15 +238,18 @@
   {% endif %}
 
   {% if unavail_quarters %}
-  <h3>Nicht verfügbar</h3>
-  <p class="muted" style="margin-top:0">Diese Unterkünfte sind für den gewählten Zeitraum nicht buchbar.</p>
-  {% for q, reason in unavail_quarters %}
-  <div class="qrow unavail">
-    <span class="qname">{{ q.name }}</span>
-    <span class="muted qmeta">{{ q.size_sqm }} m² · {{ q.min_occupancy }}–{{ q.max_occupancy }} Pers.{% if q.accessible %} · barrierearm/-frei{% endif %}</span>
-    <span class="unavail-reason">{{ reason }}</span>
-  </div>
-  {% endfor %}
+  {% comment %}Nicht-buchbare Unterkünfte eingeklappt (B6/ADR 0092): der Grund bleibt
+  einsehbar, lenkt aber nicht vom eigentlich Buchbaren ab.{% endcomment %}
+  <details class="unavail-details" style="margin-top:.6rem">
+    <summary class="muted">{{ unavail_quarters|length }} für diesen Zeitraum nicht verfügbar</summary>
+    {% for q, reason in unavail_quarters %}
+    <div class="qrow unavail">
+      <span class="qname">{{ q.name }}</span>
+      <span class="muted qmeta">{{ q.size_sqm }} m² · {{ q.min_occupancy }}–{{ q.max_occupancy }} Pers.{% if q.accessible %} · barrierearm/-frei{% endif %}</span>
+      <span class="unavail-reason">{{ reason }}</span>
+    </div>
+    {% endfor %}
+  </details>
   {% endif %}
   {% endif %}{# sel_end #}
 </div>

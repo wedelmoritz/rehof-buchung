@@ -219,8 +219,6 @@ def overview(request):
         "show_today": True,
         "agenda": svc.week_agenda(member, today, 7),
         **_cal_nav(cal),
-        "winter": svc.winter_usage(member) if member else None,
-        "weekend": svc.weekend_usage(member) if member else None,
         "nights_remaining": (
             member.nights_remaining_in_year(today.year) if member else 0
         ),
@@ -567,7 +565,6 @@ def book(request):
         "winter": svc.winter_usage(member) if member else None,
         "weekend": svc.weekend_usage(member) if member else None,
         "nights_remaining": member.nights_remaining_in_year(today.year) if member else 0,
-        "notifications": svc.unread_notifications(member),
         "released_windows": BookingPeriod.objects.filter(
             status=BookingPeriod.FREE_BOOKING, end__gte=today).order_by("start"),
     })
@@ -762,7 +759,6 @@ def my_bookings(request):
         "my_waitlist": my_waitlist,
         "cancellations": cancellations,
         "wish_period": wish_period,
-        "notifications": svc.unread_notifications(member),
     })
 
 
@@ -960,7 +956,6 @@ def wishlist(request):
 
     eff_start = eff_end = None
     candidates = []
-    recommended = []
     high_demand = []
     wish_weekends = svc.wish_weekend_usage(member, period) if member and period else None
     wish_winter = svc.wish_winter_usage(member, period) if member and period else None
@@ -988,12 +983,10 @@ def wishlist(request):
                 "is_own": qid in own_q, "shift": shift.get(qid),
                 "suggested": qid == nl_qkey,
             })
-        # Empfehlung: passende, WENIG gefragte Unterkünfte zuerst (Eignung × geringe
-        # Beliebtheit); eigene bereits gewünschte Quartiere nicht erneut empfehlen.
+        # Passende, WENIG gefragte Unterkünfte zuerst (Eignung × geringe Beliebtheit) –
+        # die Liste ist damit selbst „beste Chance zuerst", ohne separaten Empfohlen-Block.
         candidates.sort(key=lambda c: (
             suitability_score(True, c["band"], own_wish=c["is_own"]), c["q"].name))
-        recommended = [c for c in candidates
-                       if c["band"]["key"] in ("free", "some") and not c["is_own"]][:3]
 
     return render(request, "booking/wishlist.html", {
         "member": member,
@@ -1014,7 +1007,6 @@ def wishlist(request):
         "eff_end": eff_end,
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
         "candidates": candidates,
-        "recommended": recommended,
         "high_demand": high_demand,
         "wish_weekends": wish_weekends,
         "wish_winter": wish_winter,
@@ -1048,7 +1040,6 @@ def wishlist(request):
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,
         "display_frozen": period.display_frozen(timezone.now()) if period else False,
-        "notifications": svc.unread_notifications(member),
     })
 
 

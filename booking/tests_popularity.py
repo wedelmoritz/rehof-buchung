@@ -106,6 +106,9 @@ class PopularityTests(TestCase):
             f"?view=neu&year={NEXT}&month=5"
             f"&start={self.s:%Y-%m-%d}&end={self.e:%Y-%m-%d}")
         html = self.client.get(url).content.decode()
-        self.assertIn("Empfohlen: hier hast du die besten Chancen", html)
-        self.assertIn("sehr beliebt", html)   # die überzeichnete Klasse
-        self.assertIn("Turm", html)            # das freie Solo-Quartier
+        # Kein separater „Empfohlen"-Block mehr – die Kandidatenliste ist selbst nach
+        # „beste Chance zuerst" sortiert (die Empfehlung war eine Teilmenge davon;
+        # „Weniger ist mehr").
+        self.assertNotIn("Empfohlen: hier hast du die besten Chancen", html)
+        self.assertIn("sehr beliebt", html)   # die überzeichnete Klasse als Band
+        self.assertIn("Turm", html)            # das freie Solo-Quartier steht in der Liste

@@ -27,14 +27,18 @@
 </div>
 
 <div class="card">
-  <h2 style="margin-top:0">Empfänger-Export (externe Verteilerlisten)</h2>
-  <p class="muted" style="margin:.2rem 0 .8rem">Für rollen-adressierte Mailinglisten
-    (z. B. <code>mitglieder@…</code>) beim Mailprovider: hier die aktuelle Empfänger-Liste
-    je Rolle als CSV exportieren und in die externe Gruppe importieren (ADR 0090).</p>
-  <div class="actions">
-    {% for a in audiences %}
-    <a class="btn small ghost" href="?export={{ a.key }}">{{ a.label }} ({{ a.count }}) · CSV</a>
-    {% endfor %}
-  </div>
+  {% comment %}Seltener Verteiler-Pflegevorgang – eingeklappt, damit „Nachricht senden"
+  der Fokus der Seite bleibt.{% endcomment %}
+  <details>
+    <summary style="cursor:pointer;font-weight:600">Empfänger-Export (externe Verteilerlisten)</summary>
+    <p class="muted" style="margin:.4rem 0 .8rem">Für rollen-adressierte Mailinglisten
+      (z. B. <code>mitglieder@…</code>) beim Mailprovider: hier die aktuelle Empfänger-Liste
+      je Rolle als CSV exportieren und in die externe Gruppe importieren (ADR 0090).</p>
+    <div class="actions">
+      {% for a in audiences %}
+      <a class="btn small ghost" href="?export={{ a.key }}">{{ a.label }} ({{ a.count }}) · CSV</a>
+      {% endfor %}
+    </div>
+  </details>
 </div>
 {% endblock %}

@@ -259,17 +259,19 @@
 
 {% if my_waitlist %}
 <div class="card">
-  <h2 style="margin-top:0">Meine Wartelisten-Einträge</h2>
-  <p class="muted" style="margin-top:0">Du wirst benachrichtigt, sobald ein Zeitraum frei wird.</p>
-  <div class="table-wrap"><table class="grid">
-    <thead><tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Pers.</th></tr></thead>
-    <tbody>
-    {% for w in my_waitlist %}
-      <tr><td>{{ w.quarter.name }}</td><td>{{ w.start|date:"d.m.Y" }}</td>
-        <td>{{ w.end|date:"d.m.Y" }}</td><td>{{ w.persons }}</td></tr>
-    {% endfor %}
-    </tbody>
-  </table></div>
+  <details>
+    <summary style="cursor:pointer;font-weight:600;color:var(--muted)">Meine Wartelisten-Einträge ({{ my_waitlist|length }})</summary>
+    <p class="muted" style="margin:.5rem 0">Du wirst benachrichtigt, sobald ein Zeitraum frei wird.</p>
+    <div class="table-wrap"><table class="grid">
+      <thead><tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Pers.</th></tr></thead>
+      <tbody>
+      {% for w in my_waitlist %}
+        <tr><td>{{ w.quarter.name }}</td><td>{{ w.start|date:"d.m.Y" }}</td>
+          <td>{{ w.end|date:"d.m.Y" }}</td><td>{{ w.persons }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </details>
 </div>
 {% endif %}
 
@@ -295,31 +297,28 @@
 {% endif %}
 
 {% if my_wishes %}
+{% comment %}Wünsche sind KEINE Buchungen – hier nur ein kompakter Verweis auf die
+Wunschliste (die volle Tabelle steht dort), damit sich beides nicht vermischt.{% endcomment %}
 <div class="card">
-  <h2>Wunschliste fürs nächste Jahr</h2>
-  <div class="msg info" style="margin-top:0">
-    <strong>Nimmt an der Losung teil</strong>{% if wish_period.draw_at %} · Losung am {{ wish_period.draw_at|date:"d.m.Y H:i" }}{% else %} · Losungstermin noch offen{% endif %}.
-    <a href="{% url 'wishlist' %}">Wunschliste ansehen →</a>
+  <div class="msg info" style="margin:0">
+    <strong>{{ my_wishes|length }} {% if my_wishes|length == 1 %}Wunsch{% else %}Wünsche{% endif %}</strong> für die Losung
+    fürs nächste Jahr{% if wish_period.draw_at %} · Losung am {{ wish_period.draw_at|date:"d.m.Y" }}{% endif %}.
+    <a href="{% url 'wishlist' %}">Zur Wunschliste →</a>
   </div>
-  <div class="table-wrap"><table>
-    <tr><th>#</th><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Nächte</th></tr>
-    {% for w in my_wishes %}
-    <tr><td>{{ forloop.counter }}</td><td>{{ w.quarter.name }}</td>
-        <td>{{ w.start }}</td><td>{{ w.end }}</td><td>{{ w.nights }}</td></tr>
-    {% endfor %}
-  </table></div>
 </div>
 {% endif %}
 
 {% if past %}
 <div class="card">
-  <h2>Vergangene Buchungen</h2>
-  <div class="table-wrap"><table>
-    <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Pers.</th></tr>
-    {% for a in past %}
-    <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td><td>{{ a.persons }}</td></tr>
-    {% endfor %}
-  </table></div>
+  <details>
+    <summary style="cursor:pointer;font-weight:600;color:var(--muted)">Vergangene Buchungen ({{ past|length }})</summary>
+    <div class="table-wrap" style="margin-top:.5rem"><table>
+      <tr><th>Quartier</th><th>Anreise</th><th>Abreise</th><th>Tage</th><th>Pers.</th></tr>
+      {% for a in past %}
+      <tr><td>{{ a.quarter.name }}</td><td>{{ a.start }}</td><td>{{ a.end }}</td><td>{{ a.nights }}</td><td>{{ a.persons }}</td></tr>
+      {% endfor %}
+    </table></div>
+  </details>
 </div>
 {% endif %}
 {% endif %}
