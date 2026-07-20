@@ -66,4 +66,5 @@ files = [
     "booking/fairness.py",
     "booking/helptext.py",
     "booking/popularity.py",
+    "booking/wish_nl.py",
 ]
