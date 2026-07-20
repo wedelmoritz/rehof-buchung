@@ -114,6 +114,7 @@ die Regelwerte zu wiederholen.
 | [0106](0106-wo-ist-noch-frei-statt-rangliste.md) | Umsetzung ADR 0103 P1: `freest_slots` („Wo ist noch frei?") listet in gefragten Wochen die noch freien gleichwertigen Klassen als Ausweich-Tipp und **ersetzt die Beliebtheits-Rangliste** (`wish_demand_ranking` entfernt); Heatmap bleibt als Überblick; P1b (Beliebtheit am Entscheidungspunkt) bereits über die Kalender-Ampel aus ADR 0105 erfüllt; anonyme Aggregate, Anzeige-only | Proposed |
 | [0107](0107-entzerrungs-barometer.md) | Umsetzung ADR 0103 P2: Entzerrungs-Barometer `entzerrung_barometer` – **ein anonymer** Community-Indikator „Anteil der Wünsche in sehr beliebten Slots" (0–100 %, HTML/CSS-Balken) auf der Wunschliste; „je niedriger, desto besser verteilt"; nutzt `popularity_band`, datensparsam (keine Namen), Anzeige-only | Proposed |
 | [0109](0109-security-review-nachtraege.md) | Security-Review-Nachträge (Voll-App): RBAC **pro Aktion** im Verwaltungs-Sammel-POST (`_verw_post` `ACTION_PERM`-Map statt nur Bereichs-Gate), `payment_sandbox`-`is_sandbox`-Guard (kein Zahlungs-Bypass im Echtbetrieb), `member_search` ohne `username`/E-Mail (kein Verteiler-Leak) | Accepted |
+| [0110](0110-korrektheit-storno-rechnung-doppelbuchung.md) | Korrektheit (Voll-App-Review): externe Stornierung entwertet die unbezahlte Rechnung (neuer `Invoice`-Status `cancelled` → kein Falsch-Mahnen des vollen Betrags); Quartier-Zeilensperre (`select_for_update`) auch in `adjust_allocation`/`create_external_booking` gegen Doppelbuchung | Accepted |
 
 ## Offene Punkte (in ADRs markiert)
 
