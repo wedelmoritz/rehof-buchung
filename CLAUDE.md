@@ -58,6 +58,9 @@ booking/
   validation.py         # reine Logik: Plausibilität der Eingaben (Name/PLZ/IBAN…)
   exports.py            # CSV/xlsx-Export (mit Formel-Injektions-Schutz)
   helptext.py           # reine Logik: sicherer (escape-first) Mini-Markup-Renderer für Hilfetexte (ADR 0093)
+  popularity.py         # reine Logik: Beliebtheit RELATIV zur Kapazität je Äquivalenzklasse
+                        #  (popularity_band/worse_band/suitability_score; positive Bänder frei/
+                        #  etwas gefragt/beliebt/sehr beliebt; Wunsch-Kalender + Vorschläge, ADR 0103/0105)
   help_content/*.md     # ausgelagerte, editierbare Hilfe-Prosa (Warteliste/Gemeinschaft/Hofladen/Tage)
   services/             # Brücke DB <-> Logik (gesamte Geschäftslogik; Paket, ADR 0050)
     __init__.py         #  re-exportiert alles → `svc.*` bleibt unverändert
