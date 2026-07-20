@@ -6,7 +6,7 @@ Proposed (2026-07-20) · **setzt [ADR 0103](0103-wunsch-situationsbild-beliebthe
 P2 „Weg A" um** · reine Logik/Injektion wie [ADR 0002](0002-drei-schichten-architektur.md)/
 `beds24.py` · Eingabe-Härtung [ADR 0039](0039-eingabe-validierung-und-xss-haertung.md) ·
 Datensparsamkeit [ADR 0043](0043-dsgvo-datensparsamkeit-aufbewahrung-loeschung.md).
-**Teil 1 (reine Logik) umgesetzt (2026-07); Einbindung in Wunsch-/Buchungs-Flow folgt.**
+**Umgesetzt (2026-07): reine Logik + Einbindung in Wunsch- und Buchungs-Flow.**
 
 ## Kontext
 
@@ -35,6 +35,19 @@ das Mitglied prüft/korrigiert. Der Parser **entscheidet nie**.
 Flexibilität, sowie **Besonderheiten** mit/ohne **Endreinigung**, **Hund**, **Beistellbett**,
 **Kinder** (fürs Buchen; beim Wunsch mitgeführt). Nicht Zugeordnetes landet in
 `unresolved` – der Nutzer sieht **ehrlich**, was nicht verstanden wurde.
+
+## Einbindung (zwei getrennte Felder)
+
+Die Naht `services.nl.py` (`nl_parse_wish`/`nl_parse_booking`) baut die injizierten
+Stammdaten aus der DB (aktive Quartiere/Klassen + materialisierte `SchoolHoliday`/
+`SeasonRule` des Zieljahrs) und ruft die reine Logik. **Zwei getrennte Freitextfelder:**
+- **Wunsch** („Neue Wünsche eintragen"): `nlq` → füllt Zeitraum als Auswahl vor, stellt
+  den Kalender auf den Monat, markiert die vorgeschlagene Unterkunft (💬); der Nutzer
+  trägt wie gewohnt selbst ein.
+- **Buchung** (`book`): `nlq` → füllt **Personen/barrierefrei/Zeitraum** vor und markiert
+  die vorgeschlagene Unterkunft; gebucht wird wie gewohnt über den Bestätigungsschritt.
+Ein **Vorschau-Banner** zeigt escaped, was verstanden (`matched`) bzw. **nicht**
+übernommen (`unresolved`) wurde. Alles `data-ajax`/CSP-treu, nur GET (kein Schreibpfad).
 
 ## Security by Design
 

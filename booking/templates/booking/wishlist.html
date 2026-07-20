@@ -68,9 +68,35 @@
 </div>
 
 {% if view == 'neu' %}
-{% comment %}Reiter „Neue Wünsche eintragen": Kalender + Direkteingabe + Auswahl.{% endcomment %}
+{% comment %}Reiter „Neue Wünsche eintragen": Freitext + Kalender + Direkteingabe + Auswahl.{% endcomment %}
 <div class="card">
-  <p class="muted" style="margin-top:0">Die Ampel im Kalender zeigt, wie beliebt ein Zeitraum ist –
+  {% comment %}Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108): füllt Zeitraum/
+  Unterkunft vor – das Mitglied prüft und trägt selbst ein (parse-and-confirm).{% endcomment %}
+  <form method="get" class="nl-form" data-ajax>
+    <input type="hidden" name="view" value="neu">
+    <label for="nlq"><strong>Mit eigenen Worten</strong> <span class="muted">(optional)</span></label>
+    <div class="nl-row">
+      <input type="text" id="nlq" name="nlq" maxlength="400" autocomplete="off"
+             placeholder="z. B. „eine Woche im Juli, barrierefrei"
+             value="{{ request.GET.nlq }}">
+      <button class="btn small" type="submit">Vorschlag</button>
+    </div>
+    <p class="muted sm" style="margin:.35rem 0 0">Wir füllen Zeitraum und Unterkunft nur
+      <strong>vor</strong> – eintragen tust du wie gewohnt selbst.</p>
+  </form>
+  {% if nl_result %}
+  <div class="nl-preview">
+    {% if nl_result.matched %}
+    <p class="nl-ok">✓ Verstanden: {% for m in nl_result.matched %}<span class="nl-chip">{{ m }}</span>{% endfor %}</p>
+    {% else %}
+    <p class="nl-warn">Konnte daraus leider nichts ableiten – bitte im Kalender wählen.</p>
+    {% endif %}
+    {% if nl_result.unresolved %}
+    <p class="muted sm">Nicht übernommen: {% for u in nl_result.unresolved %}{{ u }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+  <p class="muted" style="margin-top:.6rem">Die Ampel im Kalender zeigt, wie beliebt ein Zeitraum ist –
     <strong>im Verhältnis zu den gleichwertigen Unterkünften</strong> (rot = sehr beliebt, viele
     überschneidende Wünsche). Eintragen kannst du trotzdem überall. Deine eigenen Wünsche sind
     mit &#9679; markiert. Wähle Anreise und Abreise – darunter erscheinen die passenden Unterkünfte,
@@ -144,7 +170,7 @@
   </div>
   {% endif %}
   {% for c in candidates %}
-  <form class="qrow" method="post">{% csrf_token %}
+  <form class="qrow{% if c.suggested %} suggested{% endif %}" method="post">{% csrf_token %}
     <input type="hidden" name="action" value="add_wish">
     <input type="hidden" name="year" value="{{ cal.year }}"><input type="hidden" name="month" value="{{ cal.month }}">
     <input type="hidden" name="quarter" value="{{ c.q.id }}">
@@ -152,6 +178,7 @@
     <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
     <span class="qname">{{ c.q.name }}</span>
     <span class="muted qmeta">{{ c.q.size_sqm }} m² · {{ c.q.min_occupancy }}–{{ c.q.max_occupancy }} Pers.</span>
+    {% if c.suggested %}<span class="tag alt" title="Aus deiner Beschreibung vorgeschlagen">💬 vorgeschlagen</span>{% endif %}
     <span class="pop pop-{{ c.band.key }}" title="{{ c.count }} überschneidende Wünsche in diesem Zeitraum">{{ c.band.label }}</span>
     {% if c.shift %}<span class="tag alt" title="Ein leicht verschobener Zeitraum für diese Unterkunft ist weniger gefragt.">💡 {{ c.shift.best.start|date:'d.m.' }}–{{ c.shift.best.end|date:'d.m.' }} freier</span>{% endif %}
     {% if c.is_own %}<span class="tag mine" title="Du hast diese Unterkunft in dem Zeitraum schon gewünscht.">schon gewünscht</span>{% endif %}
@@ -485,6 +512,17 @@
   .reco-head { margin:0 0 .3rem; color:var(--good-deep); }
   .reco-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.25rem; }
   .reco-list li { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .qrow.suggested { border-color:var(--accent); background:var(--accent-soft); }
+  /* Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108) */
+  .nl-form { margin:0 0 .6rem; }
+  .nl-row { display:flex; gap:.5rem; margin-top:.3rem; }
+  .nl-row input[type=text] { flex:1; min-width:0; }
+  .nl-preview { border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem;
+    margin:.2rem 0 .4rem; background:var(--bg); }
+  .nl-ok { margin:0; color:var(--good-deep); }
+  .nl-warn { margin:0; color:var(--warn); }
+  .nl-chip { display:inline-block; background:var(--sage-soft); color:var(--sage-deep);
+    border-radius:999px; padding:.08rem .5rem; font-size:.8rem; margin:.1rem .2rem .1rem 0; }
   /* Wunsch-Liste */
   ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
   li.wish { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; background:var(--card);

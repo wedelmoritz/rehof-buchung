@@ -435,6 +435,22 @@ def book(request):
     sel_end = _parse_date(request.GET.get("end"))
     if sel_start and sel_end and sel_end <= sel_start:
         sel_end = None
+    # Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108): Freitext → Vorbelegung von
+    # Personen/barrierefrei/Zeitraum. Best-effort (gehärtete reine Logik), nie
+    # blockierend; nur strukturierte Daten landen im Kontext (Template escapt).
+    nl_result = nl_quarter_key = None
+    nl_text = (request.GET.get("nlq") or "").strip()
+    if member and nl_text:
+        _nl = svc.nl_parse_booking(nl_text, year)
+        nl_result = {"matched": _nl.matched, "unresolved": _nl.unresolved}
+        nl_quarter_key = _nl.quarter_key
+        if _nl.persons and not request.GET.get("persons"):
+            persons = _nl.persons
+        if _nl.accessible and request.GET.get("accessible") is None:
+            need_accessible = True
+        if _nl.start and not sel_start:
+            sel_start, sel_end = _nl.start, _nl.end
+            year, month = _nl.start.year, _nl.start.month
     cal = svc.build_booking_calendar(member, year, month, sel_start, sel_end) \
         if member else None
 
@@ -500,6 +516,7 @@ def book(request):
                 "group_pref": is_group and q.prefer_for_groups,
                 "fits_persons": fits_persons, "fits_access": fits_access,
                 "undersized": undersized,
+                "suggested": nl_quarter_key is not None and q.id == nl_quarter_key,
                 # Buchbar trotz zu kleiner Unterkunft (mit Hinweis); zu große
                 # Unterkunft (zu wenige Personen) bleibt gesperrt.
                 "bookable": q_reason is None and (fits_persons or undersized),
@@ -524,6 +541,7 @@ def book(request):
         "today": today,
         "persons": persons,
         "need_accessible": need_accessible,
+        "nl_result": nl_result,
         "sel_qs": sel_qs,
         "nav_qs": sel_qs,
         "show_today": True,
@@ -912,6 +930,20 @@ def wishlist(request):
     sel_end = _parse_date(request.GET.get("end"))
     if sel_start and sel_end and sel_end <= sel_start:
         sel_end = None
+    # Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108): Freitext → Vorbelegung.
+    # Best-effort, nie blockierend; die reine Logik ist gehärtet. Nur strukturierte
+    # Daten (Datum/Quartier-ID/kurze Labels) landen im Kontext – das Template escapt.
+    nl_result = None
+    nl_text = (request.GET.get("nlq") or "").strip()
+    if member and period and nl_text:
+        intent = svc.nl_parse_wish(nl_text, period)
+        nl_result = {"matched": intent.matched, "unresolved": intent.unresolved,
+                     "quarter_key": intent.quarter_key}
+        # Erkannten Zeitraum als Auswahl übernehmen (sofern nicht schon explizit
+        # gewählt) und den Kalender auf dessen Monat stellen.
+        if intent.start and not sel_start:
+            sel_start, sel_end = intent.start, intent.end
+            year, month = intent.start.year, intent.start.month
     cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end,
                                   ctx=pop_ctx) \
         if (member and period) else None
@@ -945,12 +977,16 @@ def wishlist(request):
         free_band = {"key": "free", "label": "frei", "tone": "free"}
         own_q = {str(w.quarter_id) for w in wishes
                  if w.start < eff_end and w.end > eff_start}
+        # NL-Vorschlag (ADR 0108): die vom Parser erkannte Unterkunft markieren.
+        nl_qkey = str(nl_result["quarter_key"]) if nl_result and \
+            nl_result.get("quarter_key") is not None else None
         for q in Quarter.objects.filter(active=True).order_by("name"):
             qid = str(q.id)
             band = bands.get(qid, free_band)
             candidates.append({
                 "q": q, "count": counts.get(qid, 0), "band": band,
                 "is_own": qid in own_q, "shift": shift.get(qid),
+                "suggested": qid == nl_qkey,
             })
         # Empfehlung: passende, WENIG gefragte Unterkünfte zuerst (Eignung × geringe
         # Beliebtheit); eigene bereits gewünschte Quartiere nicht erneut empfehlen.
@@ -973,6 +1009,7 @@ def wishlist(request):
         **_cal_nav(cal),
         "sel_start": sel_start,
         "sel_end": sel_end,
+        "nl_result": nl_result,
         "eff_start": eff_start,
         "eff_end": eff_end,
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,

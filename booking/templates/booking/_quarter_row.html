@@ -7,6 +7,7 @@
   <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
   <span class="qname">{{ info.q.name }}</span>
   <span class="muted qmeta">{{ info.q.size_sqm }} m² · {{ info.q.min_occupancy }}–{{ info.q.max_occupancy }} Pers.{% if info.q.accessible %} · barrierearm/-frei{% endif %}</span>
+  {% if info.suggested %}<span class="tag" style="background:var(--accent-soft);color:var(--accent-deep)" title="Aus deiner Beschreibung vorgeschlagen">💬 vorgeschlagen</span>{% endif %}
   {% if info.group_pref %}<span class="tag" style="background:var(--sage-soft);color:var(--sage-deep)">Stallgebäude · für Gruppen</span>{% endif %}
   {% if info.gap_fill %}<span class="tag" style="background:var(--good-soft);color:var(--good)">füllt Lücke</span>{% endif %}
   {% if info.undersized %}{% if persons > info.q.max_occupancy %}<span class="tag" style="background:var(--warn-soft);color:var(--warn)">kleiner als eure Gruppe · Platz für {{ info.q.max_occupancy }}</span>{% else %}<span class="tag" style="background:var(--warn-soft);color:var(--warn)">größer als nötig · für {{ info.q.min_occupancy }}–{{ info.q.max_occupancy }} Pers.</span>{% endif %}
