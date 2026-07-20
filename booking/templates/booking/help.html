@@ -175,11 +175,16 @@
   </ul>
   <p class="muted">Das Ergebnis erscheint nach dem (von der Verwaltung terminierten) Losungstermin unter
     <a href="{% url 'my_bookings' %}">Meine Buchungen</a>.</p>
+  <p class="muted">📝 <strong>Nach der Losung: Buchung vervollständigen.</strong> Zu jeder
+    gewonnenen Unterkunft ergänzt du unter „Meine Buchungen“ noch die Angaben zur Anreise –
+    <strong>Personenzahl, Begleitung, Besonderheiten</strong> (z. B. Hund oder Beistellbett)
+    und ob du eine <strong>Endreinigung</strong> möchtest. Fehlt das noch, erinnert dich die
+    App <strong>vier Wochen vor der Anreise</strong> per Nachricht und E-Mail.</p>
 
   {% comment %}Ablauf der Wunsch-Phase als moderne HTML/CSS-Zeitleiste („Stepper", ADR 0095:
   HTML/CSS statt SVG, engine-neutral + theme-fähig). Durchgehende Schiene mit nummerierten
   Etappen; dazwischen kleine Fristen-Punkte; der Anzeige-Stopp ist eigens markiert.{% endcomment %}
-  <ol class="flow-timeline" aria-label="Ablauf über die Zeit: Erst das Wunsch-Fenster – Wünsche eintragen und ordnen. Dann die Frist zum Eintragen. Danach die Entzerrungsphase – Chance, Nachfrage und Nachbarn sehen und Wünsche anpassen; in ihren letzten Stunden gilt ein Anzeige-Stopp, die Anzeige wird festgehalten, eigene Änderungen zählen weiter. Dann die Losung, eine einmalige Ziehung. Zuletzt das Ergebnis unter Meine Buchungen.">
+  <ol class="flow-timeline" aria-label="Ablauf über die Zeit: Erst das Wunsch-Fenster – Wünsche eintragen und ordnen. Dann die Frist zum Eintragen. Danach die Entzerrungsphase – Chance, Nachfrage und Nachbarn sehen und Wünsche anpassen; in ihren letzten Stunden gilt ein Anzeige-Stopp, die Anzeige wird festgehalten, eigene Änderungen zählen weiter. Dann die Losung, eine einmalige Ziehung. Danach das Ergebnis unter Meine Buchungen. Zuletzt die Buchung vervollständigen – Personen, Besonderheiten und Endreinigung nachtragen.">
     <li class="ft-step">
       <span class="ft-node">1</span>
       <span class="ft-label"><strong>Wunsch-Fenster</strong>
@@ -197,6 +202,11 @@
       <span class="ft-node">3</span>
       <span class="ft-label"><strong>Ergebnis</strong>
         <span class="ft-sub">unter „Meine Buchungen“</span></span>
+    </li>
+    <li class="ft-step">
+      <span class="ft-node">4</span>
+      <span class="ft-label"><strong>Vervollständigen</strong>
+        <span class="ft-sub">Personen · Besonderheiten · Endreinigung nachtragen</span></span>
     </li>
   </ol>
 

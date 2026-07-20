@@ -736,6 +736,16 @@ class Allocation(models.Model):
     # Provisorische Los-Zuteilung: existiert (blockiert die Verfügbarkeit), ist
     # aber für Mitglieder unsichtbar, bis die Losung bestätigt wird.
     provisional = models.BooleanField("Vorläufig (unbestätigt)", default=False)
+    # Aus der Losung entstandene Buchung, deren Details (Personen/Begleitung/
+    # Besonderheiten/Endreinigung) das Mitglied noch nachtragen soll. Beim
+    # Spontan-/Extern-/Import-Buchen sind die Angaben schon vollständig → False.
+    details_pending = models.BooleanField(
+        "Details nachzutragen", default=False,
+        help_text="Los-Buchung, bei der das Mitglied Personen/Begleitung/"
+                  "Besonderheiten/Endreinigung noch ergänzen soll.")
+    # Idempotenz-Marke der 4-Wochen-Erinnerung (nur einmal je Buchung erinnern).
+    details_reminded_on = models.DateField(
+        "Vervollständigung erinnert am", null=True, blank=True)
     created_at = models.DateTimeField("Erstellt", auto_now_add=True)
     # Audit: wer die Buchung im Backend angelegt/zuletzt geändert hat (ADR 0094).
     # Leer, wenn das Mitglied selbst über die App gebucht hat.

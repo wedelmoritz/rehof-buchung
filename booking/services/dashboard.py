@@ -24,6 +24,7 @@ __all__ = [
     'ensure_personal_membership', 'run_scheduled_notifications',
     'send_status_warnings', 'send_bookings_overview', 'send_occupancy_overview',
     'send_overdue_overview', 'send_lottery_reminder', 'notify_booking_activity',
+    'send_booking_details_reminders',
     'BROADCAST_AUDIENCES', 'broadcast_message', 'role_recipients',
 ]
 
@@ -732,6 +733,36 @@ def send_lottery_reminder(today=None) -> int:
     return n
 
 
+def send_booking_details_reminders(today=None) -> int:
+    """Erinnert Mitglieder, deren **Los-Buchung** noch unvervollständigt ist
+    (`details_pending`), sobald die Anreise ≤ `lead_days` (Default 28 = 4 Wochen)
+    entfernt ist – einmal je Buchung (Idempotenz über `details_reminded_on`).
+    In-App + E-Mail (Opt-in). ADR 0104."""
+    from django.urls import reverse
+    from ..models import NotificationSetting
+    from .notify import dispatch_event
+    today = today or date.today()
+    setting = NotificationSetting.for_event("booking_details_reminder")
+    if not setting.enabled:
+        return 0
+    horizon = today + timedelta(days=setting.lead_days)
+    url = reverse("my_bookings")
+    n = 0
+    for a in Allocation.objects.select_related("quarter", "member__user").filter(
+            source="lottery", details_pending=True, provisional=False,
+            details_reminded_on__isnull=True,
+            start__gte=today, start__lte=horizon):
+        dispatch_event("booking_details_reminder", {
+            "quarter": a.quarter.name,
+            "start": f"{a.start:%d.%m.%Y}", "end": f"{a.end:%d.%m.%Y}",
+            "url": absolute_url(url), "lead_days": (a.start - today).days,
+        }, member=a.member, url=url)
+        a.details_reminded_on = today
+        a.save(update_fields=["details_reminded_on"])
+        n += 1
+    return n
+
+
 def notify_booking_activity(alloc, *, action: str) -> None:
     """Sofort-Meldung mit Dringlichkeit an die Verwaltung bei **kurzfristigen**
     Buchungen/Stornos (Anreise ≤ short_notice_days, ADR 0089/B3). Länger entfernte
@@ -759,4 +790,5 @@ def run_scheduled_notifications(today=None) -> dict:
         "occupancy_overview": send_occupancy_overview(today),
         "overdue_overview": send_overdue_overview(today),
         "lottery_reminder": send_lottery_reminder(today),
+        "booking_details_reminder": send_booking_details_reminders(today),
     }

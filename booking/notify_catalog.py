@@ -80,6 +80,19 @@ EVENTS: dict[str, dict] = {
         "label": "Sofort-Meldung bei kurzfristiger Buchung/Storno",
         "defaults": {"frequency": "immediate"},
     },
+    # --- Mitglied: geplant (ADR 0104) --------------------------------------- #
+    "booking_details_reminder": {
+        "audience": "member", "kind": "scheduled", "pdf": None,
+        "subject": "Re:Hof – Bitte Buchung vervollständigen ($quarter)",
+        "body": ("Deine Buchung aus der Losung steht: $quarter, $start–$end.\n\n"
+                 "Bitte trage jetzt noch die Details nach – Personenzahl, Begleitung, "
+                 "Besonderheiten (z. B. Hund, Beistellbett) und ob du eine "
+                 "Endreinigung möchtest:\n$url\n\n"
+                 "Die Anreise ist in $lead_days Tagen.\n"),
+        "vars": ["quarter", "start", "end", "url", "lead_days"],
+        "label": "Erinnerung an Mitglied: Los-Buchung vervollständigen",
+        "defaults": {"frequency": "daily", "lead_days": 28},
+    },
     # --- Rundnachricht (B4) ------------------------------------------------- #
     "announcement": {
         "audience": "broadcast", "kind": "event", "pdf": None,

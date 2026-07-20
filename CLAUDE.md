@@ -291,6 +291,10 @@ liefert weiter die reine Zeitraum-Verschiebung je Quartier.)),
 `my_bookings` (eigene Buchungen als **kompakte Karten**: je Buchung EINE Zeile
 (Quartier · Zeitraum · Personen · Quelle) + Storno; alle Details/Aktionen hinter
 EINEM Aufklapper **„Details & Aktionen"** (Wer-ist-da · ändern · tauschen), #34.
+Bei **Los-Buchungen** (`Allocation.details_pending`, ADR 0104) steht oben eine Karte
+**„Buchung vervollständigen"** (Personen/Begleitung/Besonderheiten + opt-in
+Endreinigung, `services.complete_lottery_details`); bleibt sie offen, erinnert der
+Scheduler 4 Wochen vor Anreise per In-App+Mail (`send_booking_details_reminders`).
 Je Buchung ein **Endreinigungs-Status** (angefragt/bestätigt/abgelehnt, #33/ADR 0081)
 und ein eingeklappter Abschnitt **„Zuletzt storniert"** (Storno-Nachweis, #30/ADR 0082);
 Storno **mit
@@ -671,7 +675,9 @@ Erinnerung** vor der Losung an Mitglieder ohne eingetragenen Wunsch;
 `apply_member_status` (täglich, Ausscheide-Übergänge Login-Aus, ADR 0087),
 `send_notifications` (täglich, **geplante Verwaltungs-Benachrichtigungen** über das
 Framework `services.run_scheduled_notifications`, ADR 0089: Status-Vorwarnung,
-Buchungsübersicht+Plan-PDF, Auslastung+Ampel, überfällige Rechnungen, Los-Erinnerung –
+Buchungsübersicht+Plan-PDF, Auslastung+Ampel, überfällige Rechnungen, Los-Erinnerung,
+**Buchung-vervollständigen-Erinnerung** (`send_booking_details_reminders`: 4 Wochen vor
+Anreise an das Mitglied, falls eine Los-Buchung noch `details_pending` ist, ADR 0104) –
 je Ereignis Frequenz/Empfänger/an-aus im Backend `NotificationSetting`; Buchung/Storno
 **≤ short_notice_days sofort** an die Verwaltung `notify_booking_activity`, sonst im
 Digest),

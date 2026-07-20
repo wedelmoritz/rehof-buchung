@@ -590,6 +590,38 @@ def my_bookings(request):
                     new_quarter=nq, new_persons=npers)
                 messages.success(request, "Buchung angepasst.") if ok \
                     else messages.error(request, err or "Anpassung nicht möglich.")
+        elif action == "complete_details":
+            alloc, err = svc.complete_lottery_details(
+                member, request.POST.get("allocation_id"),
+                persons=request.POST.get("persons"),
+                companions=request.POST.get("companions", ""),
+                special_requests=request.POST.get("special_requests", ""))
+            if not alloc:
+                messages.error(request, err or "Nicht möglich.")
+            else:
+                # Endreinigung / mitbuchbare Dienstleistungen wie beim Buchen
+                # (opt-in): bestätigungspflichtige nur anfragen, sonst direkt kaufen.
+                from shop import services as shop_svc
+                from shop.models import Product
+                added, requested = [], []
+                for p in Product.objects.filter(active=True, book_with_stay=True):
+                    if request.POST.get(f"service_{p.id}") and p.available_on(alloc.end):
+                        if p.needs_approval:
+                            sr, _serr = shop_svc.request_service(member, p, alloc, alloc.end)
+                            if sr:
+                                requested.append(p.name)
+                        else:
+                            item, _serr = shop_svc.purchase_service(
+                                member, p, 1, service_date=alloc.end, allocation=alloc)
+                            if item:
+                                added.append(p.name)
+                msg = "Buchung vervollständigt."
+                if added:
+                    msg += " Zusätzlich gebucht: " + ", ".join(added) + "."
+                if requested:
+                    msg += (" Angefragt (Bestätigung durch die Betriebsleitung): "
+                            + ", ".join(requested) + ".")
+                messages.success(request, msg)
         elif action == "read_notifications":
             svc.mark_notifications_read(member)
         elif action == "swap_request":
@@ -671,6 +703,19 @@ def my_bookings(request):
         # sind. Nur die jüngsten (90 Tage) – ältere räumt die Aufbewahrung ab.
         cancellations = list(member.cancellations.filter(
             cancelled_at__date__gte=today - timedelta(days=90))[:20])
+
+    # Mitbuchbare Dienstleistungen (z.B. Endreinigung) für die „Buchung
+    # vervollständigen“-Karte – nur laden, wenn wirklich eine Los-Buchung offen ist.
+    service_offers = []
+    if any(getattr(a, "details_pending", False) for a in upcoming):
+        from shop.models import Product
+        service_offers = list(Product.objects.filter(
+            active=True, book_with_stay=True).order_by("sort_order", "name"))
+        for a in upcoming:
+            if a.details_pending:
+                a.detail_offers = [
+                    {"p": p, "available": p.available_on(a.end)}
+                    for p in service_offers]
 
     y = today.year
     budget_info = None
