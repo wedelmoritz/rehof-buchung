@@ -115,7 +115,6 @@
           {% if d.in_month %}
           <a class="dlink" data-ajax href="{% if sel_start and not sel_end and d.date > sel_start %}?view=neu&year={{ cal.year }}&month={{ cal.month }}&start={{ sel_start|date:'Y-m-d' }}&end={{ d.iso }}{% else %}?view=neu&year={{ cal.year }}&month={{ cal.month }}&start={{ d.iso }}{% endif %}">
             <span class="d-num">{{ d.day }}{% if d.own_sub %} <span class="own sub" title="dein Wunsch">&#9679;</span>{% endif %}</span>
-            <span class="free-badge">{{ d.demand }}&times;</span>
           </a>
           {% else %}
           <span class="d-num">{{ d.day }}{% if d.own_sub %} <span class="own sub">&#9679;</span>{% endif %}</span>
@@ -158,17 +157,6 @@
     (wenig gefragt) stehen zuerst. Das Abzeichen zeigt, wie beliebt die Unterkunft in dem Zeitraum
     ist – gemessen an den gleichwertigen Häusern.</p>
   {% include "booking/_high_demand_note.html" %}
-  {% if recommended %}
-  <div class="reco-box">
-    <p class="reco-head">💡 <strong>Empfohlen: hier hast du die besten Chancen</strong></p>
-    <ul class="reco-list">
-      {% for c in recommended %}
-      <li><strong>{{ c.q.name }}</strong> <span class="pop pop-{{ c.band.key }}">{{ c.band.label }}</span>
-        <span class="muted">· {{ c.q.min_occupancy }}–{{ c.q.max_occupancy }} Pers.</span></li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
   {% for c in candidates %}
   <form class="qrow{% if c.suggested %} suggested{% endif %}" method="post">{% csrf_token %}
     <input type="hidden" name="action" value="add_wish">
@@ -489,8 +477,6 @@
     height:100%; min-height:64px; padding:3px 5px; text-decoration:none; color:var(--ink); }
   .wish-cal .dlink:hover { background:rgba(255,255,255,.4); }
   .wish-cal .d-num { font-size:.8rem; }
-  .wish-cal .free-badge { font-size:.66rem; color:#5b5347; align-self:flex-end;
-    background:rgba(255,255,255,.6); border-radius:5px; padding:0 4px; }
   .own.sub { color:var(--sage-deep); }
   .legend .sw.lvl-free{background:#d9efce}.legend .sw.lvl-many{background:#e8f3dc}
   .legend .sw.lvl-few{background:#f9efc9}.legend .sw.lvl-full{background:#f6ddd6}
@@ -507,11 +493,6 @@
   .pop-popular { background:var(--warn-soft); color:var(--warn); }
   .pop-very { background:var(--bad-soft); color:var(--bad); }
   .tag.alt { background:var(--accent-soft); color:var(--accent-deep); }
-  .reco-box { background:var(--good-soft); border:1px solid var(--good);
-    border-radius:11px; padding:.55rem .8rem; margin:.2rem 0 .8rem; }
-  .reco-head { margin:0 0 .3rem; color:var(--good-deep); }
-  .reco-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.25rem; }
-  .reco-list li { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
   .qrow.suggested { border-color:var(--accent); background:var(--accent-soft); }
   /* Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108) */
   .nl-form { margin:0 0 .6rem; }

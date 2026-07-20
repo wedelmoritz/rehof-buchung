@@ -73,8 +73,13 @@
   </div>
   {% else %}<p class="muted">Keine Anreisen in diesem Monat.</p>{% endif %}
   <div class="actions">
-    <a class="btn small ghost" href="{% url 'dashboard_export' 'buchungen' 'xlsx' %}?year={{ year }}&month={{ month }}">Excel</a>
-    <a class="btn small ghost" href="{% url 'dashboard_export' 'buchungen' 'csv' %}?year={{ year }}&month={{ month }}">CSV</a>
+    <details class="export-menu">
+      <summary class="btn small ghost">Export ▾</summary>
+      <div class="export-links">
+        <a href="{% url 'dashboard_export' 'buchungen' 'xlsx' %}?year={{ year }}&month={{ month }}">Excel</a>
+        <a href="{% url 'dashboard_export' 'buchungen' 'csv' %}?year={{ year }}&month={{ month }}">CSV</a>
+      </div>
+    </details>
     <form method="post" class="inline">{% csrf_token %}
       <input type="hidden" name="action" value="send_upcoming">
       <input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="month" value="{{ month }}">

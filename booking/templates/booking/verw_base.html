@@ -54,6 +54,14 @@
   .chip.on.danger { background:rgba(179,38,30,.12); color:#b3261e; border-color:#b3261e; }
   .actions { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
   .actions form.inline { display:inline; }
+  /* „Export ▾": xlsx+CSV hinter einem Aufklapper statt zwei Dauer-Knöpfen je Liste. */
+  .export-menu { display:inline-block; position:relative; }
+  .export-menu > summary { list-style:none; }
+  .export-menu > summary::-webkit-details-marker { display:none; }
+  .export-menu .export-links { display:inline-flex; gap:.5rem; margin-left:.5rem;
+    align-items:center; }
+  .export-menu .export-links a { font-size:.85rem; color:var(--accent-deep);
+    text-decoration:underline; }
   .occbar { display:inline-block; width:64px; height:8px; border-radius:999px;
     background:var(--line); overflow:hidden; vertical-align:middle; margin-right:.35rem; }
   .occbar span { display:block; height:100%; background:var(--sage-deep); border-radius:999px; }

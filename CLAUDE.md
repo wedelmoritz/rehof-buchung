@@ -270,10 +270,11 @@ ADR 0101-Nachtrag]: „Meine Wünsche" [Default: **Wunsch-Übersicht** `.wish-ov
 Kennzahlen (Anzahl/Tage/Budget/**Karma**) + Handlungsbedarf-Ampel (0 Wünsche→warn ·
 unter/über Budget→gelb · Überlappung→rot, jeweils erklärt) + Richtschnüre; darunter die
 Liste], „Neue Wünsche eintragen" [Kalender **mit kapazitätsrelativer Beliebtheits-Ampel je
-Äquivalenzklasse** + Kandidaten **nach Eignung×geringe Beliebtheit** sortiert + „Empfohlen"-
-Block + vorgezogener „weniger beliebter Zeitraum"-Tipp, ADR 0103/0105 P0; zusätzlich
-**Freitextfeld „mit eigenen Worten"** (NL-Parser `services.nl_parse_wish` füllt Zeitraum/
-Unterkunft vor + Vorschau, ADR 0103/0108)] und
+Äquivalenzklasse** + Kandidaten **nach Eignung×geringe Beliebtheit** sortiert (die Liste ist
+damit selbst „beste Chance zuerst" – der frühere separate „Empfohlen"-Block entfiel als
+Teilmenge, ADR 0112) + vorgezogener „weniger beliebter Zeitraum"-Tipp, ADR 0103/0105 P0;
+zusätzlich **eingeklapptes Freitextfeld „mit eigenen Worten"** (NL-Parser
+`services.nl_parse_wish` füllt Zeitraum/Unterkunft vor + Vorschau, ADR 0103/0108)] und
 „Nachfrage & Heatmap" [**Entzerrungs-Barometer** `entzerrung_barometer` (anonymer Community-
 Nudge „Anteil der Wünsche in sehr beliebten Slots", HTML/CSS-Balken, ADR 0103/0107 P2) +
 `wish_demand_grid` (Überblick) + **„Wo ist noch frei?"** `freest_slots`: in gefragten Wochen

@@ -163,8 +163,12 @@ class PolicyViewRenderTests(PolicyBase):
         self.assertContains(r, "Begehrte Zeit")
         self.assertContains(r, "Stallgebäude")
 
-    def test_overview_winter_chip(self):
-        self.assertContains(self.client.get("/"), "Winter")
+    def test_winter_richtwert_auf_buchen_nicht_uebersicht(self):
+        # Der Winter-Richtwert ist eine passive Kennzahl und steht im Handlungskontext
+        # auf „Buchen", nicht mehr als Chip auf der Übersicht (ADR 0059: nur aktionable
+        # Chips auf der Startseite; „Weniger ist mehr").
+        self.assertNotContains(self.client.get("/"), "🌙 Winter")
+        self.assertContains(self.client.get("/buchen/"), "🌙 Winter")
 
     def test_hilfe_regeln_abschnitt(self):
         r = self.client.get("/hilfe/")

@@ -69,8 +69,13 @@
   </div>
   {% else %}<p class="muted">Keine Rechnungen in dieser Ansicht. 🎉</p>{% endif %}
   <div class="actions">
-    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'xlsx' %}?status={{ inv_filter }}">Excel</a>
-    <a class="btn small ghost" href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status={{ inv_filter }}">CSV</a>
+    <details class="export-menu">
+      <summary class="btn small ghost">Export ▾</summary>
+      <div class="export-links">
+        <a href="{% url 'dashboard_export' 'rechnungen' 'xlsx' %}?status={{ inv_filter }}">Excel</a>
+        <a href="{% url 'dashboard_export' 'rechnungen' 'csv' %}?status={{ inv_filter }}">CSV</a>
+      </div>
+    </details>
     {% if overdue %}
     <form method="post" class="inline" data-confirm="Zahlungserinnerung an alle {{ overdue|length }} überfälligen Rechnungen senden?">{% csrf_token %}
       <input type="hidden" name="action" value="remind_overdue">

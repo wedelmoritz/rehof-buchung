@@ -18,12 +18,17 @@
     Der Export eignet sich als Momentaufnahme <strong>vor</strong> (zu Beginn der
     Entzerrungsphase) und <strong>nach</strong> der Entzerrung (kurz vor der Losung).</p>
   <div class="actions">
-    <a class="btn small ghost" href="?export=xlsx">Excel (aktuell)</a>
-    <a class="btn small ghost" href="?export=csv">CSV (aktuell)</a>
-    {% if has_before_snapshot %}
-    <a class="btn small ghost" href="?export=xlsx&state=before">Excel (vor Entzerrung)</a>
-    <a class="btn small ghost" href="?export=csv&state=before">CSV (vor Entzerrung)</a>
-    {% endif %}
+    <details class="export-menu">
+      <summary class="btn small ghost">Export ▾</summary>
+      <div class="export-links">
+        <a href="?export=xlsx">Excel (aktuell)</a>
+        <a href="?export=csv">CSV (aktuell)</a>
+        {% if has_before_snapshot %}
+        <a href="?export=xlsx&state=before">Excel (vor Entzerrung)</a>
+        <a href="?export=csv&state=before">CSV (vor Entzerrung)</a>
+        {% endif %}
+      </div>
+    </details>
   </div>
 </div>
 
