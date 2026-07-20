@@ -1019,10 +1019,12 @@ def wishlist(request):
         "wish_nights": wish_nights,
         "wish_budget": member.wish_night_budget if member else 0,
         "wish_cap": wish_cap,
-        # Drei präsente Reiter auf EINER Seite (Feedback B): „Meine Wünsche" (Default)
-        # · „Neue Wünsche eintragen" · „Nachfrage & Heatmap" (?view=, data-ajax).
+        # Zwei präsente Reiter auf EINER Seite (ADR 0112 Tier 2): „Meine Wünsche"
+        # (Default) · „Neue Wünsche eintragen" (?view=, data-ajax). Der frühere dritte
+        # Reiter „Nachfrage & Heatmap" ist als eingeklappter Block in „Neue Wünsche"
+        # aufgegangen (Barometer oben, Heatmap/„Wo ist frei" unten).
         "view": (request.GET.get("view")
-                 if request.GET.get("view") in ("neu", "nachfrage") else "meine"),
+                 if request.GET.get("view") == "neu" else "meine"),
         # Entzerrungsphase (ADR 0101): Phasen-Marken für den Status-Hinweis.
         "review_phase": bool(period and period.status == BookingPeriod.WISHES_REVIEW),
         # Nachfrage-Heatmap (ADR 0101): welche Quartiere/Monate sind begehrt.

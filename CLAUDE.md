@@ -265,21 +265,23 @@ einem eigenen `data-ajax`-GET-Formular und **prüft bei Änderung sofort neu** [
 Personen → klarer „Platz für höchstens N"-Hinweis + gesperrter Knopf, Korrektur bleibt
 auf der Seite statt Rauswurf zur Auswahl, #32]; gewählte Dienstleistungen
 werden als offene Hofladen-Position erfasst), `wishlist` (Wünsche fürs Losverfahren –
-bleiben bewusst änderbar; **drei präsente Reiter auf EINER Seite** [`?view=`, data-ajax,
-ADR 0101-Nachtrag]: „Meine Wünsche" [Default: **Wunsch-Übersicht** `.wish-ov` mit
+bleiben bewusst änderbar; **zwei präsente Reiter auf EINER Seite** [`?view=`, data-ajax,
+ADR 0101-Nachtrag; früher drei – der Nachfrage-Reiter ging in „Neue Wünsche" auf, ADR 0112
+Tier 2]: „Meine Wünsche" [Default: **Wunsch-Übersicht** `.wish-ov` mit
 Kennzahlen (Anzahl/Tage/Budget/**Karma**) + Handlungsbedarf-Ampel (0 Wünsche→warn ·
 unter/über Budget→gelb · Überlappung→rot, jeweils erklärt) + Richtschnüre; darunter die
-Liste], „Neue Wünsche eintragen" [Kalender **mit kapazitätsrelativer Beliebtheits-Ampel je
-Äquivalenzklasse** + Kandidaten **nach Eignung×geringe Beliebtheit** sortiert (die Liste ist
-damit selbst „beste Chance zuerst" – der frühere separate „Empfohlen"-Block entfiel als
-Teilmenge, ADR 0112) + vorgezogener „weniger beliebter Zeitraum"-Tipp, ADR 0103/0105 P0;
-zusätzlich **eingeklapptes Freitextfeld „mit eigenen Worten"** (NL-Parser
-`services.nl_parse_wish` füllt Zeitraum/Unterkunft vor + Vorschau, ADR 0103/0108)] und
-„Nachfrage & Heatmap" [**Entzerrungs-Barometer** `entzerrung_barometer` (anonymer Community-
-Nudge „Anteil der Wünsche in sehr beliebten Slots", HTML/CSS-Balken, ADR 0103/0107 P2) +
-`wish_demand_grid` (Überblick) + **„Wo ist noch frei?"** `freest_slots`: in gefragten Wochen
-die noch freien gleichwertigen Klassen als Ausweich-Tipp – **ersetzt** die frühere
-Beliebtheits-Rangliste, ADR 0103/0106 P1]. Je Wunsch nur Quartier/Zeitraum (+ Status-Punkt) + Aufklapper **„Details &
+Liste] und „Neue Wünsche eintragen" [oben das **Entzerrungs-Barometer** `entzerrung_barometer`
+(anonymer Community-Nudge „Wie stark ballen sich die Wünsche" = Anteil in sehr beliebten Slots,
+je weniger desto besser, HTML/CSS-Balken, ADR 0103/0107 P2); Kalender **mit kapazitätsrelativer
+Beliebtheits-Ampel je Äquivalenzklasse** + Kandidaten **nach Eignung×geringe Beliebtheit**
+sortiert (die Liste ist damit selbst „beste Chance zuerst" – der frühere separate
+„Empfohlen"-Block entfiel als Teilmenge, ADR 0112) + vorgezogener „weniger beliebter
+Zeitraum"-Tipp, ADR 0103/0105 P0; zusätzlich **eingeklapptes Freitextfeld „mit eigenen Worten"**
+(NL-Parser `services.nl_parse_wish` füllt Zeitraum/Unterkunft vor + Vorschau, ADR 0103/0108);
+ganz unten **eingeklappt** „Nachfrage-Überblick & Ausweich-Tipps" mit `wish_demand_grid`
+(Heatmap) + **„Wo ist noch frei?"** `freest_slots` (in gefragten Wochen die noch freien
+gleichwertigen Klassen – **ersetzt** die frühere Beliebtheits-Rangliste, ADR 0103/0106 P1)].
+Je Wunsch nur Quartier/Zeitraum (+ Status-Punkt) + Aufklapper **„Details &
 Aktionen"** – **erst dort** kompakte Status-Abzeichen [**Nachfrage-Ampel** `wish_demand_band`:
 keine/wenige/beliebt/sehr beliebt aus überlappenden Fremd-Wünschen, OHNE Prozent · **Los-Chance**
 qualitativ gut/offen/knapp mit **konkretem Grund** „stark nachgefragt" vs. „eigene Reihenfolge/
