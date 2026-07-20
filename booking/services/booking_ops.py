@@ -63,10 +63,13 @@ def complete_lottery_details(
     von Shop-Kopplung).
 
     Gibt `(Allocation, None)` bzw. `(None, Fehlermeldung)` zurück. Nur der Eigentümer
-    darf; nur solange die Buchung wirklich noch offen ist (`details_pending`)."""
+    darf; nur solange die Buchung wirklich noch offen ist (`details_pending`) UND
+    bereits bestätigt (`provisional=False`) – spiegelt die Reminder-Query, damit sich
+    das Flag nicht auf einer noch unbestätigten Los-Zuteilung vorzeitig löschen lässt."""
     try:
         alloc = member.allocations.select_related("quarter").get(
-            id=allocation_id, source="lottery", details_pending=True)
+            id=allocation_id, source="lottery", details_pending=True,
+            provisional=False)
     except (Allocation.DoesNotExist, ValueError, TypeError):
         return None, "Buchung nicht gefunden oder bereits vervollständigt."
     try:
