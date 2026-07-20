@@ -25,7 +25,7 @@ __all__ = [
     'pending_swaps_for', 'transfer_nights', 'thank_for_transfer',
     'cancel_allocation', '_broadcast_spontaneously_free', 'adjust_allocation',
     'short_notice_days', 'is_short_notice', 'notify_member_of_staff_booking',
-    'book_for_member',
+    'book_for_member', 'complete_lottery_details',
 ]
 
 
@@ -49,6 +49,46 @@ def notify_member_of_staff_booking(alloc: Allocation, action: str) -> None:
         + ("" if action == "cancel" else
            "Du findest sie unter „Meine Buchungen“ in der App.\n\n")
         + "Bei Fragen wende dich bitte an die Betriebsleitung.\n\nViele Grüße\nRe:Hof")
+
+@transaction.atomic
+def complete_lottery_details(
+    member: Member, allocation_id, *, persons: int,
+    companions: str = "", special_requests: str = "",
+) -> tuple[Allocation | None, str | None]:
+    """Trägt die Details einer aus der **Losung** entstandenen Buchung nach
+    (ADR 0104): Personenzahl, Begleitung, Besonderheiten. Setzt `details_pending`
+    auf False. Der Zeitraum/das Quartier bleibt unverändert (dafür ist „Buchung
+    ändern" da). Die Endreinigung wird – wie beim Buchen – in der View über die
+    `book_with_stay`-Dienstleistungen angefragt, nicht hier (Service bleibt frei
+    von Shop-Kopplung).
+
+    Gibt `(Allocation, None)` bzw. `(None, Fehlermeldung)` zurück. Nur der Eigentümer
+    darf; nur solange die Buchung wirklich noch offen ist (`details_pending`) UND
+    bereits bestätigt (`provisional=False`) – spiegelt die Reminder-Query, damit sich
+    das Flag nicht auf einer noch unbestätigten Los-Zuteilung vorzeitig löschen lässt."""
+    try:
+        alloc = member.allocations.select_related("quarter").get(
+            id=allocation_id, source="lottery", details_pending=True,
+            provisional=False)
+    except (Allocation.DoesNotExist, ValueError, TypeError):
+        return None, "Buchung nicht gefunden oder bereits vervollständigt."
+    try:
+        persons = int(persons or 0)
+    except (ValueError, TypeError):
+        persons = 0
+    if persons < 1:
+        return None, "Bitte mindestens 1 Person angeben."
+    cap = alloc.quarter.max_occupancy or persons
+    if persons > cap:
+        return None, f"Diese Unterkunft bietet Platz für höchstens {cap} Personen."
+    alloc.persons = persons
+    alloc.companions = V.strip_controls(companions, max_len=255)
+    alloc.special_requests = V.strip_controls(special_requests, max_len=255)
+    alloc.details_pending = False
+    alloc.save(update_fields=[
+        "persons", "companions", "special_requests", "details_pending"])
+    return alloc, None
+
 
 @transaction.atomic
 def book_for_member(

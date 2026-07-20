@@ -113,6 +113,40 @@
       </div>
     </div>
 
+    {% if a.details_pending %}
+    <div class="complete-box">
+      <p class="complete-head">📝 <strong>Bitte diese Buchung vervollständigen</strong></p>
+      <p class="muted hint">Deine Unterkunft aus der Losung steht. Ergänze jetzt noch die
+        Angaben zur Anreise – Personenzahl, Begleitung, Besonderheiten und ob du eine
+        Endreinigung möchtest. Das hilft dem Team bei der Vorbereitung.</p>
+      <form method="post" class="complete-form">{% csrf_token %}
+        <input type="hidden" name="action" value="complete_details">
+        <input type="hidden" name="allocation_id" value="{{ a.id }}">
+        <label>Personen
+          <input type="number" name="persons" value="{{ a.persons }}" min="1"
+                 max="{{ a.quarter.max_occupancy }}" style="width:4.2rem"></label>
+        <label>Begleitung <span class="muted">(mit wem reist du an – optional)</span>
+          <input type="text" name="companions" value="{{ a.companions }}" maxlength="255"></label>
+        <label>Besonderheiten <span class="muted">(z. B. Hund, Beistellbett, Kinder – optional)</span>
+          <input type="text" name="special_requests" value="{{ a.special_requests }}" maxlength="255"></label>
+        {% if a.detail_offers %}
+        <fieldset class="svc-offers">
+          <legend class="muted">Zusätzlich buchen (optional)</legend>
+          {% for o in a.detail_offers %}
+          <label class="svc-opt">
+            <input type="checkbox" name="service_{{ o.p.id }}" value="1"
+                   {% if not o.available %}disabled{% endif %}>
+            {{ o.p.name }}{% if o.p.needs_approval %} <span class="muted">(Anfrage – die Betriebsleitung bestätigt)</span>{% endif %}
+            {% if not o.available %} <span class="muted">(am Abreisetag nicht verfügbar)</span>{% endif %}
+          </label>
+          {% endfor %}
+        </fieldset>
+        {% endif %}
+        <button class="btn small" type="submit">Buchung vervollständigen</button>
+      </form>
+    </div>
+    {% endif %}
+
     <details class="booking-more">
       <summary class="more-sum">Details &amp; Aktionen
         <span class="muted more-hint">Wer ist da · ändern · tauschen{% if a.concurrent_count %} · {{ a.concurrent_count }} gleichzeitig{% endif %}{% if a.swap_exact %} · {{ a.swap_exact|length }} Tausch möglich{% endif %}</span></summary>
@@ -297,6 +331,19 @@
     display:inline-block; }
   .svc-status.good { background:var(--good-soft); color:var(--good-deep); }
   .svc-status.bad { background:var(--bad-soft); color:var(--bad); }
+  /* „Buchung vervollständigen“ nach der Losung (ADR 0104): dezent hervorgehoben. */
+  .complete-box { margin-top:.6rem; padding:.7rem .8rem; border-radius:10px;
+    background:var(--accent-soft); border:1px solid var(--accent); }
+  .complete-head { margin:0 0 .2rem; color:var(--accent-deep); }
+  .complete-form { display:flex; flex-direction:column; gap:.5rem; margin-top:.5rem; }
+  .complete-form > label { display:flex; flex-direction:column; gap:.15rem;
+    font-size:.9rem; font-weight:600; }
+  .complete-form input[type=text], .complete-form input[type=number] {
+    font-weight:400; }
+  .complete-form .svc-offers { border:1px solid var(--line); border-radius:8px;
+    padding:.4rem .6rem; margin:0; }
+  .complete-form .svc-opt { display:flex; align-items:center; gap:.4rem;
+    font-weight:400; font-size:.9rem; }
   /* Kompakte Karte (#34): alle Details/Aktionen hinter EINEM Aufklapper. */
   details.booking-more { margin-top:.5rem; border-top:1px solid var(--line);
     padding-top:.5rem; }

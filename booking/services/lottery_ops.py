@@ -375,6 +375,9 @@ def run_period_lottery(
                 (a.party_id, a.original_quarter_id, a.start, a.end)),
             via_substitution=a.via_substitution, contested=a.contested,
             provisional=True,
+            # Aus der Losung: das Mitglied trägt Personen/Begleitung/Besonderheiten/
+            # Endreinigung nach der Bestätigung noch nach (ADR 0104).
+            details_pending=True,
         )
 
     # Faktoren aktualisieren
