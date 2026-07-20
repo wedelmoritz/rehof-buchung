@@ -8,6 +8,7 @@ import calendar as _calendar
 from collections import defaultdict
 from datetime import date, timedelta
 from .. import availability as A
+from .. import popularity as POP
 from ..models import (
     Allocation, ExternalBooking, ExternalConfig, Member, Quarter, QuarterBlock,
     Wish,
@@ -19,7 +20,9 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
 
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
-    'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid', 'wish_demand_ranking',
+    'wish_popularity_context', 'class_popularity_for_range', 'freest_slots',
+    'entzerrung_barometer',
+    'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
     'capture_wish_snapshots',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_plan_print', 'build_external_calendar', 'week_agenda',
@@ -175,21 +178,32 @@ def build_booking_calendar(
 def build_wish_calendar(
     member, period, year: int, month: int,
     sel_start: date | None = None, sel_end: date | None = None,
+    *, ctx: dict | None = None,
 ) -> dict:
-    """Monatsmatrix für die Wunschliste mit Ampel nach Wunsch-Nachfrage:
+    """Monatsmatrix für die Wunschliste mit Ampel nach **Beliebtheit relativ zur
+    Kapazität** (ADR 0103, P0a) – statt roher Nachfrage:
 
-      free  (grün)     – noch keine eingereichten Wünsche
-      many  (hellgrün) – wenig Nachfrage
-      few   (gelb)     – mittlere Nachfrage
-      full  (rot)      – mehr Wünsche als Quartiere → hart umkämpft
+      free  (grün)     – frei (keine überschneidenden Wünsche)
+      many  (hellgrün) – etwas gefragt (Nachfrage < Kapazität der Klasse)
+      few   (gelb)     – beliebt (Nachfrage ≈ Kapazität)
+      full  (rot)      – sehr beliebt (Nachfrage ≫ Kapazität)
 
-    Eigene Wünsche werden markiert (eingereicht vs. Entwurf).
+    Gemessen **je Äquivalenzklasse** (die Losung weicht auf gleichwertige Quartiere
+    aus, ADR 0003): je Tag bestimmt die **knappste** Klasse das Signal
+    (`popularity_band` × `worse_band`), Kapazität = Zahl der in diesem Fenster buchbaren
+    gleichwertigen Quartiere. Reine Anzeige – die Losung bleibt unberührt. Eigene
+    Wünsche werden markiert (`own_sub`).
     """
     cal = _calendar.Calendar(firstweekday=0)
     weeks = cal.monthdatescalendar(year, month)
     first, last = weeks[0][0], weeks[-1][-1]
 
-    n_quarters = max(1, Quarter.objects.filter(active=True).count())
+    # Quartiere je Äquivalenzklasse (für kapazitätsrelative Beliebtheit). Wenige
+    # Dutzend Objekte; geteilt über `ctx` (sonst hier einmal geladen). `bookable_on`
+    # nutzt die Saison-Felder.
+    ctx = ctx or wish_popularity_context()
+    q_class = ctx["q_class"]
+    q_by_class = ctx["q_by_class"]
     all_wishes, own = [], []
     if period:
         all_wishes = list(Wish.objects.filter(
@@ -199,20 +213,28 @@ def build_wish_calendar(
                 period=period, member=member, start__lte=last, end__gt=first))
     hols = school_holidays_in_range(first, last + timedelta(days=1))
     today = date.today()
+    free_band = POP.popularity_band(0, 0)
 
     grid = []
     for week in weeks:
         row = []
         for d in week:
-            demand = sum(1 for w in all_wishes if w.start <= d < w.end)
-            if demand == 0:
-                level = "free"
-            elif demand <= n_quarters // 2 or demand == 1:
-                level = "many"
-            elif demand <= n_quarters:
-                level = "few"
-            else:
-                level = "full"
+            # Überschneidende Wünsche je Klasse an diesem Tag …
+            cls_overlap: dict = defaultdict(int)
+            for w in all_wishes:
+                if w.start <= d < w.end:
+                    cls = q_class.get(w.quarter_id)
+                    if cls is not None:
+                        cls_overlap[cls] += 1
+            # … Beliebtheit je Klasse relativ zur an diesem Tag buchbaren Kapazität;
+            # die knappste Klasse bestimmt die Tages-Ampel (positiv, ADR 0072).
+            band = free_band
+            demand = 0
+            for cls, ov in cls_overlap.items():
+                demand += ov
+                cap = sum(1 for q in q_by_class.get(cls, []) if q.bookable_on(d))
+                band = POP.worse_band(band, POP.popularity_band(ov, cap))
+            level = band["tone"]
             # Wünsche sind ab dem Eintragen verbindlich (kein Entwurf mehr): jeder
             # eigene Wunsch ist markiert (own_sub).
             own_sub = any(w.start <= d < w.end for w in own)
@@ -224,7 +246,7 @@ def build_wish_calendar(
                 "in_month": d.month == month, "is_today": d == today,
                 "is_weekend": d.weekday() >= 5, "is_past": d < today,
                 "holiday": next((h.name for h in hols if h.start <= d < h.end), None),
-                "level": level, "demand": demand,
+                "level": level, "demand": demand, "band": band["label"],
                 "own_sub": own_sub,
                 "in_range": in_range, "is_start": sel_start == d,
                 "is_end": bool(sel_end) and sel_end == d,
@@ -253,6 +275,154 @@ def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
     ):
         counts[str(w.quarter_id)] += 1
     return counts
+
+
+def wish_popularity_context() -> dict:
+    """Quartier-Maps (Quartier→Klasse, Klasse→Quartiere, Klassen-Name) für die
+    kapazitätsrelativen Wunsch-Signale. **Einmal** bauen und an
+    `class_popularity_for_range`/`freest_slots`/`entzerrung_barometer`/
+    `build_wish_calendar` weiterreichen, statt sie je Funktion neu zu laden
+    (Effizienz, Code-Review-Nachtrag). Wenige Dutzend Objekte, EINE Abfrage."""
+    q_class: dict = {}
+    q_by_class: dict = defaultdict(list)
+    class_name: dict = {}
+    for q in Quarter.objects.filter(active=True).select_related("eq_class"):
+        q_class[q.id] = q.eq_class_id
+        q_by_class[q.eq_class_id].append(q)
+        class_name[q.eq_class_id] = q.eq_class.name
+    return {"q_class": q_class, "q_by_class": q_by_class, "class_name": class_name}
+
+
+def class_popularity_for_range(period, start: date, end: date, *,
+                               ctx: dict | None = None) -> dict:
+    """Beliebtheits-Band **je Quartier** für den Zeitraum [start, end) – kapazitäts-
+    relativ auf Ebene der **Äquivalenzklasse** (ADR 0103, P0b): überschneidende Wünsche
+    der Klasse gegen die Zahl der (im Fenster) buchbaren gleichwertigen Quartiere. Ein
+    Quartier erbt das Band seiner Klasse. Reine Anzeige (kein Los-Eingriff). `ctx` =
+    vorgebaute Quartier-Maps (`wish_popularity_context`), sonst selbst geladen.
+
+    Gibt ``{str(quarter_id): {"key","label","tone"}}`` für alle aktiven Quartiere."""
+    out: dict = {}
+    if not period or end <= start:
+        return out
+    ctx = ctx or wish_popularity_context()
+    q_class = ctx["q_class"]
+    q_by_class = ctx["q_by_class"]
+    cls_overlap: dict = defaultdict(int)
+    for qid, ws, we in Wish.objects.filter(
+            period=period, start__lt=end, end__gt=start,
+    ).values_list("quarter_id", "start", "end"):
+        cls = q_class.get(qid)
+        if cls is not None:
+            cls_overlap[cls] += 1
+    free = POP.popularity_band(0, 0)
+    band_by_class = {
+        cls: POP.popularity_band(
+            ov, sum(1 for q in q_by_class.get(cls, []) if q.bookable_on(start)))
+        for cls, ov in cls_overlap.items()}
+    for qid, cls in q_class.items():
+        out[str(qid)] = band_by_class.get(cls, free)
+    return out
+
+
+def freest_slots(period, *, top: int = 10, ctx: dict | None = None,
+                 wishes: list | None = None) -> list[dict]:
+    """„Wo ist noch frei?" (ADR 0103, P1a) – die **positive** Umkehrung der
+    Beliebtheits-Rangliste: in den **gefragten Wochen** die Äquivalenzklassen, die noch
+    **frei/etwas gefragt** sind – „hier bekommst du fast sicher etwas". Genau die
+    Information zum Verteilen.
+
+    Je ISO-Woche des Buchungszeitraums wird die Beliebtheit je Klasse bestimmt
+    (`popularity_band`, kapazitätsrelativ). Nur Wochen, in denen **irgendeine** Klasse
+    beliebt/sehr beliebt ist (= es gibt Nachfrage/Kontrast), werden gelistet; darin die
+    **wenig gefragten** Klassen als Ausweich-Tipp. Anonyme Aggregate, reine Anzeige.
+    `ctx`/`wishes` können vorgebaut übergeben werden (mit `entzerrung_barometer` teilbar).
+
+    Gibt `[{week_start, week_end, class_name, quarters:[…], band}]` chronologisch."""
+    out: list[dict] = []
+    if not period:
+        return out
+    year = period.target_year
+    start = period.start or date(year, 1, 1)
+    end = period.end or date(year + 1, 1, 1)
+    ctx = ctx or wish_popularity_context()
+    q_by_class = ctx["q_by_class"]
+    class_name = ctx["class_name"]
+    q_class = ctx["q_class"]
+    if wishes is None:
+        wishes = list(Wish.objects.filter(period=period)
+                      .values_list("quarter_id", "start", "end"))
+    wk_s = start - timedelta(days=start.weekday())      # Montag der Startwoche
+    while wk_s < end and len(out) < top:
+        wk_e = wk_s + timedelta(days=7)
+        cls_overlap: dict = defaultdict(int)
+        for qid, ws, we in wishes:
+            if ws < wk_e and we > wk_s:
+                cls = q_class.get(qid)
+                if cls is not None:
+                    cls_overlap[cls] += 1
+        if cls_overlap:      # nur Wochen mit Nachfrage tragen den „wo ist frei"-Kontrast
+            bands = {}
+            busy = False
+            for cls, quarters in q_by_class.items():
+                cap = sum(1 for q in quarters if q.bookable_on(wk_s))
+                if cap == 0:
+                    continue          # in dieser Woche gar nicht buchbar → kein Tipp
+                b = POP.popularity_band(cls_overlap.get(cls, 0), cap)
+                bands[cls] = b
+                if b["key"] in ("popular", "very"):
+                    busy = True
+            if busy:
+                for cls, b in bands.items():
+                    if b["key"] in ("free", "some"):
+                        out.append({
+                            "week_start": wk_s, "week_end": wk_e - timedelta(days=1),
+                            "class_name": class_name.get(cls, ""),
+                            "quarters": [q.name for q in q_by_class[cls][:3]],
+                            "band": b,
+                        })
+                        if len(out) >= top:
+                            break
+        wk_s = wk_e
+    return out
+
+
+def entzerrung_barometer(period, *, ctx: dict | None = None,
+                         wishes: list | None = None) -> dict:
+    """**Entzerrungs-Barometer** (ADR 0103, P2): ein einziger, **anonymer** Community-
+    Indikator „Anteil der Wünsche, die in **sehr beliebten** Slots liegen" (0–100 %).
+    Je niedriger, desto besser verteilt sich die Gemeinschaft – sinkt, während alle
+    entzerren. Leichtes, transparentes Nudging **ohne Namen**.
+
+    Je Wunsch wird die Beliebtheit seiner **Äquivalenzklasse** im **eigenen Zeitraum**
+    bestimmt (`popularity_band`, ADR 0105); „sehr beliebt" = überzeichnet. Reine
+    Anzeige. `ctx`/`wishes` teilbar mit `freest_slots`. Gibt `{"total", "in_very",
+    "pct", "band"}` (band = grob gut/mittel/hoch)."""
+    empty = {"total": 0, "in_very": 0, "pct": 0, "band": "none"}
+    if not period:
+        return empty
+    ctx = ctx or wish_popularity_context()
+    q_by_class = ctx["q_by_class"]
+    q_class = ctx["q_class"]
+    if wishes is None:
+        wishes = list(Wish.objects.filter(period=period)
+                      .values_list("quarter_id", "start", "end"))
+    if not wishes:
+        return empty
+    in_very = 0
+    for qid, ws, we in wishes:
+        cls = q_class.get(qid)
+        if cls is None:
+            continue
+        overlap = sum(1 for oqid, os, oe in wishes
+                      if q_class.get(oqid) == cls and os < we and oe > ws)
+        cap = sum(1 for q in q_by_class.get(cls, []) if q.bookable_on(ws))
+        if POP.popularity_band(overlap, cap)["key"] == "very":
+            in_very += 1
+    total = len(wishes)
+    pct = round(100 * in_very / total) if total else 0
+    band = "good" if pct < 20 else ("mid" if pct < 40 else "high")
+    return {"total": total, "in_very": in_very, "pct": pct, "band": band}
 
 
 def wish_demand_grid(period) -> dict:
@@ -292,28 +462,6 @@ def wish_demand_grid(period) -> dict:
     } for i, q in enumerate(quarters)]
     months = [MONTHS_DE[m][:3] for m in range(1, 13)]
     return {"rows": rows, "months": months, "max": mx}
-
-
-def wish_demand_ranking(period, *, top: int = 8) -> dict:
-    """Beliebteste **Unterkünfte** und **Zeiträume** für die Nachfrage-Ansicht
-    (ADR 0101 Batch 2-Nachtrag, Feedback e): tabellarische Ranglisten aus den
-    eingetragenen Wünschen. Nutzt das Heatmap-Raster (eine Wunsch-Abfrage) und rankt
-    daraus – nur Aggregate, keine Namen.
-
-    Gibt `{"quarters": [{name,count}], "slots": [{quarter,month,count}]}`."""
-    grid = wish_demand_grid(period) if period else {"rows": [], "months": []}
-    quarters = sorted(
-        ({"name": r["quarter"], "count": r["total"]}
-         for r in grid["rows"] if r["total"]),
-        key=lambda x: (-x["count"], x["name"]))[:top]
-    slots = []
-    for r in grid["rows"]:
-        for j, cell in enumerate(r["cells"]):
-            if cell["count"]:
-                slots.append({"quarter": r["quarter"],
-                              "month": grid["months"][j], "count": cell["count"]})
-    slots.sort(key=lambda x: (-x["count"], x["quarter"]))
-    return {"quarters": quarters, "slots": slots[:top]}
 
 
 def capture_wish_snapshots(period, now) -> bool:

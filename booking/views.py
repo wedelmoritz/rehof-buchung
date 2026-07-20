@@ -855,12 +855,20 @@ def wishlist(request):
     # Liste (Feedback c).
     wishes_overlap_any = any(getattr(w, "overlap_same_quarter", False) for w in wishes)
 
+    # Kapazitätsrelative Wunsch-Signale teilen sich die Quartier-Maps + die Perioden-
+    # Wunschliste (Effizienz, Code-Review): einmal laden, an alle Helfer reichen.
+    pop_ctx = svc.wish_popularity_context() if (member and period) else None
+    period_wishes = list(
+        Wish.objects.filter(period=period).values_list("quarter_id", "start", "end")
+    ) if period else None
+
     # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
     sel_start = _parse_date(request.GET.get("start"))
     sel_end = _parse_date(request.GET.get("end"))
     if sel_start and sel_end and sel_end <= sel_start:
         sel_end = None
-    cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end) \
+    cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end,
+                                  ctx=pop_ctx) \
         if (member and period) else None
     sel_qs = ""
     if sel_start:
@@ -875,19 +883,36 @@ def wishlist(request):
 
     eff_start = eff_end = None
     candidates = []
+    recommended = []
     high_demand = []
     wish_weekends = svc.wish_weekend_usage(member, period) if member and period else None
     wish_winter = svc.wish_winter_usage(member, period) if member and period else None
     if member and period and sel_start:
+        from .popularity import suitability_score
         eff_start = sel_start
         eff_end = sel_end if sel_end else sel_start + timedelta(days=1)
         high_demand = svc.high_demand_periods(eff_start, eff_end)
         counts = svc.quarter_wish_counts(period, eff_start, eff_end)
-        # Der Entzerrungs-Tipp (P2.4) steht jetzt JE WUNSCH in „Meine Wünsche" –
-        # erst wenn ein Wunsch wirklich aufgenommen wurde (verständlicher als unter
-        # den Kandidaten). Hier nur noch die Nachfrage-Ampel je Quartier.
+        # Kapazitätsrelative Beliebtheit je Quartier (ADR 0103, P0b) + „weniger
+        # beliebter Zeitraum"-Tipp schon HIER bei der Auswahl (Deconfliction vorgezogen).
+        bands = svc.class_popularity_for_range(period, eff_start, eff_end, ctx=pop_ctx)
+        shift = svc.wish_deconfliction(period, eff_start, eff_end)
+        free_band = {"key": "free", "label": "frei", "tone": "free"}
+        own_q = {str(w.quarter_id) for w in wishes
+                 if w.start < eff_end and w.end > eff_start}
         for q in Quarter.objects.filter(active=True).order_by("name"):
-            candidates.append({"q": q, "count": counts.get(str(q.id), 0)})
+            qid = str(q.id)
+            band = bands.get(qid, free_band)
+            candidates.append({
+                "q": q, "count": counts.get(qid, 0), "band": band,
+                "is_own": qid in own_q, "shift": shift.get(qid),
+            })
+        # Empfehlung: passende, WENIG gefragte Unterkünfte zuerst (Eignung × geringe
+        # Beliebtheit); eigene bereits gewünschte Quartiere nicht erneut empfehlen.
+        candidates.sort(key=lambda c: (
+            suitability_score(True, c["band"], own_wish=c["is_own"]), c["q"].name))
+        recommended = [c for c in candidates
+                       if c["band"]["key"] in ("free", "some") and not c["is_own"]][:3]
 
     return render(request, "booking/wishlist.html", {
         "member": member,
@@ -907,6 +932,7 @@ def wishlist(request):
         "eff_end": eff_end,
         "nights_selected": (eff_end - eff_start).days if eff_start and eff_end else 0,
         "candidates": candidates,
+        "recommended": recommended,
         "high_demand": high_demand,
         "wish_weekends": wish_weekends,
         "wish_winter": wish_winter,
@@ -929,7 +955,13 @@ def wishlist(request):
         # In den letzten Stunden vor der Losung greift der Anzeige-Stopp – dann den
         # festgehaltenen Snapshot zeigen (Stand von `freeze_start`), sonst live.
         "demand_grid": _wishlist_demand_grid(period),
-        "demand_ranking": svc.wish_demand_ranking(period) if period else None,
+        # „Wo ist noch frei?" (ADR 0103, P1a) ersetzt die Beliebtheits-Rangliste –
+        # positiv/umsetzbar statt „was ist am beliebtesten".
+        "freest": svc.freest_slots(period, ctx=pop_ctx, wishes=period_wishes)
+                  if period else None,
+        # Entzerrungs-Barometer (ADR 0103, P2): anonymer Community-Nudge.
+        "barometer": svc.entzerrung_barometer(period, ctx=pop_ctx, wishes=period_wishes)
+                     if period else None,
         "submission_deadline": period.submission_deadline if period else None,
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,

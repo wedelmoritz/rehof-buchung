@@ -70,9 +70,11 @@
 {% if view == 'neu' %}
 {% comment %}Reiter „Neue Wünsche eintragen": Kalender + Direkteingabe + Auswahl.{% endcomment %}
 <div class="card">
-  <p class="muted" style="margin-top:0">Die Ampel im Kalender zeigt, wie beliebt ein Zeitraum ist
-    (rot = besonders gefragt) – eintragen kannst du trotzdem überall. Deine eigenen Wünsche sind
-    mit &#9679; markiert. Wähle Anreise und Abreise – darunter erscheinen die passenden Unterkünfte.</p>
+  <p class="muted" style="margin-top:0">Die Ampel im Kalender zeigt, wie beliebt ein Zeitraum ist –
+    <strong>im Verhältnis zu den gleichwertigen Unterkünften</strong> (rot = sehr beliebt, viele
+    überschneidende Wünsche). Eintragen kannst du trotzdem überall. Deine eigenen Wünsche sind
+    mit &#9679; markiert. Wähle Anreise und Abreise – darunter erscheinen die passenden Unterkünfte,
+    die mit den <strong>besten Chancen zuerst</strong>.</p>
   {% include "booking/_calnav.html" %}
   <table class="cal wish-cal">
     <thead><tr><th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th></tr></thead>
@@ -81,7 +83,7 @@
       <tr>
         {% for d in week %}
         <td class="lvl-{{ d.level }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if d.in_range %}in-range{% endif %} {% if d.is_start %}is-start{% endif %} {% if d.is_end %}is-end{% endif %}"
-            {% if d.holiday %}title="{{ d.holiday }}"{% endif %}>
+            title="{{ d.band }}{% if d.holiday %} · {{ d.holiday }}{% endif %}">
           {% if d.is_start %}<span class="cap-flag start">Anreise</span>{% endif %}
           {% if d.is_end %}<span class="cap-flag end">Abreise</span>{% endif %}
           {% if d.in_month %}
@@ -99,9 +101,9 @@
     </tbody>
   </table>
   <div class="legend">
-    <span><i class="sw lvl-free"></i> keine Wünsche</span>
-    <span><i class="sw lvl-many"></i> wenig</span>
-    <span><i class="sw lvl-few"></i> mittel</span>
+    <span><i class="sw lvl-free"></i> frei</span>
+    <span><i class="sw lvl-many"></i> etwas gefragt</span>
+    <span><i class="sw lvl-few"></i> beliebt</span>
     <span><i class="sw lvl-full"></i> sehr beliebt</span>
     <span>&#9679; dein Wunsch</span>
   </div>
@@ -126,8 +128,21 @@
       &ndash; <span class="muted">Abreisetag wählen (oder 1 Nacht)</span>{% endif %}</span>
     <a class="muted" data-ajax style="margin-left:auto" href="?view=neu&year={{ cal.year }}&month={{ cal.month }}">Auswahl zurücksetzen</a>
   </div>
-  <p class="muted" style="margin-top:.2rem">Die Zahl zeigt, wie oft das Quartier in dem Zeitraum schon gewünscht ist.</p>
+  <p class="muted" style="margin-top:.2rem">Die Unterkünfte mit den <strong>besten Chancen</strong>
+    (wenig gefragt) stehen zuerst. Das Abzeichen zeigt, wie beliebt die Unterkunft in dem Zeitraum
+    ist – gemessen an den gleichwertigen Häusern.</p>
   {% include "booking/_high_demand_note.html" %}
+  {% if recommended %}
+  <div class="reco-box">
+    <p class="reco-head">💡 <strong>Empfohlen: hier hast du die besten Chancen</strong></p>
+    <ul class="reco-list">
+      {% for c in recommended %}
+      <li><strong>{{ c.q.name }}</strong> <span class="pop pop-{{ c.band.key }}">{{ c.band.label }}</span>
+        <span class="muted">· {{ c.q.min_occupancy }}–{{ c.q.max_occupancy }} Pers.</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
   {% for c in candidates %}
   <form class="qrow" method="post">{% csrf_token %}
     <input type="hidden" name="action" value="add_wish">
@@ -137,7 +152,9 @@
     <input type="hidden" name="end" value="{{ eff_end|date:'Y-m-d' }}">
     <span class="qname">{{ c.q.name }}</span>
     <span class="muted qmeta">{{ c.q.size_sqm }} m² · {{ c.q.min_occupancy }}–{{ c.q.max_occupancy }} Pers.</span>
-    {% if c.count %}<span class="tag con">{{ c.count }}× gewünscht</span>{% else %}<span class="tag">frei</span>{% endif %}
+    <span class="pop pop-{{ c.band.key }}" title="{{ c.count }} überschneidende Wünsche in diesem Zeitraum">{{ c.band.label }}</span>
+    {% if c.shift %}<span class="tag alt" title="Ein leicht verschobener Zeitraum für diese Unterkunft ist weniger gefragt.">💡 {{ c.shift.best.start|date:'d.m.' }}–{{ c.shift.best.end|date:'d.m.' }} freier</span>{% endif %}
+    {% if c.is_own %}<span class="tag mine" title="Du hast diese Unterkunft in dem Zeitraum schon gewünscht.">schon gewünscht</span>{% endif %}
     <span class="spacer"></span>
     {% if memberships|length > 1 %}
     <select name="membership" aria-label="Mitglieds-Anteil" class="ms-pick">
@@ -156,6 +173,18 @@
 
 {% elif view == 'nachfrage' %}
 {% comment %}Reiter „Nachfrage & Heatmap" (Feedback d/e).{% endcomment %}
+{% if barometer and barometer.total %}
+<div class="card baro-card">
+  <div class="baro-head">
+    <h2 style="margin:0">Verteilen wir uns?</h2>
+    <span class="baro-val baro-{{ barometer.band }}">{{ barometer.pct }}&nbsp;%</span>
+  </div>
+  <div class="baro-track"><span class="baro-fill baro-{{ barometer.band }}" style="width:{{ barometer.pct }}%"></span></div>
+  <p class="muted sm" style="margin:.5rem 0 0">So viele Wünsche liegen in <strong>sehr beliebten</strong>
+    Zeiten. <strong>Je niedriger, desto besser</strong> verteilt sich die Gemeinschaft – jeder Wunsch,
+    den du auf eine ruhigere Zeit legst, senkt den Wert für alle. (Anonym, keine Namen.)</p>
+</div>
+{% endif %}
 {% if demand_grid and demand_grid.max %}
 <div class="card">
   <h2 style="margin-top:0">Nachfrage-Heatmap</h2>
@@ -179,30 +208,25 @@
 {% endif %}
 
 <div class="card">
-  <h2 style="margin-top:0">Beliebteste Unterkünfte &amp; Zeiträume</h2>
-  {% if demand_ranking and demand_ranking.quarters %}
-  <div class="rank-grid">
-    <div class="rank-col">
-      <h3>Unterkünfte</h3>
-      <table class="rank">
-        <thead><tr><th>Unterkunft</th><th>Wünsche</th></tr></thead>
-        <tbody>
-          {% for q in demand_ranking.quarters %}<tr><td>{{ q.name }}</td><td class="num">{{ q.count }}</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div class="rank-col">
-      <h3>Zeiträume (Unterkunft · Monat)</h3>
-      <table class="rank">
-        <thead><tr><th>Unterkunft · Monat</th><th>Wünsche</th></tr></thead>
-        <tbody>
-          {% for s in demand_ranking.slots %}<tr><td>{{ s.quarter }} · {{ s.month }}</td><td class="num">{{ s.count }}</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <p class="muted sm" style="margin:.6rem 0 0">Reine Nachfrage-Zahlen (keine Namen). Sie helfen dir
-    beim <strong>Entzerren</strong>: gefragte Unterkünfte/Zeiten meiden, wo es geht.</p>
+  <h2 style="margin-top:0">Wo ist noch frei?</h2>
+  <p class="muted sm" style="margin:.2rem 0 .6rem">In den <strong>gefragten Wochen</strong> zeigen wir
+    dir die gleichwertigen Unterkünfte, die noch <strong>frei</strong> bzw. <strong>etwas gefragt</strong>
+    sind – dort hast du <strong>fast sichere Chancen</strong>. So verteilen wir uns gemeinsam. (Anonyme
+    Zahlen, keine Namen.)</p>
+  {% if freest %}
+  <ul class="freest-list">
+    {% for f in freest %}
+    <li>
+      <span class="fw">{{ f.week_start|date:"d.m." }}&ndash;{{ f.week_end|date:"d.m." }}</span>
+      <span class="pop pop-{{ f.band.key }}">{{ f.band.label }}</span>
+      <span class="fc"><strong>{{ f.class_name }}</strong>
+        <span class="muted">({{ f.quarters|join:", " }})</span></span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif demand_grid and demand_grid.max %}
+  <p class="muted" style="margin:0">Aktuell sind keine Wochen stark gefragt – du hast <strong>überall
+    gute Chancen</strong>. 🎉</p>
   {% else %}
   <p class="muted" style="margin:0">Noch keine Wünsche eingetragen.</p>
   {% endif %}
@@ -448,6 +472,19 @@
   .qrow { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
     border:1px solid var(--line); border-radius:11px; padding:.5rem .7rem; margin-bottom:.45rem; }
   .qrow .qname { font-weight:600; } .qrow .qmeta { font-size:.85rem; } .qrow .spacer { margin-left:auto; }
+  /* Kapazitätsrelative Beliebtheit (ADR 0103, P0), positive Wortwahl. */
+  .pop { font-size:.72rem; font-weight:600; padding:.12rem .5rem; border-radius:999px;
+    white-space:nowrap; }
+  .pop-free { background:var(--good-soft); color:var(--good-deep); }
+  .pop-some { background:var(--sage-soft); color:var(--sage-deep); }
+  .pop-popular { background:var(--warn-soft); color:var(--warn); }
+  .pop-very { background:var(--bad-soft); color:var(--bad); }
+  .tag.alt { background:var(--accent-soft); color:var(--accent-deep); }
+  .reco-box { background:var(--good-soft); border:1px solid var(--good);
+    border-radius:11px; padding:.55rem .8rem; margin:.2rem 0 .8rem; }
+  .reco-head { margin:0 0 .3rem; color:var(--good-deep); }
+  .reco-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.25rem; }
+  .reco-list li { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
   /* Wunsch-Liste */
   ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
   li.wish { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; background:var(--card);
@@ -499,6 +536,20 @@
     background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
   .rank-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
   @media (max-width:640px){ .rank-grid { grid-template-columns:1fr; } .wo-num { font-size:1.3rem; } }
+  /* Entzerrungs-Barometer (ADR 0103, P2) */
+  .baro-head { display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; }
+  .baro-val { font-size:1.6rem; font-weight:800; font-variant-numeric:tabular-nums; }
+  .baro-track { margin-top:.5rem; height:12px; border-radius:999px; background:var(--line); overflow:hidden; }
+  .baro-fill { display:block; height:100%; border-radius:999px; }
+  .baro-good { color:var(--good-deep); } .baro-fill.baro-good { background:var(--good); }
+  .baro-mid { color:var(--warn); } .baro-fill.baro-mid { background:var(--warn); }
+  .baro-high { color:var(--bad); } .baro-fill.baro-high { background:var(--bad); }
+  /* „Wo ist noch frei?" (ADR 0103, P1a) */
+  ul.freest-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; }
+  ul.freest-list li { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+    border-bottom:1px solid var(--line); padding:.35rem 0; }
+  ul.freest-list .fw { font-variant-numeric:tabular-nums; font-weight:600; min-width:6.2rem; }
+  ul.freest-list .fc { font-size:.92rem; }
   .rank-col h3 { margin:.2rem 0 .4rem; font-size:1rem; }
   table.rank { width:100%; border-collapse:collapse; font-size:.9rem; }
   table.rank th, table.rank td { text-align:left; padding:.35rem .5rem; border-bottom:1px solid var(--line); }
