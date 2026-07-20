@@ -107,13 +107,72 @@ flexibel beim Haus'), das System schlägt sinnvolle Wünsche vor." Nur der **Par
 deterministische Optimierer (P0b). Drei Umsetzungswege, ehrlich nach Aufwand/Ressourcen:
 
 ### Weg A – Regelbasiert (Schlagwörter + Datums-Parser) — **empfohlen, falls überhaupt NL**
-Deutsche Kurz-Eingaben mit Wörterbuch + Datums-Bibliothek parsen: Jahreszeiten/Feiertage
-(„Sommer", „Pfingsten"), Personen/Kinder, „ruhig/barrierefrei", „flexibel". Keine KI.
-- **Aufwand:** niedrig–mittel (ein Parser-Modul in der reinen Logik + Tests).
-- **Server-Ressourcen:** **vernachlässigbar** – ein paar MB (Datums-Lib), Parse in
+
+Deutsche Kurz-Eingaben mit Wörterbuch + Datums-Regeln in **strukturierte Constraints**
+übersetzen, die das normale Buchungs-/Wunsch-Formular **vorausfüllen** (parse-and-confirm:
+best-effort, nie blockierend, das Mitglied prüft/korrigiert). Keine KI, keine externe
+Abhängigkeit.
+
+**Prinzip: reine Logik mit injizierten Stammdaten.** Wie `booking/beds24.py` bekommt der
+Parser die Domänendaten **als Argumente hereingereicht** – er hat **keine hartcodierten
+Quartiere, Klassen oder Ferientermine**. Vorschlag: `booking/wish_nl.py` (Django-frei),
+`parse_wish_text(text, *, seasons, holidays, quarters, eq_classes) → WishIntent`. Der
+Service reicht die **tatsächlich konfigurierten** Objekte an:
+
+- **Zeitraum benannt** („Pfingsten", „Herbstferien", „Hochsaison"): das Vokabular wird
+  **dynamisch** aus den konfigurierten `SchoolHoliday`- und `SeasonRule`-Einträgen gebaut
+  (Name → materialisierter Zeitraum im Zieljahr, `services._materialized_seasons` /
+  `availability.recurring_range`). Ändert die Verwaltung die Ferien, ändert sich das
+  Vokabular automatisch mit – **kein** fester „Sommer = Juni–August"-Code.
+- **Zeitraum konkret** („12.–19. Juli", „ab 3.10. für eine Woche"): Datums-Regex + eine
+  kleine Dauer-Wortliste („eine Woche", „übers Wochenende", „10 Tage").
+- **Quartier/Klasse** („Turmzimmer", „was Barrierefreies", „Stall"): unscharfer Abgleich
+  gegen `Quarter.objects.filter(active=True)` **und** die `EquivalenceClass`-Namen über den
+  vorhandenen `name_score`/`rank_candidates` aus `booking/beds24.py`. Nur real existierende
+  Unterkünfte/Klassen können getroffen werden; Saison-Grenzen (`Quarter.season_*`) filtern
+  die Vorschläge wie überall.
+- **Merkmale mit Modell-Feld:** „barrierefrei/rollstuhlgerecht" → `Quarter.accessible`;
+  Personen-/Kinderzahl → Belegungs-Constraint. „Für die Gruppe/viele Leute" kann die
+  `prefer_for_groups`-Reihung anstoßen.
+
+**Besonderheiten (mit/ohne …) – ehrlich am Datenmodell.** Diese sind **keine**
+Quartier-Filter, weil es dafür **kein** konfiguriertes `Quarter`-Feld gibt – sie gehören zur
+konkreten Buchung, nicht zur Unterkunftsauswahl:
+
+- **mit/ohne Endreinigung:** die Endreinigung ist eine buchbare, bestätigungspflichtige
+  `shop`-Dienstleistung (`needs_approval`, `services.request_service`). „mit Endreinigung"
+  setzt daher im **Buchungs-Bestätigungsschritt** die Opt-in-Auswahl vor, es ist **kein**
+  Wunsch-/Filter-Kriterium.
+- **mit/ohne Hund, mit/ohne Beistellbett:** das sind **Freitext-Besonderheiten** der Buchung
+  (`Allocation.special_requests`, dem Mitglied sichtbar), kein strukturiertes Feld. Der
+  Parser erkennt sie als Schlagwörter und **merkt sie als mitgeführte Besonderheit vor**, die
+  den späteren Buchungsschritt vorbefüllt.
+- **Modell-Hinweis:** `Wish` trägt heute **kein** Besonderheiten-/Notizfeld. Für die Losung
+  sind diese Angaben auch irrelevant (sie ändern die Zuteilung nicht). Sie sinnvoll
+  *bis* zur späteren Buchung durchzureichen bräuchte ein kleines optionales `Wish`-Feld
+  (Migration) **oder** sie greifen erst im Buchungsschritt (`book_confirm`, wo
+  `special_requests`/Endreinigung ohnehin erfasst werden) – die schlankere Variante und
+  daher empfohlen.
+
+**Grobe Eingaben → sinnvolle Optionen** sind **kein neuer Mechanismus:** sobald der Parser
+Zeitraum/Quartier grob gesetzt hat, greift die **bereits eingeführte** Vorschlags-Engine
+(P0b bzw. `services.wish_alternatives`/Kandidaten) und bietet konkrete, saison- und
+nachfrage-gefilterte Alternativen an. Der Parser strukturiert nur die Eingabe; das Ausgeben
+sinnvoller Optionen ist vorhanden.
+
+- **Aufwand:** niedrig–mittel (ein Parser-Modul in der reinen Logik + Tests; Stammdaten
+  werden injiziert, keine DB-Kopplung).
+- **Server-Ressourcen:** **vernachlässigbar** – Wörterbuch + Datums-Regex, Parse in
   **Millisekunden** auf der CPU. Keine neue Infrastruktur.
-- **Reichweite:** deckt ~80 % realistischer Kurz-Eingaben ab; alles andere fällt sauber
-  auf die normale Formular-Auswahl zurück.
+- **Möglichkeiten:** deckt realistische Kurz-Eingaben (benannter/konkreter Zeitraum +
+  Quartier/Klasse + Personen + barrierefrei + Besonderheiten) zuverlässig ab; deterministisch,
+  erklärbar, testbar, DSGVO-neutral (nichts verlässt den Server).
+- **Grenzen (ehrlich):** vage Eingaben ohne fassbaren Zeitraum, Verneinung/Entweder-oder
+  jenseits weniger fester Muster, Tippfehler/Dialekt, lange erzählende Sätze mit
+  Bedingungen und nicht-modellierte Präferenzen („ruhig", „mit Sauna" – kein Feld) werden
+  **nicht** verstanden. Das ist unkritisch: alles fällt sauber auf die normale
+  Formular-Auswahl zurück (best-effort, nie blockierend), und der Parser **entscheidet nie** –
+  er füllt nur ein Formular vor, das das Mitglied bestätigt.
 
 ### Weg B – Kleines **lokales** Sprachmodell (on-prem), nur zum Parsen
 Ein 1–3-B-Parameter-Instruct-Modell (z. B. Llama 3.2 1B/3B, Qwen2.5 1.5B, Phi-3-mini)
