@@ -79,6 +79,23 @@ class PopularityTests(TestCase):
                    if d["date"] == self.s - timedelta(days=1)}
         self.assertEqual(outside, {"free"})
 
+    def test_entzerrung_barometer(self):
+        # 4 Wünsche in „Klein" (Kapazität 2) im selben Zeitraum → ratio 2.0 → sehr
+        # beliebt; 1 Wunsch im freien Solo-Quartier → nur „beliebt". Anteil sehr
+        # beliebter Wünsche = 4/5 = 80 %.
+        for i, q in enumerate((self.q1, self.q2, self.q1, self.q2)):
+            self._wish(_member(f"b{i}"), q)
+        self._wish(_member("bsolo"), self.q3)
+        baro = svc.entzerrung_barometer(self.period)
+        self.assertEqual(baro["total"], 5)
+        self.assertEqual(baro["in_very"], 4)
+        self.assertEqual(baro["pct"], 80)
+        self.assertEqual(baro["band"], "high")
+
+    def test_barometer_leer_ohne_wuensche(self):
+        baro = svc.entzerrung_barometer(self.period)
+        self.assertEqual(baro, {"total": 0, "in_very": 0, "pct": 0, "band": "none"})
+
     def test_wishlist_zeigt_empfehlung_und_baender(self):
         # Nachfrage nur in der „Klein"-Klasse; das Solo-Quartier ist frei → Empfehlung.
         for i, q in enumerate((self.q1, self.q2, self.q1, self.q2)):

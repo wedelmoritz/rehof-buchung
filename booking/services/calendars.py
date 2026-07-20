@@ -20,7 +20,7 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
 
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
-    'class_popularity_for_range', 'freest_slots',
+    'class_popularity_for_range', 'freest_slots', 'entzerrung_barometer',
     'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
     'capture_wish_snapshots',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
@@ -368,6 +368,43 @@ def freest_slots(period, *, top: int = 10) -> list[dict]:
                             break
         wk_s = wk_e
     return out
+
+
+def entzerrung_barometer(period) -> dict:
+    """**Entzerrungs-Barometer** (ADR 0103, P2): ein einziger, **anonymer** Community-
+    Indikator „Anteil der Wünsche, die in **sehr beliebten** Slots liegen" (0–100 %).
+    Je niedriger, desto besser verteilt sich die Gemeinschaft – sinkt, während alle
+    entzerren. Leichtes, transparentes Nudging **ohne Namen**.
+
+    Je Wunsch wird die Beliebtheit seiner **Äquivalenzklasse** im **eigenen Zeitraum**
+    bestimmt (`popularity_band`, ADR 0105); „sehr beliebt" = überzeichnet. Reine
+    Anzeige. Gibt `{"total", "in_very", "pct", "band"}` (band = grob gut/mittel/hoch)."""
+    empty = {"total": 0, "in_very": 0, "pct": 0, "band": "none"}
+    if not period:
+        return empty
+    q_by_class: dict = defaultdict(list)
+    q_class: dict = {}
+    for q in Quarter.objects.filter(active=True):
+        q_by_class[q.eq_class_id].append(q)
+        q_class[q.id] = q.eq_class_id
+    wishes = list(Wish.objects.filter(period=period)
+                  .values_list("quarter_id", "start", "end"))
+    if not wishes:
+        return empty
+    in_very = 0
+    for qid, ws, we in wishes:
+        cls = q_class.get(qid)
+        if cls is None:
+            continue
+        overlap = sum(1 for oqid, os, oe in wishes
+                      if q_class.get(oqid) == cls and os < we and oe > ws)
+        cap = sum(1 for q in q_by_class.get(cls, []) if q.bookable_on(ws))
+        if POP.popularity_band(overlap, cap)["key"] == "very":
+            in_very += 1
+    total = len(wishes)
+    pct = round(100 * in_very / total) if total else 0
+    band = "good" if pct < 20 else ("mid" if pct < 40 else "high")
+    return {"total": total, "in_very": in_very, "pct": pct, "band": band}
 
 
 def wish_demand_grid(period) -> dict:

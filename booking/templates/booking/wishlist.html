@@ -173,6 +173,18 @@
 
 {% elif view == 'nachfrage' %}
 {% comment %}Reiter „Nachfrage & Heatmap" (Feedback d/e).{% endcomment %}
+{% if barometer and barometer.total %}
+<div class="card baro-card">
+  <div class="baro-head">
+    <h2 style="margin:0">Verteilen wir uns?</h2>
+    <span class="baro-val baro-{{ barometer.band }}">{{ barometer.pct }}&nbsp;%</span>
+  </div>
+  <div class="baro-track"><span class="baro-fill baro-{{ barometer.band }}" style="width:{{ barometer.pct }}%"></span></div>
+  <p class="muted sm" style="margin:.5rem 0 0">So viele Wünsche liegen in <strong>sehr beliebten</strong>
+    Zeiten. <strong>Je niedriger, desto besser</strong> verteilt sich die Gemeinschaft – jeder Wunsch,
+    den du auf eine ruhigere Zeit legst, senkt den Wert für alle. (Anonym, keine Namen.)</p>
+</div>
+{% endif %}
 {% if demand_grid and demand_grid.max %}
 <div class="card">
   <h2 style="margin-top:0">Nachfrage-Heatmap</h2>
@@ -524,6 +536,14 @@
     background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
   .rank-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
   @media (max-width:640px){ .rank-grid { grid-template-columns:1fr; } .wo-num { font-size:1.3rem; } }
+  /* Entzerrungs-Barometer (ADR 0103, P2) */
+  .baro-head { display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; }
+  .baro-val { font-size:1.6rem; font-weight:800; font-variant-numeric:tabular-nums; }
+  .baro-track { margin-top:.5rem; height:12px; border-radius:999px; background:var(--line); overflow:hidden; }
+  .baro-fill { display:block; height:100%; border-radius:999px; }
+  .baro-good { color:var(--good-deep); } .baro-fill.baro-good { background:var(--good); }
+  .baro-mid { color:var(--warn); } .baro-fill.baro-mid { background:var(--warn); }
+  .baro-high { color:var(--bad); } .baro-fill.baro-high { background:var(--bad); }
   /* „Wo ist noch frei?" (ADR 0103, P1a) */
   ul.freest-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; }
   ul.freest-list li { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;

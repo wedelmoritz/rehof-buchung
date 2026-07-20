@@ -950,6 +950,8 @@ def wishlist(request):
         # „Wo ist noch frei?" (ADR 0103, P1a) ersetzt die Beliebtheits-Rangliste –
         # positiv/umsetzbar statt „was ist am beliebtesten".
         "freest": svc.freest_slots(period) if period else None,
+        # Entzerrungs-Barometer (ADR 0103, P2): anonymer Community-Nudge.
+        "barometer": svc.entzerrung_barometer(period) if period else None,
         "submission_deadline": period.submission_deadline if period else None,
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,

@@ -266,9 +266,11 @@ unter/über Budget→gelb · Überlappung→rot, jeweils erklärt) + Richtschnü
 Liste], „Neue Wünsche eintragen" [Kalender **mit kapazitätsrelativer Beliebtheits-Ampel je
 Äquivalenzklasse** + Kandidaten **nach Eignung×geringe Beliebtheit** sortiert + „Empfohlen"-
 Block + vorgezogener „weniger beliebter Zeitraum"-Tipp, ADR 0103/0105 P0] und
-„Nachfrage & Heatmap" [`wish_demand_grid` (Überblick) + **„Wo ist noch frei?"**
-`freest_slots`: in gefragten Wochen die noch freien gleichwertigen Klassen als Ausweich-Tipp –
-**ersetzt** die frühere Beliebtheits-Rangliste, ADR 0103/0106 P1]. Je Wunsch nur Quartier/Zeitraum (+ Status-Punkt) + Aufklapper **„Details &
+„Nachfrage & Heatmap" [**Entzerrungs-Barometer** `entzerrung_barometer` (anonymer Community-
+Nudge „Anteil der Wünsche in sehr beliebten Slots", HTML/CSS-Balken, ADR 0103/0107 P2) +
+`wish_demand_grid` (Überblick) + **„Wo ist noch frei?"** `freest_slots`: in gefragten Wochen
+die noch freien gleichwertigen Klassen als Ausweich-Tipp – **ersetzt** die frühere
+Beliebtheits-Rangliste, ADR 0103/0106 P1]. Je Wunsch nur Quartier/Zeitraum (+ Status-Punkt) + Aufklapper **„Details &
 Aktionen"** – **erst dort** kompakte Status-Abzeichen [**Nachfrage-Ampel** `wish_demand_band`:
 keine/wenige/beliebt/sehr beliebt aus überlappenden Fremd-Wünschen, OHNE Prozent · **Los-Chance**
 qualitativ gut/offen/knapp mit **konkretem Grund** „stark nachgefragt" vs. „eigene Reihenfolge/
