@@ -1282,10 +1282,14 @@ def member_search(request):
                   | Q(user__first_name__icontains=q)
                   | Q(user__last_name__icontains=q))
           .select_related("user").order_by("display_name")[:20])
+    # Bewusst OHNE `username`: der Benutzername ist bei den meisten Konten die
+    # E-Mail-Adresse (Selbstregistrierung/E-Mail-Wechsel setzen ihn darauf). Ihn im
+    # Typeahead zurückzugeben würde den kompletten Mitglieder-E-Mail-Verteiler an jedes
+    # eingeloggte Konto ausliefern (PII/DSGVO, Security-Fix). Anzeige-Name + echter
+    # Name genügen zur Auswahl; die Suche matcht serverseitig weiter auf E-Mail/Login.
     results = [{
         "id": m.id,
         "name": m.display_name,
-        "username": m.user.username if m.user_id else "",
         "full_name": m.user.get_full_name() if m.user_id else "",
     } for m in qs]
     return JsonResponse({"results": results})
@@ -1351,6 +1355,25 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
     from shop import services as shop_svc
     from shop.models import Invoice
     action = request.POST.get("action")
+    # Least-Privilege je Aktion (Security): der Sammel-POST /verwaltung/ ist nur
+    # BEREICHS-gegated (Capability „dashboard" = irgendeine Verwaltungsrolle). Ohne
+    # pro-Aktion-Prüfung könnte die schwächste Rolle (z. B. nur Hofladen) jede
+    # Aktion auslösen. Darum hier das konkret nötige Recht erzwingen (Superuser/
+    # Legacy-Verwaltung sind über `user_can` weiterhin voll berechtigt).
+    _BLOCK_PERM = (authz.P_BUCHUNGEN, authz.P_QUARTIERE)      # wie Sperrzeiten-Seite
+    ACTION_PERM = {
+        "send_cleaning": authz.P_BUCHUNGEN, "send_upcoming": authz.P_BUCHUNGEN,
+        "confirm_service": authz.P_BUCHUNGEN, "reject_service": authz.P_BUCHUNGEN,
+        "set_note": authz.P_BUCHUNGEN,
+        "remind_overdue": authz.P_RECHNUNGEN, "remind_one": authz.P_RECHNUNGEN,
+        "import_bank": authz.P_RECHNUNGEN,
+        "add_block": _BLOCK_PERM, "force_block": _BLOCK_PERM,
+        "edit_block": _BLOCK_PERM, "delete_block": _BLOCK_PERM,
+        "propose_reloc": _BLOCK_PERM, "apologize_block": _BLOCK_PERM,
+    }
+    _needed = ACTION_PERM.get(action)
+    if _needed is not None and not authz.user_can(request.user, _needed):
+        raise PermissionDenied("Für diese Verwaltungs-Aktion fehlt die Berechtigung.")
     target, extra = "dashboard", ""
     if action == "send_cleaning":
         deps = list(svc.departures_in_range(m_from, m_to))
