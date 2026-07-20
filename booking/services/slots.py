@@ -49,10 +49,26 @@ def _block_qs(quarter: Quarter, start: date, end: date):
         quarter=quarter, start__lt=end, end__gt=start)
 
 
-def quarter_is_free(quarter: Quarter, start: date, end: date) -> bool:
+def quarter_is_free(quarter: Quarter, start: date, end: date,
+                    *, occupied_days=None) -> bool:
     """Prüft, ob ein Quartier im Zeitraum [start, end) komplett frei ist –
     berücksichtigt Mitglieder-Zuteilungen, bestätigte externe Buchungen UND
-    Sperrzeiten (Reinigung/Reparatur, #61)."""
+    Sperrzeiten (Reinigung/Reparatur, #61).
+
+    Effizienz (ADR 0111): Wird `occupied_days` (die belegten Tage DIESES Quartiers
+    aus `_occupied_days_by_quarter`, eine `set[date]`) übergeben, prüft die Funktion
+    rein in Python gegen die Menge statt drei `.exists()`-Abfragen zu feuern – so
+    lässt sich in Schleifen (viele Quartiere) die Belegung EINMAL vorab laden. Die
+    Menge deckt Zuteilungen, bestätigte Externe UND Sperrzeiten ab (identisch zum
+    DB-Pfad). Ohne das Argument bleibt der frische DB-Pfad (für die Buchung unter
+    Sperre)."""
+    if occupied_days is not None:
+        d = start
+        while d < end:
+            if d in occupied_days:
+                return False
+            d += timedelta(days=1)
+        return True
     if Allocation.objects.filter(
             quarter=quarter, start__lt=end, end__gt=start).exists():
         return False
@@ -568,11 +584,18 @@ def _in_season_range(quarter: Quarter, start: date, end: date) -> bool:
     return True
 
 
-def range_is_released(quarter: Quarter, start: date, end: date) -> bool:
+def range_is_released(quarter: Quarter, start: date, end: date,
+                      *, windows=None) -> bool:
     """Ist der Zeitraum [start, end) für das Quartier freigeschaltet UND liegt er
-    im (jährlichen) Buchbarkeitszeitraum des Quartiers?"""
+    im (jährlichen) Buchbarkeitszeitraum des Quartiers?
+
+    Effizienz (ADR 0111): Wird `windows` (die freigeschalteten Perioden aus
+    `_active_windows()`) übergeben, entfällt die DB-Abfrage – so lässt sich in
+    Schleifen die Freigabe-Liste EINMAL vorab laden statt je Quartier neu."""
+    if windows is None:
+        windows = _active_windows()
     return (
-        A.range_released(_active_windows(), str(quarter.id), start, end)
+        A.range_released(windows, str(quarter.id), start, end)
         and _in_season_range(quarter, start, end)
     )
 

@@ -14,7 +14,8 @@ from ..models import (
 )
 from .notify import absolute_url, email_member
 from .slots import (
-    check_booking_rules, has_fitting_free_quarter, is_gap_fill, lead_time_blocker,
+    _active_windows, _occupied_days_by_quarter, check_booking_rules,
+    has_fitting_free_quarter, is_gap_fill, lead_time_blocker,
     min_nights_for_range, quarter_is_free, range_is_released, undersized_allowed,
 )
 
@@ -325,13 +326,21 @@ def concurrent_allocations(allocation: Allocation):
 
 def free_quarters_for(start: date, end: date, persons: int, exclude_id=None):
     """Quartiere, die im Zeitraum [start, end) komplett frei + freigeschaltet sind
-    und zur Personenzahl passen (für den Unterkunfts-Wechsel beim Anpassen)."""
+    und zur Personenzahl passen (für den Unterkunfts-Wechsel beim Anpassen).
+
+    Effizienz (ADR 0111): Freigabe-Perioden und Belegung werden EINMAL vorab
+    geladen und je Quartier wiederverwendet (statt je Quartier neu abzufragen) –
+    aus ~4×N Abfragen werden wenige konstante. Nur aktive Quartiere (wie überall)."""
     allow_under = undersized_allowed()
+    windows = _active_windows()
+    occ = _occupied_days_by_quarter(start, end - timedelta(days=1))
     fitting, oversized = [], []
-    for q in Quarter.objects.order_by("name"):
+    for q in Quarter.objects.filter(active=True).order_by("name"):
         if exclude_id and q.id == exclude_id:
             continue
-        if not (range_is_released(q, start, end) and quarter_is_free(q, start, end)):
+        if not (range_is_released(q, start, end, windows=windows)
+                and quarter_is_free(q, start, end,
+                                    occupied_days=occ.get(str(q.id), set()))):
             continue
         if q.min_occupancy <= persons <= q.max_occupancy:
             fitting.append(q)

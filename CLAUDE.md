@@ -1025,7 +1025,12 @@ Tempo):** Gunicorn läuft als **`gthread`** (gleichzeitige Requests ≈
 `max_connections`, sonst PgBouncer); `CONN_HEALTH_CHECKS=True` zu `conn_max_age`.
 Hot-Pfade ohne N+1 (gemessen: Startseite 23, Backend Mitglieds-Anteile 14,
 Rechnungen 18 Queries – via `select_related`/`prefetch`/Annotation/Indizes, u. a.
-`shop.LineItem(member,purchase,invoice)`). **Geteilter Belegungs-Cache**
+`shop.LineItem(member,purchase,invoice)`). Die **Verfügbarkeits-Hot-Paths** laden
+Vorab-Daten statt je Quartier neu abzufragen (ADR 0111): `quarter_is_free(…,
+occupied_days=…)`/`range_is_released(…, windows=…)` nehmen optionale Vorab-Mengen,
+`free_quarters_for` lädt Perioden+Belegung EINMAL (statt ~4×N Abfragen; nur
+`active=True`), `shop_invoices` prefetcht `items` (für `total_gross`); der
+Schreibpfad prüft weiter IMMER frisch unter Sperre. **Geteilter Belegungs-Cache**
 (`_occupied_days_by_quarter`) ist **nur mit Redis** aktiv (LocMem = pro Worker →
 stale) und wird per Signal nach jeder Buchungsänderung invalidiert (`on_commit`);
 gecacht werden nur ohnehin allgemein sichtbare Belegungsdaten – die Buchung prüft

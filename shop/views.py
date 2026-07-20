@@ -137,7 +137,9 @@ def invoices(request):
                 else messages.error(request, err or "Nicht möglich.")
         return redirect("shop_invoices")
 
-    invs = list(member.invoices.all()) if member else []
+    # Positionen vorab laden: die Liste zeigt je Rechnung `total_gross`, das über
+    # `items` summiert – ohne Prefetch eine Abfrage je Rechnung (N+1, ADR 0111).
+    invs = list(member.invoices.prefetch_related("items")) if member else []
     return render(request, "shop/invoices.html", {
         "member": member,
         "invoices": invs,
