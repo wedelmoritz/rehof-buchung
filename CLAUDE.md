@@ -240,7 +240,10 @@ auf dem Balken + Tooltip + Klick fürs Tagesdetail; Ferien via Tages-Tooltip –
 Legende war redundant. Die Balken-Farbe bleibt rein dekorativ/Gemeinschaftsaspekt,
 `color_map` in `views.overview`)), `book` (Ampel-Kalender → Personen/
 Barrierefrei oben einstellen, Anreise/Abreise klicken oder Datum direkt
-eingeben – auch über Monatsgrenzen –, passende Quartiere wählen bzw. Warteliste;
+eingeben – auch über Monatsgrenzen –, **oder per Freitextfeld „mit eigenen Worten"**
+[NL-Parser, ADR 0103/0108: `services.nl_parse_booking` → füllt Personen/barrierefrei/
+Zeitraum vor + markiert vorgeschlagene Unterkunft, Vorschau-Banner, parse-and-confirm],
+passende Quartiere wählen bzw. Warteliste;
 für den Zeitraum **nicht buchbare** Unterkünfte (Saison/nicht freigeschaltet)
 erscheinen **ausgegraut mit Grund** statt zu verschwinden [`services.
 unavailable_quarters_for_range` + `Quarter.season_label`, „Nur saisonal buchbar
@@ -268,7 +271,9 @@ Kennzahlen (Anzahl/Tage/Budget/**Karma**) + Handlungsbedarf-Ampel (0 Wünsche→
 unter/über Budget→gelb · Überlappung→rot, jeweils erklärt) + Richtschnüre; darunter die
 Liste], „Neue Wünsche eintragen" [Kalender **mit kapazitätsrelativer Beliebtheits-Ampel je
 Äquivalenzklasse** + Kandidaten **nach Eignung×geringe Beliebtheit** sortiert + „Empfohlen"-
-Block + vorgezogener „weniger beliebter Zeitraum"-Tipp, ADR 0103/0105 P0] und
+Block + vorgezogener „weniger beliebter Zeitraum"-Tipp, ADR 0103/0105 P0; zusätzlich
+**Freitextfeld „mit eigenen Worten"** (NL-Parser `services.nl_parse_wish` füllt Zeitraum/
+Unterkunft vor + Vorschau, ADR 0103/0108)] und
 „Nachfrage & Heatmap" [**Entzerrungs-Barometer** `entzerrung_barometer` (anonymer Community-
 Nudge „Anteil der Wünsche in sehr beliebten Slots", HTML/CSS-Balken, ADR 0103/0107 P2) +
 `wish_demand_grid` (Überblick) + **„Wo ist noch frei?"** `freest_slots`: in gefragten Wochen

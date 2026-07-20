@@ -21,8 +21,9 @@ from .external_ops import *  # noqa: F401,F403
 from .terminal_ops import *  # noqa: F401,F403
 from .helptexts import *  # noqa: F401,F403
 from .blocks import *  # noqa: F401,F403
+from .nl import *  # noqa: F401,F403
 
-from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops, helptexts, blocks  # noqa: F401
+from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops, helptexts, blocks, nl  # noqa: F401
 
 # Parität zur alten `services.py`: dort waren die importierten Modelle und die
 # reinen Logik-Module als Modul-Attribute erreichbar (z.B. `svc.ExternalConfig`,
@@ -101,4 +102,6 @@ __all__ = [
     'block_within_notice', 'suggest_block_window', 'relocation_options',
     'create_quarter_block', 'propose_relocation', 'respond_relocation',
     'cancel_with_apology', 'pending_relocation_requests', 'count_relocations_needed',
+    # NL-Parser-Naht (ADR 0103/0108)
+    'nl_stammdaten', 'nl_parse_wish', 'nl_parse_booking',
 ]

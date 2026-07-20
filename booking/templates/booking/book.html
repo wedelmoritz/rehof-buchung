@@ -33,7 +33,41 @@
       nur barrierearm/-frei</label>
     <button class="btn small" type="submit">Anwenden</button>
   </form>
+  {% comment %}Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108): füllt Personen/
+  barrierefrei/Zeitraum vor – gebucht wird wie gewohnt (parse-and-confirm).{% endcomment %}
+  <form method="get" class="nl-form" data-ajax style="margin-top:.6rem">
+    <label for="nlq"><strong>Oder mit eigenen Worten</strong> <span class="muted">(optional)</span></label>
+    <div class="nl-row">
+      <input type="text" id="nlq" name="nlq" maxlength="400" autocomplete="off"
+             placeholder="z. B. „ab 12.7. für eine Woche, 4 Personen, barrierefrei"
+             value="{{ request.GET.nlq }}">
+      <button class="btn small" type="submit">Vorschlag</button>
+    </div>
+  </form>
+  {% if nl_result %}
+  <div class="nl-preview">
+    {% if nl_result.matched %}
+    <p class="nl-ok">✓ Verstanden: {% for m in nl_result.matched %}<span class="nl-chip">{{ m }}</span>{% endfor %}</p>
+    {% else %}
+    <p class="nl-warn">Konnte daraus nichts ableiten – bitte oben/​im Kalender wählen.</p>
+    {% endif %}
+    {% if nl_result.unresolved %}
+    <p class="muted sm">Nicht übernommen: {% for u in nl_result.unresolved %}{{ u }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
+<style>
+  .nl-form { margin:0; }
+  .nl-row { display:flex; gap:.5rem; margin-top:.3rem; }
+  .nl-row input[type=text] { flex:1; min-width:0; }
+  .nl-preview { border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem;
+    margin:.5rem 0 0; background:var(--card); }
+  .nl-ok { margin:0; color:var(--good-deep); }
+  .nl-warn { margin:0; color:var(--warn); }
+  .nl-chip { display:inline-block; background:var(--sage-soft); color:var(--sage-deep);
+    border-radius:999px; padding:.08rem .5rem; font-size:.8rem; margin:.1rem .2rem .1rem 0; }
+</style>
 
 {% if sel_start %}
 <div class="sel-bar">
