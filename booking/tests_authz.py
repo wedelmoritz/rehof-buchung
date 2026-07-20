@@ -45,7 +45,9 @@ class SyncRolesTests(TestCase):
         self.assertTrue(authz.user_can(u, authz.P_RECHNUNGEN))
         self.assertFalse(authz.user_can(u, authz.P_BUCHUNGEN))
         keys = {c.key for c in authz.allowed_capabilities(u)}
-        self.assertLessEqual({"rechnungen", "konto", "dashboard", "auslastung"}, keys)
+        self.assertLessEqual({"rechnungen", "dashboard", "auslastung"}, keys)
+        # „Kontoabgleich" ist kein eigener Nav-Punkt mehr (in „Rechnungen" integriert).
+        self.assertNotIn("konto", keys)
         self.assertNotIn("mitglieder", keys)
         self.assertTrue(authz.is_any_verwaltung(u))
 
@@ -111,7 +113,9 @@ class ViewAccessTests(TestCase):
     def test_rechnungs_rolle_sieht_nur_finanzen(self):
         self._login("Rechnungs-Verwaltung")
         self.assertEqual(self.client.get(reverse("verw_rechnungen")).status_code, 200)
-        self.assertEqual(self.client.get(reverse("verw_konto")).status_code, 200)
+        # Kontoabgleich in „Rechnungen" integriert: alte URL leitet dorthin um (302),
+        # die Berechtigung (P_RECHNUNGEN) trägt weiterhin.
+        self.assertEqual(self.client.get(reverse("verw_konto")).status_code, 302)
         self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)   # None
         self.assertEqual(self.client.get(reverse("verw_mitglieder")).status_code, 403)
         self.assertEqual(self.client.get(reverse("dashboard_products")).status_code, 403)

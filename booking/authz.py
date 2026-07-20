@@ -103,7 +103,6 @@ CAPABILITIES: list[Capability] = [
     Capability("reinigung",   "Reinigung",        "ic-clean",     "verw_reinigung",     P_BUCHUNGEN,   "Buchung"),
     Capability("sperrzeiten", "Sperrzeiten",      "ic-lock",      "verw_sperrzeiten",   (P_BUCHUNGEN, P_QUARTIERE), "Buchung"),
     Capability("rechnungen",  "Rechnungen",       "ic-invoices",  "verw_rechnungen",    P_RECHNUNGEN,  "Finanzen"),
-    Capability("konto",       "Kontoabgleich",    "ic-bank",      "verw_konto",         P_RECHNUNGEN,  "Finanzen"),
     Capability("auslastung",  "Auslastung",       "ic-community", "verw_auslastung",    None,          "Übersicht"),
     Capability("mitglieder",  "Mitglieder",       "ic-profile",   "verw_mitglieder",    P_MITGLIEDER,  "Mitglieder"),
     Capability("rundnachricht","Rundnachricht",   "ic-mail",      "verw_rundnachricht", P_BROADCAST,   "Übersicht"),
