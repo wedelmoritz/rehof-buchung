@@ -855,12 +855,20 @@ def wishlist(request):
     # Liste (Feedback c).
     wishes_overlap_any = any(getattr(w, "overlap_same_quarter", False) for w in wishes)
 
+    # Kapazitätsrelative Wunsch-Signale teilen sich die Quartier-Maps + die Perioden-
+    # Wunschliste (Effizienz, Code-Review): einmal laden, an alle Helfer reichen.
+    pop_ctx = svc.wish_popularity_context() if (member and period) else None
+    period_wishes = list(
+        Wish.objects.filter(period=period).values_list("quarter_id", "start", "end")
+    ) if period else None
+
     # Kalender + Auswahl (analog zum Buchen, aber Wünsche dürfen kollidieren)
     sel_start = _parse_date(request.GET.get("start"))
     sel_end = _parse_date(request.GET.get("end"))
     if sel_start and sel_end and sel_end <= sel_start:
         sel_end = None
-    cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end) \
+    cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end,
+                                  ctx=pop_ctx) \
         if (member and period) else None
     sel_qs = ""
     if sel_start:
@@ -887,7 +895,7 @@ def wishlist(request):
         counts = svc.quarter_wish_counts(period, eff_start, eff_end)
         # Kapazitätsrelative Beliebtheit je Quartier (ADR 0103, P0b) + „weniger
         # beliebter Zeitraum"-Tipp schon HIER bei der Auswahl (Deconfliction vorgezogen).
-        bands = svc.class_popularity_for_range(period, eff_start, eff_end)
+        bands = svc.class_popularity_for_range(period, eff_start, eff_end, ctx=pop_ctx)
         shift = svc.wish_deconfliction(period, eff_start, eff_end)
         free_band = {"key": "free", "label": "frei", "tone": "free"}
         own_q = {str(w.quarter_id) for w in wishes
@@ -949,9 +957,11 @@ def wishlist(request):
         "demand_grid": _wishlist_demand_grid(period),
         # „Wo ist noch frei?" (ADR 0103, P1a) ersetzt die Beliebtheits-Rangliste –
         # positiv/umsetzbar statt „was ist am beliebtesten".
-        "freest": svc.freest_slots(period) if period else None,
+        "freest": svc.freest_slots(period, ctx=pop_ctx, wishes=period_wishes)
+                  if period else None,
         # Entzerrungs-Barometer (ADR 0103, P2): anonymer Community-Nudge.
-        "barometer": svc.entzerrung_barometer(period) if period else None,
+        "barometer": svc.entzerrung_barometer(period, ctx=pop_ctx, wishes=period_wishes)
+                     if period else None,
         "submission_deadline": period.submission_deadline if period else None,
         "draw_at": period.draw_at if period else None,
         "freeze_start": period.freeze_start if period else None,

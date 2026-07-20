@@ -20,7 +20,8 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
 
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
-    'class_popularity_for_range', 'freest_slots', 'entzerrung_barometer',
+    'wish_popularity_context', 'class_popularity_for_range', 'freest_slots',
+    'entzerrung_barometer',
     'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
     'capture_wish_snapshots',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
@@ -177,6 +178,7 @@ def build_booking_calendar(
 def build_wish_calendar(
     member, period, year: int, month: int,
     sel_start: date | None = None, sel_end: date | None = None,
+    *, ctx: dict | None = None,
 ) -> dict:
     """Monatsmatrix für die Wunschliste mit Ampel nach **Beliebtheit relativ zur
     Kapazität** (ADR 0103, P0a) – statt roher Nachfrage:
@@ -197,12 +199,11 @@ def build_wish_calendar(
     first, last = weeks[0][0], weeks[-1][-1]
 
     # Quartiere je Äquivalenzklasse (für kapazitätsrelative Beliebtheit). Wenige
-    # Dutzend Objekte, einmal geladen; `bookable_on` nutzt die Saison-Felder.
-    q_class: dict = {}
-    q_by_class: dict = defaultdict(list)
-    for q in Quarter.objects.filter(active=True):
-        q_class[q.id] = q.eq_class_id
-        q_by_class[q.eq_class_id].append(q)
+    # Dutzend Objekte; geteilt über `ctx` (sonst hier einmal geladen). `bookable_on`
+    # nutzt die Saison-Felder.
+    ctx = ctx or wish_popularity_context()
+    q_class = ctx["q_class"]
+    q_by_class = ctx["q_by_class"]
     all_wishes, own = [], []
     if period:
         all_wishes = list(Wish.objects.filter(
@@ -276,21 +277,37 @@ def quarter_wish_counts(period, start: date, end: date) -> dict[str, int]:
     return counts
 
 
-def class_popularity_for_range(period, start: date, end: date) -> dict:
+def wish_popularity_context() -> dict:
+    """Quartier-Maps (Quartier→Klasse, Klasse→Quartiere, Klassen-Name) für die
+    kapazitätsrelativen Wunsch-Signale. **Einmal** bauen und an
+    `class_popularity_for_range`/`freest_slots`/`entzerrung_barometer`/
+    `build_wish_calendar` weiterreichen, statt sie je Funktion neu zu laden
+    (Effizienz, Code-Review-Nachtrag). Wenige Dutzend Objekte, EINE Abfrage."""
+    q_class: dict = {}
+    q_by_class: dict = defaultdict(list)
+    class_name: dict = {}
+    for q in Quarter.objects.filter(active=True).select_related("eq_class"):
+        q_class[q.id] = q.eq_class_id
+        q_by_class[q.eq_class_id].append(q)
+        class_name[q.eq_class_id] = q.eq_class.name
+    return {"q_class": q_class, "q_by_class": q_by_class, "class_name": class_name}
+
+
+def class_popularity_for_range(period, start: date, end: date, *,
+                               ctx: dict | None = None) -> dict:
     """Beliebtheits-Band **je Quartier** für den Zeitraum [start, end) – kapazitäts-
     relativ auf Ebene der **Äquivalenzklasse** (ADR 0103, P0b): überschneidende Wünsche
     der Klasse gegen die Zahl der (im Fenster) buchbaren gleichwertigen Quartiere. Ein
-    Quartier erbt das Band seiner Klasse. Reine Anzeige (kein Los-Eingriff).
+    Quartier erbt das Band seiner Klasse. Reine Anzeige (kein Los-Eingriff). `ctx` =
+    vorgebaute Quartier-Maps (`wish_popularity_context`), sonst selbst geladen.
 
     Gibt ``{str(quarter_id): {"key","label","tone"}}`` für alle aktiven Quartiere."""
     out: dict = {}
     if not period or end <= start:
         return out
-    q_class: dict = {}
-    q_by_class: dict = defaultdict(list)
-    for q in Quarter.objects.filter(active=True):
-        q_class[q.id] = q.eq_class_id
-        q_by_class[q.eq_class_id].append(q)
+    ctx = ctx or wish_popularity_context()
+    q_class = ctx["q_class"]
+    q_by_class = ctx["q_by_class"]
     cls_overlap: dict = defaultdict(int)
     for qid, ws, we in Wish.objects.filter(
             period=period, start__lt=end, end__gt=start,
@@ -308,7 +325,8 @@ def class_popularity_for_range(period, start: date, end: date) -> dict:
     return out
 
 
-def freest_slots(period, *, top: int = 10) -> list[dict]:
+def freest_slots(period, *, top: int = 10, ctx: dict | None = None,
+                 wishes: list | None = None) -> list[dict]:
     """„Wo ist noch frei?" (ADR 0103, P1a) – die **positive** Umkehrung der
     Beliebtheits-Rangliste: in den **gefragten Wochen** die Äquivalenzklassen, die noch
     **frei/etwas gefragt** sind – „hier bekommst du fast sicher etwas". Genau die
@@ -318,6 +336,7 @@ def freest_slots(period, *, top: int = 10) -> list[dict]:
     (`popularity_band`, kapazitätsrelativ). Nur Wochen, in denen **irgendeine** Klasse
     beliebt/sehr beliebt ist (= es gibt Nachfrage/Kontrast), werden gelistet; darin die
     **wenig gefragten** Klassen als Ausweich-Tipp. Anonyme Aggregate, reine Anzeige.
+    `ctx`/`wishes` können vorgebaut übergeben werden (mit `entzerrung_barometer` teilbar).
 
     Gibt `[{week_start, week_end, class_name, quarters:[…], band}]` chronologisch."""
     out: list[dict] = []
@@ -326,15 +345,13 @@ def freest_slots(period, *, top: int = 10) -> list[dict]:
     year = period.target_year
     start = period.start or date(year, 1, 1)
     end = period.end or date(year + 1, 1, 1)
-    q_by_class: dict = defaultdict(list)
-    class_name: dict = {}
-    q_class: dict = {}
-    for q in Quarter.objects.filter(active=True).select_related("eq_class"):
-        q_by_class[q.eq_class_id].append(q)
-        class_name[q.eq_class_id] = q.eq_class.name
-        q_class[q.id] = q.eq_class_id
-    wishes = list(Wish.objects.filter(period=period)
-                  .values_list("quarter_id", "start", "end"))
+    ctx = ctx or wish_popularity_context()
+    q_by_class = ctx["q_by_class"]
+    class_name = ctx["class_name"]
+    q_class = ctx["q_class"]
+    if wishes is None:
+        wishes = list(Wish.objects.filter(period=period)
+                      .values_list("quarter_id", "start", "end"))
     wk_s = start - timedelta(days=start.weekday())      # Montag der Startwoche
     while wk_s < end and len(out) < top:
         wk_e = wk_s + timedelta(days=7)
@@ -370,7 +387,8 @@ def freest_slots(period, *, top: int = 10) -> list[dict]:
     return out
 
 
-def entzerrung_barometer(period) -> dict:
+def entzerrung_barometer(period, *, ctx: dict | None = None,
+                         wishes: list | None = None) -> dict:
     """**Entzerrungs-Barometer** (ADR 0103, P2): ein einziger, **anonymer** Community-
     Indikator „Anteil der Wünsche, die in **sehr beliebten** Slots liegen" (0–100 %).
     Je niedriger, desto besser verteilt sich die Gemeinschaft – sinkt, während alle
@@ -378,17 +396,17 @@ def entzerrung_barometer(period) -> dict:
 
     Je Wunsch wird die Beliebtheit seiner **Äquivalenzklasse** im **eigenen Zeitraum**
     bestimmt (`popularity_band`, ADR 0105); „sehr beliebt" = überzeichnet. Reine
-    Anzeige. Gibt `{"total", "in_very", "pct", "band"}` (band = grob gut/mittel/hoch)."""
+    Anzeige. `ctx`/`wishes` teilbar mit `freest_slots`. Gibt `{"total", "in_very",
+    "pct", "band"}` (band = grob gut/mittel/hoch)."""
     empty = {"total": 0, "in_very": 0, "pct": 0, "band": "none"}
     if not period:
         return empty
-    q_by_class: dict = defaultdict(list)
-    q_class: dict = {}
-    for q in Quarter.objects.filter(active=True):
-        q_by_class[q.eq_class_id].append(q)
-        q_class[q.id] = q.eq_class_id
-    wishes = list(Wish.objects.filter(period=period)
-                  .values_list("quarter_id", "start", "end"))
+    ctx = ctx or wish_popularity_context()
+    q_by_class = ctx["q_by_class"]
+    q_class = ctx["q_class"]
+    if wishes is None:
+        wishes = list(Wish.objects.filter(period=period)
+                      .values_list("quarter_id", "start", "end"))
     if not wishes:
         return empty
     in_very = 0
