@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -217,6 +217,11 @@ def payment_sandbox(request, token):
     """Eingebaute TEST-Bezahlseite (kein Mollie-Konto/keine Gebühren). Simuliert
     eine Zahlung; login-frei, da über den unfälschbaren Token geschützt."""
     pay = get_object_or_404(Payment, token=token)
+    # Nur echte Sandbox-Zahlungen dürfen hier abgeschlossen werden. Im Echtbetrieb
+    # (Mollie-Key) darf diese TEST-Seite eine Rechnung NICHT als bezahlt markieren –
+    # sonst ließe sich mit dem eigenen Payment-Token die echte Zahlung umgehen (Security).
+    if not pay.is_sandbox:
+        raise Http404
     if request.method == "POST":
         if pay.status == Payment.OPEN:
             if request.POST.get("action") == "pay":
