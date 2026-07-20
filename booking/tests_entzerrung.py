@@ -75,7 +75,9 @@ class DemandGridTests(TestCase):
         self.client.force_login(a.user)
         html = self.client.get(reverse("wishlist") + "?view=nachfrage").content.decode()
         self.assertIn("Nachfrage-Heatmap", html)
-        self.assertIn("Beliebteste Unterkünfte", html)   # Ranglisten (Feedback e)
+        # Die Beliebtheits-Rangliste ist durch „Wo ist noch frei?" ersetzt (ADR 0103, P1a).
+        self.assertIn("Wo ist noch frei?", html)
+        self.assertNotIn("Beliebteste Unterkünfte", html)
 
     def test_wuensche_reiter_hat_keine_heatmap(self):
         # Default-Reiter „Meine Wünsche" zeigt die Heatmap NICHT (aufgeräumt, Feedback d).
@@ -86,15 +88,22 @@ class DemandGridTests(TestCase):
         self.assertNotIn('<table class="heat">', html)   # Heatmap-Tabelle nur im Nachfrage-Reiter
         self.assertIn("Meine Wünsche", html)
 
-    def test_demand_ranking_listet_top(self):
-        a = _member("a"); b = _member("b")
-        svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
-        svc.add_wish(b, self.period, self.q, date(NEXT, 5, 10), date(NEXT, 5, 14))
-        svc.add_wish(a, self.period, self.q2, date(NEXT, 7, 1), date(NEXT, 7, 5))
-        rank = svc.wish_demand_ranking(self.period)
-        self.assertEqual(rank["quarters"][0]["name"], "Turm")   # meiste Wünsche
-        self.assertEqual(rank["quarters"][0]["count"], 2)
-        self.assertTrue(rank["slots"])
+    def test_freest_slots_zeigt_ausweichklassen(self):
+        # „Wo ist noch frei?" (ADR 0103, P1a): in einer gefragten Woche werden die
+        # noch freien gleichwertigen Klassen als Ausweich-Tipp gelistet.
+        # self.q/self.q2 liegen beide in Klasse „K" (Kapazität 2). Eine ZWEITE Klasse
+        # ohne Nachfrage soll als „frei" erscheinen.
+        cls2 = EquivalenceClass.objects.create(name="Solo")
+        Quarter.objects.create(name="Pavillon", eq_class=cls2,
+                               min_occupancy=1, max_occupancy=4)
+        # Klasse „K" (Kapazität 2) in einer Woche überzeichnen → diese Woche ist gefragt.
+        for i in range(3):
+            svc.add_wish(_member(f"r{i}"), self.period, self.q,
+                         date(NEXT, 5, 4), date(NEXT, 5, 8))
+        slots = svc.freest_slots(self.period)
+        self.assertTrue(slots)
+        self.assertTrue(all(s["band"]["key"] in ("free", "some") for s in slots))
+        self.assertTrue(any(s["class_name"] == "Solo" for s in slots))
 
 
 class WishUxTests(TestCase):

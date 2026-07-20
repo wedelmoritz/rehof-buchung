@@ -20,8 +20,8 @@ from .slots import (_active_windows, _in_season_range, _occupied_days_by_quarter
 
 __all__ = [
     'build_booking_calendar', 'build_wish_calendar', 'quarter_wish_counts',
-    'class_popularity_for_range',
-    'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid', 'wish_demand_ranking',
+    'class_popularity_for_range', 'freest_slots',
+    'wish_deconfliction', 'wish_alternatives', 'wish_demand_grid',
     'capture_wish_snapshots',
     'day_detail', 'build_member_calendar', 'build_community_calendar',
     'build_occupancy_timeline', 'build_plan_print', 'build_external_calendar', 'week_agenda',
@@ -308,6 +308,68 @@ def class_popularity_for_range(period, start: date, end: date) -> dict:
     return out
 
 
+def freest_slots(period, *, top: int = 10) -> list[dict]:
+    """„Wo ist noch frei?" (ADR 0103, P1a) – die **positive** Umkehrung der
+    Beliebtheits-Rangliste: in den **gefragten Wochen** die Äquivalenzklassen, die noch
+    **frei/etwas gefragt** sind – „hier bekommst du fast sicher etwas". Genau die
+    Information zum Verteilen.
+
+    Je ISO-Woche des Buchungszeitraums wird die Beliebtheit je Klasse bestimmt
+    (`popularity_band`, kapazitätsrelativ). Nur Wochen, in denen **irgendeine** Klasse
+    beliebt/sehr beliebt ist (= es gibt Nachfrage/Kontrast), werden gelistet; darin die
+    **wenig gefragten** Klassen als Ausweich-Tipp. Anonyme Aggregate, reine Anzeige.
+
+    Gibt `[{week_start, week_end, class_name, quarters:[…], band}]` chronologisch."""
+    out: list[dict] = []
+    if not period:
+        return out
+    year = period.target_year
+    start = period.start or date(year, 1, 1)
+    end = period.end or date(year + 1, 1, 1)
+    q_by_class: dict = defaultdict(list)
+    class_name: dict = {}
+    q_class: dict = {}
+    for q in Quarter.objects.filter(active=True).select_related("eq_class"):
+        q_by_class[q.eq_class_id].append(q)
+        class_name[q.eq_class_id] = q.eq_class.name
+        q_class[q.id] = q.eq_class_id
+    wishes = list(Wish.objects.filter(period=period)
+                  .values_list("quarter_id", "start", "end"))
+    wk_s = start - timedelta(days=start.weekday())      # Montag der Startwoche
+    while wk_s < end and len(out) < top:
+        wk_e = wk_s + timedelta(days=7)
+        cls_overlap: dict = defaultdict(int)
+        for qid, ws, we in wishes:
+            if ws < wk_e and we > wk_s:
+                cls = q_class.get(qid)
+                if cls is not None:
+                    cls_overlap[cls] += 1
+        if cls_overlap:      # nur Wochen mit Nachfrage tragen den „wo ist frei"-Kontrast
+            bands = {}
+            busy = False
+            for cls, quarters in q_by_class.items():
+                cap = sum(1 for q in quarters if q.bookable_on(wk_s))
+                if cap == 0:
+                    continue          # in dieser Woche gar nicht buchbar → kein Tipp
+                b = POP.popularity_band(cls_overlap.get(cls, 0), cap)
+                bands[cls] = b
+                if b["key"] in ("popular", "very"):
+                    busy = True
+            if busy:
+                for cls, b in bands.items():
+                    if b["key"] in ("free", "some"):
+                        out.append({
+                            "week_start": wk_s, "week_end": wk_e - timedelta(days=1),
+                            "class_name": class_name.get(cls, ""),
+                            "quarters": [q.name for q in q_by_class[cls][:3]],
+                            "band": b,
+                        })
+                        if len(out) >= top:
+                            break
+        wk_s = wk_e
+    return out
+
+
 def wish_demand_grid(period) -> dict:
     """**Nachfrage-Heatmap** (ADR 0101): je Quartier (Zeile) × **Monat** (Spalte) die
     Zahl der **eingetragenen** Wünsche, die den Monat berühren – zeigt auf einen Blick
@@ -345,28 +407,6 @@ def wish_demand_grid(period) -> dict:
     } for i, q in enumerate(quarters)]
     months = [MONTHS_DE[m][:3] for m in range(1, 13)]
     return {"rows": rows, "months": months, "max": mx}
-
-
-def wish_demand_ranking(period, *, top: int = 8) -> dict:
-    """Beliebteste **Unterkünfte** und **Zeiträume** für die Nachfrage-Ansicht
-    (ADR 0101 Batch 2-Nachtrag, Feedback e): tabellarische Ranglisten aus den
-    eingetragenen Wünschen. Nutzt das Heatmap-Raster (eine Wunsch-Abfrage) und rankt
-    daraus – nur Aggregate, keine Namen.
-
-    Gibt `{"quarters": [{name,count}], "slots": [{quarter,month,count}]}`."""
-    grid = wish_demand_grid(period) if period else {"rows": [], "months": []}
-    quarters = sorted(
-        ({"name": r["quarter"], "count": r["total"]}
-         for r in grid["rows"] if r["total"]),
-        key=lambda x: (-x["count"], x["name"]))[:top]
-    slots = []
-    for r in grid["rows"]:
-        for j, cell in enumerate(r["cells"]):
-            if cell["count"]:
-                slots.append({"quarter": r["quarter"],
-                              "month": grid["months"][j], "count": cell["count"]})
-    slots.sort(key=lambda x: (-x["count"], x["quarter"]))
-    return {"quarters": quarters, "slots": slots[:top]}
 
 
 def capture_wish_snapshots(period, now) -> bool:

@@ -263,9 +263,12 @@ bleiben bewusst änderbar; **drei präsente Reiter auf EINER Seite** [`?view=`, 
 ADR 0101-Nachtrag]: „Meine Wünsche" [Default: **Wunsch-Übersicht** `.wish-ov` mit
 Kennzahlen (Anzahl/Tage/Budget/**Karma**) + Handlungsbedarf-Ampel (0 Wünsche→warn ·
 unter/über Budget→gelb · Überlappung→rot, jeweils erklärt) + Richtschnüre; darunter die
-Liste], „Neue Wünsche eintragen" [Kalender + Kandidaten] und „Nachfrage & Heatmap"
-[`wish_demand_grid` + Ranglisten `wish_demand_ranking` der beliebtesten Unterkünfte/
-Zeiträume]. Je Wunsch nur Quartier/Zeitraum (+ Status-Punkt) + Aufklapper **„Details &
+Liste], „Neue Wünsche eintragen" [Kalender **mit kapazitätsrelativer Beliebtheits-Ampel je
+Äquivalenzklasse** + Kandidaten **nach Eignung×geringe Beliebtheit** sortiert + „Empfohlen"-
+Block + vorgezogener „weniger beliebter Zeitraum"-Tipp, ADR 0103/0105 P0] und
+„Nachfrage & Heatmap" [`wish_demand_grid` (Überblick) + **„Wo ist noch frei?"**
+`freest_slots`: in gefragten Wochen die noch freien gleichwertigen Klassen als Ausweich-Tipp –
+**ersetzt** die frühere Beliebtheits-Rangliste, ADR 0103/0106 P1]. Je Wunsch nur Quartier/Zeitraum (+ Status-Punkt) + Aufklapper **„Details &
 Aktionen"** – **erst dort** kompakte Status-Abzeichen [**Nachfrage-Ampel** `wish_demand_band`:
 keine/wenige/beliebt/sehr beliebt aus überlappenden Fremd-Wünschen, OHNE Prozent · **Los-Chance**
 qualitativ gut/offen/knapp mit **konkretem Grund** „stark nachgefragt" vs. „eigene Reihenfolge/

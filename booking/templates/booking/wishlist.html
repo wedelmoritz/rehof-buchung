@@ -196,30 +196,25 @@
 {% endif %}
 
 <div class="card">
-  <h2 style="margin-top:0">Beliebteste Unterkünfte &amp; Zeiträume</h2>
-  {% if demand_ranking and demand_ranking.quarters %}
-  <div class="rank-grid">
-    <div class="rank-col">
-      <h3>Unterkünfte</h3>
-      <table class="rank">
-        <thead><tr><th>Unterkunft</th><th>Wünsche</th></tr></thead>
-        <tbody>
-          {% for q in demand_ranking.quarters %}<tr><td>{{ q.name }}</td><td class="num">{{ q.count }}</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div class="rank-col">
-      <h3>Zeiträume (Unterkunft · Monat)</h3>
-      <table class="rank">
-        <thead><tr><th>Unterkunft · Monat</th><th>Wünsche</th></tr></thead>
-        <tbody>
-          {% for s in demand_ranking.slots %}<tr><td>{{ s.quarter }} · {{ s.month }}</td><td class="num">{{ s.count }}</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <p class="muted sm" style="margin:.6rem 0 0">Reine Nachfrage-Zahlen (keine Namen). Sie helfen dir
-    beim <strong>Entzerren</strong>: gefragte Unterkünfte/Zeiten meiden, wo es geht.</p>
+  <h2 style="margin-top:0">Wo ist noch frei?</h2>
+  <p class="muted sm" style="margin:.2rem 0 .6rem">In den <strong>gefragten Wochen</strong> zeigen wir
+    dir die gleichwertigen Unterkünfte, die noch <strong>frei</strong> bzw. <strong>etwas gefragt</strong>
+    sind – dort hast du <strong>fast sichere Chancen</strong>. So verteilen wir uns gemeinsam. (Anonyme
+    Zahlen, keine Namen.)</p>
+  {% if freest %}
+  <ul class="freest-list">
+    {% for f in freest %}
+    <li>
+      <span class="fw">{{ f.week_start|date:"d.m." }}&ndash;{{ f.week_end|date:"d.m." }}</span>
+      <span class="pop pop-{{ f.band.key }}">{{ f.band.label }}</span>
+      <span class="fc"><strong>{{ f.class_name }}</strong>
+        <span class="muted">({{ f.quarters|join:", " }})</span></span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif demand_grid and demand_grid.max %}
+  <p class="muted" style="margin:0">Aktuell sind keine Wochen stark gefragt – du hast <strong>überall
+    gute Chancen</strong>. 🎉</p>
   {% else %}
   <p class="muted" style="margin:0">Noch keine Wünsche eingetragen.</p>
   {% endif %}
@@ -529,6 +524,12 @@
     background:color-mix(in srgb, var(--accent) calc(var(--h) * 1%), var(--bg)); }
   .rank-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
   @media (max-width:640px){ .rank-grid { grid-template-columns:1fr; } .wo-num { font-size:1.3rem; } }
+  /* „Wo ist noch frei?" (ADR 0103, P1a) */
+  ul.freest-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; }
+  ul.freest-list li { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+    border-bottom:1px solid var(--line); padding:.35rem 0; }
+  ul.freest-list .fw { font-variant-numeric:tabular-nums; font-weight:600; min-width:6.2rem; }
+  ul.freest-list .fc { font-size:.92rem; }
   .rank-col h3 { margin:.2rem 0 .4rem; font-size:1rem; }
   table.rank { width:100%; border-collapse:collapse; font-size:.9rem; }
   table.rank th, table.rank td { text-align:left; padding:.35rem .5rem; border-bottom:1px solid var(--line); }
