@@ -63,7 +63,10 @@ booking/
                         #  etwas gefragt/beliebt/sehr beliebt; Wunsch-Kalender + Vorschläge, ADR 0103/0105)
   wish_nl.py            # reine Logik: regelbasierter NL-Parser für Kurz-Eingaben (parse_wish_text/
                         #  parse_booking_text → WishIntent; Stammdaten injiziert, KEINE hartcodierten
-                        #  Quartiere/Ferien; security-hart: Längenlimit/kein ReDoS/SSTI; ADR 0103/0108)
+                        #  Quartiere/Ferien; security-hart: Längenlimit/kein ReDoS/SSTI; ADR 0103/0108).
+                        #  Grober Zeitwunsch OHNE Startdatum (nur Monat „im Juli" + evtl. Dauer) →
+                        #  WishIntent.month/nights; das ERSTE (freie) Datum löst der Service auf
+                        #  (services.nl._resolve_month_start, braucht Verfügbarkeit; ADR 0108-Nachtrag)
   help_content/*.md     # ausgelagerte, editierbare Hilfe-Prosa (Warteliste/Gemeinschaft/Hofladen/Tage)
   services/             # Brücke DB <-> Logik (gesamte Geschäftslogik; Paket, ADR 0050)
     __init__.py         #  re-exportiert alles → `svc.*` bleibt unverändert
