@@ -105,6 +105,10 @@ def create_external_booking(quarter: Quarter, start: date, end: date, persons: i
         return None, f"{quarter.name} ist in diesem Zeitraum nicht buchbar."
     if persons and persons > quarter.max_occupancy:
         return None, f"{quarter.name}: maximal {quarter.max_occupancy} Personen."
+    # Quartier-Zeile sperren, BEVOR wir die Freiheit prüfen (serialisiert gegen
+    # parallele Spontan-/Adjust-/Extern-Buchungen desselben Quartiers – sonst könnten
+    # zwei Requests beide „frei" sehen und überlappend schreiben; wie book_spontaneous).
+    Quarter.objects.select_for_update().filter(pk=quarter.pk).first()
     if not quarter_is_free(quarter, start, end):
         return None, f"{quarter.name} ist in diesem Zeitraum bereits belegt."
     # Plausibilität der Gastdaten (Name/E-Mail Pflicht; Adresse, wenn angegeben).
@@ -166,13 +170,25 @@ def external_cancellation_preview(booking: ExternalBooking, cfg=None) -> dict:
             "kept": booking.total_gross - refund}
 
 
+@transaction.atomic
 def cancel_external_booking(booking: ExternalBooking) -> dict:
     """Storniert eine externe Buchung (gibt den Slot frei) und liefert die
-    Erstattungs-Aufschlüsselung gemäß Stornobedingungen zurück."""
+    Erstattungs-Aufschlüsselung gemäß Stornobedingungen zurück.
+
+    Wichtig (Korrektheit): eine **noch unbezahlte** verknüpfte Rechnung wird auf
+    `cancelled` gesetzt, damit der Gast nicht weiter über den **vollen** Betrag
+    gemahnt wird (die Rechnung fällt aus `open_invoices`/dem Mahnlauf). Bereits
+    bezahlte/bestätigte Rechnungen bleiben unangetastet (Erstattung ist manuell,
+    ADR 0038). Eine etwaige Storno-Gebühr (`preview["kept"]`) wird separat gestellt
+    (ebenfalls ADR 0038, Roadmap)."""
     preview = external_cancellation_preview(booking)
     booking.status = ExternalBooking.CANCELLED
     booking.cancelled_at = timezone.now()
     booking.save(update_fields=["status", "cancelled_at"])
+    inv = booking.invoice
+    if inv is not None and inv.status == inv.OPEN:
+        inv.status = inv.CANCELLED
+        inv.save(update_fields=["status"])
     notify_waitlist_if_free(booking.quarter, booking.start, booking.end)
     return preview
 

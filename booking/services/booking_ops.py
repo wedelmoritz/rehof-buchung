@@ -664,6 +664,11 @@ def adjust_allocation(member: Member, allocation_id, new_start: date,
             need_free.append((new_start, a.start))
         if new_end > a.end:
             need_free.append((a.end, new_end))
+    # Quartier-Zeile sperren, BEVOR wir die Freiheit prüfen (serialisiert gegen
+    # parallele Spontan-/Extern-/Adjust-Buchungen desselben Quartiers – ohne diese
+    # Sperre könnten zwei Requests beide „frei" sehen und überlappend schreiben;
+    # analog zu `book_spontaneous`. Unter SQLite ein No-Op – nur für Tests).
+    Quarter.objects.select_for_update().filter(pk=new_q.pk).first()
     for s, e in need_free:
         if not range_is_released(new_q, s, e):
             return False, "Der gewählte Zeitraum ist nicht buchbar (Saison/Freigabe)."

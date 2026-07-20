@@ -345,11 +345,16 @@ class ServiceRequest(models.Model):
 class Invoice(models.Model):
     """Monatliche Sammelrechnung eines Mitglieds. Fasst die offenen Positionen
     eines Monats zusammen; trägt fortlaufende Nummer und Status."""
-    OPEN, PAID, CONFIRMED = "open", "paid", "confirmed"
+    OPEN, PAID, CONFIRMED, CANCELLED = "open", "paid", "confirmed", "cancelled"
     STATUS = [
         (OPEN, "Offen"),
         (PAID, "Als bezahlt gemeldet"),
         (CONFIRMED, "Bestätigt (archiviert)"),
+        # Storniert: die zugrunde liegende (externe) Buchung wurde vor Zahlung
+        # storniert → keine offene Forderung mehr, aus dem Mahnlauf genommen. Der
+        # Beleg bleibt aus Aufbewahrungsgründen erhalten (§147 AO). Eine etwaige
+        # Storno-Gebühr wird separat gestellt (ADR 0038, Roadmap).
+        (CANCELLED, "Storniert"),
     ]
     member = models.ForeignKey(
         Member, on_delete=models.PROTECT, related_name="invoices",
