@@ -9,8 +9,8 @@
 {% else %}
 
 <div class="card">
-  <p class="muted" style="margin-top:0">Grün = frei, grau = belegt. Klicke deinen
-    <strong>Anreisetag</strong> (1. Klick) und <strong>Abreisetag</strong> (2. Klick).</p>
+  <p class="muted" style="margin-top:0">Klicke deinen <strong>Anreisetag</strong> (1. Klick)
+    und <strong>Abreisetag</strong> (2. Klick) – oder gib den Zeitraum unten direkt ein.</p>
 
   {% if start %}
   <div class="sel-bar">
@@ -128,13 +128,7 @@
 <details class="card" style="margin-top:1rem">
   <summary style="cursor:pointer"><strong>Hilfe &amp; Infos für Gäste</strong></summary>
   <div style="margin-top:.6rem">
-    <h3 style="margin:.4rem 0 .2rem">So buchst du</h3>
-    <ol style="margin:.2rem 0 .6rem;padding-left:1.2rem">
-      <li>Im Kalender <strong>Anreise</strong> (1. Klick) und <strong>Abreise</strong>
-        (2. Klick) wählen – oder den Zeitraum direkt eingeben.</li>
-      <li>Aus den freien Unterkünften eine auswählen.</li>
-      <li>Auf der Bestätigungsseite deine Daten eingeben und verbindlich buchen.</li>
-    </ol>
+    <h3 style="margin:.4rem 0 .2rem">Gut zu wissen</h3>
     <p class="muted" style="margin:.2rem 0">Es gelten mindestens
       <strong>{{ ext_min_base }} Nächte</strong>{% if ext_min_seasonal %}
       (in der Hauptsaison mehr){% endif %}, eine Vorlaufzeit von

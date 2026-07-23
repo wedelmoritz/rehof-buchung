@@ -152,37 +152,47 @@
     <strong>gedeckelt</strong> ({{ pool.cap }} Tage/Jahr) entnehmen. So bleibt kein Tag
     ungenutzt und niemand steht ganz ohne da.</p>
 
-  <div class="pool-actions" style="display:flex;flex-wrap:wrap;gap:1.4rem;margin-top:.8rem">
-    {% if pool.can_donate %}
-    <form method="post" class="pool-form" data-confirm="Tage in den Solidaritäts-Pool spenden? Sie werden von deinem Kontingent abgezogen.">{% csrf_token %}
-      <input type="hidden" name="action" value="pool_donate">
-      <label>Spenden<br><input type="number" name="nights" min="1" max="{{ pool.max_donate }}" value="1" style="width:5rem"> von {{ pool.max_donate }} Tagen</label>
-      <button class="btn small sage" type="submit" style="margin-left:.4rem">In den Pool spenden</button>
-    </form>
-    {% endif %}
+  {% comment %}Geben und Nehmen sind gegenläufige Vorgänge – klar getrennt beschriftet,
+  damit auf der „abgeben"-Seite niemand die Entnahme mit dem Spenden verwechselt.{% endcomment %}
+  <div class="pool-actions" style="display:flex;flex-wrap:wrap;gap:1.6rem;margin-top:.8rem">
+    <div class="pool-col" style="flex:1 1 240px">
+      <h3 style="margin:0 0 .3rem;font-size:.95rem">↑ Geben – in den Pool spenden</h3>
+      {% if pool.can_donate %}
+      <form method="post" class="pool-form" data-confirm="Tage in den Solidaritäts-Pool spenden? Sie werden von deinem Kontingent abgezogen.">{% csrf_token %}
+        <input type="hidden" name="action" value="pool_donate">
+        <label>Anzahl<br><input type="number" name="nights" min="1" max="{{ pool.max_donate }}" value="1" style="width:5rem"> von {{ pool.max_donate }} Tagen</label>
+        <button class="btn small sage" type="submit" style="margin-left:.4rem">In den Pool spenden</button>
+      </form>
+      {% else %}
+      <p class="sm muted" style="margin:0">Derzeit keine Tage zum Spenden verfügbar.</p>
+      {% endif %}
+    </div>
 
-    {% if pool.eligible_to_withdraw and pool.max_withdraw > 0 %}
-    <form method="post" class="pool-form">{% csrf_token %}
-      <input type="hidden" name="action" value="pool_withdraw">
-      <label>Entnehmen<br><input type="number" name="nights" min="1" max="{{ pool.max_withdraw }}" value="1" style="width:5rem"> (max. {{ pool.max_withdraw }})</label>
-      <button class="btn small" type="submit" style="margin-left:.4rem">Aus dem Pool entnehmen</button>
-      <p class="sm muted" style="margin:.3rem 0 0">Höchstens {{ pool.max_withdraw }} Tage – begrenzt
-        durch den aktuellen <strong>Topf-Bestand</strong> ({{ pool.balance }}) und den Jahres-Deckel
-        ({{ pool.cap }}/Jahr, davon {{ pool.withdrawn }} genutzt). <em>Unabhängig</em> davon, wie viel
-        du selbst gespendet hast.</p>
-    </form>
-    {% elif not pool.member_active %}
-    <p class="sm muted" style="align-self:center;margin:0">Als <strong>passives Mitglied</strong>
-      kannst du Tage in den Pool <strong>spenden</strong>, aber nicht daraus entnehmen.</p>
-    {% elif not pool.time_ok %}
-    <p class="sm muted" style="align-self:center;margin:0">Entnahmen aus dem Pool sind erst
-      <strong>ab {{ pool.withdraw_from_month_name }}</strong> möglich – so ist zuerst klar, wer bis
-      dahin wirklich zu wenig Tage hat.</p>
-    {% elif not pool.eligible_to_withdraw %}
-    <p class="sm muted" style="align-self:center;margin:0">Entnahme ist erst möglich, wenn dein
-      Jahresbudget fast aufgebraucht ist (≤&nbsp;{{ pool.eligible_remaining_threshold }} Tage übrig).
-      Du hast aktuell {{ pool.remaining }}.</p>
-    {% endif %}
+    <div class="pool-col" style="flex:1 1 240px">
+      <h3 style="margin:0 0 .3rem;font-size:.95rem">↓ Nehmen – aus dem Pool entnehmen</h3>
+      {% if pool.eligible_to_withdraw and pool.max_withdraw > 0 %}
+      <form method="post" class="pool-form">{% csrf_token %}
+        <input type="hidden" name="action" value="pool_withdraw">
+        <label>Anzahl<br><input type="number" name="nights" min="1" max="{{ pool.max_withdraw }}" value="1" style="width:5rem"> (max. {{ pool.max_withdraw }})</label>
+        <button class="btn small" type="submit" style="margin-left:.4rem">Aus dem Pool entnehmen</button>
+        <p class="sm muted" style="margin:.3rem 0 0">Höchstens {{ pool.max_withdraw }} Tage – begrenzt
+          durch den aktuellen <strong>Topf-Bestand</strong> ({{ pool.balance }}) und den Jahres-Deckel
+          ({{ pool.cap }}/Jahr, davon {{ pool.withdrawn }} genutzt). <em>Unabhängig</em> davon, wie viel
+          du selbst gespendet hast.</p>
+      </form>
+      {% elif not pool.member_active %}
+      <p class="sm muted" style="margin:0">Als <strong>passives Mitglied</strong>
+        kannst du Tage in den Pool <strong>spenden</strong>, aber nicht daraus entnehmen.</p>
+      {% elif not pool.time_ok %}
+      <p class="sm muted" style="margin:0">Entnahmen sind erst
+        <strong>ab {{ pool.withdraw_from_month_name }}</strong> möglich – so ist zuerst klar, wer bis
+        dahin wirklich zu wenig Tage hat.</p>
+      {% elif not pool.eligible_to_withdraw %}
+      <p class="sm muted" style="margin:0">Entnahme ist erst möglich, wenn dein
+        Jahresbudget fast aufgebraucht ist (≤&nbsp;{{ pool.eligible_remaining_threshold }} Tage übrig).
+        Du hast aktuell {{ pool.remaining }}.</p>
+      {% endif %}
+    </div>
   </div>
 
   {% if my_pool_entries %}
