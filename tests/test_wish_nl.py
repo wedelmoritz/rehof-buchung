@@ -184,3 +184,25 @@ def test_ungueltiges_datum_wird_ignoriert():
     # 31.2. existiert nicht → kein Startdatum, aber auch kein Crash.
     i = _wish("am 31.2.")
     assert i.start is None
+
+
+def test_bloßer_monat_setzt_month_kein_start():
+    # „eine Woche im Juli": die reine Logik erkennt Monat + Dauer, aber (bewusst) KEIN
+    # konkretes Startdatum – das erste freie Datum bestimmt der Service-Layer (Verfügbarkeit).
+    i = _wish("eine Woche im Juli")
+    assert i.start is None
+    assert i.month == 7
+    assert i.nights == 7
+    assert any("Juli" in m for m in i.matched)
+
+
+def test_monat_kuerzel_und_ohne_dauer():
+    i = _wish("im august, barrierefrei")
+    assert i.month == 8 and i.start is None and i.accessible is True
+
+
+def test_konkretes_datum_setzt_keinen_monat():
+    # Mit Tag+Monat entsteht ein echtes Datum – kein grober Monatswunsch nötig.
+    i = _wish("ab 12. Juli für eine Woche")
+    assert i.start == date(YEAR, 7, 12)
+    assert i.month is None

@@ -82,6 +82,11 @@ class WishIntent:
     kind: str = "wish"                       # "wish" | "booking"
     start: date | None = None
     end: date | None = None
+    # Grober Zeitwunsch OHNE konkretes Startdatum: nur ein Monat („im Juli") und/oder
+    # eine Dauer („eine Woche"). Der Service-Layer löst daraus das erste passende/freie
+    # Datum auf (braucht Verfügbarkeit → nicht in der reinen Logik, ADR 0108-Nachtrag).
+    month: int | None = None                 # 1–12, wenn nur ein Monat genannt wurde
+    nights: int | None = None                # erkannte Dauer in Nächten (falls vorhanden)
     quarter_key: object | None = None
     eq_class_key: object | None = None
     persons: int | None = None
@@ -95,7 +100,7 @@ class WishIntent:
     @property
     def is_empty(self) -> bool:
         """Nichts Verwertbares erkannt (Formular bleibt wie es ist)."""
-        return not any((self.start, self.quarter_key, self.eq_class_key,
+        return not any((self.start, self.month, self.quarter_key, self.eq_class_key,
                         self.persons, self.accessible, self.flexible,
                         self.cleaning is not None, self.special))
 
@@ -189,6 +194,21 @@ def _extract_duration(norm: str) -> int | None:
     return None
 
 
+_MONTH_NAMES = ("", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+                "August", "September", "Oktober", "November", "Dezember")
+
+
+def _extract_month(toks: list[str]) -> int | None:
+    """Ein allein (ohne Tag) genannter Monatsname („im Juli") → Monatszahl 1–12.
+    Nur ganze Tokens (kein Teilstring), damit kurze Kürzel nicht in anderen Wörtern
+    matchen. Der konkrete Tag wird erst im Service-Layer (Verfügbarkeit) bestimmt."""
+    for t in toks:
+        mon = _MONTHS.get(t)
+        if mon:
+            return mon
+    return None
+
+
 def _extract_persons(norm: str) -> int | None:
     """Personenzahl aus „für 4 personen", „zu viert", „wir sind 3", „4 erwachsene"."""
     m = re.search(r"\b(\d{1,2})\s*(?:person|personen|leute|gaeste|gaste|"
@@ -241,6 +261,8 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
     # --- Zeitraum: erst konkrete Daten, dann benannte (konfigurierte) Zeiträume ---
     dates = _extract_dates(norm, year)
     duration = _extract_duration(norm)
+    if duration:
+        intent.nights = duration
     if len(dates) >= 2:
         intent.start, intent.end = dates[0], dates[1]
         if intent.end <= intent.start:
@@ -263,9 +285,17 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
                 intent.start, intent.end = s, e
                 intent.matched.append(f"{name} ({s:%d.%m.}–{e:%d.%m.})")
                 break
-        if intent.start is None and duration:
-            intent.unresolved.append(
-                f"Dauer {duration} Nächte erkannt, aber kein Startdatum")
+        if intent.start is None:
+            # Grober Monatswunsch („eine Woche im Juli"): Monat (+ evtl. Dauer)
+            # festhalten – der Service-Layer schlägt daraus das erste passende/freie
+            # Datum vor (statt „kein Startdatum" zu melden).
+            mon = _extract_month(toks)
+            if mon:
+                intent.month = mon
+                intent.matched.append(f"im {_MONTH_NAMES[mon]}")
+            elif duration:
+                intent.unresolved.append(
+                    f"Dauer {duration} Nächte erkannt, aber kein Startdatum")
 
     # --- Quartier / Äquivalenzklasse (unscharf gegen konfigurierte Namen) ---
     q_cands = [Candidate(key=k, names=[n]) for k, n in (quarters or []) if n]

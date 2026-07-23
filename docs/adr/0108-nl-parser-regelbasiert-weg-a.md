@@ -84,3 +84,22 @@ neue Infrastruktur/PII-Risiko; folgt den konfigurierten Stammdaten; klar geteste
 **Negativ / Grenzen** – deckt nur Kurz-Eingaben ab (s. o.); die Match-Schwelle ist bewusst
 konservativ (lieber kein als ein falscher Treffer); die Einbindung ins UI (zwei getrennte
 Freitextfelder, escaped/CSP-treu, Vorschau-zum-Bestätigen) erfolgt in einem Folge-Batch.
+
+## Nachtrag (2026-07): grober Monatswunsch → erstes (freies) Datum
+
+Ein **grober Zeitwunsch ohne konkretes Startdatum** („eine Woche im Juli") lief bisher in
+die Meldung „Dauer erkannt, aber kein Startdatum" – widersprüchlich zum vorgeschlagenen
+Beispieltext. Behoben in **zwei Schichten** (die Trennung rein/Service bleibt gewahrt):
+
+- **Reine Logik** (`wish_nl`): ein allein genannter **Monatsname** (ganzes Token, kein
+  Teilstring) setzt `WishIntent.month` (+ `nights` aus der Dauer). Kein Datum, keine
+  Verfügbarkeit in der reinen Logik – nur die Absicht.
+- **Service** (`services.nl._resolve_month_start`): schlägt daraus das **erste passende
+  Datum** im Monat vor – für **Buchungen** das erste **freie + freigeschaltete** Datum der
+  genannten (bzw. irgendeiner passenden) Unterkunft, für **Wünsche** das erste Datum im
+  Saison-Zeitraum (Freiheit gilt für Wünsche nicht). Findet sich nichts, wird das **ehrlich**
+  gemeldet („im <Monat> keine passende freie Zeit gefunden"). Best-effort, nie blockierend.
+
+Tests: `tests/test_wish_nl.py` (Monat/Dauer rein) + `booking/tests_nl.py`
+(`NlMonatAufloesungTests`: Wunsch bekommt Datum, Buchung nimmt erstes freies, überspringt
+Belegtes, meldet einen komplett belegten Monat ehrlich).
