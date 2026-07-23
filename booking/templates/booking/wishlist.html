@@ -103,6 +103,9 @@ Direkteingabe + Auswahl; ganz unten die eingeklappten Nachfrage-/Ausweich-Tipps.
     {% else %}
     <p class="nl-warn">Konnte daraus leider nichts ableiten – bitte im Kalender wählen.</p>
     {% endif %}
+    {% if nl_result.suggestions %}
+    <p class="nl-alts">Meintest du eher: {% for s in nl_result.suggestions %}<a data-ajax class="nl-alt" href="{{ s.href }}">{{ s.label }}</a>{% endfor %}</p>
+    {% endif %}
     {% if nl_result.unresolved %}
     <p class="muted sm">Nicht übernommen: {% for u in nl_result.unresolved %}{{ u }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
     {% endif %}
@@ -503,6 +506,11 @@ beim Eintragen, ohne die Auswahl zu überlagern (ADR 0112 Tier 2).{% endcomment 
   .nl-warn { margin:0; color:var(--warn); }
   .nl-chip { display:inline-block; background:var(--sage-soft); color:var(--sage-deep);
     border-radius:999px; padding:.08rem .5rem; font-size:.8rem; margin:.1rem .2rem .1rem 0; }
+  .nl-alts { margin:.45rem 0 0; font-size:.9rem; color:var(--muted); }
+  .nl-alt { display:inline-block; margin:.15rem .3rem .15rem 0; padding:.12rem .55rem;
+    border:1px solid var(--line); border-radius:999px; color:var(--accent-deep);
+    background:var(--card); text-decoration:none; }
+  .nl-alt:hover { border-color:var(--accent); }
   /* Wunsch-Liste */
   ul.wishlist { list-style:none; padding:0; margin:.4rem 0; }
   li.wish { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; background:var(--card);

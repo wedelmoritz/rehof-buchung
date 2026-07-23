@@ -206,3 +206,62 @@ def test_konkretes_datum_setzt_keinen_monat():
     i = _wish("ab 12. Juli für eine Woche")
     assert i.start == date(YEAR, 7, 12)
     assert i.month is None
+
+
+# --- Erweiterte Zeit-Erkennung (Jahreszeiten, Komposita, Monatsteil, relativ) ---
+
+def _book(text, today=None):
+    return parse_booking_text(text, quarters=QUARTERS, eq_classes=CLASSES,
+                              seasons=SEASONS, holidays=HOLIDAYS, year=YEAR,
+                              today=today or date(YEAR, 3, 2))
+
+
+def test_jahreszeit_liefert_kandidat_monate():
+    i = _wish("Sommerwoche")
+    assert i.months == [7, 8, 6]        # Juli bevorzugt, dann Aug/Juni
+    assert i.nights == 7                # „…woche" → 7 Nächte
+
+
+def test_kompositum_monat_woche():
+    i = _wish("Juliwoche mit Hund")
+    assert i.months == [7] and i.nights == 7
+
+
+def test_jahreszeit_ohne_woche_keine_dauer():
+    i = _wish("im Herbst")
+    assert i.months == [10, 9, 11] and i.nights is None
+
+
+def test_expliziter_monat_schlaegt_jahreszeit():
+    i = _wish("im Sommer, am liebsten Juli")
+    assert i.months == [7]              # expliziter Monat gewinnt
+
+
+def test_monatsteil_setzt_day_bias():
+    assert _wish("Anfang August").day_bias == "start"
+    assert _wish("Mitte August").day_bias == "mid"
+    assert _wish("Ende August").day_bias == "end"
+
+
+def test_relativ_nur_buchung_nicht_wunsch():
+    # „nächste Woche" ergibt bei einer BUCHUNG ein konkretes Startdatum (kommender
+    # Montag ab heute) …
+    b = _book("nächste Woche", today=date(YEAR, 3, 2))   # Di, 2.3.2027 → Mo, 8.3.
+    assert b.start == date(YEAR, 3, 8) and b.nights == 7
+    # … bei einem WUNSCH (Folgejahr) ist es sinnlos → nichts gesetzt.
+    w = parse_wish_text("nächste Woche", quarters=QUARTERS, eq_classes=CLASSES,
+                        seasons=SEASONS, holidays=HOLIDAYS, year=YEAR,
+                        today=date(YEAR, 3, 2))
+    assert w.start is None and not w.months
+
+
+def test_relativ_in_wochen_ist_keine_dauer():
+    # „in 2 Wochen" = Versatz ab heute, NICHT 2 Wochen Dauer.
+    b = _book("in 2 Wochen", today=date(YEAR, 3, 2))
+    assert b.start == date(YEAR, 3, 16)
+    assert b.nights is None
+
+
+def test_dauer_synonyme():
+    assert _book("verlängertes Wochenende im August").nights == 3
+    assert _book("ein paar Tage im August").nights == 3

@@ -15,65 +15,106 @@ from ..models import EquivalenceClass, Quarter, SchoolHoliday, SeasonRule
 
 __all__ = ["nl_stammdaten", "nl_parse_wish", "nl_parse_booking"]
 
+_MAX_SUGGESTIONS = 3
+
 
 def _resolve_month_start(intent, *, year: int, today: date) -> None:
-    """Grober Zeitwunsch ohne konkretes Startdatum (nur Monat „im Juli", evtl. Dauer
-    „eine Woche") → **erstes passendes Datum** im Monat vorschlagen, statt „kein
-    Startdatum" zu melden (ADR 0108-Nachtrag). Für **Buchungen** wird die
-    Verfügbarkeit geprüft (erstes **freies** Datum der genannten bzw. irgendeiner
-    passenden Unterkunft); für **Wünsche** genügt der Saison-Zeitraum (Freiheit gilt
-    dort nicht). Best-effort, nie blockierend – bei einem Fehler bleibt das Formular
+    """Grober Zeitwunsch ohne konkretes Startdatum (Kandidat-Monate „im Juli"/
+    „Sommerwoche", evtl. Dauer/Monatsteil) → bis zu drei konkrete Vorschläge: je
+    Kandidat-Monat das **erste passende/freie Datum**. Der beste wird als Start/Ende
+    übernommen (Vorbelegung), die weiteren landen als „Meintest du…?"-Alternativen in
+    `intent.suggestions` (ADR 0108-Nachtrag). **Buchungen** prüfen die Verfügbarkeit
+    (erstes **freies** Datum der genannten bzw. irgendeiner passenden Unterkunft),
+    **Wünsche** nur die Saison. Effizient: Verfügbarkeit wird EINMAL vorab geladen
+    (ADR 0111). Best-effort, nie blockierend – bei einem Fehler bleibt das Formular
     unverändert."""
-    if intent.start is not None or intent.month is None:
+    if intent.start is not None or not intent.months:
         return
     try:
-        m = intent.month
-        fom = date(year, m, 1)
-        # Liegt der Monat schon ganz in der Vergangenheit (Buchung im laufenden Jahr),
-        # ist das nächste Vorkommen im Folgejahr gemeint.
-        if fom < date(today.year, today.month, 1):
-            fom = date(year + 1, m, 1)
-        month_end = date(fom.year + 1, 1, 1) if m == 12 else date(fom.year, m + 1, 1)
-        scan_from = max(fom, today + timedelta(days=1))
-        if scan_from >= month_end:
-            return
+        from .slots import (quarter_is_free, range_is_released, _in_season_range,
+                             _active_windows, _occupied_days_by_quarter)
         nights = intent.nights or 0
         span = nights or 1                      # Prüf-Fenster (min. 1 Nacht)
+
+        # Kandidat-Monate → (Monat, Suchstart, Monatsende); Vergangenes ins Folgejahr.
+        # Der Monatsteil (Anfang/Mitte/Ende) verschiebt nur den Suchstart.
+        cur_first = date(today.year, today.month, 1)
+        ranges: list[tuple[int, date, date]] = []
+        for m in intent.months[:_MAX_SUGGESTIONS]:
+            fom = date(year, m, 1)
+            if fom < cur_first:
+                fom = date(year + 1, m, 1)
+            month_end = date(fom.year + 1, 1, 1) if m == 12 else date(fom.year, m + 1, 1)
+            biased = fom
+            if intent.day_bias == "mid":
+                biased = fom + timedelta(days=12)
+            elif intent.day_bias == "end":
+                biased = fom + timedelta(days=21)
+            scan_from = max(biased, today + timedelta(days=1))
+            if scan_from < month_end:
+                ranges.append((m, scan_from, month_end))
+        if not ranges:
+            return
 
         quarter = None
         if intent.quarter_key is not None:
             quarter = Quarter.objects.filter(
                 id=intent.quarter_key, active=True).first()
 
-        from .slots import quarter_is_free, range_is_released, _in_season_range
+        # Verfügbarkeit für Buchungen EINMAL über die ganze Spanne vorab laden.
+        windows = occ = cand_quarters = None
+        if intent.kind == "booking":
+            span_first = min(r[1] for r in ranges)
+            span_last = max(r[2] for r in ranges) + timedelta(days=span)
+            windows = _active_windows()
+            occ = _occupied_days_by_quarter(span_first, span_last)
+            if quarter is None:
+                qs = Quarter.objects.filter(active=True)
+                if intent.accessible:
+                    qs = qs.filter(accessible=True)
+                if intent.persons:
+                    qs = qs.filter(min_occupancy__lte=intent.persons,
+                                   max_occupancy__gte=intent.persons)
+                cand_quarters = list(qs)
 
-        def _ok(d: date) -> bool:
+        def _free_on(d: date) -> bool:
             end = d + timedelta(days=span)
             if intent.kind == "wish":
-                # Wünsche: keine Freiheits-Prüfung, nur Saison des (evtl.) Quartiers.
                 return quarter is None or _in_season_range(quarter, d, end)
             if quarter is not None:
-                return (range_is_released(quarter, d, end)
-                        and quarter_is_free(quarter, d, end))
-            from .booking_ops import free_quarters_for
-            return bool(free_quarters_for(d, end, intent.persons or 1))
+                return (range_is_released(quarter, d, end, windows=windows)
+                        and quarter_is_free(
+                            quarter, d, end,
+                            occupied_days=occ.get(str(quarter.id), set())))
+            for q in cand_quarters:
+                if (range_is_released(q, d, end, windows=windows)
+                        and quarter_is_free(
+                            q, d, end, occupied_days=occ.get(str(q.id), set()))):
+                    return True
+            return False
 
-        d, found = scan_from, None
-        while d < month_end:
-            if _ok(d):
-                found = d
-                break
-            d += timedelta(days=1)
-        if found is None:
+        suggestions: list[dict] = []
+        for _m, scan_from, month_end in ranges:
+            d = scan_from
+            while d < month_end:
+                if _free_on(d):
+                    end = d + timedelta(days=nights) if nights else None
+                    label = f"{d:%d.%m.}" + (f"–{end:%d.%m.}" if end else "")
+                    suggestions.append({"start": d, "end": end, "label": label})
+                    break
+                d += timedelta(days=1)
+
+        if not suggestions:
+            names = " / ".join(wish_nl._MONTH_NAMES[m] for m, _, _ in ranges)
             intent.unresolved.append(
-                f"im {wish_nl._MONTH_NAMES[m]} keine passende freie Zeit gefunden – "
+                f"in {names} keine passende freie Zeit gefunden – "
                 f"bitte im Kalender wählen")
             return
-        intent.start = found
-        if nights:
-            intent.end = found + timedelta(days=nights)
+        intent.start = suggestions[0]["start"]
+        intent.end = suggestions[0]["end"]
+        intent.suggestions = suggestions
         intent.matched.append(
-            f"ab {found:%d.%m.} vorgeschlagen"
+            f"ab {intent.start:%d.%m.} vorgeschlagen"
             + (" (erstes freies Datum)" if intent.kind == "booking" else ""))
     except Exception:  # noqa: BLE001 – nie blockierend; Formular bleibt unverändert
         return
