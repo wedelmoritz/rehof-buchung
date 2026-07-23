@@ -777,8 +777,10 @@ je Buchung inline editierbar #84),
 `verw_reinigung` (`/verwaltung/reinigung/`, **Reinigung inkl. Endreinigung** – s.u.),
 `verw_sperrzeiten` (`/verwaltung/sperrzeiten/`, **Sperrzeiten** je Quartier #61 –
 eigene Seite, nicht mehr unter Reinigung),
-`verw_rechnungen` (`/verwaltung/rechnungen/`, Rechnungen + Erinnerungen),
-`verw_konto` (`/verwaltung/kontoabgleich/`, Kontoabgleich),
+`verw_rechnungen` (`/verwaltung/rechnungen/`, Rechnungen + Erinnerungen **inkl.
+Kontoabgleich** als eingeklappte Karte „Zahlungseingänge importieren"; der frühere
+eigene Menüpunkt `verw_konto`/`/verwaltung/kontoabgleich/` ist hier aufgegangen und
+leitet nur noch dorthin um, ADR 0112 Tier 2),
 `verw_auslastung` (`/verwaltung/auslastung/`, Statistik + Auslastungs-Ampel),
 `verw_mitglieder` (`/verwaltung/mitglieder/`, Mitgliederliste mit Kontakt #65),
 `verw_rundnachricht` (`/verwaltung/rundnachricht/`, **Rundnachricht** an eine Rolle

@@ -1617,7 +1617,7 @@ def _verw_post(request, year, month, m_from, m_to, only_cleaning):
                                  f"bezahlt verbucht.")
             except Exception as exc:  # noqa: BLE001 – Nutzerfehler freundlich melden
                 messages.error(request, f"Import nicht möglich: {exc}")
-        target = "verw_konto"
+        target = "verw_rechnungen"
     return redirect(f"{reverse(target)}?year={year}&month={month}"
                     + ("&only_cleaning=1" if only_cleaning else "") + extra)
 
@@ -1884,7 +1884,7 @@ def verw_sperrzeiten(request):
 def verw_rechnungen(request):
     """Unterseite: Rechnungen (filterbar) + Zahlungserinnerungen."""
     from shop import services as shop_svc
-    from shop.models import Invoice, ShopConfig
+    from shop.models import BankImport, BankTransaction, Invoice, ShopConfig
     from decimal import Decimal
     today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
     if request.method == "POST":
@@ -1925,24 +1925,20 @@ def verw_rechnungen(request):
         "inv_view_sum": sum((i.total_gross for i in invoices_view), Decimal(0)),
         "online_total_count": online_total_count, "guest_count": guest_count,
         "shop_small_business": ShopConfig.get_solo().small_business,
-    })
-    return render(request, "booking/verw_rechnungen.html", ctx)
-
-
-@authz.requires_capability("konto")
-def verw_konto(request):
-    """Unterseite: Kontoabgleich (Zahlungseingänge importieren)."""
-    from shop.models import BankImport, BankTransaction
-    today, year, month, m_from, m_to, only_cleaning = _verw_month(request)
-    if request.method == "POST":
-        return _verw_post(request, year, month, m_from, m_to, only_cleaning)
-    ctx = _verw_nav_ctx(request, today, year, month)
-    ctx.update({
+        # Kontoabgleich lebt jetzt als eingeklappte Karte auf DIESER Seite (ADR 0112
+        # Tier 2): Zahlungseingänge importieren + zuletzt importierte Auszüge.
         "recent_imports": list(BankImport.objects.all()[:8]),
         "unmatched_count": BankTransaction.objects.filter(
             matched_invoice__isnull=True, amount__gt=0).count(),
     })
-    return render(request, "booking/verw_konto.html", ctx)
+    return render(request, "booking/verw_rechnungen.html", ctx)
+
+
+@authz.requires_capability("rechnungen")
+def verw_konto(request):
+    """Der Kontoabgleich ist in „Rechnungen" aufgegangen (ADR 0112 Tier 2) – alte
+    Links leiten dorthin um (die Import-Karte steht dort eingeklappt)."""
+    return redirect("verw_rechnungen")
 
 
 @authz.requires_capability("auslastung")
