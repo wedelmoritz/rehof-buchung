@@ -449,6 +449,18 @@ def book(request):
         if _nl.start and not sel_start:
             sel_start, sel_end = _nl.start, _nl.end
             year, month = _nl.start.year, _nl.start.month
+        # „Meintest du…?"-Alternativen (weitere Kandidat-Monate) als 1-Klick-Chips;
+        # Personenzahl/Barrierefrei bleiben erhalten, kein nlq (kein Re-Parse).
+        alts = []
+        for s in _nl.suggestions[1:]:
+            qs = f"?year={s['start'].year}&month={s['start'].month}&persons={persons}"
+            if need_accessible:
+                qs += "&accessible=1"
+            qs += f"&start={s['start'].isoformat()}"
+            if s.get("end"):
+                qs += f"&end={s['end'].isoformat()}"
+            alts.append({"label": s["label"], "href": qs})
+        nl_result["suggestions"] = alts
     cal = svc.build_booking_calendar(member, year, month, sel_start, sel_end) \
         if member else None
 
@@ -940,6 +952,16 @@ def wishlist(request):
         if intent.start and not sel_start:
             sel_start, sel_end = intent.start, intent.end
             year, month = intent.start.year, intent.start.month
+        # „Meintest du…?"-Alternativen (weitere Kandidat-Monate) als 1-Klick-Chips –
+        # nur strukturierte Daten (Datum/Label), das Template escapt.
+        alts = []
+        for s in intent.suggestions[1:]:
+            qs = (f"?view=neu&year={s['start'].year}&month={s['start'].month}"
+                  f"&start={s['start'].isoformat()}")
+            if s.get("end"):
+                qs += f"&end={s['end'].isoformat()}"
+            alts.append({"label": s["label"], "href": qs})
+        nl_result["suggestions"] = alts
     cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end,
                                   ctx=pop_ctx) \
         if (member and period) else None

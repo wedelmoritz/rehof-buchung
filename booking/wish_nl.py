@@ -82,11 +82,17 @@ class WishIntent:
     kind: str = "wish"                       # "wish" | "booking"
     start: date | None = None
     end: date | None = None
-    # Grober Zeitwunsch OHNE konkretes Startdatum: nur ein Monat („im Juli") und/oder
-    # eine Dauer („eine Woche"). Der Service-Layer löst daraus das erste passende/freie
-    # Datum auf (braucht Verfügbarkeit → nicht in der reinen Logik, ADR 0108-Nachtrag).
-    month: int | None = None                 # 1–12, wenn nur ein Monat genannt wurde
+    # Grober Zeitwunsch OHNE konkretes Startdatum: ein oder mehrere KANDIDAT-Monate
+    # (nach Präferenz sortiert – „im Juli"→[7], „Sommerwoche"→[7,8,6]) und/oder eine
+    # Dauer („eine Woche"). Der Service-Layer löst daraus je Kandidat das erste
+    # passende/freie Datum auf (braucht Verfügbarkeit → nicht in der reinen Logik,
+    # ADR 0108-Nachtrag). `day_bias` verschiebt den Suchstart im Monat.
+    months: list[int] = field(default_factory=list)   # Kandidat-Monate 1–12, geordnet
+    day_bias: str | None = None              # "start" | "mid" | "end" (Anfang/Mitte/Ende)
     nights: int | None = None                # erkannte Dauer in Nächten (falls vorhanden)
+    # Vom Service befüllt: bis zu N konkrete Vorschläge {start, end, label} (der erste
+    # ist zugleich start/end); die weiteren sind die „Meintest du…?"-Alternativen.
+    suggestions: list = field(default_factory=list)
     quarter_key: object | None = None
     eq_class_key: object | None = None
     persons: int | None = None
@@ -98,9 +104,14 @@ class WishIntent:
     unresolved: list[str] = field(default_factory=list)
 
     @property
+    def month(self) -> int | None:
+        """Bevorzugter (erster) Kandidat-Monat, für einfache Prüfungen/Abwärtskompat."""
+        return self.months[0] if self.months else None
+
+    @property
     def is_empty(self) -> bool:
         """Nichts Verwertbares erkannt (Formular bleibt wie es ist)."""
-        return not any((self.start, self.month, self.quarter_key, self.eq_class_key,
+        return not any((self.start, self.months, self.quarter_key, self.eq_class_key,
                         self.persons, self.accessible, self.flexible,
                         self.cleaning is not None, self.special))
 
@@ -187,6 +198,11 @@ def _extract_duration(norm: str) -> int | None:
             return n * 7
         if re.search(rf"\b{word}\s+(?:naechte|nachte|nacht|tage|tag)\b", norm):
             return n
+    # Synonyme: „verlängertes/langes Wochenende" (3), „ein paar/einige Tage" (3).
+    if re.search(r"\b(?:verlaengertes|verlangertes|langes)\s+wochenende\b", norm):
+        return 3
+    if re.search(r"\b(?:ein\s+)?paar\s+tage\b", norm) or "einige tage" in norm:
+        return 3
     if "woche" in norm:
         return 7
     if "wochenende" in norm:
@@ -198,15 +214,96 @@ _MONTH_NAMES = ("", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli"
                 "August", "September", "Oktober", "November", "Dezember")
 
 
-def _extract_month(toks: list[str]) -> int | None:
-    """Ein allein (ohne Tag) genannter Monatsname („im Juli") → Monatszahl 1–12.
-    Nur ganze Tokens (kein Teilstring), damit kurze Kürzel nicht in anderen Wörtern
-    matchen. Der konkrete Tag wird erst im Service-Layer (Verfügbarkeit) bestimmt."""
+# Jahreszeit → Kandidat-Monate, nach typischer Ferien-/Urlaubs-Präferenz geordnet.
+# Bewusst konservativ; die Mehrdeutigkeit klärt der Nutzer über „Meintest du…?"-Chips.
+# Beide Schreibweisen (ü→„u" nach _norm ODER vom Nutzer als „ue" getippt), wie überall
+# im Parser (vgl. „naechte"/„nachte").
+_SEASONS: dict[str, list[int]] = {
+    "fruhling": [5, 4, 6], "fruehling": [5, 4, 6],
+    "fruhjahr": [5, 4, 6], "fruehjahr": [5, 4, 6], "lenz": [5, 4],
+    "sommer": [7, 8, 6], "hochsommer": [8, 7],
+    "spatsommer": [8, 9], "spaetsommer": [8, 9],
+    "herbst": [10, 9, 11], "winter": [1, 2, 12],
+}
+# Kompositum-Endungen: nur „…woche/…wochen" implizieren 7 Nächte, die übrigen sind
+# reine Zeit-Hinweise (Monat/Jahreszeit) ohne feste Dauer.
+_COMPOUND_SUFFIXES = ("wochen", "woche", "ferien", "urlaub", "urlaube", "zeit", "tage")
+
+
+def _month_candidates(token: str) -> tuple[list[int], int | None]:
+    """Ein Zeit-Token → (Kandidat-Monate, Nächte-Hinweis). Erkennt puren Monatsnamen,
+    pure Jahreszeit UND Komposita („Juliwoche"/„Sommerwoche"/„Herbsturlaub"): der
+    Präfix liefert Monat/Jahreszeit, das Suffix ggf. die Dauer (…woche → 7 Nächte)."""
+    mon = _MONTHS.get(token)
+    if mon:
+        return [mon], None
+    if token in _SEASONS:
+        return list(_SEASONS[token]), None
+    for suf in _COMPOUND_SUFFIXES:
+        if token.endswith(suf) and len(token) > len(suf):
+            prefix = token[: -len(suf)]
+            nights = 7 if suf in ("woche", "wochen") else None
+            pm = _MONTHS.get(prefix)
+            if pm:
+                return [pm], nights
+            if prefix in _SEASONS:
+                return list(_SEASONS[prefix]), nights
+            break
+    return [], None
+
+
+def _extract_time_months(toks: list[str]) -> tuple[list[int], int | None]:
+    """Grober Zeitraum ohne Tag → geordnete Kandidat-Monate (+ evtl. Nächte-Hinweis).
+    Ein explizit genannter Monatsname hat Vorrang vor einer Jahreszeit; sonst die
+    erste erkannte Jahreszeit/Kompositum. Nur ganze Tokens (kein Teilstring)."""
+    season_hit: tuple[list[int], int | None] | None = None
     for t in toks:
         mon = _MONTHS.get(t)
         if mon:
-            return mon
+            return [mon], None                  # expliziter Monat gewinnt
+        if season_hit is None:
+            cand, nights = _month_candidates(t)
+            if cand:
+                season_hit = (cand, nights)
+    return season_hit if season_hit else ([], None)
+
+
+def _extract_month(toks: list[str]) -> int | None:
+    """Bevorzugter Kandidat-Monat (Abwärtskompatibilität / einfache Prüfungen)."""
+    months, _ = _extract_time_months(toks)
+    return months[0] if months else None
+
+
+def _extract_day_bias(norm: str) -> str | None:
+    """„Anfang/Mitte/Ende <Monat>" bzw. „erste/letzte Woche" → Suchstart im Monat."""
+    if re.search(r"\banfang\b", norm) or re.search(r"\berste\w*\s+woche\b", norm):
+        return "start"
+    if re.search(r"\bmitte\b", norm):
+        return "mid"
+    if re.search(r"\bende\b", norm) or re.search(r"\bletzte\w*\s+woche\b", norm):
+        return "end"
     return None
+
+
+def _extract_relative(norm: str, today: date) -> tuple[date | None, int | None]:
+    """Relative Zeitangaben AB HEUTE (nur für Buchungen sinnvoll): „nächste Woche",
+    „übernächste Woche", „in 2 Wochen", „in 5 Tagen". Gibt (Startdatum, Nächte) oder
+    (None, None). „nächste Woche" = kommender Montag, 7 Nächte."""
+    def _next_monday(base: date) -> date:
+        days = (7 - base.weekday()) % 7 or 7
+        return base + timedelta(days=days)
+
+    if re.search(r"\buber(?:na|nae)chste[nrs]?\s+woche\b", norm):
+        return _next_monday(today) + timedelta(days=7), 7
+    if re.search(r"\b(?:na|nae)chste[nrs]?\s+woche\b", norm):
+        return _next_monday(today), 7
+    m = re.search(r"\bin\s+(\d{1,2})\s+wochen\b", norm)
+    if m:
+        return today + timedelta(days=int(m.group(1)) * 7), None
+    m = re.search(r"\bin\s+(\d{1,2})\s+tagen\b", norm)
+    if m:
+        return today + timedelta(days=int(m.group(1))), None
+    return None, None
 
 
 def _extract_persons(norm: str) -> int | None:
@@ -258,9 +355,20 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
         return intent
     toks = _tokens(norm)
 
-    # --- Zeitraum: erst konkrete Daten, dann benannte (konfigurierte) Zeiträume ---
+    # --- Zeitraum: konkrete Daten → relative Angaben (nur Buchung) → benannte
+    #     (konfigurierte) Zeiträume → grober Monat/Jahreszeit (Kandidaten fürs Service) ---
     dates = _extract_dates(norm, year)
-    duration = _extract_duration(norm)
+    # Relative Angaben („nächste Woche", „in 2 Wochen") nur ohne konkretes Datum und nur
+    # für Buchungen (bei Wünschen fürs Folgejahr sinnlos). Sie „verbrauchen" eine
+    # „in N Wochen"-Formulierung, damit sie nicht zusätzlich als Dauer zählt.
+    rel_start = rel_nights = None
+    norm_dur = norm
+    if kind == "booking" and today is not None and len(dates) == 0:
+        rel_start, rel_nights = _extract_relative(norm, today)
+        if rel_start is not None:
+            norm_dur = re.sub(r"\bin\s+\d{1,2}\s+(?:wochen|tagen)\b", " ", norm_dur)
+            norm_dur = re.sub(r"\b(?:uber)?(?:na|nae)chste[nrs]?\s+woche\b", " ", norm_dur)
+    duration = _extract_duration(norm_dur)
     if duration:
         intent.nights = duration
     if len(dates) >= 2:
@@ -278,6 +386,13 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
         else:
             intent.matched.append(f"ab {dates[0]:%d.%m.} (Abreise offen)")
             intent.unresolved.append("Enddatum fehlt")
+    elif rel_start is not None:
+        intent.start = rel_start
+        n = rel_nights or duration
+        if n:
+            intent.end = rel_start + timedelta(days=n)
+            intent.nights = n
+        intent.matched.append(f"ab {rel_start:%d.%m.} vorgeschlagen")
     else:
         # Benannte, KONFIGURIERTE Zeiträume (Ferien/Saison) – Substring-Treffer.
         for name, s, e in list(holidays) + list(seasons):
@@ -286,13 +401,20 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
                 intent.matched.append(f"{name} ({s:%d.%m.}–{e:%d.%m.})")
                 break
         if intent.start is None:
-            # Grober Monatswunsch („eine Woche im Juli"): Monat (+ evtl. Dauer)
-            # festhalten – der Service-Layer schlägt daraus das erste passende/freie
-            # Datum vor (statt „kein Startdatum" zu melden).
-            mon = _extract_month(toks)
-            if mon:
-                intent.month = mon
-                intent.matched.append(f"im {_MONTH_NAMES[mon]}")
+            # Grober Zeitwunsch („eine Woche im Juli", „Sommerwoche", „Anfang August"):
+            # Kandidat-Monate (+ evtl. Dauer/Monatsteil) festhalten – das Service-Layer
+            # schlägt daraus je Kandidat das erste passende/freie Datum vor.
+            months, snights = _extract_time_months(toks)
+            if months:
+                intent.months = months
+                if snights and not intent.nights:
+                    intent.nights = snights
+                intent.day_bias = _extract_day_bias(norm)
+                if len(months) == 1:
+                    intent.matched.append(f"im {_MONTH_NAMES[months[0]]}")
+                else:
+                    intent.matched.append(
+                        "Zeitraum: " + " / ".join(_MONTH_NAMES[m] for m in months))
             elif duration:
                 intent.unresolved.append(
                     f"Dauer {duration} Nächte erkannt, aber kein Startdatum")

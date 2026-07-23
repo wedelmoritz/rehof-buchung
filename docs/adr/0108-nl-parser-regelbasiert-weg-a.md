@@ -103,3 +103,35 @@ Beispieltext. Behoben in **zwei Schichten** (die Trennung rein/Service bleibt ge
 Tests: `tests/test_wish_nl.py` (Monat/Dauer rein) + `booking/tests_nl.py`
 (`NlMonatAufloesungTests`: Wunsch bekommt Datum, Buchung nimmt erstes freies, überspringt
 Belegtes, meldet einen komplett belegten Monat ehrlich).
+
+### Nachtrag 2 (2026-07): mehr Vokabular + „Meintest du…?"-Vorschläge
+
+Ziel: **mehr Eingaben erkennen** und **Mehrdeutigkeit** sinnvoll behandeln. Methodik
+recherchiert (Slot-Filling/Conversational-Search-Literatur): keine **blockierende**
+Rückfrage (bräuchte Dialog-Zustand, widerspricht „nie blockierend"), sondern **rangierter
+Bestvorschlag + nicht-blockierende Quick-Reply-Chips** – das empfohlene „geführte Auswahl"-
+Fallback, das zur zustandslosen parse-and-confirm-Architektur passt (deterministisch,
+auditierbar, CSP-konform).
+
+- **Vokabular (reine Logik):** Jahreszeiten → **geordnete Kandidat-Monate**
+  (`_SEASONS`, „Sommer"→[7,8,6]); **`-woche`/`-urlaub`/`-ferien`-Komposita** („Sommerwoche",
+  „Juliwoche" → Monat/Saison + ggf. 7 Nächte); **Monatsteil** („Anfang/Mitte/Ende" →
+  `day_bias`); **relative Angaben** nur bei **Buchungen** („nächste/übernächste Woche",
+  „in N Wochen/Tagen" – „in 2 Wochen" ist Versatz, NICHT Dauer); **Dauer-Synonyme**
+  („verlängertes Wochenende"=3, „ein paar Tage"=3). Bewegliche Feste (Ostern/Pfingsten)
+  bleiben in den **konfigurierten** `SchoolHoliday`/`SeasonRule` (nichts hartcodiert).
+- **`WishIntent`** trägt jetzt **`months: list[int]`** (nach Präferenz geordnet), `day_bias`
+  und – vom Service befüllt – **`suggestions`** (bis zu 3 konkrete Vorschläge).
+- **Service** (`_resolve_month_start`): erzeugt je Kandidat-Monat das erste passende/freie
+  Datum (Monatsteil verschiebt den Suchstart); der beste wird vorbelegt, die weiteren sind
+  die **Alternativen**. **Effizient:** Verfügbarkeit wird **einmal** über die ganze Spanne
+  vorab geladen (ADR 0111), max. 3 Kandidaten – konstante Abfragezahl statt je Tag.
+- **UI:** die Vorschau zeigt unter „✓ Verstanden" eine Zeile **„Meintest du eher: …"** mit
+  1-Klick-Chips (vorbefüllte GET-Links ohne `nlq`, `data-ajax`, CSP-treu); ein Klick
+  übernimmt den Alternativ-Zeitraum, ohne neu zu parsen.
+
+**Security:** unverändert gehärtet – nur gebundene Regex (kein ReDoS), Längenlimit, kein
+eval/SSTI; Ausgabe nur strukturierte Daten (Datum/Label), das Template escapt; kein
+Dialog-/Sitzungszustand. Tests: `tests/test_wish_nl.py` (Jahreszeiten/Komposita/Monatsteil/
+relativ/Synonyme) + `booking/tests_nl.py` (mehrere Vorschläge, belegten Monat überspringen,
+relativ ohne Alternativen, „Meintest du…?"-Chips in der View).

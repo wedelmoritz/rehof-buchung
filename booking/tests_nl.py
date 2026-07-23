@@ -75,6 +75,16 @@ class NlWishlistViewTests(TestCase):
         # Der geparste Zeitraum ist als Auswahl übernommen (Kandidaten-Formular).
         self.assertIn(f'value="{NEXT}-07-12"', html)
 
+    def test_sommerwoche_zeigt_meintest_du_chips(self):
+        # „Sommerwoche" ist mehrdeutig (Juli/August/Juni) → bester Vorschlag vorbelegt,
+        # Alternativen als „Meintest du…?"-Chips (1-Klick-Links).
+        html = self.client.get(
+            reverse("wishlist") + "?view=neu&nlq=Sommerwoche").content.decode()
+        self.assertIn("Meintest du eher", html)
+        # Chips verweisen auf konkrete Alternativ-Zeiträume (August/Juni).
+        self.assertIn(f"start={NEXT}-08-01", html)
+        self.assertIn(f"start={NEXT}-06-01", html)
+
 
 class NlBookViewTests(TestCase):
     def setUp(self):
@@ -142,3 +152,29 @@ class NlMonatAufloesungTests(TestCase):
         self.assertIsNone(intent.start)
         self.assertTrue(any("keine passende freie Zeit" in u
                             for u in intent.unresolved))
+
+    def test_wunsch_jahreszeit_liefert_mehrere_vorschlaege(self):
+        # „Sommerwoche" → Kandidaten Juli/August/Juni; bester vorbelegt, Rest als
+        # Alternativen in intent.suggestions (für die „Meintest du…?"-Chips).
+        intent = svc.nl_parse_wish("Sommerwoche", self.period)
+        self.assertEqual(intent.start, date(NEXT, 7, 1))
+        self.assertEqual(intent.end, date(NEXT, 7, 8))
+        months = [s["start"].month for s in intent.suggestions]
+        self.assertEqual(months, [7, 8, 6])
+
+    def test_buchung_jahreszeit_ueberspringt_belegten_monat(self):
+        # Ganzer Juli belegt → der beste Vorschlag ist der August (Juli fällt raus).
+        Allocation.objects.create(
+            member=_member("occ3"), quarter=self.q,
+            start=date(NEXT, 7, 1), end=date(NEXT, 8, 1),
+            source="spontaneous", provisional=False)
+        intent = svc.nl_parse_booking("Sommerwoche ins turm", year=NEXT)
+        self.assertIsNotNone(intent.start)
+        self.assertEqual(intent.start.month, 8)
+        # Kein Vorschlag liegt im (voll belegten) Juli.
+        self.assertFalse(any(s["start"].month == 7 for s in intent.suggestions))
+
+    def test_relativ_naechste_woche_ohne_alternativen(self):
+        intent = svc.nl_parse_booking("nächste Woche ins turm", year=NEXT)
+        self.assertIsNotNone(intent.start)
+        self.assertEqual(intent.suggestions, [])   # konkret → keine Chips
