@@ -62,13 +62,25 @@
        href="?view=meine&year={{ cal.year }}&month={{ cal.month }}">📋 Meine Wünsche{% if wishes %} <span class="wl-count">{{ wishes|length }}</span>{% endif %}</a>
     <a data-ajax class="wl-tab{% if view == 'neu' %} active{% endif %}"
        href="?view=neu&year={{ cal.year }}&month={{ cal.month }}{{ sel_qs }}">➕ Neue Wünsche eintragen</a>
-    <a data-ajax class="wl-tab{% if view == 'nachfrage' %} active{% endif %}"
-       href="?view=nachfrage&year={{ cal.year }}&month={{ cal.month }}">📊 Nachfrage &amp; Heatmap</a>
   </nav>
 </div>
 
 {% if view == 'neu' %}
-{% comment %}Reiter „Neue Wünsche eintragen": Freitext + Kalender + Direkteingabe + Auswahl.{% endcomment %}
+{% comment %}Reiter „Neue Wünsche eintragen": Community-Barometer + Freitext + Kalender +
+Direkteingabe + Auswahl; ganz unten die eingeklappten Nachfrage-/Ausweich-Tipps.{% endcomment %}
+{% if barometer and barometer.total %}
+<div class="card baro-card">
+  <div class="baro-head">
+    <h2 style="margin:0">Wie stark ballen sich die Wünsche?</h2>
+    <span class="baro-val baro-{{ barometer.band }}">{{ barometer.pct }}&nbsp;%</span>
+  </div>
+  <div class="baro-track"><span class="baro-fill baro-{{ barometer.band }}" style="width:{{ barometer.pct }}%"></span></div>
+  <p class="muted sm" style="margin:.5rem 0 0">So viel Prozent aller Wünsche liegen in
+    <strong>sehr beliebten</strong> Zeiten. <strong>Je weniger, desto besser</strong> verteilt sich
+    die Gemeinschaft – jeder Wunsch, den du auf eine ruhigere Zeit legst, senkt den Wert für alle.
+    (Anonym, keine Namen.)</p>
+</div>
+{% endif %}
 <div class="card">
   {% comment %}Natürlichsprachliche Kurz-Eingabe (ADR 0103/0108): füllt Zeitraum/
   Unterkunft vor – das Mitglied prüft und trägt selbst ein (parse-and-confirm).{% endcomment %}
@@ -186,23 +198,14 @@
 </div>
 {% endif %}
 
-{% elif view == 'nachfrage' %}
-{% comment %}Reiter „Nachfrage & Heatmap" (Feedback d/e).{% endcomment %}
-{% if barometer and barometer.total %}
-<div class="card baro-card">
-  <div class="baro-head">
-    <h2 style="margin:0">Verteilen wir uns?</h2>
-    <span class="baro-val baro-{{ barometer.band }}">{{ barometer.pct }}&nbsp;%</span>
-  </div>
-  <div class="baro-track"><span class="baro-fill baro-{{ barometer.band }}" style="width:{{ barometer.pct }}%"></span></div>
-  <p class="muted sm" style="margin:.5rem 0 0">So viele Wünsche liegen in <strong>sehr beliebten</strong>
-    Zeiten. <strong>Je niedriger, desto besser</strong> verteilt sich die Gemeinschaft – jeder Wunsch,
-    den du auf eine ruhigere Zeit legst, senkt den Wert für alle. (Anonym, keine Namen.)</p>
-</div>
-{% endif %}
-{% if demand_grid and demand_grid.max %}
-<div class="card">
-  <h2 style="margin-top:0">Nachfrage-Heatmap</h2>
+{% comment %}Nachfrage-Überblick + Ausweich-Tipps (früher eigener Reiter, jetzt hier
+eingeklappt): Heatmap „wo ist es voll" + „Wo ist noch frei" – anonyme Orientierung
+beim Eintragen, ohne die Auswahl zu überlagern (ADR 0112 Tier 2).{% endcomment %}
+{% if demand_grid.max or freest %}
+<details class="card nachfrage-details">
+  <summary style="cursor:pointer;font-weight:600">📊 Nachfrage-Überblick &amp; Ausweich-Tipps</summary>
+  {% if demand_grid and demand_grid.max %}
+  <h3 style="margin:.7rem 0 .2rem">Nachfrage-Heatmap</h3>
   <p class="muted sm" style="margin:.2rem 0 .6rem">Anzahl bereits <strong>eingetragener</strong>
     Wünsche je Quartier und Monat. Dunklere Felder = mehr Nachfrage. So siehst du, wohin du zum
     <strong>Entzerren</strong> ausweichen kannst (hellere Felder = bessere Chancen). Wer wo wünscht,
@@ -219,11 +222,8 @@
       </tbody>
     </table>
   </div>
-</div>
-{% endif %}
-
-<div class="card">
-  <h2 style="margin-top:0">Wo ist noch frei?</h2>
+  {% endif %}
+  <h3 style="margin:.9rem 0 .2rem">Wo ist noch frei?</h3>
   <p class="muted sm" style="margin:.2rem 0 .6rem">In den <strong>gefragten Wochen</strong> zeigen wir
     dir die gleichwertigen Unterkünfte, die noch <strong>frei</strong> bzw. <strong>etwas gefragt</strong>
     sind – dort hast du <strong>fast sichere Chancen</strong>. So verteilen wir uns gemeinsam. (Anonyme
@@ -239,13 +239,12 @@
     </li>
     {% endfor %}
   </ul>
-  {% elif demand_grid and demand_grid.max %}
+  {% else %}
   <p class="muted" style="margin:0">Aktuell sind keine Wochen stark gefragt – du hast <strong>überall
     gute Chancen</strong>. 🎉</p>
-  {% else %}
-  <p class="muted" style="margin:0">Noch keine Wünsche eingetragen.</p>
   {% endif %}
-</div>
+</details>
+{% endif %}
 
 {% else %}
 {% comment %}Reiter „Meine Wünsche" (Default): Übersicht/Info-Section + Liste.{% endcomment %}

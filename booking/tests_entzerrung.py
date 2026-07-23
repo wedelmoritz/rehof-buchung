@@ -69,11 +69,13 @@ class DemandGridTests(TestCase):
         self.assertEqual(grid["max"], 1)
 
     def test_wishlist_zeigt_heatmap(self):
-        # Die Heatmap liegt auf dem Reiter „Nachfrage & Heatmap" (?view=nachfrage).
+        # Heatmap + „Wo ist noch frei" sind der eingeklappte Nachfrage-Überblick im
+        # Reiter „Neue Wünsche eintragen" (?view=neu) – der frühere dritte Reiter
+        # „Nachfrage & Heatmap" ist dort aufgegangen (ADR 0112 Tier 2).
         a = _member("a")
         svc.add_wish(a, self.period, self.q, date(NEXT, 5, 3), date(NEXT, 5, 7))
         self.client.force_login(a.user)
-        html = self.client.get(reverse("wishlist") + "?view=nachfrage").content.decode()
+        html = self.client.get(reverse("wishlist") + "?view=neu").content.decode()
         self.assertIn("Nachfrage-Heatmap", html)
         # Die Beliebtheits-Rangliste ist durch „Wo ist noch frei?" ersetzt (ADR 0103, P1a).
         self.assertIn("Wo ist noch frei?", html)
