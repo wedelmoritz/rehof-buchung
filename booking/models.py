@@ -2065,3 +2065,35 @@ class NlInteraction(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_kind_display()} · {self.created_at:%Y-%m-%d} · {self.pseudonym[:8]}…"
+
+
+class NlProposal(models.Model):
+    """Ein vom Lerner (NL-L2) erzeugter, **menschlich zu bestätigender** Vorschlag
+    (ADR 0113). Klasse alias|ranking; `payload` = strukturierte Nutzlast; `evidence` =
+    Belege für die Review-Karte (u. a. **Anzahl verschiedener Pseudonyme**); `status`
+    open→accepted|rejected. `dedup_key` macht das Mining idempotent und respektiert eine
+    einmal getroffene Entscheidung (kein erneutes Vorschlagen)."""
+    ALIAS, RANKING = "alias", "ranking"
+    KIND = [(ALIAS, "Alias"), (RANKING, "Reihung")]
+    OPEN, ACCEPTED, REJECTED = "open", "accepted", "rejected"
+    STATUS = [(OPEN, "offen"), (ACCEPTED, "übernommen"), (REJECTED, "abgelehnt")]
+
+    created_at = models.DateTimeField("Erzeugt", auto_now_add=True)
+    kind = models.CharField("Klasse", max_length=8, choices=KIND)
+    dedup_key = models.CharField("Idempotenz-Schlüssel", max_length=200, unique=True)
+    payload = models.JSONField("Nutzlast", default=dict)
+    evidence = models.JSONField("Belege", default=dict)
+    status = models.CharField("Status", max_length=10, choices=STATUS, default=OPEN)
+    decided_at = models.DateTimeField("Entschieden am", null=True, blank=True)
+    decided_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Entschieden von")
+
+    class Meta:
+        verbose_name = "NL-Lern-Vorschlag"
+        verbose_name_plural = "NL-Lern-Vorschläge"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "kind"])]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()}: {self.dedup_key} ({self.get_status_display()})"
