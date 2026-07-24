@@ -105,8 +105,18 @@ class RehofAdminSite(_AdminBase):
         # Beds24-Import ist ein einmaliger, admin-seitiger Umzugs-Task und lebt daher
         # im Backend (nicht mehr im Verwaltungs-Dashboard). Nur für Superuser + solange
         # in den Betriebs-Einstellungen freigeschaltet.
+        cfg = OpsConfig.get_solo()
         extra_context["beds24_import_enabled"] = (
-            request.user.is_superuser and OpsConfig.get_solo().beds24_import_enabled)
+            request.user.is_superuser and cfg.beds24_import_enabled)
+        # NL-Lernen (ADR 0113): der Review-Kasten erscheint nur für Superuser und nur
+        # bei aktivem Opt-in; das Badge zeigt die Zahl offener Vorschläge (Dringlichkeit).
+        extra_context["nl_learning_enabled"] = (
+            request.user.is_superuser and cfg.nl_learning_enabled)
+        if extra_context["nl_learning_enabled"]:
+            try:
+                extra_context["nl_open_count"] = svc.open_proposals().count()
+            except Exception:
+                extra_context["nl_open_count"] = 0
         return super().index(request, extra_context)
 
     def get_app_list(self, request, app_label=None):

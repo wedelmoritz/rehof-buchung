@@ -1,0 +1,121 @@
+{% extends "booking/base.html" %}
+{% block title %}NL-Parser · Vorschläge{% endblock %}
+{% block content %}
+<div class="sec-head"><h1 style="margin:0">NL-Parser: gelernte Vorschläge</h1>
+  <span class="spacer"></span><a href="/admin/">← Backend</a></div>
+
+<details class="card help-note">
+  <summary><strong>Was ist das?</strong></summary>
+  <p style="margin:.5rem 0 0">Aus den anonymisierten Eingaben der Mitglieder entstehen
+    <strong>Vorschläge</strong>, wie der Parser mehr Freitext verstehen könnte – z.&nbsp;B.
+    ein Spitzname für eine Unterkunft oder eine bessere Monats-Reihung einer Jahreszeit.
+    <strong>Der Parser lernt nie von selbst.</strong> Erst wenn du hier
+    <strong>übernimmst</strong>, wird ein Vorschlag aktiv; du kannst ihn jederzeit
+    wieder <strong>zurückrollen</strong>. Jeder Vorschlag stützt sich auf
+    <strong>mehrere verschiedene</strong> Personen (Quorum), damit eine einzelne
+    Person nichts erzwingen kann.</p>
+</details>
+
+<h2 style="margin:1.2rem 0 .4rem">Offene Vorschläge</h2>
+{% if proposals %}
+<div class="nl-grid">
+  {% for p in proposals %}
+  <div class="card nl-prop">
+    <div class="nl-prop-head">
+      <span class="nl-kind nl-kind-{{ p.kind }}">{% if p.kind == 'alias' %}Alias{% else %}Reihung{% endif %}</span>
+      <strong class="nl-title">{{ p.title }}</strong>
+    </div>
+    <p class="nl-detail">{{ p.detail }}</p>
+
+    <ul class="nl-evidence">
+      <li title="Verschiedene Personen, die dieses Signal gaben (Quorum)">
+        👥 <strong>{{ p.distinct_users|default:"?" }}</strong> versch. Personen</li>
+      {% with s=p.shadow %}
+      <li title="Bislang ungelöste Eingaben, die dadurch das gemeinte Quartier träfen">
+        ✅ <strong>{{ s.newly_resolved }}</strong> neu verständlich
+        <span class="nl-muted">(von {{ s.replay_sample }} geprüft)</span></li>
+      {% if s.changed %}
+      <li class="nl-warn" title="Bereits verstandene Eingaben, die sich ändern würden – prüfen!">
+        ⚠️ <strong>{{ s.changed }}</strong> bestehende Auflösung(en) würden sich ändern</li>
+      {% endif %}
+      {% if not s.golden_ok %}
+      <li class="nl-warn" title="Kanonische Testfälle, die dadurch anders ausfielen">
+        ⚠️ verschiebt {{ s.golden_regressions|length }} kanonische(n) Testfall
+        <span class="nl-muted">— bewusst entscheiden</span></li>
+      {% else %}
+      <li class="nl-ok">🛡️ bricht keinen kanonischen Testfall</li>
+      {% endif %}
+      {% endwith %}
+    </ul>
+
+    <form method="post" class="nl-actions" data-no-ajax>
+      {% csrf_token %}
+      <input type="hidden" name="proposal" value="{{ p.id }}">
+      <button class="btn small" type="submit" name="action" value="apply"
+              data-confirm="Diesen Vorschlag übernehmen? Der Parser nutzt ihn ab sofort für alle.">Übernehmen</button>
+      <button class="btn small ghost danger" type="submit" name="action" value="reject"
+              data-confirm="Vorschlag ablehnen? Er wird nicht erneut vorgeschlagen.">Ablehnen</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card nl-empty">
+  <p style="margin:0">🟢 Keine offenen Vorschläge. Sobald genügend verschiedene
+    Mitglieder eine bislang unverstandene Eingabe auf dieselbe Unterkunft/Zeit
+    auflösen, taucht hier ein Vorschlag zum Bestätigen auf.</p>
+</div>
+{% endif %}
+
+<h2 style="margin:1.6rem 0 .4rem">Aktive gelernte Einträge</h2>
+{% if entries %}
+<div class="table-wrap">
+  <table class="nl-table">
+    <thead><tr><th>Art</th><th>Eintrag</th><th>Übernommen</th><th></th></tr></thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td><span class="nl-kind nl-kind-{{ e.kind }}">{% if e.kind == 'alias' %}Alias{% else %}Reihung{% endif %}</span></td>
+        <td><strong>{{ e.title }}</strong></td>
+        <td class="nl-muted">{{ e.created_at|date:"d.m.Y" }}{% if e.approved_by %} · {{ e.approved_by.get_full_name|default:e.approved_by.username }}{% endif %}</td>
+        <td style="text-align:right">
+          <form method="post" data-no-ajax style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="entry" value="{{ e.id }}">
+            <button class="btn small ghost danger" type="submit" name="action" value="retire"
+                    data-confirm="Diesen gelernten Eintrag zurückrollen? Der Parser nutzt ihn dann nicht mehr.">Zurückrollen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="nl-muted">Noch nichts übernommen – der Parser arbeitet ausschließlich mit
+  seinen fest eingebauten Regeln.</p>
+{% endif %}
+
+<style>
+  .nl-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); }
+  .nl-prop { display:flex; flex-direction:column; gap:.5rem; }
+  .nl-prop-head { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .nl-title { font-size:1.05rem; }
+  .nl-kind { font-size:.72rem; font-weight:700; text-transform:uppercase;
+    letter-spacing:.03em; padding:.12rem .45rem; border-radius:999px;
+    background:var(--sage-soft); color:var(--sage-deep); white-space:nowrap; }
+  .nl-kind-ranking { background:var(--accent-soft); color:var(--accent-deep); }
+  .nl-detail { margin:0; color:var(--muted); font-size:.9rem; }
+  .nl-evidence { list-style:none; margin:.2rem 0; padding:0; display:flex;
+    flex-direction:column; gap:.2rem; font-size:.9rem; }
+  .nl-evidence .nl-warn { color:var(--bad); }
+  .nl-evidence .nl-ok { color:var(--good); }
+  .nl-muted { color:var(--muted); font-weight:400; }
+  .nl-actions { display:flex; gap:.5rem; margin-top:auto; }
+  .nl-empty { background:var(--good-soft); }
+  .nl-table { width:100%; border-collapse:collapse; }
+  .nl-table th, .nl-table td { text-align:left; padding:.45rem .6rem;
+    border-bottom:1px solid var(--line); vertical-align:middle; }
+  .nl-table th { font-size:.78rem; text-transform:uppercase; color:var(--muted); }
+</style>
+{% endblock %}
