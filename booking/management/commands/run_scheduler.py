@@ -64,6 +64,7 @@ class Command(BaseCommand):
                 self._safe("send_wish_reminders")     # Wunsch-Erinnerung (zweistufig)
                 self._safe("apply_member_status")     # Ausscheide-Übergänge (Login aus)
                 self._safe("send_notifications")      # geplante BL-Benachrichtigungen
+                self._safe("learn_nl_proposals")      # NL-Lernen: Vorschläge (ADR 0113)
                 self._safe("cleanup_data")            # DSGVO-Aufräumen (täglich)
                 last_daily = today
             self._safe("send_outbox")           # wartende E-Mails verschicken
