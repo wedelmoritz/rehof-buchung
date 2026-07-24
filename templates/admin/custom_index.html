@@ -43,6 +43,19 @@ Betriebs-Einstellungen freigeschaltet (ADR 0056/Umzug).{% endcomment %}
   </p>
 </div>
 {% endif %}
+{% comment %}NL-Lernen (ADR 0113): Review-Kasten für die gelernten Parser-Vorschläge.
+Nur für Superuser und nur bei aktivem Opt-in (Betriebs-Einstellungen). Das Badge
+zeigt die Zahl offener Vorschläge.{% endcomment %}
+{% if nl_learning_enabled %}
+<div class="module rehof-beds24" id="rehof-nl">
+  <p class="rehof-b24-line">
+    <strong>NL-Parser lernt mit:</strong> aus anonymisierten Eingaben entstandene
+    Vorschläge prüfen &amp; bestätigen{% if nl_open_count %}
+    <span class="rehof-nu-count">{{ nl_open_count }}</span>{% endif %}.
+    <a class="rehof-b24-go" href="{% url 'nl_proposals' %}">Vorschläge öffnen →</a>
+  </p>
+</div>
+{% endif %}
 <details class="module rehof-intro" id="rehof-intro">
   <summary>Was kannst du hier tun? <span class="rehof-toggle">(ein-/ausklappen)</span></summary>
   <div class="rehof-intro-body">

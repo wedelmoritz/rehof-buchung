@@ -112,5 +112,7 @@ __all__ = [
     'nl_active_lexicon', 'active_lexicon_entries', 'apply_proposal',
     'reject_proposal', 'retire_entry',
     # Shadow-Auswertung / Golden-Wächter (ADR 0113, NL-L4)
-    'nl_shadow_eval',
+    'nl_shadow_eval', 'nl_review_data',
+    # Offene Vorschläge (NL-L2/L5)
+    'open_proposals',
 ]
