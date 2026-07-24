@@ -18,6 +18,19 @@ __all__ = ["nl_stammdaten", "nl_parse_wish", "nl_parse_booking"]
 _MAX_SUGGESTIONS = 3
 
 
+def _learned() -> dict:
+    """Das aktive, von der Verwaltung bestätigte NL-Lexikon (ADR 0113) als
+    injizierbares Dict für den Parser – best-effort, nie blockierend: schlägt der
+    Zugriff fehl oder ist nichts aktiv/kein Opt-in, parst der Parser unverändert
+    weiter (leeres Dict). Das Lexikon ist reine **Vergleichsdaten** (kein Code),
+    daher bleibt die reine Logik deterministisch/testbar."""
+    try:
+        from .nl_lexicon import nl_active_lexicon
+        return nl_active_lexicon()
+    except Exception:  # noqa: BLE001 – Lexikon ist optional; Parser läuft ohne weiter
+        return {}
+
+
 def _resolve_month_start(intent, *, year: int, today: date) -> None:
     """Grober Zeitwunsch ohne konkretes Startdatum (Kandidat-Monate „im Juli"/
     „Sommerwoche", evtl. Dauer/Monatsteil) → bis zu drei konkrete Vorschläge: je
@@ -145,7 +158,7 @@ def nl_parse_wish(text: str, period) -> "wish_nl.WishIntent":
     year = period.target_year if period else date.today().year + 1
     today = date.today()
     intent = wish_nl.parse_wish_text(text, year=year, today=today,
-                                     **nl_stammdaten(year))
+                                     learned=_learned(), **nl_stammdaten(year))
     _resolve_month_start(intent, year=year, today=today)
     return intent
 
@@ -156,6 +169,6 @@ def nl_parse_booking(text: str, year: int | None = None) -> "wish_nl.WishIntent"
     year = year or date.today().year
     today = date.today()
     intent = wish_nl.parse_booking_text(text, year=year, today=today,
-                                        **nl_stammdaten(year))
+                                        learned=_learned(), **nl_stammdaten(year))
     _resolve_month_start(intent, year=year, today=today)
     return intent
