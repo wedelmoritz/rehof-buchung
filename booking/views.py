@@ -2389,7 +2389,9 @@ def nl_proposals(request):
                                       "nicht mehr.")
         return redirect("nl_proposals")
 
-    return render(request, "booking/nl_proposals.html", svc.nl_review_data())
+    ctx = svc.nl_review_data()
+    ctx["stats"] = svc.nl_learning_stats()
+    return render(request, "booking/nl_proposals.html", ctx)
 
 
 @login_required
