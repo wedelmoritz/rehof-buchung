@@ -9,8 +9,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from ..models import (
-    Allocation, CancellationLog, Member, NightTransfer, Notification, OutboxEmail,
-    SwapRequest, WaitlistEntry, Wish,
+    Allocation, CancellationLog, Member, NightTransfer, NlInteraction, Notification,
+    OutboxEmail, SwapRequest, WaitlistEntry, Wish,
 )
 
 __all__ = [
@@ -54,6 +54,12 @@ def run_data_retention(now=None) -> dict:
         sent_at__isnull=False,
         sent_at__lt=cutoff(settings.RETENTION_OUTBOX_DAYS)).delete()
     counts["outbox_emails"] = n
+
+    # B2b: pseudonyme NL-Lern-Signale (ADR 0113) – kurze Aufbewahrung; der Lerner hat
+    #      längst aggregiert, danach werden die Einzel-Events verworfen.
+    n, _ = NlInteraction.objects.filter(
+        created_at__lt=cutoff(settings.RETENTION_NL_LEARN_DAYS)).delete()
+    counts["nl_interactions"] = n
 
     # B2: In-App-Benachrichtigungen (auch ungelesene – nach der Frist veraltet).
     n, _ = Notification.objects.filter(

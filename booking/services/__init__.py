@@ -22,8 +22,9 @@ from .terminal_ops import *  # noqa: F401,F403
 from .helptexts import *  # noqa: F401,F403
 from .blocks import *  # noqa: F401,F403
 from .nl import *  # noqa: F401,F403
+from .nl_learn import *  # noqa: F401,F403
 
-from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops, helptexts, blocks, nl  # noqa: F401
+from . import dates, notify, slots, beds24_ops, retention, calendars, lottery_ops, wishes, booking_ops, pool, dashboard, external_ops, terminal_ops, helptexts, blocks, nl, nl_learn  # noqa: F401
 
 # Parität zur alten `services.py`: dort waren die importierten Modelle und die
 # reinen Logik-Module als Modul-Attribute erreichbar (z.B. `svc.ExternalConfig`,
