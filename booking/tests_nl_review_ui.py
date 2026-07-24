@@ -83,3 +83,31 @@ class ReviewUiTests(TestCase):
         self.client.force_login(self.admin)
         r = self.client.get(self.url)
         self.assertContains(r, "Keine offenen Vorschläge")
+
+    def test_monitoring_kennzahlen_sichtbar(self):
+        p = self._proposal()
+        from booking import services as svc
+        svc.reject_proposal(NlProposal.objects.get(id=p.id), self.admin)
+        self.client.force_login(self.admin)
+        r = self.client.get(self.url)
+        self.assertContains(r, "abgelehnt")
+        self.assertContains(r, "aktiv gelernt")
+
+
+class StatsServiceTests(TestCase):
+    def test_stats_zaehlt_korrekt(self):
+        from booking import services as svc
+        cls = EquivalenceClass.objects.create(name="K")
+        q = Quarter.objects.create(name="Turmzimmer", eq_class=cls,
+                                   min_occupancy=1, max_occupancy=4)
+        NlProposal.objects.create(kind="alias", dedup_key="a:1",
+                                  payload={}, evidence={}, status="open")
+        NlProposal.objects.create(kind="alias", dedup_key="a:2",
+                                  payload={}, evidence={}, status="accepted")
+        NlLexiconEntry.objects.create(kind="alias", dedup_key="a:2",
+                                      payload={"token": "x", "quarter_id": q.id},
+                                      active=True)
+        s = svc.nl_learning_stats()
+        self.assertEqual(s["open"], 1)
+        self.assertEqual(s["accepted"], 1)
+        self.assertEqual(s["entries_active"], 1)

@@ -71,12 +71,27 @@ booking/
                         #  bis zu 3 Vorschläge (erstes freies Datum je Monat, Verfügbarkeit EINMAL
                         #  vorab, ADR 0111): bester vorbelegt + „Meintest du…?"-1-Klick-Chips für die
                         #  Alternativen (nicht-blockierend, kein Dialog-Zustand; ADR 0108-Nachtrag)
+  nl_mining.py          # reine Logik: poisoning-feste Aggregation der Lern-Signale zu Kandidaten
+                        #  (mine_alias_/mine_ranking_candidates; **Quorum verschiedener Pseudonyme**,
+                        #  Exklusivität, Zeitspanne; ADR 0113/NL-L2). Django-frei/isoliert testbar.
+  nl_golden.py          # reine Logik: kuratierter Golden-Set kanonischer NL-Eingaben (run_golden) –
+                        #  Drift-Wächter in der reinen Suite UND Sicherung in der Shadow-Auswertung
+                        #  (eine vorgeschlagene Reihung, die einen kanonischen Fall verschiebt, fällt
+                        #  auf; ADR 0113/NL-L4).
   help_content/*.md     # ausgelagerte, editierbare Hilfe-Prosa (Warteliste/Gemeinschaft/Hofladen/Tage)
   services/             # Brücke DB <-> Logik (gesamte Geschäftslogik; Paket, ADR 0050)
     __init__.py         #  re-exportiert alles → `svc.*` bleibt unverändert
     dates.py notify.py slots.py        #  Blätter: Datum · Mail/Push · Verfügbarkeit+Regeln
     calendars.py lottery_ops.py wishes.py booking_ops.py
     dashboard.py external_ops.py beds24_ops.py retention.py
+    nl.py               #  NL-Parser-Naht: Stammdaten + gelerntes Lexikon (_learned) injizieren
+    nl_learn.py         #  NL-Lernen (ADR 0113): pseudonymisierte Instrumentierung (fail-closed:
+                        #   nur bei Opt-in UND NL_LEARN_SALT; Korrektur-Signal, kein Freitext/Identität)
+    nl_learn_ops.py     #  der Lerner (mine_nl_proposals, Scheduler) + Betriebs-Kennzahlen (nl_learning_stats)
+    nl_lexicon.py       #  aktives, bestätigtes Lexikon (nl_active_lexicon) + Übernehmen/Ablehnen/Rollback
+                        #   (apply_/reject_proposal, retire_entry) – gehärtet beim Schreiben (Allowlist/
+                        #   Ambiguität/Konflikt/Permutation); Gelerntes ist DATEN, nie Code
+    nl_shadow.py        #  kontrafaktische Shadow-Auswertung (nl_shadow_eval) + Review-Daten (nl_review_data)
   models.py             # alle Datenmodelle (siehe unten)
   admin.py              # Admin: Mitglieder, Buchungsregeln, Perioden/Zeiträume, Losung-Aktion
                         #  (Backend-Startseite mit Erklär-Panel + „Neue Benutzer": custom_index.html,
@@ -691,6 +706,8 @@ Erinnerung** vor der Losung an Mitglieder ohne eingetragenen Wunsch;
 `BookingPeriod.wish_reminder1_at/2_at`; Vorlauf konfigurierbar
 `BookingPolicy.wish_reminder_lead1/2`, Default 7/2 Tage, ADR 0080),
 `apply_member_status` (täglich, Ausscheide-Übergänge Login-Aus, ADR 0087),
+`learn_nl_proposals` (täglich/off-peak, **NL-Lernen**: aus den pseudonymen Signalen
+robuste Vorschläge bilden – `services.mine_nl_proposals`; **no-op ohne Opt-in**, ADR 0113),
 `send_notifications` (täglich, **geplante Verwaltungs-Benachrichtigungen** über das
 Framework `services.run_scheduled_notifications`, ADR 0089: Status-Vorwarnung,
 Buchungsübersicht+Plan-PDF, Auslastung+Ampel, überfällige Rechnungen, Los-Erinnerung,
@@ -706,8 +723,28 @@ pseudonymisiert abgelaufene Daten anhand der `RETENTION_*`-Settings (per Env
 überschreibbar): versendete `OutboxEmail` inkl. DB-Anhang (90 T), `Notification`
 (180 T), `BankTransaction.raw` leeren (90 T), `Beds24Import` (180 T), `BankImport`
 (365 T), erledigte `SwapRequest`/`WaitlistEntry` **+ `CancellationLog`** (180 T), `Wish` beendeter Perioden
-(2 J), abgelaufene Sessions, `axes`-Fehlversuche (30 T). **Rechnungen/Zahlungen
+(2 J), **pseudonyme `NlInteraction`-Lern-Signale** (`RETENTION_NL_LEARN_DAYS`, Default 120 T;
+ADR 0113), abgelaufene Sessions, `axes`-Fehlversuche (30 T). **Rechnungen/Zahlungen
 (10 Jahre, §147 AO/§14b UStG) bleiben unangetastet** (`Invoice.member/guest=PROTECT`).
+**NL-Lernen des Parsers (ADR 0113, human-in-the-loop, DEFAULT AUS):** Der Freitext-
+Parser kann aus den Eingaben lernen – **ohne je selbst Code zu ändern**. Fünf Stufen:
+(NL-L1) **pseudonymisierte** Instrumentierung (`NlInteraction`; **fail-closed** – erst
+bei `OpsConfig.nl_learning_enabled` **und** gesetztem `NL_LEARN_SALT`; gespeichert wird
+nur ein HMAC-Pseudonym + normalisierte Tokens + das Ergebnis-Delta, **kein Freitext,
+keine Identität**). (NL-L2) der nächtliche Lerner `learn_nl_proposals` bildet daraus
+**robuste** Vorschläge (`nl_mining`: **Quorum verschiedener Pseudonyme** – ein
+Vielschreiber kippt nichts; Exklusivität/Zeitspanne) als `NlProposal`. (NL-L3) das
+bestätigte Lexikon (`NlLexiconEntry`) wirkt als **injizierte Daten** über den
+`learned=`-Parameter der reinen Logik (der Parser bleibt deterministisch/testbar;
+Übernehmen härtet Allowlist/Ambiguität/Konflikt/Permutation). (NL-L4) **Golden-Set +
+kontrafaktische Shadow-Auswertung** (`nl_golden`/`nl_shadow_eval`) belegen den Effekt
+und warnen vor Regressionen. (NL-L5) die **Backend-Review-Seite**
+(`/verwaltung/nl-vorschlaege/`, **nur Admin**, Kasten + Badge auf der Backend-
+Startseite) – hier übernimmt/lehnt/rollt der Mensch je Vorschlag/Eintrag. **In Betrieb
+nehmen:** `NL_LEARN_SALT` (Env) setzen **und** in den Betriebs-Einstellungen
+`nl_learning_enabled` anhaken – vorher passiert garantiert nichts. Kennzahlen auf der
+Review-Seite (`services.nl_learning_stats`); Signale werden per `RETENTION_NL_LEARN_DAYS`
+(120 T) aufgeräumt.
 **Recht auf Löschung (Art. 17):** Admin-Aktion „Mitglied anonymisieren“ am
 Benutzer (`services.anonymize_member`, mit Rückfrage) leert Profil-PII + Freitext
 (`companions`/`note`), entfernt betrieblich kurzlebige PII und deaktiviert das
@@ -992,10 +1029,11 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
 ## Tests (nach JEDER Änderung laufen lassen)
 
 ```bash
-# 1) Reine Logik (schnell, ohne DB) — erwartet: 82 passed
+# 1) Reine Logik (schnell, ohne DB) — erwartet: 156 passed (+4 fieldcrypt-Fehler NUR
+#    lokal ohne native pyo3-Krypto; im CI grün)
 PYTHONPATH=. python -m pytest tests/ -q
 
-# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: 328 passed (4 skips)
+# 2) Integrationstests inkl. Use-Cases (DB-Ebene) — erwartet: ~576 passed (4 skips)
 python manage.py test booking shop
 
 # 3) E2E-Smoke-Tests (Playwright, gegen einen LAUFENDEN Stack) — optional lokal

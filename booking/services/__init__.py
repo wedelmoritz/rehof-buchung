@@ -113,6 +113,6 @@ __all__ = [
     'reject_proposal', 'retire_entry',
     # Shadow-Auswertung / Golden-Wächter (ADR 0113, NL-L4)
     'nl_shadow_eval', 'nl_review_data',
-    # Offene Vorschläge (NL-L2/L5)
-    'open_proposals',
+    # Offene Vorschläge (NL-L2/L5) + Betriebs-Kennzahlen (NL-L6)
+    'open_proposals', 'nl_learning_stats',
 ]
