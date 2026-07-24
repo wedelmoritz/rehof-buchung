@@ -68,4 +68,5 @@ files = [
     "booking/popularity.py",
     "booking/wish_nl.py",
     "booking/nl_mining.py",
+    "booking/nl_golden.py",
 ]
