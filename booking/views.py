@@ -325,6 +325,9 @@ def book_confirm(request):
         if not alloc:
             messages.error(request, err or "Buchung nicht möglich.")
         else:
+            # Ergebnis ans (evtl.) NL-Lern-Signal hängen (ADR 0113, Opt-in).
+            svc.nl_attach_outcome(request, member, "booking",
+                                  quarter_id=quarter.id, start=start)
             added, requested = [], []
             for o in offers:
                 if request.POST.get(f"service_{o['p'].id}") and o["available"]:
@@ -461,6 +464,8 @@ def book(request):
                 qs += f"&end={s['end'].isoformat()}"
             alts.append({"label": s["label"], "href": qs})
         nl_result["suggestions"] = alts
+        # Pseudonymes Lern-Signal (ADR 0113, Opt-in) – best-effort, nie blockierend.
+        svc.nl_log_interaction(request, member, "booking", _nl, raw_text=nl_text)
     cal = svc.build_booking_calendar(member, year, month, sel_start, sel_end) \
         if member else None
 
@@ -830,6 +835,9 @@ def wishlist(request):
                 if werr:
                     messages.error(request, werr)
                 else:
+                    # Ergebnis ans (evtl.) NL-Lern-Signal hängen (ADR 0113, Opt-in).
+                    svc.nl_attach_outcome(request, member, "wish",
+                                          quarter_id=_wish.quarter_id, start=_wish.start)
                     messages.success(
                         request,
                         f"Wunsch „{_wish.quarter.name}“ aufgenommen "
@@ -962,6 +970,8 @@ def wishlist(request):
                 qs += f"&end={s['end'].isoformat()}"
             alts.append({"label": s["label"], "href": qs})
         nl_result["suggestions"] = alts
+        # Pseudonymes Lern-Signal (ADR 0113, Opt-in) – best-effort, nie blockierend.
+        svc.nl_log_interaction(request, member, "wish", intent, raw_text=nl_text)
     cal = svc.build_wish_calendar(member, period, year, month, sel_start, sel_end,
                                   ctx=pop_ctx) \
         if (member and period) else None
