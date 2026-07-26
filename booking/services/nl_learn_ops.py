@@ -12,15 +12,18 @@ from __future__ import annotations
 import logging
 
 from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 
 from .. import nl_mining, wish_nl
-from ..models import EquivalenceClass, NlInteraction, NlProposal, Quarter
+from ..models import (
+    EquivalenceClass, NlInteraction, NlLexiconEntry, NlProposal, Quarter)
 from .nl_learn import nl_learning_active
 
 log = logging.getLogger("booking.nl_learn")
 
-__all__ = ["mine_nl_proposals", "nl_known_tokens", "open_proposals"]
+__all__ = ["mine_nl_proposals", "nl_known_tokens", "open_proposals",
+           "nl_learning_stats"]
 
 # Konservative Schwellen (bewusst hoch → bei kleiner Datenmenge lieber selten als falsch;
 # ADR 0113). Später konfigurierbar; für Phase 1 fixe, getestete Werte.
@@ -114,3 +117,29 @@ def mine_nl_proposals() -> dict:
 def open_proposals():
     """Offene Vorschläge (neueste zuerst) – für die Review-Seite (NL-L5)."""
     return NlProposal.objects.filter(status=NlProposal.OPEN).order_by("-created_at")
+
+
+def nl_learning_stats() -> dict:
+    """Betriebs-Kennzahlen des NL-Lernens (ADR 0113, NL-L6) für das Monitoring auf
+    der Review-Seite. Günstige COUNTs; best-effort (Fehler → Nullen)."""
+    stats = {
+        "active": False, "signals": 0, "signals_with_outcome": 0,
+        "open": 0, "accepted": 0, "rejected": 0, "entries_active": 0,
+    }
+    try:
+        stats["active"] = nl_learning_active()
+        stats["signals"] = NlInteraction.objects.count()
+        stats["signals_with_outcome"] = NlInteraction.objects.filter(
+            outcome_at__isnull=False).count()
+        by_status = {s: 0 for s in (NlProposal.OPEN, NlProposal.ACCEPTED,
+                                    NlProposal.REJECTED)}
+        for row in (NlProposal.objects.values("status")
+                    .order_by().annotate(n=Count("id"))):
+            by_status[row["status"]] = row["n"]
+        stats["open"] = by_status[NlProposal.OPEN]
+        stats["accepted"] = by_status[NlProposal.ACCEPTED]
+        stats["rejected"] = by_status[NlProposal.REJECTED]
+        stats["entries_active"] = NlLexiconEntry.objects.filter(active=True).count()
+    except Exception:  # noqa: BLE001 – Monitoring darf das Review nie stören
+        pass
+    return stats

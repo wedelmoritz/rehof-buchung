@@ -16,6 +16,19 @@
     Person nichts erzwingen kann.</p>
 </details>
 
+{% if stats %}
+<div class="card nl-stats">
+  <span class="nl-stat"><strong>{{ stats.signals_with_outcome }}</strong> ausgewertete Signale</span>
+  <span class="nl-stat"><strong>{{ stats.open }}</strong> offen</span>
+  <span class="nl-stat"><strong>{{ stats.accepted }}</strong> übernommen</span>
+  <span class="nl-stat"><strong>{{ stats.rejected }}</strong> abgelehnt</span>
+  <span class="nl-stat"><strong>{{ stats.entries_active }}</strong> aktiv gelernt</span>
+  <span class="spacer"></span>
+  <span class="nl-stat nl-stat-state {% if stats.active %}nl-on{% else %}nl-off{% endif %}">
+    Lernen {% if stats.active %}aktiv{% else %}aus{% endif %}</span>
+</div>
+{% endif %}
+
 <h2 style="margin:1.2rem 0 .4rem">Offene Vorschläge</h2>
 {% if proposals %}
 <div class="nl-grid">
@@ -117,5 +130,11 @@
   .nl-table th, .nl-table td { text-align:left; padding:.45rem .6rem;
     border-bottom:1px solid var(--line); vertical-align:middle; }
   .nl-table th { font-size:.78rem; text-transform:uppercase; color:var(--muted); }
+  .nl-stats { display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; align-items:center;
+    font-size:.9rem; }
+  .nl-stat strong { font-size:1.05rem; }
+  .nl-stat-state { font-weight:700; padding:.12rem .55rem; border-radius:999px; }
+  .nl-stat-state.nl-on { background:var(--good-soft); color:var(--good); }
+  .nl-stat-state.nl-off { background:var(--line); color:var(--muted); }
 </style>
 {% endblock %}
