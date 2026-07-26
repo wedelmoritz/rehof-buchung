@@ -346,6 +346,13 @@ def _tokens(norm: str) -> list[str]:
     return [t for t in re.split(r"[^a-z0-9]+", norm) if t]
 
 
+def tokens_of(text: str) -> list[str]:
+    """Öffentlich: normalisierte, gedeckelte Einzel-Tokens einer Eingabe (gehärtet
+    wie im Parser: `strip_controls` + Längenlimit, akzent-bereinigt). Für das
+    pseudonyme Lern-Signal (ADR 0113) – bewusst nur Tokens, kein Freitext-Satz."""
+    return _tokens(_norm(strip_controls(text or "", max_len=MAX_LEN)))
+
+
 def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
                 year: int, today: date | None, kind: str) -> WishIntent:
     intent = WishIntent(kind=kind)

@@ -352,6 +352,12 @@ RETENTION_BANKIMPORT_DAYS = env_int("RETENTION_BANKIMPORT_DAYS", 365)  # Import-
 RETENTION_SWAP_WAITLIST_DAYS = env_int("RETENTION_SWAP_WAITLIST_DAYS", 180)  # erledigte Wechsel/Warteliste
 RETENTION_WISH_YEARS = env_int("RETENTION_WISH_YEARS", 2)          # Wünsche beendeter Perioden
 RETENTION_AXES_DAYS = env_int("RETENTION_AXES_DAYS", 30)           # Brute-Force-Fehlversuche
+RETENTION_NL_LEARN_DAYS = env_int("RETENTION_NL_LEARN_DAYS", 120)  # pseudonyme NL-Lern-Signale (ADR 0113)
+
+# NL-Parser-Lernen (ADR 0113): Geheimnis für die Pseudonymisierung der Lern-Signale
+# (HMAC über die Mitglieds-ID). Leer = keine Pseudonyme bildbar → Lernen bleibt AUS
+# (fail-closed), selbst wenn das Opt-in-Flag gesetzt ist. Rotierbar/scoped.
+NL_LEARN_SALT = os.environ.get("NL_LEARN_SALT", "")
 
 
 # --- Observability: Logging + Fehler-Tracking (ADR 0046) -------------------

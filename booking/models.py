@@ -1302,6 +1302,13 @@ class OpsConfig(models.Model):
         help_text="Der Beds24-Migrations-Assistent wird i. d. R. nur EINMALIG "
                   "gebraucht. Nach dem Umzug hier ausschalten, dann ist er im "
                   "Dashboard ausgeblendet und gesperrt.")
+    nl_learning_enabled = models.BooleanField(
+        "NL-Parser lernen lassen", default=False,
+        help_text="Opt-in (ADR 0113): pseudonymisiert erfassen, welche Kurz-Eingaben "
+                  "der Parser nicht verstand und was die Person danach wählte, um "
+                  "Vorschläge (Aliase/Reihung) zur BESTÄTIGUNG anzubieten. Aus = es "
+                  "wird nichts gesammelt. Braucht zusätzlich das Env-Geheimnis "
+                  "NL_LEARN_SALT.")
     # Kontaktformular-Routing (ADR 0091): welche Kategorie an welche Adresse. Leer =
     # Verwaltungs-Adressen. Idealerweise Rollen-Aliase (bl@… / dev@…).
     contact_email_bl = models.CharField(
@@ -2019,3 +2026,42 @@ class VerwaltungAccess(models.Model):
             ("access_hofladen",     "Verwaltung: Hofladen-Katalog"),
             ("send_broadcast",      "Verwaltung: Rundnachricht senden"),
         ]
+
+
+class NlInteraction(models.Model):
+    """Pseudonymisiertes Lern-Signal für den NL-Parser (ADR 0113, Batch NL-L1).
+
+    Je Kurz-Eingabe EIN Datensatz: ein **Pseudonym** (HMAC(member_id, NL_LEARN_SALT),
+    ohne Geheimnis nicht umkehrbar), die vom Parser **nicht aufgelösten** normalisierten
+    Tokens (KEIN Freitext-Satz, kein Klartext an die Person gebunden) und – nach der
+    späteren Wahl – das **Ergebnis** (gewähltes Quartier/Startmonat, ob der Vorschlag
+    überstimmt wurde). Getrennt von Buchungs-/Identitätsdaten; nur bei aktivem Opt-in
+    (`OpsConfig.nl_learning_enabled`); kurze Aufbewahrung (`cleanup_data`). Diese Daten
+    speisen den Lerner (NL-L2), der daraus Vorschläge zur BESTÄTIGUNG macht."""
+    WISH, BOOKING = "wish", "booking"
+    KIND = [(WISH, "Wunsch"), (BOOKING, "Buchung")]
+
+    created_at = models.DateTimeField("Erfasst", auto_now_add=True)
+    pseudonym = models.CharField("Pseudonym (HMAC)", max_length=64, db_index=True)
+    kind = models.CharField("Art", max_length=8, choices=KIND)
+    # Was der Parser NICHT verstand (normalisierte Einzel-Tokens, gedeckelt) + was er vorschlug.
+    unresolved = models.JSONField("Nicht aufgelöste Tokens", default=list, blank=True)
+    proposed_quarter_id = models.IntegerField("Vorschlag Quartier-ID", null=True, blank=True)
+    proposed_month = models.PositiveSmallIntegerField("Vorschlag Monat", null=True, blank=True)
+    suggestion_shown = models.BooleanField("Vorschlag angezeigt", default=False)
+    # Ergebnis – nach der späteren Wahl angehängt (Korrektur-Signal).
+    outcome_at = models.DateTimeField("Ergebnis erfasst", null=True, blank=True)
+    chosen_quarter_id = models.IntegerField("Gewählt Quartier-ID", null=True, blank=True)
+    chosen_month = models.PositiveSmallIntegerField("Gewählt Monat", null=True, blank=True)
+    overridden = models.BooleanField("Vorschlag überstimmt", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "NL-Lern-Signal"
+        verbose_name_plural = "NL-Lern-Signale"
+        indexes = [
+            models.Index(fields=["kind", "created_at"]),
+            models.Index(fields=["pseudonym", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} · {self.created_at:%Y-%m-%d} · {self.pseudonym[:8]}…"
