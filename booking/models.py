@@ -2097,3 +2097,35 @@ class NlProposal(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_kind_display()}: {self.dedup_key} ({self.get_status_display()})"
+
+
+class NlLexiconEntry(models.Model):
+    """Ein aktives, **menschlich bestätigtes** Lexikon-Element (ADR 0113, NL-L3): die
+    „Konfiguration", die der Parser als **injizierte Daten** liest (nie Code → reine
+    Logik bleibt deterministisch). Versioniert/auditiert über Provenienz; `active=False`
+    = zurückgerollt (Rollback). `dedup_key` teilt den Schlüsselraum mit `NlProposal`."""
+    ALIAS, RANKING = "alias", "ranking"
+    KIND = [(ALIAS, "Alias"), (RANKING, "Reihung")]
+
+    created_at = models.DateTimeField("Übernommen am", auto_now_add=True)
+    kind = models.CharField("Klasse", max_length=8, choices=KIND)
+    dedup_key = models.CharField("Schlüssel", max_length=200, db_index=True)
+    payload = models.JSONField("Nutzlast", default=dict)
+    active = models.BooleanField("Aktiv", default=True)
+    source_proposal = models.ForeignKey(
+        "NlProposal", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="applied_entries", verbose_name="Aus Vorschlag")
+    approved_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="Übernommen von")
+    evidence = models.JSONField("Beleg-Snapshot", default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "NL-Lexikon-Eintrag"
+        verbose_name_plural = "NL-Lexikon-Einträge"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["active", "kind"])]
+
+    def __str__(self) -> str:
+        state = "aktiv" if self.active else "zurückgerollt"
+        return f"{self.get_kind_display()}: {self.dedup_key} ({state})"

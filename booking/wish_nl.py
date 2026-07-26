@@ -230,15 +230,23 @@ _SEASONS: dict[str, list[int]] = {
 _COMPOUND_SUFFIXES = ("wochen", "woche", "ferien", "urlaub", "urlaube", "zeit", "tage")
 
 
-def _month_candidates(token: str) -> tuple[list[int], int | None]:
+def _season_months(season: str, rankings=None) -> list[int]:
+    """Kandidat-Monate einer Jahreszeit – mit optionaler **gelernter** Reihung
+    (ADR 0113): `rankings[season]` schlägt die Default-Reihung `_SEASONS[season]`."""
+    learned = (rankings or {}).get(season)
+    return list(learned) if learned else list(_SEASONS[season])
+
+
+def _month_candidates(token: str, rankings=None) -> tuple[list[int], int | None]:
     """Ein Zeit-Token → (Kandidat-Monate, Nächte-Hinweis). Erkennt puren Monatsnamen,
     pure Jahreszeit UND Komposita („Juliwoche"/„Sommerwoche"/„Herbsturlaub"): der
-    Präfix liefert Monat/Jahreszeit, das Suffix ggf. die Dauer (…woche → 7 Nächte)."""
+    Präfix liefert Monat/Jahreszeit, das Suffix ggf. die Dauer (…woche → 7 Nächte).
+    Eine gelernte Jahreszeit-Reihung (`rankings`) wird respektiert."""
     mon = _MONTHS.get(token)
     if mon:
         return [mon], None
     if token in _SEASONS:
-        return list(_SEASONS[token]), None
+        return _season_months(token, rankings), None
     for suf in _COMPOUND_SUFFIXES:
         if token.endswith(suf) and len(token) > len(suf):
             prefix = token[: -len(suf)]
@@ -247,22 +255,23 @@ def _month_candidates(token: str) -> tuple[list[int], int | None]:
             if pm:
                 return [pm], nights
             if prefix in _SEASONS:
-                return list(_SEASONS[prefix]), nights
+                return _season_months(prefix, rankings), nights
             break
     return [], None
 
 
-def _extract_time_months(toks: list[str]) -> tuple[list[int], int | None]:
+def _extract_time_months(toks: list[str], rankings=None) -> tuple[list[int], int | None]:
     """Grober Zeitraum ohne Tag → geordnete Kandidat-Monate (+ evtl. Nächte-Hinweis).
     Ein explizit genannter Monatsname hat Vorrang vor einer Jahreszeit; sonst die
-    erste erkannte Jahreszeit/Kompositum. Nur ganze Tokens (kein Teilstring)."""
+    erste erkannte Jahreszeit/Kompositum. Nur ganze Tokens (kein Teilstring).
+    `rankings` = gelernte Jahreszeit-Reihung (ADR 0113)."""
     season_hit: tuple[list[int], int | None] | None = None
     for t in toks:
         mon = _MONTHS.get(t)
         if mon:
             return [mon], None                  # expliziter Monat gewinnt
         if season_hit is None:
-            cand, nights = _month_candidates(t)
+            cand, nights = _month_candidates(t, rankings)
             if cand:
                 season_hit = (cand, nights)
     return season_hit if season_hit else ([], None)
@@ -354,13 +363,19 @@ def tokens_of(text: str) -> list[str]:
 
 
 def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
-                year: int, today: date | None, kind: str) -> WishIntent:
+                year: int, today: date | None, kind: str,
+                learned=None) -> WishIntent:
     intent = WishIntent(kind=kind)
     text = strip_controls(text or "", max_len=MAX_LEN)
     norm = _norm(text)
     if not norm.strip():
         return intent
     toks = _tokens(norm)
+    # Gelerntes, MENSCHLICH bestätigtes Lexikon (ADR 0113) – injizierte Daten, kein
+    # Code: Alias-Tokens → Quartier-Key, Jahreszeit → gelernte Monats-Reihung.
+    learned = learned or {}
+    learned_aliases = learned.get("aliases") or {}
+    learned_rankings = learned.get("rankings") or {}
 
     # --- Zeitraum: konkrete Daten → relative Angaben (nur Buchung) → benannte
     #     (konfigurierte) Zeiträume → grober Monat/Jahreszeit (Kandidaten fürs Service) ---
@@ -411,7 +426,7 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
             # Grober Zeitwunsch („eine Woche im Juli", „Sommerwoche", „Anfang August"):
             # Kandidat-Monate (+ evtl. Dauer/Monatsteil) festhalten – das Service-Layer
             # schlägt daraus je Kandidat das erste passende/freie Datum vor.
-            months, snights = _extract_time_months(toks)
+            months, snights = _extract_time_months(toks, learned_rankings)
             if months:
                 intent.months = months
                 if snights and not intent.nights:
@@ -430,6 +445,15 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
     q_cands = [Candidate(key=k, names=[n]) for k, n in (quarters or []) if n]
     c_cands = [Candidate(key=k, names=[n]) for k, n in (eq_classes or []) if n]
     qkey = _match_named(toks, q_cands)
+    if qkey is None and learned_aliases:
+        # Gelernter, bestätigter Alias (exakter Token-Treffer) – nur wenn die
+        # Unschärfe-Suche nichts fand. Alias-Ziel muss ein bekanntes Quartier sein.
+        valid = {k for k, _ in (quarters or [])}
+        for t in toks:
+            a = learned_aliases.get(t)
+            if a is not None and a in valid:
+                qkey = a
+                break
     if qkey is not None:
         intent.quarter_key = qkey
         qname = next((n for k, n in quarters if k == qkey), "")
@@ -471,19 +495,23 @@ def _parse_core(text: str, *, quarters, eq_classes, seasons, holidays,
 
 
 def parse_wish_text(text: str, *, quarters=None, eq_classes=None, seasons=None,
-                    holidays=None, year: int, today: date | None = None) -> WishIntent:
+                    holidays=None, year: int, today: date | None = None,
+                    learned=None) -> WishIntent:
     """Parst eine Kurz-Eingabe **für einen Wunsch** (Quartier/Art + Zeitraum stehen im
     Vordergrund; Personen/Besonderheiten werden mitgelesen, wirken aber erst beim
-    späteren Buchen). Best-effort, nie blockierend."""
+    späteren Buchen). Best-effort, nie blockierend. `learned` = injiziertes,
+    bestätigtes Lexikon (Aliase/Reihung, ADR 0113)."""
     return _parse_core(text, quarters=quarters or [], eq_classes=eq_classes or [],
                        seasons=seasons or [], holidays=holidays or [],
-                       year=year, today=today, kind="wish")
+                       year=year, today=today, kind="wish", learned=learned)
 
 
 def parse_booking_text(text: str, *, quarters=None, eq_classes=None, seasons=None,
-                       holidays=None, year: int, today: date | None = None) -> WishIntent:
+                       holidays=None, year: int, today: date | None = None,
+                       learned=None) -> WishIntent:
     """Parst eine Kurz-Eingabe **für eine Buchung** – zusätzlich relevant:
-    Personenzahl, Endreinigung, Besonderheiten (Hund/Beistellbett …)."""
+    Personenzahl, Endreinigung, Besonderheiten (Hund/Beistellbett …). `learned` =
+    injiziertes, bestätigtes Lexikon (ADR 0113)."""
     return _parse_core(text, quarters=quarters or [], eq_classes=eq_classes or [],
                        seasons=seasons or [], holidays=holidays or [],
-                       year=year, today=today, kind="booking")
+                       year=year, today=today, kind="booking", learned=learned)
