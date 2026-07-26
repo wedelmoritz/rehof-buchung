@@ -2353,6 +2353,46 @@ def beds24_import(request):
 
 
 @login_required
+def nl_proposals(request):
+    """NL-Lernen: die von der Verwaltung zu bestätigenden Vorschläge (ADR 0113).
+    Nur Admin (das gelernte Lexikon wirkt für alle) und nur bei aktivem Opt-in.
+    Übernehmen/Ablehnen je Vorschlag, Rollback je aktivem Eintrag – jede Änderung ist
+    ein bewusster menschlicher Klick (der Parser lernt nie selbst)."""
+    from .permissions import is_admin
+    from .models import NlLexiconEntry, NlProposal, OpsConfig
+    if not is_admin(request.user):
+        messages.error(request, "Die NL-Vorschläge sind der Admin-Rolle vorbehalten.")
+        return redirect("dashboard")
+    if not OpsConfig.get_solo().nl_learning_enabled:
+        messages.info(request, "Das NL-Lernen ist deaktiviert "
+                               "(Betriebs-Einstellungen im Backend).")
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action in ("apply", "reject"):
+            p = get_object_or_404(NlProposal, id=request.POST.get("proposal"))
+            if action == "apply":
+                entry, err = svc.apply_proposal(p, request.user)
+                if err:
+                    messages.error(request, f"Nicht übernommen: {err}")
+                else:
+                    messages.success(request, "Vorschlag übernommen – der Parser "
+                                              "nutzt ihn ab sofort.")
+            else:
+                svc.reject_proposal(p, request.user)
+                messages.success(request, "Vorschlag abgelehnt (kommt nicht wieder).")
+        elif action == "retire":
+            e = get_object_or_404(NlLexiconEntry, id=request.POST.get("entry"))
+            svc.retire_entry(e)
+            messages.success(request, "Eintrag zurückgerollt – der Parser nutzt ihn "
+                                      "nicht mehr.")
+        return redirect("nl_proposals")
+
+    return render(request, "booking/nl_proposals.html", svc.nl_review_data())
+
+
+@login_required
 def period_result(request, period_id: int):
     period = get_object_or_404(BookingPeriod, id=period_id)
     member = _current_member(request)

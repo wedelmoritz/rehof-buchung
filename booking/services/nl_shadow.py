@@ -20,11 +20,12 @@ from __future__ import annotations
 from datetime import date
 
 from .. import nl_golden, wish_nl
-from ..models import NlInteraction, NlProposal
+from ..models import NlInteraction, NlProposal, Quarter
 from .nl import nl_stammdaten
-from .nl_lexicon import nl_active_lexicon
+from .nl_lexicon import active_lexicon_entries, nl_active_lexicon
+from .nl_learn_ops import open_proposals
 
-__all__ = ["nl_shadow_eval"]
+__all__ = ["nl_shadow_eval", "nl_review_data"]
 
 _SAMPLE_CAP = 400                            # Replay-Obergrenze (Effizienz)
 
@@ -93,3 +94,52 @@ def nl_shadow_eval(proposal: NlProposal) -> dict:
     except Exception:  # noqa: BLE001 – Vorschau ist optional; Review läuft ohne weiter
         pass
     return result
+
+
+def _months_label(order) -> str:
+    """[8,7,6] → „August → Juli → Juni" (menschenlesbar fürs Review)."""
+    names = wish_nl._MONTH_NAMES
+    try:
+        return " → ".join(names[m] for m in order if 1 <= int(m) <= 12)
+    except Exception:  # noqa: BLE001
+        return str(order)
+
+
+def _proposal_view(p: NlProposal, qnames: dict) -> dict:
+    """Ein Vorschlag als anzeigefertiges Dict (Klartext-Titel, Belege, Shadow)."""
+    pl = p.payload or {}
+    ev = p.evidence or {}
+    row = {"id": p.id, "kind": p.kind,
+           "distinct_users": ev.get("distinct_users"),
+           "shadow": nl_shadow_eval(p)}
+    if p.kind == NlProposal.ALIAS:
+        q = qnames.get(pl.get("quarter_id"), "?")
+        row["title"] = f"„{pl.get('token')}“ → {q}"
+        row["detail"] = ("Ein noch unverstandenes Wort soll künftig diese Unterkunft "
+                         "meinen.")
+    else:
+        season = (pl.get("season") or "").capitalize()
+        row["title"] = f"{season}: {_months_label(pl.get('new_order') or [])}"
+        row["detail"] = ("Neue Monats-Reihung für diese Jahreszeit "
+                         f"(bisher {_months_label(ev.get('old_order') or [])}).")
+    return row
+
+
+def _entry_view(e, qnames: dict) -> dict:
+    pl = e.payload or {}
+    if e.kind == e.ALIAS:
+        title = f"„{pl.get('token')}“ → {qnames.get(pl.get('quarter_id'), '?')}"
+    else:
+        title = f"{(pl.get('season') or '').capitalize()}: {_months_label(pl.get('order') or [])}"
+    return {"id": e.id, "kind": e.kind, "title": title,
+            "created_at": e.created_at, "approved_by": e.approved_by}
+
+
+def nl_review_data() -> dict:
+    """Alles fürs Backend-Review (NL-L5): offene Vorschläge inkl. Belegen + Shadow-
+    Auswertung und die aktiven, gelernten Einträge (für Rollback). Eine Abfrage der
+    Quartier-Namen; Shadow je Vorschlag (die Vorschlags-Menge ist klein → quorum)."""
+    qnames = dict(Quarter.objects.values_list("id", "name"))
+    proposals = [_proposal_view(p, qnames) for p in open_proposals()]
+    entries = [_entry_view(e, qnames) for e in active_lexicon_entries()]
+    return {"proposals": proposals, "entries": entries}
