@@ -290,11 +290,17 @@
         Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen – so kann ein Losgewinn nie an den
         Mindestnächten scheitern.</li>
       <li><strong>Erst in der Auslosung</strong> wirken das <strong>Parallel-Limit</strong>
-        {% if p.parallel_limit %}(höchstens {{ p.parallel_limit }} gleichzeitige Wohneinheiten){% endif %}
+        {% if p.parallel_limit %}(höchstens {{ p.parallel_limit }} gleichzeitige Wohneinheiten je Anteil){% endif %}
         und der <strong>Aufenthaltsdeckel über mehrere Buchungen</strong> – sie betreffen das
         Zusammenspiel mehrerer Buchungen und lassen sich am einzelnen Wunsch nicht prüfen. Würde ein
         Wunsch die Grenze deines Anteils überschreiten, wird er <strong>übersprungen</strong>: kein
         Verlust, kein Karma, und dein Zug geht sofort zum nächsten Wunsch.</li>
+      <li><strong>Nicht an zwei Orten zugleich:</strong> Aus <em>einer</em> Losung bekommst du
+        {% if p.lottery_parallel_per_member and p.lottery_parallel_per_member != 1 %}höchstens {{ p.lottery_parallel_per_member }} gleichzeitige Unterkünfte{% else %}pro Zeitfenster <strong>höchstens eine</strong> Unterkunft{% endif %}.
+        Trägst du für <em>denselben</em> Zeitraum mehrere (gleichwertige) Wünsche ein, sind das
+        <strong>Ausweich-Alternativen</strong> – es gewinnt <strong>nur einer</strong>, die weiteren
+        werden ohne Verlust/Karma übersprungen. Das ist gewollt (siehe unten „Mehrere Wünsche für
+        denselben Zeitraum?“).</li>
       <li><strong>Nur für die Spontanbuchung</strong> (nicht für Wünsche/Losung) gelten:
         <strong>Vorlauf</strong>, <strong>Lückenfüllung</strong>, die <strong>Winter-/Wochenend-Richtwerte</strong>
         und die „kleiner&nbsp;buchen"-Regel. Die Losung vergibt das Folgejahr weit im Voraus – ein
@@ -304,6 +310,69 @@
         Losung gehen höchstens deine <strong>halben Tage</strong> (Wunsch-Budget); der Rest ist
         Rückfall und blockiert niemanden (das Verfahren ist strategiesicher).</li>
     </ul>
+  </details>
+
+  <details class="deep" id="mehrere-wuensche">
+    <summary>Mehrere Wünsche für denselben Zeitraum – bringt das etwas?</summary>
+    <p style="margin-top:0"><strong>Kurz: Es schadet nicht und verschafft dir keinen Vorteil –
+      trag ruhig alles ein, was du wirklich nehmen würdest.</strong> Warum das so ist:</p>
+    <ul class="tight">
+      <li><strong>Dein Los-Platz hängt nicht an der Zahl der Wünsche.</strong> Die Reihenfolge
+        wird <strong>einmal je Person</strong> gezogen (gewichtet mit Karma) – <em>nicht</em> je
+        Wunsch. Zehn Wünsche für dieselbe Woche geben dir also <strong>kein</strong> zusätzliches
+        „Los“. Mehr Wünsche = mehr Tickets gibt es hier bewusst nicht.</li>
+      <li><strong>Ausweichen ist schon eingebaut.</strong> Wünschst du dir eine Unterkunft und sie
+        ist belegt, weicht die Losung <strong>automatisch</strong> auf eine gleichwertige freie aus.
+        Einen zweiten Wunsch für die gleichwertige Nachbar-Unterkunft <em>derselben</em> Woche
+        brauchst du dafür nicht – die Chance ist mit einem Wunsch schon dieselbe.</li>
+      <li><strong>Gewinnen kann pro Zeitfenster nur einer.</strong> Aus einer Losung bekommst du
+        {% if p.lottery_parallel_per_member and p.lottery_parallel_per_member != 1 %}höchstens {{ p.lottery_parallel_per_member }} Unterkünfte gleichzeitig{% else %}<strong>eine</strong> Unterkunft je Zeitfenster{% endif %}
+        – man kann nicht an zwei Orten zugleich sein. Mehrere Wünsche fürs selbe Fenster sind damit
+        <strong>Alternativen</strong> („am liebsten A, sonst B, sonst C“): Es gewinnt der oberste
+        freie, die anderen werden <strong>ohne Verlust und ohne Karma-Nachteil</strong> übersprungen.</li>
+      <li><strong>Fair für alle.</strong> Genau deshalb kann niemand durch „Zuspammen“ mehrere
+        gleichwertige Unterkünfte derselben Woche an sich ziehen und anderen wegnehmen. Dein Vorteil
+        bleibt gleich, der Nachteil für die Gemeinschaft ist ausgeschlossen.</li>
+    </ul>
+    <p style="margin-bottom:.2rem"><strong>Zwei Fälle – wichtig zu unterscheiden:</strong></p>
+    <ul class="tight">
+      <li><strong>Gleichwertige Unterkünfte (dieselbe Kategorie), dieselbe Woche:</strong> Das ändert
+        <strong>gar nichts</strong> an deiner Chance – das automatische Ausweichen deckt die ganze
+        Kategorie schon mit <em>einem</em> Wunsch ab. Ein zweiter Wunsch für die Schwester-Unterkunft
+        derselben Woche ist reine Absicherung, mehr nicht.</li>
+      <li><strong>Verschiedene Kategorien (z.&nbsp;B. kleine Hütte ODER großes Haus), dieselbe Woche:</strong>
+        Das <strong>erhöht</strong> deine Chance, in dieser Woche <em>überhaupt etwas</em> zu bekommen –
+        und das ist <strong>völlig in Ordnung und so gewollt</strong>. Du sagst damit ehrlich „ich nähme
+        das eine <em>oder</em> das andere". Du gewinnst trotzdem <strong>nur eine</strong> Unterkunft
+        (Parallel-Limit), und es bleibt <strong>fair</strong>: Wer sich festlegt („nur das große Haus"),
+        hat für <em>genau das</em> naturgemäß engere Chancen – nicht, weil er benachteiligt wird, sondern
+        weil er weniger Alternativen zulässt. <strong>Flexibel sein darf jede:r</strong>, die Los-
+        Reihenfolge bleibt für alle gleich gewichtet, und es bleibt <strong>keine gewollte Unterkunft
+        leer</strong> (das Verfahren verschenkt nichts).</li>
+    </ul>
+    <p style="margin:.4rem 0 .2rem"><strong>„Und wenn ich auf möglichst <em>viele</em> Kategorien
+      wünsche – bekomme ich dann fast sicher etwas?“</strong></p>
+    <p style="margin:0 0 .4rem">In einer <em>stark umkämpften</em> Woche stimmt das ein Stück weit:
+      Wer mehr Kategorien zulässt, geht seltener leer aus. Das ist <strong>bewusst so und fair</strong> –
+      aus drei Gründen:</p>
+    <ul class="tight">
+      <li><strong>Du nimmst trotzdem nur eine Unterkunft.</strong> Du kannst nichts horten; du füllst
+        höchstens eine Einheit, die sonst vielleicht <em>leer</em> geblieben wäre. Flexibilität
+        <strong>nutzt der Gemeinschaft</strong> (mehr Unterkünfte belegt), statt zu schaden.</li>
+      <li><strong>Es gleicht sich über die Jahre aus.</strong> Wer eine begehrte Woche gewinnt, gibt
+        sein <a href="#losung">Karma</a> ab; wer leer ausgeht, sammelt Karma und hat es beim nächsten
+        Mal leichter. Kein Dauervorteil.</li>
+      <li><strong>Es ist ohnehin begrenzt.</strong> Über die Losung laufen nur deine <strong>halben
+        Jahres-Tage</strong> – auch mit vielen Kategorien gewinnst du nur wenige Wochen. Und die
+        Kategorien unterscheiden sich in der <strong>Personenzahl</strong>: Für eine kleine Gruppe
+        „passt“ ehrlich nur ein Teil davon – ein zu großes Haus fürs selbe Fenster ist kein sinnvoller
+        Wunsch.</li>
+    </ul>
+    <p class="muted" style="margin-bottom:0"><strong>Kurz:</strong> Mehr Wünsche <em>für dieselbe
+      Kategorie</em> bringen nichts; <strong>echte Alternativen</strong> (andere Kategorie, andere Woche,
+      weniger gefragte Zeit) erhöhen ehrlich deine Trefferchance und lassen weniger Unterkünfte leer –
+      genau dazu lädt die <a href="#losung">Entzerrungsphase</a> ein. Ehrlich deine echten Wünsche
+      angeben ist immer die beste Strategie (das Verfahren ist <strong>strategiesicher</strong>).</p>
   </details>
 
   <details class="deep">

@@ -195,6 +195,7 @@ def run_lottery(
     order: list[str] | None = None,
     rule_check: Callable[[str, date, date, list[tuple[date, date]]], str | None]
     | None = None,
+    max_parallel_per_party: int | None = 1,
 ) -> LotteryResult:
     """Führt eine Jahres-Losung durch.
 
@@ -212,6 +213,17 @@ def run_lottery(
                               TERMINAL übersprungen (kein echter Verlust, kein
                               Karma – wie ein Budget-Übersprung; das wahrt die
                               Strategiesicherheit). None = erlaubt.
+      max_parallel_per_party  Basis-Parallel-Limit PRO PARTEI (nicht Anteil): wie
+                              viele *gleichzeitig* (nachtweise überlappende)
+                              Einheiten eine Partei aus DIESER Losung höchstens
+                              gewinnen darf. Default 1 (ein Mitglied kann nicht an
+                              zwei Orten zugleich sein). `None`/`0` = unbegrenzt.
+                              Ein Wunsch, der den Deckel überschreiten würde, wird
+                              TERMINAL übersprungen (kein Verlust/Karma) – so werden
+                              mehrere Wünsche fürs selbe Fenster zu bloßen
+                              Ausweich-Alternativen (nur EINE gewinnt), ohne die
+                              Chance zu erhöhen und ohne Monopolisierung. Ergänzt das
+                              per-Anteil wirkende `rule_check` (Saison-Regeln).
 
     Karma-Regel (Spezifikation 3.3), Auflösung bei gemischtem Ausgang:
       - Hatte die Partei IRGENDWO einen echten Verlust  -> Faktor + step (gedeckelt)
@@ -219,7 +231,10 @@ def run_lottery(
       - sonst                                            -> Faktor unverändert
     "Echter Verlust" = gewünschter Zeitraum, in der ganzen Äquivalenzklasse
     nichts frei. Budget-bedingtes Aussetzen (eigenes Kontingent voll) zählt
-    NICHT als Verlust – man hat seinen Anteil ja bekommen.
+    NICHT als Verlust – man hat seinen Anteil ja bekommen. **Ein Verlust zählt
+    zudem NUR dann fürs Karma, wenn die Partei im überlappenden Zeitraum noch
+    keine Zuteilung hat** – wer die Woche schon bekommen hat, kann über einen
+    aussichtslosen Zweitwunsch fürs selbe Fenster kein Karma „farmen".
     """
     party_by_id = {p.id: p for p in parties}
     quarter_by_id = {q.id: q for q in quarters}
@@ -270,6 +285,33 @@ def run_lottery(
 
     group_stays: dict[str, list[tuple[date, date]]] = defaultdict(list)
 
+    # Basis-Parallel-Limit PRO PARTEI: die schon in diesem Lauf zugeteilten
+    # Zeiträume je Partei (Mitglied/Login), unabhängig vom Anteil. `None`/0 = aus.
+    party_stays: dict[str, list[tuple[date, date]]] = defaultdict(list)
+    par_cap = max_parallel_per_party if max_parallel_per_party else None
+
+    def _parallel_would_exceed(pid: str, start: date, end: date) -> bool:
+        """Würde eine neue Buchung [start,end) den Partei-Deckel in irgendeiner
+        Nacht überschreiten? (nachtweise Zählung wie bei den Saison-Regeln)."""
+        if par_cap is None:
+            return False
+        d = start
+        while d < end:
+            count = 1  # die neue Buchung
+            for (s, e) in party_stays[pid]:
+                if s <= d < e:
+                    count += 1
+            if count > par_cap:
+                return True
+            d += timedelta(days=1)
+        return False
+
+    def _has_overlapping_alloc(pid: str, start: date, end: date) -> bool:
+        """Hat die Partei schon eine Zuteilung, die [start,end) überlappt?
+        (für die Karma-Entschärfung: kein Karma für einen Verlust im Fenster, das
+        die Partei ohnehin schon bekommen hat)."""
+        return any(_overlap(start, end, s, e) for (s, e) in party_stays[pid])
+
     allocations: list[Allocation] = []
     losses: list[Wish] = []
     log: list[dict] = []
@@ -319,6 +361,22 @@ def run_lottery(
                         pointer[pid] += 1
                         continue
 
+                # (1c) Basis-Parallel-Limit PRO PARTEI (immer, unabhängig von
+                # Saison-Regeln): kann ein Mitglied nicht an zwei Orten zugleich
+                # sein, wird ein Wunsch fürs schon belegte Fenster TERMINAL
+                # übersprungen (kein Verlust/Karma). So werden mehrere Wünsche fürs
+                # selbe Fenster zu bloßen Ausweich-Alternativen – die Gewinnchance
+                # steigt nicht, Monopolisierung mehrerer Einheiten ist ausgeschlossen.
+                if _parallel_would_exceed(pid, w.start, w.end):
+                    log.append({
+                        "event": "parallel_skip", "round": round_no, "party": pid,
+                        "wish_quarter": w.quarter_id, "priority": w.priority,
+                        "cap": par_cap,
+                        "start": w.start.isoformat(), "end": w.end.isoformat(),
+                    })
+                    pointer[pid] += 1
+                    continue
+
                 # (2) Konkretes Wunschquartier frei?
                 target: str | None = None
                 via_sub = False
@@ -338,12 +396,19 @@ def run_lottery(
                 # (4) Nichts frei in der ganzen Klasse -> echter Verlust (terminal)
                 if target is None:
                     losses.append(w)
-                    had_genuine_loss[pid] = True
+                    # Karma-Entschärfung: ein Verlust zählt NUR fürs Karma, wenn die
+                    # Partei im überlappenden Zeitraum nicht ohnehin schon eine
+                    # Zuteilung hat – sonst könnte ein aussichtsloser Zweitwunsch
+                    # fürs selbe Fenster einen Karma-Schritt „farmen".
+                    farmed = _has_overlapping_alloc(pid, w.start, w.end)
+                    if not farmed:
+                        had_genuine_loss[pid] = True
                     log.append({
                         "event": "loss", "round": round_no, "party": pid,
                         "wish_quarter": w.quarter_id, "priority": w.priority,
                         "start": w.start.isoformat(), "end": w.end.isoformat(),
                         "eq_class": class_of[w.quarter_id],
+                        "karma_counted": not farmed,
                     })
                     pointer[pid] += 1
                     continue
@@ -352,6 +417,7 @@ def run_lottery(
                 _occupy(occ, target, w.start, w.end)
                 nights_used[pid] += n
                 group_stays[_group(w)].append((w.start, w.end))
+                party_stays[pid].append((w.start, w.end))
                 contested = is_contested(w, pid)
                 if contested:
                     won_contested[pid] = True
@@ -439,6 +505,12 @@ def render_log_text(
                 f"R{e['round']}: {P(e['party'])} übersprungen "
                 f"(Saison-Regel: {e['reason']})"
             )
+        elif ev == "parallel_skip":
+            lines.append(
+                f"R{e['round']}: {P(e['party'])} übersprungen "
+                f"(schon eine Einheit in diesem Zeitraum – Parallel-Limit "
+                f"{e['cap']})"
+            )
     lines.append("")
     lines.append("=== NEUE AUSGLEICHSFAKTOREN ===")
     for pid, f in result.new_factors.items():
@@ -500,6 +572,7 @@ def simulate_win_probabilities(
     reset_on_contested_win: bool = True,
     rule_check: Callable[[str, date, date, list[tuple[date, date]]], str | None]
     | None = None,
+    max_parallel_per_party: int | None = 1,
 ) -> dict[tuple[str, str, date, date], float]:
     """Schätzt je Wunsch die **Gewinnwahrscheinlichkeit** per Monte-Carlo-Trockenlauf
     der echten RSD (ADR 0101): führt `run_lottery` `n_runs`-mal mit **Zufalls-Seeds**
@@ -525,7 +598,7 @@ def simulate_win_probabilities(
         result = run_lottery(
             parties, quarters, wishes, seed=s, factor_step=factor_step,
             factor_cap=factor_cap, reset_on_contested_win=reset_on_contested_win,
-            rule_check=rule_check)
+            rule_check=rule_check, max_parallel_per_party=max_parallel_per_party)
         for a in result.allocations:
             k = (a.party_id, a.original_quarter_id, a.start, a.end)
             if k in wins:

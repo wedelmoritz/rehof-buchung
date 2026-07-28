@@ -390,6 +390,54 @@ class LosungEinreichungUndIdempotenzTests(UseCaseBase):
 
 
 # --------------------------------------------------------------------------- #
+# Use-Case 6b: Mehrere Wünsche fürs SELBE Fenster erhöhen die Chance nicht und
+# lassen kein Monopolisieren zu (Basis-Parallel-Limit, ADR 0114)
+# --------------------------------------------------------------------------- #
+
+class LosungParallelLimitTests(UseCaseBase):
+    def _period(self):
+        return BookingPeriod.objects.create(
+            name="Losung", target_year=NEXT_YEAR,
+            start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),
+            wishlist_open=date.today(), wishlist_close=date.today(),
+            status=BookingPeriod.WISHES_OPEN)
+
+    def test_drei_gleichwertige_wuensche_selbes_fenster_geben_nur_eine_zuteilung(self):
+        """Alice wünscht alle drei gleichwertigen Quartiere K1/K2/K3 für DIESELBE
+        Woche. Trotz freier Kapazität gewinnt sie per Default nur EINE Einheit –
+        keine Monopolisierung, egal welche Reihenfolge gelost wird."""
+        period = self._period()
+        s = date(NEXT_YEAR, 6, 7)
+        e = s + timedelta(days=4)
+        svc.add_wish(self.alice, period, self.k1, s, e)
+        svc.add_wish(self.alice, period, self.k2, s, e)
+        svc.add_wish(self.alice, period, self.k3, s, e)
+        for seed in range(6):
+            Allocation.objects.filter(period=period, source="lottery").delete()
+            svc.run_period_lottery(period, seed=seed)
+            n = Allocation.objects.filter(
+                period=period, source="lottery", member=self.alice).count()
+            self.assertEqual(n, 1, f"seed={seed}")
+
+    def test_limit_null_erlaubt_wieder_mehrere(self):
+        """Mit lottery_max_parallel_units=0 (unbegrenzt) darf Alice die freien
+        gleichwertigen Einheiten wieder mehrfach belegen (Alt-Verhalten)."""
+        from booking.models import BookingPolicy
+        pol = BookingPolicy.get_solo()
+        pol.lottery_max_parallel_units = 0
+        pol.save(update_fields=["lottery_max_parallel_units"])
+        period = self._period()
+        s = date(NEXT_YEAR, 6, 7)
+        e = s + timedelta(days=4)
+        svc.add_wish(self.alice, period, self.k1, s, e)
+        svc.add_wish(self.alice, period, self.k2, s, e)
+        svc.run_period_lottery(period, seed=1)
+        n = Allocation.objects.filter(
+            period=period, source="lottery", member=self.alice).count()
+        self.assertEqual(n, 2)
+
+
+# --------------------------------------------------------------------------- #
 # Use-Case 7: Karma wirkt persistent über mehrere Losungen
 # --------------------------------------------------------------------------- #
 
@@ -1934,6 +1982,14 @@ class LosungDeckelTests(UseCaseBase):
         SeasonRule.objects.create(
             name="Sommerferien BB", start_month=7, start_day=1, end_month=9, end_day=1,
             max_parallel_units=2, max_stay_nights=14, active=True)
+        # Diese Tests prüfen die SAISON-Regel (per Anteil) in der Losung. Das
+        # separate Basis-Parallel-Limit je Mitglied (ADR 0114, Default 1) würde die
+        # Saison-Obergrenze von 2 maskieren – hier bewusst aus (0), damit die
+        # Saison-Regel isoliert getestet wird (das Basis-Limit hat eigene Tests).
+        from booking.models import BookingPolicy
+        pol = BookingPolicy.get_solo()
+        pol.lottery_max_parallel_units = 0
+        pol.save(update_fields=["lottery_max_parallel_units"])
         self.period = BookingPeriod.objects.create(
             name="Losung", target_year=NEXT_YEAR,
             start=date(NEXT_YEAR, 1, 1), end=date(NEXT_YEAR + 1, 1, 1),

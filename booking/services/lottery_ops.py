@@ -70,7 +70,8 @@ def _prognosis_inputs(period):
         return R.validate_booking(_seasons, policy.default_min_nights,
                                   start, end, stays)
 
-    return parties, q_payload, w_payload, subs, _rule_check
+    return (parties, q_payload, w_payload, subs, _rule_check,
+            policy.lottery_max_parallel_units or None)
 
 
 def wish_prognosis(period) -> dict:
@@ -85,7 +86,8 @@ def wish_prognosis(period) -> dict:
     Los-Seed (der bleibt geheim, ADR 0062)."""
     import hashlib
     from django.core.cache import cache
-    parties, q_payload, w_payload, subs, rule_check = _prognosis_inputs(period)
+    (parties, q_payload, w_payload, subs, rule_check,
+     par_cap) = _prognosis_inputs(period)
     if not subs:
         return {}
     sig_src = "|".join(sorted(
@@ -97,7 +99,8 @@ def wish_prognosis(period) -> dict:
         return cached
     probs = L.simulate_win_probabilities(
         parties, q_payload, w_payload, n_runs=PROGNOSIS_RUNS,
-        seed=int(sig[:8], 16), rule_check=rule_check)
+        seed=int(sig[:8], 16), rule_check=rule_check,
+        max_parallel_per_party=par_cap)
     out = {
         w.id: {"prob": round(100 * probs.get(
             (str(w.member_id), str(w.quarter_id), w.start, w.end), 0.0)),
@@ -358,6 +361,7 @@ def run_period_lottery(
         seed=seed, factor_step=factor_step, factor_cap=factor_cap,
         reset_on_contested_win=reset_on_contested_win,
         rule_check=_rule_check,
+        max_parallel_per_party=policy.lottery_max_parallel_units or None,
     )
 
     # Faktor-Stände VOR dem Lauf festhalten (für ein sauberes Rückgängigmachen).
@@ -614,7 +618,9 @@ def verify_period_lottery(period: BookingPeriod) -> dict:
                                   start, end, stays)
 
     result = L.run_lottery(parties, q_payload, w_payload, seed=period.seed,
-                           rule_check=_rule_check)
+                           rule_check=_rule_check,
+                           max_parallel_per_party=policy.lottery_max_parallel_units
+                           or None)
     replay = {(int(a.party_id), int(a.quarter_id), a.start, a.end)
               for a in result.allocations}
     stored = {(a.member_id, a.quarter_id, a.start, a.end)

@@ -1531,6 +1531,18 @@ class BookingPolicy(models.Model):
                   "damit Rückfall-Wünsche möglich bleiben). Nur setzen, wenn die "
                   "Delegation eine Begrenzung beschließt (ADR 0078).",
     )
+    lottery_max_parallel_units = models.PositiveSmallIntegerField(
+        "Losung: max. gleichzeitige Einheiten je Mitglied", default=1,
+        help_text="Wie viele *gleichzeitig* (überlappend) belegte Unterkünfte ein "
+                  "einzelnes Mitglied aus EINER Losung höchstens gewinnen darf. "
+                  "Standard 1 („man kann nicht an zwei Orten zugleich sein“): so werden "
+                  "mehrere Wünsche fürs selbe Fenster zu reinen Ausweich-Alternativen – "
+                  "nur einer gewinnt, die Chance steigt nicht und niemand kann mehrere "
+                  "gleichwertige Einheiten monopolisieren. 0 = unbegrenzt. Gilt PRO "
+                  "Mitglied/Login (ein Tandem-Paar = zwei Konten kann also je eine "
+                  "Einheit gewinnen). Ergänzt die per-Anteil wirkende Saison-Regel "
+                  "„max. Wohneinheiten gleichzeitig“ (ADR 0114).",
+    )
     allow_undersized_units = models.BooleanField(
         "Personenzahl außerhalb des Rahmens zulassen", default=True,
         help_text="Erlaubt, eine Unterkunft auch für MEHR oder WENIGER Personen zu "

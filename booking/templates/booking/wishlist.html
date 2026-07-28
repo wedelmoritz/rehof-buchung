@@ -423,6 +423,10 @@ beim Eintragen, ohne die Auswahl zu überlagern (ADR 0112 Tier 2).{% endcomment 
     <p class="muted" style="margin:.3rem 0 0">Mindestnächte und Saison-Grenzen gelten wie beim Buchen;
       das <strong>Parallel-Limit</strong> in begehrten Zeiten wirkt erst in der Auslosung. Was die
       <strong>Chance</strong>-Anzeige bedeutet, steht <a href="{% url 'help' %}#chance">in der Hilfe</a>.</p>
+    <p class="muted" style="margin:.3rem 0 0">Mehrere Wünsche für <strong>denselben Zeitraum</strong>
+      sind okay – sie gelten als <strong>Alternativen</strong> („am liebsten A, sonst B“): Es gewinnt
+      nur einer, deine Chance steigt dadurch weder noch sinkt sie.
+      <a href="{% url 'help' %}#mehrere-wuensche">Warum das fair ist →</a></p>
     {% if period.seed_commit %}
     <div class="muted" style="margin-top:.4rem"><strong>Verifizierbar:</strong> Der Zufalls-Seed der Ziehung
       steht bereits fest – Prüfsumme (SHA-256):
