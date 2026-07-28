@@ -89,11 +89,49 @@ Log-Feld `karma_counted` macht es nachvollziehbar.
   Karma-Schritt – das ist von einem echten Verlust nicht unterscheidbar und bewusst
   nicht „geschlossen" (sonst würden ehrliche Verlierer bestraft).
 
+## Verworfene Alternative: Obergrenze für die Zahl der Klassen je Fenster
+
+Aufgeworfen wurde: Wer für dieselbe Woche in **allen** Äquivalenzklassen wünscht,
+priorisiert sie und bekommt **mit hoher Wahrscheinlichkeit eine** davon – ist das
+gewollt? Sollte man die Zahl der Klassen je Fenster begrenzen (z. B. auf 3)?
+
+Per Monte-Carlo geprüft (reale Struktur: **4 Klassen** mit Kapazitäten [3,2,3,2] =
+10 Einheiten, umkämpfte Woche mit 16 Parteien):
+
+* **Der Vorteil ist real:** ein „Blanket"-Mitglied (alle 4 Klassen) gewinnt mit
+  **0,93** gegenüber **0,58** für unflexible Mitglieder (nur 1 Klasse).
+* **Eine Grenze von 3 ist praktisch wirkungslos:** sie senkt den Vorteil nur von
+  **0,92 → 0,87** (bei 4 Klassen ist „3“ fast so gut wie „4“); die unflexiblen
+  Mitglieder profitieren **nicht** (0,571 → 0,572). Erst eine Grenze von **1** gleicht
+  die Chancen an (0,586 ≈ 0,582).
+* **Eine wirksame Grenze (1–2) zerstört „keine Verschwendung“:** dann bleiben
+  **gewollte Einheiten leer, während Mitglieder leer ausgehen** (im Test steigt der
+  Leerstand von 0,00 auf 0,69 Einheiten). Das Losverfahren verlöre seine
+  Effizienz-Eigenschaft.
+* **Flexibilität ist netto pro-sozial:** Geht M0 von 1 → 4 Klassen, sinkt die
+  Feld-Gewinnrate nur **0,581 → 0,570** (−1 Pp, diffus) – weil M0 durch das
+  Parallel-Limit **trotzdem nur eine** Einheit nimmt –, während die **Gesamtauslastung
+  steigt** (9,30 → 9,48 vergeben). Wären alle gleich flexibel, ist es **perfekt fair**
+  (jeder 0,625, 0 Leerstand). Das „Problem“ ist nicht Flexibilität, sondern die
+  **Ungleichheit** flexibel/unflexibel – bei jeder effizienten, präferenz-treuen
+  Vergabe unvermeidlich.
+
+**Entscheidung: keine Klassen-Grenze.** Der Rest-Vorteil wird bereits abgefedert durch
+**Karma** (der unflexible Verlierer sammelt +Faktor über die Jahre, der Gewinner setzt
+bei umkämpftem Gewinn auf 1,0 zurück), das **Wunsch-Budget** (nur die halben
+Jahres-Tage → auch ein Blanket-Mitglied gewinnt nur wenige Wochen/Jahr) und die
+**Belegung** (Klassen unterscheiden sich in der Personenzahl; eine ehrliche kleine
+Partei „passt“ real nur in wenige Klassen, ein zu großer Losgewinn fällt beim Buchen
+unter die „kleiner-buchen“-Regel). Falls die Delegation es politisch dennoch will,
+ließe sich eine **konfigurierbare** Grenze (Default aus) später ergänzen – die
+Simulation zeigt aber, dass sie bei 4 Klassen wenig bewirkt.
+
 ## Tests
 
 Reine Logik (`tests/test_lottery.py`): Duplikate/gleichwertige Wünsche fürs selbe
 Fenster → genau eine Zuteilung; Parallel-Limit abschaltbar/konfigurierbar; nicht
 überlappende Wünsche unberührt; Karma-Farming (überlappender Zweitwunsch) bringt kein
-Karma; ehrlicher Verlust behält Karma; `test_strategieproof_*` grün. Integration
+Karma; ehrlicher Verlust behält Karma; verschiedene Klassen fürs selbe Fenster →
+höhere Trefferchance, aber Ø ≤ 1 Einheit; `test_strategieproof_*` grün. Integration
 (`booking/tests_usecases.py`): `lottery_max_parallel_units` wirkt end-to-end über
 `run_period_lottery` (Default 1 → eine Zuteilung; 0 → mehrere).
