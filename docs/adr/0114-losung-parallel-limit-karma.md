@@ -69,6 +69,19 @@ Log-Feld `karma_counted` macht es nachvollziehbar.
 * **Rückwärtskompatibel abschaltbar:** `lottery_max_parallel_units = 0` stellt das
   frühere Verhalten wieder her; ein höherer Wert erlaubt gezielt mehr (z. B. große
   Anteile).
+* **Wirkt auch über verschiedene Äquivalenzklassen:** Das Limit zählt die je Partei
+  im Lauf zugeteilten Zeiträume **klassenübergreifend**. Wer für dieselbe Woche
+  Wünsche in *verschiedenen* Kategorien listet (z. B. Klasse A **und** Klasse B),
+  gewinnt daher ebenfalls nur **eine** Einheit – der zweite Treffer wird
+  `parallel_skip`t (verifiziert: mit freier Kapazität 1 statt 2 Einheiten). Das ist
+  **kein Widerspruch** zu „mehr Chance durch mehrere Klassen": Solche Wünsche sind
+  echte, gleich-akzeptable **Alternativen** („A *oder* B"), die die Chance auf
+  *irgendeinen* Treffer legitim erhöhen (RSD-Eigenschaft „keine Verschwendung": keine
+  gewollte Einheit bleibt leer), ohne dass jemand **mehrere** Einheiten monopolisiert
+  oder ein zusätzliches Los-Ticket bekäme. Wer sich auf eine Kategorie festlegt, hat
+  für genau diese engere Chancen – Ausdruck der eigenen (schmaleren) Präferenz, keine
+  Benachteiligung. Empirisch bestätigt (Monte-Carlo) und in `tests/test_lottery.py`
+  festgehalten.
 * **Strategiesicherheit gewahrt:** Übersprünge sind terminal und karma-neutral (wie
   Budget-/Saison-Übersprünge). `test_strategieproof_*` bleibt grün.
 * **Grenze:** Ein aussichtsloser Wunsch für einen *nicht* überlappenden Zeitraum, den

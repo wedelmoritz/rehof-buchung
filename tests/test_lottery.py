@@ -575,6 +575,51 @@ def test_parallel_limit_abschaltbar_und_konfigurierbar():
     assert len(two.allocations) == 2
 
 
+def test_parallel_limit_bindet_ueber_verschiedene_klassen():
+    """Auch bei Wünschen für VERSCHIEDENE Äquivalenzklassen derselben Woche gewinnt
+    eine Partei per Default nur EINE Einheit (das Limit zählt über alle Klassen).
+    Ohne Limit (0) könnte sie beide greifen."""
+    parties = [Party("a", "A")]
+    s, e = week(0)
+    # g_salix ∈ Klasse „garten", p_nord ∈ Klasse „pfarr" – beide frei, gleiche Woche.
+    wishes = [Wish("a", 1, "g_salix", s, e), Wish("a", 2, "p_nord", s, e)]
+    one = run_lottery(parties, QUARTERS, wishes, seed=1)          # Default 1
+    assert len(one.allocations) == 1
+    assert any(ev["event"] == "parallel_skip" for ev in one.log)
+    both = run_lottery(parties, QUARTERS, wishes, seed=1, max_parallel_per_party=0)
+    assert len(both.allocations) == 2                             # Limit aus → beide
+
+
+def test_verschiedene_klassen_erhoehen_chance_auf_irgendeinen_treffer():
+    """Ehrliche Flexibilität wirkt: wer zwei verschiedene (gleich-akzeptable) Klassen
+    für dieselbe Woche listet, hat eine höhere Chance auf IRGENDEINEN Treffer als mit
+    nur einer Klasse – gewinnt aber weiterhin höchstens eine Einheit. Das ist gewollt
+    (RSD, keine Verschwendung), kein Trick."""
+    import random
+    # Zwei EINZEL-Einheiten-Klassen (Knappheit macht Flexibilität überhaupt relevant).
+    quarters = [Quarter("QA", "QA", "A"), Quarter("QB", "QB", "B")]
+    parties = [Party("m", "M"), Party("ra", "RA"), Party("rb", "RB")]
+    s, e = week(0)
+    riv = [Wish("ra", 1, "QA", s, e),   # will nur Klasse A
+           Wish("rb", 1, "QB", s, e)]   # will nur Klasse B
+
+    def hit_rate(wishes, focus, n=4000):
+        rng = random.Random(1)
+        hit = units = 0
+        for _ in range(n):
+            res = run_lottery(parties, quarters, wishes, seed=rng.randrange(1, 2**31))
+            got = [a for a in res.allocations if a.party_id == focus]
+            hit += 1 if got else 0
+            units += len(got)
+        return hit / n, units / n
+
+    p_one, _ = hit_rate(riv + [Wish("m", 1, "QA", s, e)], "m")
+    p_two, u_two = hit_rate(
+        riv + [Wish("m", 1, "QA", s, e), Wish("m", 2, "QB", s, e)], "m")
+    assert p_two > p_one + 0.05      # Flexibilität erhöht die Trefferchance …
+    assert u_two <= 1.02             # … aber nie mehr als eine Einheit (Ø ≈ ≤1)
+
+
 def test_parallel_limit_andere_woche_unberuehrt():
     """Nicht überlappende Wünsche sind vom Basis-Limit nicht betroffen."""
     parties = [Party("a", "A")]
