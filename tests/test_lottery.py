@@ -466,11 +466,13 @@ def test_rule_check_nicht_ueberlappend_beide_ok():
 
 
 def test_rule_check_ohne_callback_unveraendert():
-    """Ohne rule_check verhält sich die Losung exakt wie bisher (Regression)."""
+    """Ohne rule_check UND ohne Basis-Parallel-Limit verhält sich die Losung wie
+    früher (Regression des rule_check-Pfads): zwei überlappende Wünsche derselben
+    Partei werden beide zugeteilt. (Das Basis-Limit wird separat getestet.)"""
     parties = [Party("a", "A")]
     s, e = week(0)
     wishes = [Wish("a", 1, "g_salix", s, e), Wish("a", 2, "p_nord", s, e)]
-    res = run_lottery(parties, QUARTERS, wishes, seed=1)
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, max_parallel_per_party=None)
     assert len(res.allocations) == 2             # beide zugeteilt, kein Deckel
 
 
@@ -529,3 +531,90 @@ def test_rule_group_getrennte_anteile_beide_ok():
     res = run_lottery(parties, QUARTERS, wishes, seed=1, rule_check=_max_one_parallel)
     assert len(res.allocations) == 2
     assert res.losses == [] and res.new_factors["a"] == 1.0
+
+
+# --------------------------------------------------------------------------- #
+# Basis-Parallel-Limit PRO PARTEI (Default 1) + Karma-Entschärfung
+# gegen „viele Wünsche für denselben Zeitraum" (ADR 0114)
+# --------------------------------------------------------------------------- #
+
+def test_parallel_limit_default_verhindert_zwei_einheiten_gleiche_woche():
+    """Eine Partei, die zwei gleichwertige Einheiten DERSELBEN Woche wünscht, gewinnt
+    per Default nur EINE (max_parallel_per_party=1) – der zweite Wunsch wird terminal
+    übersprungen (kein Verlust, kein Karma)."""
+    parties = [Party("a", "A")]
+    s, e = week(0)
+    wishes = [Wish("a", 1, "g_salix", s, e), Wish("a", 2, "g_lup", s, e)]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1)
+    assert len(res.allocations) == 1
+    assert any(ev["event"] == "parallel_skip" for ev in res.log)
+    assert res.losses == []                          # kein echter Verlust
+    assert res.new_factors["a"] == 1.0               # kein Karma
+
+
+def test_parallel_limit_duplikate_erhoehen_chance_nicht():
+    """Viele Duplikate für denselben (Quartier, Zeitraum) ändern nichts: genau EINE
+    Zuteilung, keine zusätzlichen Verluste/Karma."""
+    parties = [Party("a", "A")]
+    s, e = week(0)
+    wishes = [Wish("a", i + 1, "g_salix", s, e) for i in range(5)]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1)
+    assert len(res.allocations) == 1
+    assert res.new_factors["a"] == 1.0
+
+
+def test_parallel_limit_abschaltbar_und_konfigurierbar():
+    """max_parallel_per_party=None hebt den Deckel auf (Alt-Verhalten); ein höherer
+    Wert erlaubt entsprechend mehr gleichzeitige Einheiten."""
+    parties = [Party("a", "A")]
+    s, e = week(0)
+    wishes = [Wish("a", 1, "g_salix", s, e), Wish("a", 2, "g_lup", s, e)]
+    off = run_lottery(parties, QUARTERS, wishes, seed=1, max_parallel_per_party=None)
+    assert len(off.allocations) == 2
+    two = run_lottery(parties, QUARTERS, wishes, seed=1, max_parallel_per_party=2)
+    assert len(two.allocations) == 2
+
+
+def test_parallel_limit_andere_woche_unberuehrt():
+    """Nicht überlappende Wünsche sind vom Basis-Limit nicht betroffen."""
+    parties = [Party("a", "A")]
+    s1, e1 = week(0)
+    s2, e2 = week(14)
+    wishes = [Wish("a", 1, "g_salix", s1, e1), Wish("a", 2, "g_lup", s2, e2)]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1)
+    assert len(res.allocations) == 2
+
+
+def test_kein_karma_farming_durch_aussichtslosen_zweitwunsch():
+    """Hat die Partei die Woche schon gewonnen, bringt ein aussichtsloser zweiter
+    Wunsch fürs selbe (überlappende) Fenster KEIN Karma – der Verlust in der voll
+    belegten Solitär-Klasse zählt nicht fürs Karma. (Parallel-Limit AUS, damit der
+    Zweitwunsch bewusst den Verlust-Pfad erreicht und die Entschärfung greift.)"""
+    parties = [Party("a", "A"), Party("r", "R")]
+    s, e = week(0)
+    wishes = [
+        Wish("r", 1, "hof", s, e),       # r belegt den Solitär (1 Einheit)
+        Wish("a", 1, "g_salix", s, e),   # a gewinnt hier seine Woche
+        Wish("a", 2, "hof", s, e),       # aussichtslos (Solitär voll) + überlappt
+    ]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, order=["r", "a"],
+                      max_parallel_per_party=None)
+    assert any(al.party_id == "a" and al.quarter_id == "g_salix"
+               for al in res.allocations)
+    assert any(l.party_id == "a" for l in res.losses)          # Verlust ist da …
+    loss = next(e for e in res.log
+                if e["event"] == "loss" and e["party"] == "a")
+    assert loss["karma_counted"] is False                      # … zählt nicht fürs Karma
+    assert res.new_factors["a"] == 1.0                          # KEIN Karma-Bonus
+
+
+def test_echter_verlust_ohne_zuteilung_gibt_weiter_karma():
+    """Ein echter Verlust OHNE überlappende Zuteilung zählt weiterhin fürs Karma
+    (die Entschärfung trifft nur das Farming, nicht ehrliche Verlierer)."""
+    parties = [Party("a", "A"), Party("r", "R")]
+    s, e = week(0)
+    # Beide wollen den Solitär (1 Einheit); r gewinnt, a verliert echt.
+    wishes = [Wish("r", 1, "hof", s, e), Wish("a", 1, "hof", s, e)]
+    res = run_lottery(parties, QUARTERS, wishes, seed=1, order=["r", "a"])
+    assert any(l.party_id == "a" for l in res.losses)
+    assert res.new_factors["a"] > 1.0                # Karma-Bonus bleibt

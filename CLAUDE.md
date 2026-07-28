@@ -171,7 +171,9 @@ Zustimmung sofort ausgeführt, ADR 0077; **abschaltbar je Mitglied** über
 (Regelwerk-Singleton mit `SeasonRule`/`SchoolHoliday` als Inlines; zusätzlich
 `min_lead_days`/`allow_gap_fill`/`group_min_persons`/`winter_guideline_nights`/
 `max_weekends_per_year`/`allow_undersized_units`/`max_wishes_per_period`
-(0 = unbegrenzt, optionale Wunsch-Obergrenze je Periode, ADR 0078),
+(0 = unbegrenzt, optionale Wunsch-Obergrenze je Periode, ADR 0078)/
+`lottery_max_parallel_units` (Losung: max. gleichzeitige Einheiten je Mitglied,
+Default 1, 0 = unbegrenzt, ADR 0114),
 ADR 0075/0076), `SeasonRule`,
 `SchoolHoliday`, `FairnessSimConfig` (Singleton: Parameter + letztes Ergebnis
 des Fairness-Nachweises). (`BookingWindow` wurde in `BookingPeriod` aufgelöst.)
@@ -851,6 +853,21 @@ Abfragen/Texte/Exportzeilen in `services.py` (`arrivals_in_range`,
   bei Änderungen am Algorithmus muss dieser Test grün bleiben. Die Losung lässt
   sich über `BookingPeriod.draw_at` terminieren; das Kommando
   `run_due_lotteries` (per Cron) führt fällige Losungen automatisch aus.
+- **Basis-Parallel-Limit je Mitglied (ADR 0114):** In der Losung gewinnt EIN
+  Mitglied pro überlappender Nacht höchstens `BookingPolicy.lottery_max_parallel_units`
+  Einheiten (**Default 1**, `0` = unbegrenzt) – reine Logik über den Parameter
+  `run_lottery(..., max_parallel_per_party=…)`, ein Überschuss-Wunsch wird **terminal
+  übersprungen** (`parallel_skip`, kein Verlust/Karma). Damit sind **mehrere Wünsche
+  fürs selbe Fenster reine Ausweich-Alternativen (nur EINE gewinnt)**: die Gewinn*chance*
+  steigt NICHT (das Los-Ticket gibt es je Partei, nicht je Wunsch; empirisch belegt),
+  und niemand kann mehrere gleichwertige Einheiten derselben Woche **monopolisieren**.
+  Gilt **pro Mitglied/Login** (Tandem = zwei Konten → je eine Einheit) und ergänzt die
+  per-Anteil wirkende Saison-Regel `max_parallel_units` (ADR 0009; strengere gewinnt).
+  Der Service reicht den Policy-Wert konsistent in Losung, **Chancen-Prognose** und
+  **Verifikations-Wiederholung**. **Karma-Entschärfung:** ein echter Verlust zählt nur
+  fürs Karma, wenn das Mitglied im überlappenden Zeitraum **nicht** ohnehin schon eine
+  Zuteilung hat (Log-Feld `karma_counted`) – schließt Karma-Farming durch aussichtslose
+  Zweitwünsche fürs selbe Fenster.
 - **Verifizierbarkeit (Commit-Reveal, ADR 0062):** Der Seed ist nicht
   manipulierbar. Beim Öffnen der Wünsche legt `services.ensure_seed_commit` einen
   CSPRNG-Seed fest und veröffentlicht **nur dessen SHA-256-Prüfsumme**

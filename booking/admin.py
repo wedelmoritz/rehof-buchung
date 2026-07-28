@@ -1252,9 +1252,14 @@ class BookingPolicyAdmin(admin.ModelAdmin):
                 "und auf der Wunschliste, keine Sperre."),
         }),
         ("Wunsch-Losung", {
-            "fields": ("max_wishes_per_period", "wish_reminder_lead1",
-                       "wish_reminder_lead2"),
+            "fields": ("lottery_max_parallel_units", "max_wishes_per_period",
+                       "wish_reminder_lead1", "wish_reminder_lead2"),
             "description": (
+                "<b>Max. gleichzeitige Einheiten je Mitglied</b>: wie viele überlappende "
+                "Unterkünfte ein Mitglied aus EINER Losung höchstens gewinnt "
+                "(Standard 1 – mehrere Wünsche fürs selbe Fenster sind dann reine "
+                "Ausweich-Alternativen; verhindert Monopolisierung, ohne die Chance zu "
+                "erhöhen; 0 = unbegrenzt; gilt pro Login, ADR 0114). "
                 "<b>Max. Wünsche je Periode</b>: optionale Obergrenze (0 = unbegrenzt, "
                 "damit Rückfall-Wünsche möglich bleiben). <b>Wunsch-Erinnerungen</b>: "
                 "so viele Tage vor dem Einreiche-Schluss (Losdatum) werden Mitglieder "
