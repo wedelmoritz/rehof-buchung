@@ -290,11 +290,17 @@
         Ein zu kurzer Wunsch lässt sich gar nicht erst eintragen – so kann ein Losgewinn nie an den
         Mindestnächten scheitern.</li>
       <li><strong>Erst in der Auslosung</strong> wirken das <strong>Parallel-Limit</strong>
-        {% if p.parallel_limit %}(höchstens {{ p.parallel_limit }} gleichzeitige Wohneinheiten){% endif %}
+        {% if p.parallel_limit %}(höchstens {{ p.parallel_limit }} gleichzeitige Wohneinheiten je Anteil){% endif %}
         und der <strong>Aufenthaltsdeckel über mehrere Buchungen</strong> – sie betreffen das
         Zusammenspiel mehrerer Buchungen und lassen sich am einzelnen Wunsch nicht prüfen. Würde ein
         Wunsch die Grenze deines Anteils überschreiten, wird er <strong>übersprungen</strong>: kein
         Verlust, kein Karma, und dein Zug geht sofort zum nächsten Wunsch.</li>
+      <li><strong>Nicht an zwei Orten zugleich:</strong> Aus <em>einer</em> Losung bekommst du
+        {% if p.lottery_parallel_per_member and p.lottery_parallel_per_member != 1 %}höchstens {{ p.lottery_parallel_per_member }} gleichzeitige Unterkünfte{% else %}pro Zeitfenster <strong>höchstens eine</strong> Unterkunft{% endif %}.
+        Trägst du für <em>denselben</em> Zeitraum mehrere (gleichwertige) Wünsche ein, sind das
+        <strong>Ausweich-Alternativen</strong> – es gewinnt <strong>nur einer</strong>, die weiteren
+        werden ohne Verlust/Karma übersprungen. Das ist gewollt (siehe unten „Mehrere Wünsche für
+        denselben Zeitraum?“).</li>
       <li><strong>Nur für die Spontanbuchung</strong> (nicht für Wünsche/Losung) gelten:
         <strong>Vorlauf</strong>, <strong>Lückenfüllung</strong>, die <strong>Winter-/Wochenend-Richtwerte</strong>
         und die „kleiner&nbsp;buchen"-Regel. Die Losung vergibt das Folgejahr weit im Voraus – ein
@@ -304,6 +310,36 @@
         Losung gehen höchstens deine <strong>halben Tage</strong> (Wunsch-Budget); der Rest ist
         Rückfall und blockiert niemanden (das Verfahren ist strategiesicher).</li>
     </ul>
+  </details>
+
+  <details class="deep" id="mehrere-wuensche">
+    <summary>Mehrere Wünsche für denselben Zeitraum – bringt das etwas?</summary>
+    <p style="margin-top:0"><strong>Kurz: Es schadet nicht und verschafft dir keinen Vorteil –
+      trag ruhig alles ein, was du wirklich nehmen würdest.</strong> Warum das so ist:</p>
+    <ul class="tight">
+      <li><strong>Dein Los-Platz hängt nicht an der Zahl der Wünsche.</strong> Die Reihenfolge
+        wird <strong>einmal je Person</strong> gezogen (gewichtet mit Karma) – <em>nicht</em> je
+        Wunsch. Zehn Wünsche für dieselbe Woche geben dir also <strong>kein</strong> zusätzliches
+        „Los“. Mehr Wünsche = mehr Tickets gibt es hier bewusst nicht.</li>
+      <li><strong>Ausweichen ist schon eingebaut.</strong> Wünschst du dir eine Unterkunft und sie
+        ist belegt, weicht die Losung <strong>automatisch</strong> auf eine gleichwertige freie aus.
+        Einen zweiten Wunsch für die gleichwertige Nachbar-Unterkunft <em>derselben</em> Woche
+        brauchst du dafür nicht – die Chance ist mit einem Wunsch schon dieselbe.</li>
+      <li><strong>Gewinnen kann pro Zeitfenster nur einer.</strong> Aus einer Losung bekommst du
+        {% if p.lottery_parallel_per_member and p.lottery_parallel_per_member != 1 %}höchstens {{ p.lottery_parallel_per_member }} Unterkünfte gleichzeitig{% else %}<strong>eine</strong> Unterkunft je Zeitfenster{% endif %}
+        – man kann nicht an zwei Orten zugleich sein. Mehrere Wünsche fürs selbe Fenster sind damit
+        <strong>Alternativen</strong> („am liebsten A, sonst B, sonst C“): Es gewinnt der oberste
+        freie, die anderen werden <strong>ohne Verlust und ohne Karma-Nachteil</strong> übersprungen.</li>
+      <li><strong>Fair für alle.</strong> Genau deshalb kann niemand durch „Zuspammen“ mehrere
+        gleichwertige Unterkünfte derselben Woche an sich ziehen und anderen wegnehmen. Dein Vorteil
+        bleibt gleich, der Nachteil für die Gemeinschaft ist ausgeschlossen.</li>
+    </ul>
+    <p class="muted" style="margin-bottom:0"><strong>Was hilft dann wirklich?</strong> Nicht mehr
+      Wünsche <em>für dieselbe</em> Zeit, sondern <strong>echte Alternativen</strong>: eine andere
+      Woche, ein anderes gleichwertiges Quartier oder eine weniger gefragte Zeit. Das erhöht deine
+      Chance auf <em>irgendeinen</em> Treffer – und ist genau das, wozu die
+      <a href="#losung">Entzerrungsphase</a> dich einlädt. Ehrlich deine echten Wünsche angeben ist
+      immer die beste Strategie (das Verfahren ist <strong>strategiesicher</strong>).</p>
   </details>
 
   <details class="deep">

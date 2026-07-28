@@ -505,6 +505,8 @@ def booking_policy_summary() -> dict:
         "guideline_basis": p.guideline_basis,
         "guideline_per_share": p.guideline_basis == BookingPolicy.BASIS_SHARE,
         "max_wishes": p.max_wishes_per_period,
+        # Basis-Parallel-Limit je Mitglied in der Losung (ADR 0114); 0 = unbegrenzt.
+        "lottery_parallel_per_member": p.lottery_max_parallel_units,
         "season_min_nights": season_min,
         "season_min_names": season_min_names,
         "parallel_limit": parallel,
